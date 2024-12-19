@@ -1,0 +1,150 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.js"></script>
+        <script src="https://unpkg.com/htmx.org@2.0.2"
+                integrity="sha384-Y7hw+L/jvKeWIRRkqWYfPcvVxHzVzn5REgzbawhxAuQGwX1XWe70vji+VSeHOThJ"
+                crossorigin="anonymous"></script>
+        <script src="https://unpkg.com/htmx.org/dist/ext/ws.js"></script>
+        <script defer
+                src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+        <script>htmx.logAll()</script>
+        <link href="{% static 'css/main.css' %}" rel="stylesheet" />
+        {# favicon #}
+        <link rel="shortcut icon"
+              href="{% static 'favicon.ico' %}"
+              type="image/x-icon" />
+        <title>
+            {% block title %}
+            ODK Publish
+            {% endblock title %}
+        </title>
+        {% block extra-css %}
+        {% endblock extra-css %}
+    </head>
+    <body class="bg-primary-light">
+        <header class="antialiased">
+            <nav class="bg-white border-gray-200 px-4 lg:px-6 py-2.5 dark:bg-gray-800">
+                <div class="flex flex-wrap justify-between items-center">
+                    <div class="flex justify-start items-center">
+                        <a href="{% url 'document_embeddings' %}" class="flex mr-4">
+                            <span class="self-center text-2xl font-semibold whitespace-nowrap dark:text-white">ODK Publish</span>
+                        </a>
+                    </div>
+                    <div class="hidden w-full md:block md:w-auto" id="navbar-default">
+                        <ul class="font-medium flex flex-col p-4 md:p-0 mt-4 border border-gray-100 rounded-lg bg-gray-50 md:flex-row md:space-x-8 rtl:space-x-reverse md:mt-0 md:border-0 md:bg-white dark:bg-gray-800 md:dark:bg-gray-900 dark:border-gray-700">
+                            <li>
+                                <a href="{% url 'document_home' %}"
+                                   class="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0 dark:text-white md:dark:hover:text-blue-500 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent">Home</a>
+                            </li>
+                            <li>
+                                <a href="{% url 'document_embeddings' %}"
+                                   class="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0 dark:text-white md:dark:hover:text-blue-500 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent">Search</a>
+                            </li>
+                            <li>
+                                <a href="{% url 'chat' %}"
+                                   class="block py-2 px-3 text-gray-900 rounded hover:bg-gray-100 md:hover:bg-transparent md:border-0 md:hover:text-blue-700 md:p-0 dark:text-white md:dark:hover:text-blue-500 dark:hover:bg-gray-700 dark:hover:text-white md:dark:hover:bg-transparent">Chat</a>
+                            </li>
+                        </ul>
+                    </div>
+                    {% if request.user.is_authenticated %}
+                        <div class="flex items-center lg:order-2">
+                            <a href="{% url 'add_document' %}">
+                                <button type="button"
+                                        class="btn btn-primary hidden sm:inline-flex items-center justify-center text-xs ">
+                                    <svg aria-hidden="true"
+                                         class="mr-1 -ml-1 w-5 h-5"
+                                         fill="currentColor"
+                                         viewBox="0 0 20 20"
+                                         xmlns="http://www.w3.org/2000/svg">
+                                        <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd">
+                                        </path>
+                                    </svg>
+                                    Add Document
+                                </button>
+                            </a>
+                            <button type="button"
+                                    class="flex mx-3 text-sm bg-gray-800 rounded-full md:mr-0 focus:ring-4 focus:ring-gray-300 dark:focus:ring-gray-600"
+                                    id="user-menu-button"
+                                    aria-expanded="false"
+                                    data-dropdown-toggle="dropdown">
+                                <span class="sr-only">Open user menu</span>
+                                <div class="relative inline-flex items-center justify-center w-10 h-10 overflow-hidden bg-gray-100 rounded-full dark:bg-gray-600">
+                                    <span class="font-medium text-gray-600 dark:text-gray-300">{{ request.user.first_name|first }}{{ request.user.last_name|first }}</span>
+                                </div>
+                            </button>
+                            <!-- Dropdown menu -->
+                            <div class="hidden z-50 my-4 w-56 text-base list-none bg-white rounded divide-y divide-gray-100 shadow dark:bg-gray-700 dark:divide-gray-600"
+                                 id="dropdown">
+                                <div class="py-3 px-4">
+                                    <span class="block text-sm font-semibold text-gray-900 dark:text-white">{{ request.user.first_name }} {{ request.user.last_name }}</span>
+                                    <span class="block text-sm text-gray-500 truncate dark:text-gray-400">{{ request.user.email }}</span>
+                                </div>
+                                <ul class="py-1 text-gray-500 dark:text-gray-400"
+                                    aria-labelledby="dropdown">
+                                    <li>
+                                        <a href="{% url 'socialaccount_connections' %}"
+                                           class="block py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-400 dark:hover:text-white">Account settings</a>
+                                    </li>
+                                    {% if request.user.is_superuser %}
+                                        <li>
+                                            <a href="{% url 'admin:index' %}"
+                                               class="block py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-400 dark:hover:text-white">Admin</a>
+                                        </li>
+                                    {% endif %}
+                                </ul>
+                                <ul class="py-1 text-gray-500 dark:text-gray-400"
+                                    aria-labelledby="dropdown">
+                                    <li>
+                                        <a href="{% url 'account_logout' %}"
+                                           class="block py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">Sign out</a>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+            </nav>
+        </header>
+        <div class="{% if request.path == '/' %} mt-8 {% elif request.path != '/accounts/login/' %} w-full top-[25px] p-4{% endif %} mb-20">
+            <div class="mx-auto max-w-screen-xl px-4 lg:px-12" id="messages">
+                {% for message in messages %}
+                    {% if message.tags == 'info' or message.tags == 'success' %}
+                        <div class="p-4 mb-4 text-sm text-blue-800 rounded-lg bg-brand-accent-light dark:bg-gray-800 dark:text-blue-400"
+                             role="alert">{{ message }}</div>
+                    {% else %}
+                        <div class="p-4 mb-4 text-sm text-brand-danger-medium rounded-lg bg-brand-danger-light dark:bg-gray-800 dark:text-brand-danger-light"
+                             role="alert">{{ message }}</div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% block content %}
+            {% endblock content %}
+        </div>
+        <script>
+            document.body.addEventListener('htmx:configRequest', (event) => {
+                event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
+            })
+            document.body.addEventListener("htmx:afterSwap", () => {
+                window.initDropdowns();
+                window.initModals();
+                window.Flowbite.initDatepickers();
+            })
+
+            document.body.addEventListener("showAlertMessage", (e) => {
+                let messages = document.querySelector("#messages")
+                let successTypes = ["info", "success"];
+                let successAlert = "text-blue-800 bg-blue-200 dark:text-blue-400";
+                let errorAlert = "text-red-800 bg-red-200 dark:text-red-400";
+                let msgColor = successTypes.includes(e.detail.type) ? successAlert : errorAlert;
+                let message = `
+                <div class="p-4 mb-4 text-sm rounded-lg dark:bg-gray-800 ${msgColor}" role="alert">${e.detail.message}</div>
+                `
+                messages.insertAdjacentHTML("beforeend", message)
+            })
+        </script>
+    </body>
+</html>

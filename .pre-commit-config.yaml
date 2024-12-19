@@ -1,0 +1,50 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+  - repo: local
+    hooks:
+      - id: missing-migrations
+        name: "Missing migrations"
+        entry: python manage.py makemigrations --check --settings=config.settings.test
+        language: system
+        pass_filenames: false
+        types: ["file", "python"]
+  - repo: https://github.com/psf/black
+    rev: 24.4.2
+    hooks:
+      - id: black
+        language_version: python3
+        args: ["--preview"]
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile", "black", "--filter-files"]
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: "v2.7.1"
+    hooks:
+      - id: prettier
+        types_or: [css, javascript, yaml, markdown]
+  - repo: https://github.com/Riverside-Healthcare/djLint
+    rev: v1.35.2
+    hooks:
+      - id: djlint-reformat-django
+      - id: djlint-django
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        exclude: "^(deployment/|deploy)"
+      - id: check-added-large-files
+      - id: check-json
+        exclude: .devcontainer/devcontainer.json|.vscode/launch.json
+      - id: check-docstring-first
+      - id: check-merge-conflict
+      - id: debug-statements
+      - id: detect-private-key

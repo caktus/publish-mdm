@@ -1,0 +1,13 @@
+-c ../base/base.txt
+
+black
+boto3
+django-browser-reload
+django-debug-toolbar
+django-watchfiles
+djlint
+pre-commit
+pytest
+pytest-cov
+pytest-django
+pytest-mock

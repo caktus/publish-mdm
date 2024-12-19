@@ -1,0 +1,25 @@
+*/__pycache__/*
+*.bak
+*.dump
+*.pgdump
+*.pyc
+*.sqlite3
+*.db
+.coverage
+.direnv
+.envrc
+.google
+# Media/static
+main.css
+public/
+media/
+# -------------------------------
+node_modules/
+deploy/roles
+venv/
+.idea/
+.python-version
+.vscode
+.vscode/settings.json
+*.ipynb_checkpoints
+client_secret*.json

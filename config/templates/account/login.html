@@ -1,0 +1,107 @@
+{% extends "account/base_entrance.html" %}
+{% load i18n %}
+{% load allauth account %}
+{% block head_title %}
+    {% trans "Sign In" %}
+{% endblock head_title %}
+{% block content %}
+    <section class="bg-primary-light dark:bg-gray-900">
+        <div class="max-w-screen-xl px-4 py-8 mx-auto lg:grid lg:gap-20 lg:py-16 lg:grid-cols-12">
+            <div class="flex-col justify-between hidden col-span-6 mr-auto lg:flex xl:mb-0">
+                <div>
+                    <a href="#"
+                       class="inline-flex items-center mb-6 text-2xl font-semibold text-gray-900 lg:mb-10 dark:text-white">
+                        ODK Publish
+                    </a>
+                    <div class="flex">
+                        <svg class="w-5 h-5 mr-2 text-primary-600 shrink-0"
+                             fill="currentColor"
+                             viewBox="0 0 20 20"
+                             xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd">
+                            </path>
+                        </svg>
+                        <div>
+                            <h3 class="mb-2 text-xl font-bold leading-none text-gray-900 dark:text-white">Get started quickly</h3>
+                            <p class="mb-2 font-light text-gray-500 dark:text-gray-400">Import your own content and documents</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-6 text-center lg:hidden">
+                <a href="#"
+                   class="inline-flex items-center text-2xl font-semibold text-gray-900 lg:hidden dark:text-white">
+                   ODK Publish
+                </a>
+            </div>
+            <div class="w-full col-span-6 mx-auto bg-white rounded-lg shadow dark:bg-gray-800 md:mt-0 sm:max-w-lg xl:p-0">
+                <div class="p-6 space-y-4 lg:space-y-6 sm:p-8">
+                    <h1 class="text-xl font-bold leading-tight tracking-tight text-gray-900 sm:text-2xl dark:text-white">Get started</h1>
+                    <div class="items-center space-y-3 sm:space-x-4 sm:space-y-0 sm:flex">
+                        {% if SOCIALACCOUNT_ENABLED %}
+                            {% include "socialaccount/snippets/login.html" with page_layout="entrance" %}
+                        {% endif %}
+                    </div>
+                    {% if not SOCIALACCOUNT_ONLY %}
+                        <div class="flex items-center">
+                            <div class="w-full h-0.5 bg-gray-200 dark:bg-gray-700"></div>
+                            <div class="px-5 text-center text-gray-500 dark:text-gray-400">or</div>
+                            <div class="w-full h-0.5 bg-gray-200 dark:bg-gray-700"></div>
+                        </div>
+                    {% endif %}
+                    {# djlint:off #}
+                            {% if not SOCIALACCOUNT_ONLY %}
+                            {% setvar link %}
+                                <a href="{{ signup_url }}">
+                                {% endsetvar %}
+                                {% setvar end_link %}
+                                </a>
+                            {% endsetvar %}
+                            {% element p %}
+                                {% blocktranslate %}If you have not created an account yet, then please {{ link }}sign up{{ end_link }} first.{% endblocktranslate %}
+                            {% endelement %}
+                            {% url 'account_login' as login_url %}
+                            {% element form form=form method="post" action=login_url tags="entrance,login" %}
+                                {% slot body %}
+                                    {% csrf_token %}
+                                    {% element fields form=form unlabeled=True %}
+                                    asdf
+                                    {% endelement %}
+                                    {{ redirect_field }}
+                                {% endslot %}
+                                {% slot actions %}
+                                    {% element button type="submit" tags="prominent,login" %}
+                                        {% trans "Sign In" %}
+                                    {% endelement %}
+                                {% endslot %}
+                            {% endelement %}
+                        {% endif %}
+                        {% if LOGIN_BY_CODE_ENABLED or PASSKEY_LOGIN_ENABLED %}
+                            {% element hr %}
+                            {% endelement %}
+                            {% element button_group vertical=True %}
+                                {% if PASSKEY_LOGIN_ENABLED %}
+                                    {% element button type="submit" form="mfa_login" id="passkey_login" tags="prominent,login,outline,primary" %}
+                                        {% trans "Sign in with a passkey" %}
+                                    {% endelement %}
+                                {% endif %}
+                                {% if LOGIN_BY_CODE_ENABLED %}
+                                    {% element button href=request_login_code_url tags="prominent,login,outline,primary" %}
+                                        {% trans "Mail me a sign-in code" %}
+                                    {% endelement %}
+                                {% endif %}
+                            {% endelement %}
+                        {% endif %}
+
+                    {# djlint:on #}
+                </div>
+            </div>
+        </div>
+    </section>
+{% endblock content %}
+{% block extra_body %}
+    {{ block.super }}
+    {% if PASSKEY_LOGIN_ENABLED %}
+        {% include "mfa/webauthn/snippets/login_script.html" with button_id="passkey_login" %}
+    {% endif %}
+{% endblock extra_body %}

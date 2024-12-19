@@ -1,0 +1,47 @@
+[tool.black]
+line-length = 100
+target_version = [ 'py311' ]
+exclude = '''
+/(
+  \.git
+  | conf
+  | env
+  | virtualenv
+)/
+'''
+
+[tool.coverage.paths]
+source = ["apps"]
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.coverage.run]
+branch = true
+omit = [
+  "apps/*/migrations/*",
+]
+
+[tool.isort]
+py_version = 311
+profile = "black"
+multi_line_output = 3
+include_trailing_comma = true
+use_parentheses = true
+line_length = 100
+lines_between_types = 1
+src_paths = [ "apps", "tests", "config" ]
+known_first_party = [ "apps", "config" ]
+
+[tool.djlint]
+# https://www.djlint.com/docs/linter/
+# H030 - Consider adding a meta description.
+# H031 - Consider adding meta keywords.
+ignore="H030,H031"
+profile = "django"
+custom_blocks="switch"
+
+[tool.pytest.ini_options]
+addopts = "--ds=config.settings.test --cov=apps --cov-report=html"
+testpaths = [ "tests" ]
+pythonpath = [ "." ]
