@@ -27,7 +27,8 @@
                             {% block table.tbody.row %}
                                 <tr {{ row.attrs.as_html }}>
                                     {% for column, cell in row.items %}
-                                        <td class="px-4 py-2 border-b border-gray-400" {{ column.attrs.td.as_html }}>
+                                        <td class="px-4 py-2 border-b border-gray-400"
+                                            {{ column.attrs.td.as_html }}>
                                             {% if column.localize == None %}
                                                 {{ cell }}
                                             {% else %}

@@ -2,10 +2,12 @@
 {% load i18n l10n django_tables2 %}
 {% block table.thead %}
     {% if table.show_header %}
-        <thead class="text-xs text-white uppercase bg-brand-primary-dark dark:bg-gray-700 dark:text-gray-400" {{ table.attrs.thead.as_html }}>
+        <thead class="text-xs text-white uppercase bg-brand-primary-dark dark:bg-gray-700 dark:text-gray-400"
+               {{ table.attrs.thead.as_html }}>
             <tr>
                 {% for column in table.columns %}
-                    <th {{ column.attrs.th.as_html }} {% if table.orderable %} hx-get="{% querystring table.prefixed_order_by_field=column.order_by_alias.next %}" hx-trigger="click" hx-target="#inner-table" hx-swap="outerHTML" hx-push-url="true" hx-indicator=".progress" {% endif %}>
+                    <th {{ column.attrs.th.as_html }}
+                        {% if table.orderable %} hx-get="{% querystring table.prefixed_order_by_field=column.order_by_alias.next %}" hx-trigger="click" hx-target="#inner-table" hx-swap="outerHTML" hx-push-url="true" hx-indicator=".progress" {% endif %}>
                         <span class="px-4 py-3 whitespace-nowrap {% if table.orderable %}hover:font-bold hover:text-gray-400 cursor-pointer{% endif %}">{{ column.header }}</span>
                     </th>
                 {% endfor %}
