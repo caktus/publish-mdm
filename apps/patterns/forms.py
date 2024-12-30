@@ -34,5 +34,7 @@ class PlatformFormMixin(object):
         """Always log form errors for debugging purposes"""
         is_valid = super().is_valid()
         if self.is_bound and not is_valid:
-            logger.debug(f"{self.__class__.__name__} not valid", extra={"errors": self.errors})
+            logger.debug(
+                f"{self.__class__.__name__} not valid", extra={"errors": self.errors}
+            )
         return is_valid

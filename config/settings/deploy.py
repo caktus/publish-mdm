@@ -49,7 +49,9 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = (
 # https://docs.djangoproject.com/en/dev/ref/settings/#secure-hsts-preload
 SECURE_HSTS_PRELOAD = os.getenv("DJANGO_SECURE_HSTS_PRELOAD", "True") == "True"
 # https://docs.djangoproject.com/en/dev/ref/middleware/#x-content-type-options-nosniff
-SECURE_CONTENT_TYPE_NOSNIFF = os.getenv("DJANGO_SECURE_CONTENT_TYPE_NOSNIFF", "True") == "True"
+SECURE_CONTENT_TYPE_NOSNIFF = (
+    os.getenv("DJANGO_SECURE_CONTENT_TYPE_NOSNIFF", "True") == "True"
+)
 # https://docs.djangoproject.com/en/3.2/ref/settings/#secure-referrer-policy
 SECURE_REFERRER_POLICY = os.getenv("SECURE_REFERRER_POLICY", "same-origin")
 

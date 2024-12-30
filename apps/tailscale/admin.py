@@ -16,7 +16,15 @@ class DeviceSnapshotAdmin(admin.ModelAdmin):
         "synced_at",
     )
     list_filter = ("os", "user", "client_version", "synced_at", "tailnet")
-    search_fields = ("name", "hostname", "user", "os", "client_version", "tags", "tailnet")
+    search_fields = (
+        "name",
+        "hostname",
+        "user",
+        "os",
+        "client_version",
+        "tags",
+        "tailnet",
+    )
     date_hierarchy = "synced_at"
     ordering = ("-synced_at",)
     readonly_fields = (

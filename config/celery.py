@@ -25,7 +25,9 @@ app.steps["worker"].add(DjangoStructLogInitStep)
 
 
 @setup_logging.connect
-def receiver_setup_logging(loglevel, logfile, format, colorize, **kwargs):  # pragma: no cover
+def receiver_setup_logging(
+    loglevel, logfile, format, colorize, **kwargs
+):  # pragma: no cover
     logging.config.dictConfig(settings.LOGGING)
     structlog.configure(
         processors=[

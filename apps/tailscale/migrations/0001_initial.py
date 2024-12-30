@@ -6,7 +6,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = []
@@ -18,7 +17,10 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.BigAutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 (
@@ -55,21 +57,27 @@ class Migration(migrations.Migration):
                 (
                     "hostname",
                     models.CharField(
-                        help_text="The machine name in the admin console.", max_length=255
+                        help_text="The machine name in the admin console.",
+                        max_length=255,
                     ),
                 ),
                 (
                     "last_seen",
-                    models.DateTimeField(help_text="When device was last active on the tailnet."),
+                    models.DateTimeField(
+                        help_text="When device was last active on the tailnet."
+                    ),
                 ),
                 (
                     "name",
-                    models.CharField(help_text="The MagicDNS name of the device.", max_length=255),
+                    models.CharField(
+                        help_text="The MagicDNS name of the device.", max_length=255
+                    ),
                 ),
                 (
                     "node_id",
                     models.CharField(
-                        help_text="The preferred identifier for a device.", max_length=128
+                        help_text="The preferred identifier for a device.",
+                        max_length=128,
                     ),
                 ),
                 (
@@ -98,7 +106,9 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "user",
-                    models.CharField(help_text="The user who registered the node.", max_length=64),
+                    models.CharField(
+                        help_text="The user who registered the node.", max_length=64
+                    ),
                 ),
                 (
                     "tailnet",
@@ -114,13 +124,19 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "synced_at",
-                    models.DateTimeField(help_text="When the device snapshot was synced."),
+                    models.DateTimeField(
+                        help_text="When the device snapshot was synced."
+                    ),
                 ),
             ],
             options={
                 "indexes": [
-                    models.Index(fields=["synced_at"], name="tailscale_d_synced__3ffe10_idx"),
-                    models.Index(fields=["tailnet"], name="tailscale_d_tailnet_47011f_idx"),
+                    models.Index(
+                        fields=["synced_at"], name="tailscale_d_synced__3ffe10_idx"
+                    ),
+                    models.Index(
+                        fields=["tailnet"], name="tailscale_d_tailnet_47011f_idx"
+                    ),
                 ],
             },
         ),
@@ -130,7 +146,10 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.BigAutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 (
@@ -143,11 +162,15 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "name",
-                    models.CharField(help_text="The MagicDNS name of the device.", max_length=255),
+                    models.CharField(
+                        help_text="The MagicDNS name of the device.", max_length=255
+                    ),
                 ),
                 (
                     "last_seen",
-                    models.DateTimeField(help_text="When device was last active on the tailnet."),
+                    models.DateTimeField(
+                        help_text="When device was last active on the tailnet."
+                    ),
                 ),
                 (
                     "tailnet",
@@ -166,7 +189,9 @@ class Migration(migrations.Migration):
             ],
             options={
                 "indexes": [
-                    models.Index(fields=["last_seen"], name="tailscale_d_last_se_d045d1_idx")
+                    models.Index(
+                        fields=["last_seen"], name="tailscale_d_last_se_d045d1_idx"
+                    )
                 ],
             },
         ),

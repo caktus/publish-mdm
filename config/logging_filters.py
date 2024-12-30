@@ -2,7 +2,12 @@ import logging
 
 from django.conf import settings
 
-DEV_FILTERED_EVENTS = ["request_started", "request_finished", "task_started", "task_succeeded"]
+DEV_FILTERED_EVENTS = [
+    "request_started",
+    "request_finished",
+    "task_started",
+    "task_succeeded",
+]
 
 
 class DevelopmentFilter(logging.Filter):

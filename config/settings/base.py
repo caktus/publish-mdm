@@ -198,7 +198,9 @@ MEDIA_LOCATION = os.getenv("MEDIA_LOCATION", f"{ENVIRONMENT}/")
 MEDIA_S3_CUSTOM_DOMAIN = os.getenv("MEDIA_S3_CUSTOM_DOMAIN", "")
 STORAGES = {
     "default": {
-        "BACKEND": os.getenv("DEFAULT_FILE_STORAGE", "django.core.files.storage.FileSystemStorage")
+        "BACKEND": os.getenv(
+            "DEFAULT_FILE_STORAGE", "django.core.files.storage.FileSystemStorage"
+        )
     },
     "staticfiles": {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
@@ -299,7 +301,9 @@ structlog.configure(
     cache_logger_on_first_use=True,
 )
 
-DJANGO_STRUCTLOG_CELERY_ENABLED = os.getenv("DJANGO_STRUCTLOG_CELERY_ENABLED", "True") == "True"
+DJANGO_STRUCTLOG_CELERY_ENABLED = (
+    os.getenv("DJANGO_STRUCTLOG_CELERY_ENABLED", "True") == "True"
+)
 structlog.configure(
     processors=[
         structlog.contextvars.merge_contextvars,
@@ -319,7 +323,9 @@ structlog.configure(
 
 # EMAIL
 # ------------------------------------------------------------------------------
-EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+)
 EMAIL_SUBJECT_PREFIX = "[odk-publish %s] " % ENVIRONMENT.title()
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@caktusgroup.com")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
@@ -342,7 +348,9 @@ EMAIL_PORT = os.getenv("EMAIL_PORT", default_smtp_port)
 # django_ses.SESBackend
 USE_SES_V2 = os.getenv("USE_SES_V2", "True") == "True"
 AWS_SES_REGION_NAME = os.getenv("AWS_SES_REGION_NAME", "us-east-2")
-AWS_SES_REGION_ENDPOINT = os.getenv("AWS_SES_REGION_ENDPOINT", "email.us-east-2.amazonaws.com")
+AWS_SES_REGION_ENDPOINT = os.getenv(
+    "AWS_SES_REGION_ENDPOINT", "email.us-east-2.amazonaws.com"
+)
 # django-email-bandit
 BANDIT_ALLOW_EMAILS = os.getenv("BANDIT_ALLOW_EMAILS", "").split(":")
 if any(BANDIT_ALLOW_EMAILS):
