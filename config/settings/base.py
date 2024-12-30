@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
     # Local
+    "apps.tailscale",
     "apps.patterns",
 ]
 
