@@ -45,3 +45,6 @@ custom_blocks="switch"
 addopts = "--ds=config.settings.test --cov=apps --cov-report=html"
 testpaths = [ "tests" ]
 pythonpath = [ "." ]
+
+[tool.ruff]
+line-length = 100

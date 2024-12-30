@@ -26,18 +26,10 @@ class DeviceSnapshot(models.Model):
     expires = models.DateTimeField(
         null=True, blank=True, help_text="The expiration date of the device's auth key."
     )
-    hostname = models.CharField(
-        max_length=255, help_text="The machine name in the admin console."
-    )
-    last_seen = models.DateTimeField(
-        help_text="When device was last active on the tailnet."
-    )
-    name = models.CharField(
-        max_length=255, help_text="The MagicDNS name of the device."
-    )
-    node_id = models.CharField(
-        max_length=128, help_text="The preferred identifier for a device."
-    )
+    hostname = models.CharField(max_length=255, help_text="The machine name in the admin console.")
+    last_seen = models.DateTimeField(help_text="When device was last active on the tailnet.")
+    name = models.CharField(max_length=255, help_text="The MagicDNS name of the device.")
+    node_id = models.CharField(max_length=128, help_text="The preferred identifier for a device.")
     os = models.CharField(
         verbose_name="operating system",
         max_length=32,
@@ -52,14 +44,10 @@ class DeviceSnapshot(models.Model):
     update_available = models.BooleanField(
         help_text="True if a Tailscale client version upgrade is available."
     )
-    user = models.CharField(
-        max_length=64, help_text="The user who registered the node."
-    )
+    user = models.CharField(max_length=64, help_text="The user who registered the node.")
 
     # Non-API fields
-    tailnet = models.CharField(
-        max_length=255, help_text="The tailnet that the device is on."
-    )
+    tailnet = models.CharField(max_length=255, help_text="The tailnet that the device is on.")
     raw_data = models.JSONField(
         help_text="The full JSON response from the Tailscale API for this device."
     )
@@ -87,15 +75,9 @@ class Device(models.Model):
         help_text="The unique identifier for a device, as returned by the Tailscale API.",
         unique=True,
     )
-    name = models.CharField(
-        max_length=255, help_text="The MagicDNS name of the device."
-    )
-    last_seen = models.DateTimeField(
-        help_text="When device was last active on the tailnet."
-    )
-    tailnet = models.CharField(
-        max_length=255, help_text="The tailnet that the device is on."
-    )
+    name = models.CharField(max_length=255, help_text="The MagicDNS name of the device.")
+    last_seen = models.DateTimeField(help_text="When device was last active on the tailnet.")
+    tailnet = models.CharField(max_length=255, help_text="The tailnet that the device is on.")
     latest_snapshot = models.ForeignKey(
         DeviceSnapshot,
         on_delete=models.CASCADE,
