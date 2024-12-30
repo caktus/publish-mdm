@@ -18,11 +18,12 @@ Including another URLconf
 from django.conf import settings
 from django.contrib import admin
 from django.urls import include, path
+from django.views.generic import TemplateView
 
 urlpatterns = [
     path("accounts/", include("allauth.urls")),
     path("admin/", admin.site.urls),
-    # path(r"", RedirectView.as_view(pattern_name="document_home", permanent=False)),
+    path(r"", TemplateView.as_view(template_name="home.html"), name="home"),
 ]
 
 if settings.DEBUG:

@@ -5,16 +5,16 @@
     {% trans "Sign In" %}
 {% endblock head_title %}
 {% block content %}
-    <section class="bg-primary-light dark:bg-gray-900">
+    <section class="bg-white dark:bg-gray-900">
         <div class="max-w-screen-xl px-4 py-8 mx-auto lg:grid lg:gap-20 lg:py-16 lg:grid-cols-12">
             <div class="flex-col justify-between hidden col-span-6 mr-auto lg:flex xl:mb-0">
                 <div>
                     <a href="#"
-                       class="inline-flex items-center mb-6 text-2xl font-semibold text-gray-900 lg:mb-10 dark:text-white">
+                       class="inline-flex items-center mb-6 text-2xl font-semibold text-primary lg:mb-10 dark:text-white">
                         ODK Publish
                     </a>
-                    <div class="flex">
-                        <svg class="w-5 h-5 mr-2 text-primary-600 shrink-0"
+                    <div class="flex mt-10">
+                        <svg class="w-5 h-5 mr-2 text-green shrink-0"
                              fill="currentColor"
                              viewBox="0 0 20 20"
                              xmlns="http://www.w3.org/2000/svg">
@@ -22,8 +22,23 @@
                             </path>
                         </svg>
                         <div>
-                            <h3 class="mb-2 text-xl font-bold leading-none text-gray-900 dark:text-white">Get started quickly</h3>
+                            <h3 class="mb-2 text-xl font-bold leading-none text-gray-900 dark:text-white">
+                                Get started quickly with Google Sheets
+                            </h3>
                             <p class="mb-2 font-light text-gray-500 dark:text-gray-400">Import your own content and documents</p>
+                        </div>
+                    </div>
+                    <div class="flex mt-4">
+                        <svg class="w-5 h-5 mr-2 text-green shrink-0"
+                             fill="currentColor"
+                             viewBox="0 0 20 20"
+                             xmlns="http://www.w3.org/2000/svg">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd">
+                            </path>
+                        </svg>
+                        <div>
+                            <h3 class="mb-2 text-xl font-bold leading-none text-gray-900 dark:text-white">Connect Tailscale devices</h3>
+                            <p class="mb-2 font-light text-gray-500 dark:text-gray-400">Sync data from your Tailnet</p>
                         </div>
                     </div>
                 </div>
@@ -34,9 +49,9 @@
                     ODK Publish
                 </a>
             </div>
-            <div class="w-full col-span-6 mx-auto bg-white rounded-lg shadow dark:bg-gray-800 md:mt-0 sm:max-w-lg xl:p-0">
+            <div class="w-full col-span-6 mx-auto bg-yellow-100 rounded-lg shadow dark:bg-gray-800 md:mt-0 sm:max-w-lg xl:p-0">
                 <div class="p-6 space-y-4 lg:space-y-6 sm:p-8">
-                    <h1 class="text-xl font-bold leading-tight tracking-tight text-gray-900 sm:text-2xl dark:text-white">Get started</h1>
+                    <h1 class="text-xl font-bold leading-tight tracking-tight text-primary sm:text-2xl dark:text-white">Get started</h1>
                     <div class="items-center space-y-3 sm:space-x-4 sm:space-y-0 sm:flex">
                         {% if SOCIALACCOUNT_ENABLED %}
                             {% include "socialaccount/snippets/login.html" with page_layout="entrance" %}

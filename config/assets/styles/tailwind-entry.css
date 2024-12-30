@@ -1,6 +1,18 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@config "./../../../tailwind.config.js";
+
+/* https://tailwindcss.com/docs/v4-beta */
+/* https://coolors.co/palette/264653-2a9d8f-e9c46a-f4a261-e76f51 */
+@theme {
+  --font-display: "Satoshi", "sans-serif";
+  --color-primary: oklch(37.53% 0.0438 226.2);
+  --color-green: oklch(63.04% 0.1013 183.03);
+  --color-yellow: oklch(83.42% 0.117 87.43);
+  --color-orange: oklch(78.06% 0.1269 57.86);
+  --color-red: oklch(67.83% 0.1559 35.18);
+  --color-error: var(--color-red-500);
+}
 
 @layer components {
   .btn {

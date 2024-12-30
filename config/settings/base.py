@@ -143,7 +143,7 @@ AUTHENTICATION_BACKENDS = [
 ]
 SITE_ID = 1
 ACCOUNT_EMAIL_VERIFICATION = "none"
-LOGIN_REDIRECT_URL = "document_home"
+LOGIN_REDIRECT_URL = "home"
 ACCOUNT_LOGOUT_ON_GET = True
 # https://docs.allauth.org/en/latest/socialaccount/configuration.html
 SOCIALACCOUNT_STORE_TOKENS = True
@@ -165,6 +165,10 @@ SOCIALACCOUNT_PROVIDERS = {
         },
     }
 }
+
+# Google Auth
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 
 
 # Internationalization
