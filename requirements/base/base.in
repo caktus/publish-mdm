@@ -13,8 +13,10 @@ django-storages
 django-structlog[celery]
 django-tables2
 dj-database-url
+gspread
 gunicorn
 PyJWT
+pyodk @ git+https://github.com/getodk/pyodk.git@master
 markdown
 newrelic
 psycopg

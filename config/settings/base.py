@@ -36,7 +36,7 @@ ALLOWED_HOSTS = []
 
 # Application definition
 
-# AUTH_USER_MODEL = "users.User"
+AUTH_USER_MODEL = "users.User"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/accounts/login/"
 
@@ -60,8 +60,10 @@ INSTALLED_APPS = [
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
     # Local
-    "apps.tailscale",
+    "apps.odk_publish",
     "apps.patterns",
+    "apps.tailscale",
+    "apps.users",
 ]
 
 MIDDLEWARE = [
@@ -279,7 +281,7 @@ LOGGING = {
             "level": "INFO",
         },
         # Make sure to replace the following logger's name for yours
-        "django_structlog_demo_project": {
+        "apps": {
             "handlers": ["console"],
             "level": "INFO",
         },
@@ -387,4 +389,6 @@ CELERY_BEAT_SCHEDULER = os.getenv(
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# pyODK
+ODK_CENTRAL_USERNAME = os.getenv("ODK_CENTRAL_USERNAME")
+ODK_CENTRAL_PASSWORD = os.getenv("ODK_CENTRAL_PASSWORD")

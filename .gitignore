@@ -22,4 +22,7 @@ venv/
 .vscode
 .vscode/settings.json
 *.ipynb_checkpoints
+*.ipynb
 client_secret*.json
+__pycache__/
+.pyodk_config.toml

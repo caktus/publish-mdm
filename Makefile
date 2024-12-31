@@ -18,13 +18,8 @@ clean:
 	@find . -name "*.pyc" -exec rm -rf {} \;
 	@find . -name "__pycache__" -delete
 
-run-dev:
-	@echo 'Running local development'
-	docker-compose up -d --remove-orphans
-	npm run dev &
-	python manage.py runserver
-
-run-tests:
-	@echo 'Checking for migrations'
-	python manage.py makemigrations --settings config.settings.test --dry-run | grep 'No changes detected' || (echo 'There are changes which require migrations.' && exit 1)
-	pytest
+reset_app:
+	python manage.py migrate $(name) zero
+	rm apps/$(name)/migrations/00*
+	python manage.py makemigrations $(name)
+	python manage.py migrate

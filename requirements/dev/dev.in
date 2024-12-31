@@ -6,6 +6,7 @@ django-browser-reload
 django-debug-toolbar
 django-watchfiles
 djlint
+jupyterlab
 pre-commit
 pytest
 pytest-cov
