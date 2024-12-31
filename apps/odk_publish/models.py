@@ -46,7 +46,7 @@ class FormTemplate(AbstractBaseModel):
     template_url = models.URLField(max_length=1024)
 
     def __str__(self):
-        return f"{self.title_base} ({self.form_id_base})"
+        return f"{self.form_id_base} ({self.id})"
 
     def download_google_sheet(self, user: User, name: str) -> SimpleUploadedFile:
         """Download the Google Sheet Excel template for this form template."""
@@ -66,7 +66,7 @@ class FormTemplate(AbstractBaseModel):
             version = get_unique_version_by_form_id(
                 client=client, project_id=self.project.project_id, form_id_base=self.form_id_base
             )
-            name = f"{self.form_id_base}-{version}"
+            name = f"{self.form_id_base}-{version}.xlsx"
             file = self.download_google_sheet(user=user, name=name)
             return FormTemplateVersion.objects.create(
                 form_template=self, user=user, file=file, version=version
