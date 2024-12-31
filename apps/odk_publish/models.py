@@ -49,7 +49,7 @@ class FormTemplate(AbstractBaseModel):
         return f"{self.form_id_base} ({self.id})"
 
     def download_google_sheet(self, user: User, name: str) -> SimpleUploadedFile:
-        """Download the Google Sheet Excel template for this form template."""
+        """Download the Google Sheet Excel file for this form template."""
         social_token = user.get_google_social_token()
         if social_token is None:
             raise ValueError("User does not have a Google social token.")
@@ -61,7 +61,15 @@ class FormTemplate(AbstractBaseModel):
         )
 
     def create_next_version(self, user: User) -> "FormTemplateVersion":
-        """Create a new version of the form template."""
+        """Create the next version of this form template.
+
+        Steps to create the next version:
+
+        1. Query the ODK Central server for this `form_id_base` and increment
+           the version number with today's date.
+        2. Download the Google Sheet Excel file for this form template.
+        3. Create a new FormTemplateVersion instance with the downloaded file.
+        """
         with odk_central_client(base_url=self.project.central_server.base_url) as client:
             version = get_unique_version_by_form_id(
                 client=client, project_id=self.project.project_id, form_id_base=self.form_id_base
