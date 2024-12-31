@@ -105,6 +105,8 @@ django-tables2==2.7.4
     # via -r requirements/base/base.in
 django-timezone-field==7.0
     # via django-celery-beat
+et-xmlfile==2.0.0
+    # via openpyxl
 google-auth==2.37.0
     # via
     #   google-auth-oauthlib
@@ -135,6 +137,8 @@ newrelic==10.4.0
     # via -r requirements/base/base.in
 oauthlib==3.2.2
     # via requests-oauthlib
+openpyxl==3.1.5
+    # via -r requirements/base/base.in
 packaging==24.2
     # via gunicorn
 prompt-toolkit==3.0.48

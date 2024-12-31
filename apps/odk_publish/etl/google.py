@@ -35,6 +35,7 @@ def download_user_google_sheet(
     """Download a Google Sheet by URL and return a Django SimpleUploadedFile to use in
     a Django model FileField.
     """
+    logger.info(f"Downloading Google Sheet: {name}")
     gc = gspread_client(token=token, token_secret=token_secret)
     content = export_sheet_by_url(gc=gc, sheet_url=sheet_url)
     return SimpleUploadedFile(

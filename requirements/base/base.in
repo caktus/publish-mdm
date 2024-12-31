@@ -15,6 +15,7 @@ django-tables2
 dj-database-url
 gspread
 gunicorn
+openpyxl
 PyJWT
 pyodk @ git+https://github.com/getodk/pyodk.git@master
 markdown

@@ -5,9 +5,9 @@ from django.db import models
 
 from apps.users.models import User
 
-from .google import download_user_google_sheet
-from .odk.config import odk_central_client
-from .odk.forms import get_unique_version_by_form_id
+from .etl.google import download_user_google_sheet
+from .etl.odk.config import odk_central_client
+from .etl.odk.forms import get_unique_version_by_form_id
 
 
 class AbstractBaseModel(models.Model):
@@ -95,3 +95,6 @@ class FormTemplateVersion(AbstractBaseModel):
                 fields=["form_template", "version"], name="unique_form_template_version"
             ),
         ]
+
+    def __str__(self):
+        return self.file.name
