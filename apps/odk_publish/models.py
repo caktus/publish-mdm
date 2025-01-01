@@ -1,6 +1,7 @@
 from urllib.parse import urlparse
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.validators import RegexValidator
 from django.db import models
 
 from apps.users.models import User
@@ -28,11 +29,35 @@ class CentralServer(AbstractBaseModel):
         return parsed_url.netloc
 
 
+class TemplateVariable(AbstractBaseModel):
+    name = models.CharField(
+        max_length=255,
+        validators=[
+            # https://docs.getodk.org/xlsform/#the-survey-sheet
+            RegexValidator(
+                regex=r"^[A-Za-z_][A-Za-z0-9_]*$",
+                message="Name must start with a letter or underscore and contain no spaces.",
+            )
+        ],
+    )
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["name"], name="unique_template_variable_name"),
+        ]
+
+
 class Project(AbstractBaseModel):
     name = models.CharField(max_length=255)
     project_id = models.PositiveIntegerField(verbose_name="project ID")
     central_server = models.ForeignKey(
         CentralServer, on_delete=models.CASCADE, related_name="projects"
+    )
+    template_variables = models.ManyToManyField(
+        TemplateVariable, related_name="projects", blank=True
     )
 
     def __str__(self):
@@ -98,3 +123,39 @@ class FormTemplateVersion(AbstractBaseModel):
 
     def __str__(self):
         return self.file.name
+
+
+class AppUserTemplateVariable(AbstractBaseModel):
+    app_user = models.ForeignKey(
+        "AppUser", on_delete=models.CASCADE, related_name="app_user_template_variables"
+    )
+    template_variable = models.ForeignKey(
+        TemplateVariable, on_delete=models.CASCADE, related_name="app_users_through"
+    )
+    value = models.CharField(max_length=1024)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["app_user", "template_variable"], name="unique_app_user_template_variable"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.value} ({self.id})"
+
+
+class AppUser(AbstractBaseModel):
+    name = models.CharField(max_length=255)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="app_users")
+    template_variables = models.ManyToManyField(
+        through=AppUserTemplateVariable, to=TemplateVariable, related_name="app_users"
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["project", "name"], name="unique_project_name"),
+        ]
+
+    def __str__(self):
+        return self.name
