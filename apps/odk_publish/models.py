@@ -173,7 +173,7 @@ class AppUser(AbstractBaseModel):
         return self.name
 
     def get_template_variables(self) -> list[template.TemplateVariable]:
-        """Get the template variables and values for this app user."""
+        """Get the project's template variables with this app user's values."""
         variables = self.app_user_template_variables.annotate(
             name=F("template_variable__name")
         ).values("name", "value")
@@ -200,10 +200,10 @@ class AppUserFormTemplate(AbstractBaseModel):
         return f"{self.app_user} - {self.form_template}"
 
     def create_next_version(self, form_template_version: FormTemplateVersion):
-        from .etl.transform import fill_in_survey_template_variables
+        from .etl.transform import render_template_for_app_user
 
-        version_file = fill_in_survey_template_variables(
-            template=self, version=form_template_version
+        version_file = render_template_for_app_user(
+            app_user=self.app_user, template_version=form_template_version
         )
         return AppUserFormVersion.objects.create(
             app_user_form_template=self,

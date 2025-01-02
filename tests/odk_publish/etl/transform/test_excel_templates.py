@@ -4,8 +4,12 @@ import pytest
 from openpyxl import Workbook, load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
-from apps.odk_publish.etl.excel import get_header, get_cell_by_value
-from apps.odk_publish.etl.template import set_template_variables, TemplateVariable
+from apps.odk_publish.etl.excel import get_cell_by_value, get_header
+from apps.odk_publish.etl.template import (
+    TemplateVariable,
+    set_setting_variables,
+    set_survey_template_variables,
+)
 
 
 @pytest.fixture
@@ -53,6 +57,23 @@ class TestTemplate:
             TemplateVariable(name="fruit", value="apple"),
             TemplateVariable(name="color", value="red"),
         ]
-        set_template_variables(sheet=survey_sheet, variables=variables)
+        set_survey_template_variables(sheet=survey_sheet, variables=variables)
         assert survey_sheet["K2"].value == "apple"
         assert survey_sheet["K3"].value == "red"
+
+    def test_set_settings(self, workbook):
+        settings_sheet = workbook["settings"]
+        title_base = "Fruit Survey"
+        form_id_base = "fruit_survey"
+        app_user = "11030"
+        version = "2022-01-01"
+        set_setting_variables(
+            sheet=settings_sheet,
+            title_base=title_base,
+            form_id_base=form_id_base,
+            app_user=app_user,
+            version=version,
+        )
+        assert settings_sheet["A2"].value == f"{title_base} [11030]"
+        assert settings_sheet["B2"].value == f"{form_id_base}_11030"
+        assert settings_sheet["C2"].value == version

@@ -36,5 +36,4 @@ def get_cell_by_value(column_header: Cell, value: str) -> Cell:
         logger.warning(
             "Could not find value in column", column_name=column_header.value, value=value
         )
-
     return target_cell
