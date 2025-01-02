@@ -1,14 +1,19 @@
 from urllib.parse import urlparse
 
+import structlog
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.validators import RegexValidator
 from django.db import models
+from django.db.models import F
 
 from apps.users.models import User
 
+from .etl import template
 from .etl.google import download_user_google_sheet
 from .etl.odk.config import odk_central_client
 from .etl.odk.forms import get_unique_version_by_form_id
+
+logger = structlog.getLogger(__name__)
 
 
 class AbstractBaseModel(models.Model):
@@ -101,9 +106,11 @@ class FormTemplate(AbstractBaseModel):
             )
             name = f"{self.form_id_base}-{version}.xlsx"
             file = self.download_google_sheet(user=user, name=name)
-            return FormTemplateVersion.objects.create(
+            version = FormTemplateVersion.objects.create(
                 form_template=self, user=user, file=file, version=version
             )
+            version.create_app_user_versions()
+            return version
 
 
 class FormTemplateVersion(AbstractBaseModel):
@@ -123,6 +130,11 @@ class FormTemplateVersion(AbstractBaseModel):
 
     def __str__(self):
         return self.file.name
+
+    def create_app_user_versions(self):
+        for app_user_form in AppUserFormTemplate.objects.filter(form_template=self.form_template):
+            logger.info("Creating next AppUserFormVersion", app_user_form=app_user_form)
+            app_user_form.create_next_version(form_template_version=self)
 
 
 class AppUserTemplateVariable(AbstractBaseModel):
@@ -159,3 +171,65 @@ class AppUser(AbstractBaseModel):
 
     def __str__(self):
         return self.name
+
+    def get_template_variables(self) -> list[template.TemplateVariable]:
+        """Get the template variables and values for this app user."""
+        variables = self.app_user_template_variables.annotate(
+            name=F("template_variable__name")
+        ).values("name", "value")
+        return [
+            template.TemplateVariable.model_validate(template_variable)
+            for template_variable in variables
+        ]
+
+
+class AppUserFormTemplate(AbstractBaseModel):
+    app_user = models.ForeignKey(AppUser, on_delete=models.CASCADE, related_name="app_user_forms")
+    form_template = models.ForeignKey(
+        FormTemplate, on_delete=models.CASCADE, related_name="app_users"
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["app_user", "form_template"], name="unique_app_user_form_template"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.app_user} - {self.form_template}"
+
+    def create_next_version(self, form_template_version: FormTemplateVersion):
+        from .etl.transform import fill_in_survey_template_variables
+
+        version_file = fill_in_survey_template_variables(
+            template=self, version=form_template_version
+        )
+        return AppUserFormVersion.objects.create(
+            app_user_form_template=self,
+            form_template_version=form_template_version,
+            file=version_file,
+        )
+
+
+class AppUserFormVersion(AbstractBaseModel):
+    app_user_form_template = models.ForeignKey(
+        AppUserFormTemplate,
+        on_delete=models.CASCADE,
+        related_name="app_user_form_template_versions",
+    )
+    form_template_version = models.ForeignKey(
+        FormTemplateVersion, on_delete=models.CASCADE, related_name="app_user_form_templates"
+    )
+    file = models.FileField(upload_to="form-templates/")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["app_user_form_template", "form_template_version"],
+                name="unique_app_user_form_template_version",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.app_user_form_template} - {self.form_template_version}"

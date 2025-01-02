@@ -1,4 +1,4 @@
-import logging
+import structlog
 
 from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -6,7 +6,7 @@ from google.oauth2.credentials import Credentials
 from gspread import Client, HTTPClient
 from gspread.utils import ExportFormat
 
-logger = logging.getLogger(__name__)
+logger = structlog.getLogger(__name__)
 
 
 def gspread_client(token: str, token_secret: str) -> Client:
@@ -35,7 +35,7 @@ def download_user_google_sheet(
     """Download a Google Sheet by URL and return a Django SimpleUploadedFile to use in
     a Django model FileField.
     """
-    logger.info(f"Downloading Google Sheet: {name}")
+    logger.info("Downloading Google Sheet", name=name)
     gc = gspread_client(token=token, token_secret=token_secret)
     content = export_sheet_by_url(gc=gc, sheet_url=sheet_url)
     return SimpleUploadedFile(

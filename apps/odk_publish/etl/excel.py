@@ -1,14 +1,8 @@
 import structlog
 from openpyxl.cell.cell import Cell
 from openpyxl.worksheet.worksheet import Worksheet
-from pydantic import BaseModel
 
 logger = structlog.getLogger(__name__)
-
-
-class TemplateVariable(BaseModel):
-    name: str
-    value: str | int | float
 
 
 def get_header(sheet: Worksheet, column_name: str) -> Cell:
@@ -44,19 +38,3 @@ def get_cell_by_value(column_header: Cell, value: str) -> Cell:
         )
 
     return target_cell
-
-
-def set_template_variables(sheet: Worksheet, variables: list[TemplateVariable]):
-    """Fill in the template variables on the survey sheet.
-
-    Variables are just `calculate` rows in the survey sheet, so we need to find
-    the variable in the `name` column and then offset to the `calculation`
-    column to fill in the value.
-    """
-    name_header = get_header(sheet=sheet, column_name="name")
-    calculation_column = get_header(sheet=sheet, column_name="calculation").column
-    # Calculate the number of columns over to the calculation column
-    offset = calculation_column - name_header.column
-    for variable in variables:
-        variable_cell = get_cell_by_value(column_header=name_header, value=variable.name)
-        variable_cell.offset(column=offset).value = variable.value

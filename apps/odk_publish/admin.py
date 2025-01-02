@@ -1,3 +1,5 @@
+import structlog
+
 from django.contrib import admin
 from .models import (
     CentralServer,
@@ -5,11 +7,16 @@ from .models import (
     FormTemplate,
     FormTemplateVersion,
     AppUser,
+    AppUserFormTemplate,
+    AppUserFormVersion,
     TemplateVariable,
 )
 from django.contrib import messages
 from django.db.models import QuerySet
 from django.utils.translation import ngettext
+
+
+logger = structlog.getLogger(__name__)
 
 
 @admin.register(CentralServer)
@@ -51,6 +58,7 @@ class FormTemplateAdmin(admin.ModelAdmin):
                 form_template.create_next_version(user=request.user)
                 versions_created += 1
             except Exception as e:
+                logger.exception("Error creating next version", form_template=form_template)
                 self.message_user(
                     request,
                     f"Error creating next version for {form_template}: {e}",
@@ -90,3 +98,17 @@ class AppUserAdmin(admin.ModelAdmin):
     search_fields = ("id", "name")
     ordering = ("name",)
     inlines = (AppUserTemplateVariableInline,)
+
+
+@admin.register(AppUserFormTemplate)
+class AppUserFormAdmin(admin.ModelAdmin):
+    list_display = ("id", "app_user", "form_template", "modified_at")
+    list_filter = ("modified_at",)
+    ordering = ("app_user__name", "form_template__form_id_base")
+
+
+@admin.register(AppUserFormVersion)
+class AppUserFormVersionAdmin(admin.ModelAdmin):
+    list_display = ("id", "app_user_form_template", "form_template_version", "modified_at")
+    list_filter = ("modified_at",)
+    ordering = ("app_user_form_template__app_user__name", "form_template_version__version")
