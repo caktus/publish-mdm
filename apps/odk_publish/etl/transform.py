@@ -4,7 +4,12 @@ import openpyxl
 from django.core.files.uploadedfile import SimpleUploadedFile
 from gspread.utils import ExportFormat
 
-from apps.odk_publish.etl.template import set_setting_variables, set_survey_template_variables
+from apps.odk_publish.etl.template import (
+    build_entity_list_mapping,
+    set_survey_template_variables,
+    update_entity_references,
+    update_setting_variables,
+)
 
 from ..models import AppUser, FormTemplateVersion
 
@@ -18,9 +23,12 @@ def render_template_for_app_user(
     set_survey_template_variables(
         sheet=workbook["survey"], variables=app_user.get_template_variables()
     )
-    # Set the form settings
+    # Update ODK entity references on both the survey and entities sheets
+    entity_list_mapping = build_entity_list_mapping(workbook=workbook, app_user=app_user.name)
+    update_entity_references(workbook=workbook, entity_list_mapping=entity_list_mapping)
+    # Update the form settings
     form_id_base = template_version.form_template.form_id_base
-    set_setting_variables(
+    update_setting_variables(
         sheet=workbook["settings"],
         title_base=template_version.form_template.title_base,
         form_id_base=form_id_base,

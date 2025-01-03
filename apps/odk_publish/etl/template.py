@@ -1,14 +1,17 @@
+import re
 import structlog
+from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 from pydantic import BaseModel
 
-from .excel import get_header, get_cell_by_value
-
+from .excel import find_cells_containing_value, get_column_cell_by_value, get_header
 
 logger = structlog.getLogger(__name__)
 
 
 class TemplateVariable(BaseModel):
+    """A template variable to fill in the survey sheet."""
+
     name: str
     value: str
 
@@ -25,7 +28,7 @@ def set_survey_template_variables(sheet: Worksheet, variables: list[TemplateVari
     # Calculate the number of columns over to the calculation column
     offset = calculation_column - name_header.column
     for variable in variables:
-        variable_cell = get_cell_by_value(column_header=name_header, value=variable.name)
+        variable_cell = get_column_cell_by_value(column_header=name_header, value=variable.name)
         calculation_cell = variable_cell.offset(column=offset)
         logger.debug(
             "Setting variable value",
@@ -36,14 +39,15 @@ def set_survey_template_variables(sheet: Worksheet, variables: list[TemplateVari
         calculation_cell.value = variable.value
 
 
-def set_setting_variables(
+def update_setting_variables(
     sheet: Worksheet, title_base: str, form_id_base: str, app_user: str, version: str
 ):
-    """Adapt the settings sheet to be specific to the app user.
+    """Update the settings sheet to be specific to the app user.
 
     Available settings: https://docs.getodk.org/xlsform/#the-settings-sheet
     """
     # Append [<app_user>] to the form_title
+    # The values are in the 2nd row of the sheet, so we offset by 1 for each settting
     form_title_cell = get_header(sheet=sheet, column_name="form_title").offset(row=1)
     form_title_cell.value = f"{title_base} [{app_user}]"
     logger.debug("Set form_title", cell=form_title_cell.coordinate, value=form_title_cell.value)
@@ -55,3 +59,98 @@ def set_setting_variables(
     version_cell = get_header(sheet=sheet, column_name="version").offset(row=1)
     version_cell.value = version
     logger.debug("Set version", cell=version_cell.coordinate, value=version_cell.value)
+
+
+def discover_entity_lists(workbook: Workbook) -> list[str]:
+    """Discover the entity lists in the survey sheet."""
+    patterns = (
+        # instance('fruits')/root/...
+        re.compile(r"instance\('([\w_]+)'"),
+        # pulldata('fruits', '')...
+        re.compile(r"pulldata\('([\w_]+)'"),
+        # select_one_from_file fruits.csv
+        re.compile(r"([\w_]+).csv$"),
+    )
+    entity_lists = set()
+    # Find entity lists in the `survey` sheet
+    for row in workbook["survey"].iter_rows(min_row=2):
+        for cell in row:
+            if cell.value:
+                for pattern in patterns:
+                    match = pattern.search(cell.value)
+                    if match:
+                        entity_lists.add(match.group(1))
+                        logger.debug(
+                            "Discovered entity list",
+                            entity_list=match.group(1),
+                            cell=cell.coordinate,
+                            sheet="survey",
+                        )
+    # Find entity lists in the `entities` sheet
+    if "entities" in workbook:
+        for row in workbook["entities"].iter_rows(min_row=2, min_col=1, max_col=1):
+            for cell in row:
+                if cell.value:
+                    entity_lists.add(cell.value)
+                    logger.debug(
+                        "Discovered entity list",
+                        entity_list=cell.value,
+                        cell=cell.coordinate,
+                        sheet="entities",
+                    )
+    logger.debug("Discovered entity lists", entity_lists=entity_lists)
+    return entity_lists
+
+
+def build_entity_list_mapping(workbook: Workbook, app_user: str) -> dict[str, str]:
+    """Build a mapping of entity lists to new entity list names."""
+    entity_lists = discover_entity_lists(workbook=workbook)
+    return {entity_list: f"{entity_list}_{app_user}" for entity_list in entity_lists}
+
+
+def update_entity_references(workbook: Workbook, entity_list_mapping: dict[str, str] = None):
+    """Update references to entity lists in the workbook, based on the mapping.
+
+    For example: `filename.csv` -> `filename_11030.csv`
+    """
+    if not entity_list_mapping:
+        entity_list_mapping = {}
+
+    # Update references to entity lists in the `survey`` sheet
+    for entity_list_orig, entity_list_new in entity_list_mapping.items():
+        # Replace references to "filename.csv"
+        for cell in find_cells_containing_value(
+            sheet=workbook["survey"], value=f"{entity_list_orig}.csv"
+        ):
+            cell.value = cell.value.replace(f"{entity_list_orig}.csv", f"{entity_list_new}.csv")
+            logger.debug(
+                "Updated entity list reference",
+                cell=cell.coordinate,
+                value=cell.value,
+                sheet="survey",
+            )
+        # Replace references to the fill in pulldata() (in single quotes, e.g., "'file_name'")
+        for cell in find_cells_containing_value(
+            sheet=workbook["survey"], value=f"'{entity_list_orig}'"
+        ):
+            cell.value = cell.value.replace(f"'{entity_list_orig}'", f"'{entity_list_new}'")
+            logger.debug(
+                "Updated entity list pulldata reference",
+                cell=cell.coordinate,
+                value=cell.value,
+                sheet="survey",
+            )
+
+    # Update references to entity lists in the `entities` sheet
+    if "entities" in workbook:
+        # Skip the header row
+        for row in workbook["entities"].iter_rows(min_row=2):
+            for cell in row:
+                if cell.value in entity_list_mapping:
+                    cell.value = entity_list_mapping[cell.value]
+                    logger.debug(
+                        "Updated entity list reference",
+                        cell=cell.coordinate,
+                        value=cell.value,
+                        sheet="entities",
+                    )
