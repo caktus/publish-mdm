@@ -15,6 +15,27 @@ from .publish import ProjectAppUserAssignment
 logger = structlog.getLogger(__name__)
 
 
+def build_collect_settings(
+    app_user: ProjectAppUserAssignment,
+    base_url: str,
+    project_id: int,
+    project_name_prefix: str,
+    language: str = "en",
+):
+    """Build Collect settings for the given app user."""
+    collect_settings = DEFAULT_COLLECT_SETTINGS.copy()
+
+    # Customize settings
+    url = f"{base_url.rstrip("/")}/key/{app_user.token}/projects/{project_id}"
+    collect_settings["general"]["server_url"] = url
+    collect_settings["general"]["username"] = app_user.displayName
+    collect_settings["general"]["app_language"] = language
+    project_name = f"{project_name_prefix}: {app_user.displayName} ({language})"
+    collect_settings["project"]["name"] = project_name
+
+    return collect_settings
+
+
 def create_app_user_qrcode(
     app_user: ProjectAppUserAssignment,
     base_url: str,
@@ -23,15 +44,15 @@ def create_app_user_qrcode(
     language: str = "en",
 ) -> io.BytesIO:
     """Generate a QR code as a PNG for the given app user."""
-    collect_settings = DEFAULT_COLLECT_SETTINGS.copy()
 
-    # Customize settings
-    url = f"{base_url}key/{app_user.token}/projects/{project_id}"
-    collect_settings["general"]["server_url"] = url
-    collect_settings["general"]["username"] = app_user.displayName
-    collect_settings["general"]["app_language"] = language
-    project_name = f"{project_name_prefix}: {app_user.displayName} ({language})"
-    collect_settings["project"]["name"] = project_name
+    # Build app user settings
+    collect_settings = build_collect_settings(
+        app_user=app_user,
+        base_url=base_url,
+        project_id=project_id,
+        project_name_prefix=project_name_prefix,
+        language=language,
+    )
 
     # Generate QR code with segno
     qr_data = base64.b64encode(zlib.compress(json.dumps(collect_settings).encode("utf-8")))
