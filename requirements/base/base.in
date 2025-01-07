@@ -15,12 +15,15 @@ django-tables2
 dj-database-url
 gspread
 gunicorn
-openpyxl
-PyJWT
-pyodk @ git+https://github.com/getodk/pyodk.git@master
 markdown
 newrelic
+openpyxl
+Pillow
+PyJWT
+# Newer pydantic
+pyodk @ git+https://github.com/getodk/pyodk.git@b09fe11ebb47166c81df5831c4a58e7ffd8f759e
 psycopg
 requests
+segno
 sentry-sdk
 whitenoise

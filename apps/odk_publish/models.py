@@ -10,7 +10,7 @@ from apps.users.models import User
 
 from .etl import template
 from .etl.google import download_user_google_sheet
-from .etl.odk.config import odk_central_client
+from .etl.odk.client import ODKPublishClient
 from .etl.odk.forms import get_unique_version_by_form_id
 
 logger = structlog.getLogger(__name__)
@@ -100,7 +100,7 @@ class FormTemplate(AbstractBaseModel):
         2. Download the Google Sheet Excel file for this form template.
         3. Create a new FormTemplateVersion instance with the downloaded file.
         """
-        with odk_central_client(base_url=self.project.central_server.base_url) as client:
+        with ODKPublishClient.new_client(base_url=self.project.central_server.base_url) as client:
             version = get_unique_version_by_form_id(
                 client=client, project_id=self.project.project_id, form_id_base=self.form_id_base
             )
@@ -160,6 +160,9 @@ class AppUserTemplateVariable(AbstractBaseModel):
 class AppUser(AbstractBaseModel):
     name = models.CharField(max_length=255)
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="app_users")
+    qr_code = models.ImageField(
+        verbose_name="QR Code", upload_to="qr-codes/", blank=True, null=True
+    )
     template_variables = models.ManyToManyField(
         through=AppUserTemplateVariable, to=TemplateVariable, related_name="app_users"
     )
@@ -186,7 +189,7 @@ class AppUser(AbstractBaseModel):
 class AppUserFormTemplate(AbstractBaseModel):
     app_user = models.ForeignKey(AppUser, on_delete=models.CASCADE, related_name="app_user_forms")
     form_template = models.ForeignKey(
-        FormTemplate, on_delete=models.CASCADE, related_name="app_users"
+        FormTemplate, on_delete=models.CASCADE, related_name="app_user_forms"
     )
 
     class Meta:
@@ -198,6 +201,11 @@ class AppUserFormTemplate(AbstractBaseModel):
 
     def __str__(self):
         return f"{self.app_user} - {self.form_template}"
+
+    @property
+    def form_id(self) -> str:
+        """The ODK Central form_id for this AppUserFormTemplate."""
+        return f"{self.form_template.form_id_base}_{self.app_user.name}"
 
     def create_next_version(self, form_template_version: FormTemplateVersion):
         from .etl.transform import render_template_for_app_user

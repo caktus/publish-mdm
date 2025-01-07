@@ -141,6 +141,8 @@ openpyxl==3.1.5
     # via -r requirements/base/base.in
 packaging==24.2
     # via gunicorn
+pillow==11.1.0
+    # via -r requirements/base/base.in
 prompt-toolkit==3.0.48
     # via click-repl
 psycopg==3.2.3
@@ -185,6 +187,8 @@ requests-oauthlib==2.0.0
     # via google-auth-oauthlib
 rsa==4.9
     # via google-auth
+segno==1.6.1
+    # via -r requirements/base/base.in
 sentry-sdk==2.19.2
     # via -r requirements/base/base.in
 service-identity==24.2.0
