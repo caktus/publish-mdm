@@ -318,6 +318,9 @@ requests==2.32.3
     # via
     #   -c requirements/dev/../base/base.txt
     #   jupyterlab-server
+    #   requests-mock
+requests-mock==1.12.1
+    # via -r requirements/dev/dev.in
 rfc3339-validator==0.1.4
     # via
     #   jsonschema

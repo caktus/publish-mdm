@@ -100,7 +100,7 @@ class FormTemplate(AbstractBaseModel):
         2. Download the Google Sheet Excel file for this form template.
         3. Create a new FormTemplateVersion instance with the downloaded file.
         """
-        with ODKPublishClient.new_client(base_url=self.project.central_server.base_url) as client:
+        with ODKPublishClient(base_url=self.project.central_server.base_url) as client:
             version = get_unique_version_by_form_id(
                 client=client, project_id=self.project.project_id, form_id_base=self.form_id_base
             )

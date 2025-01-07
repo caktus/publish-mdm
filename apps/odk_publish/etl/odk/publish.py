@@ -22,13 +22,19 @@ class ProjectAppUserAssignment(ProjectAppUser):
 
 
 class PublishService(bases.Service):
-    """ODK Publish helpers for interacting with ODK Central."""
+    """Custom pyODK service for interacting with ODK Central.
+
+    Key features:
+    - Service retains a reference to the client for easy access to other services.
+    - Instantiates pyODK's ProjectAppUserService and FormAssignmentService for interacting
+      with project app users and form assignments.
+    """
 
     def __init__(self, client: "ODKPublishClient"):
         self.client = client
         self.project_users = ProjectAppUserService(session=self.client.session)
         self.form_assignments = FormAssignmentService(session=self.client.session)
-        logger.info("Initialized ODK Publish service")
+        logger.debug("Initialized ODK Publish service")
 
     def get_app_users(
         self, project_id: int, display_names: list[str] = None

@@ -164,7 +164,7 @@ pydantic-core==2.23.4
     # via pydantic
 pyjwt==2.10.1
     # via -r requirements/base/base.in
-pyodk @ git+https://github.com/getodk/pyodk.git@master
+pyodk @ git+https://github.com/getodk/pyodk.git@b09fe11ebb47166c81df5831c4a58e7ffd8f759e
     # via -r requirements/base/base.in
 pyopenssl==24.3.0
     # via twisted
