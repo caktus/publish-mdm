@@ -23,6 +23,7 @@ from django.views.generic import TemplateView
 urlpatterns = [
     path("accounts/", include("allauth.urls")),
     path("admin/", admin.site.urls),
+    path("odk/", include("apps.odk_publish.urls", namespace="odk_publish")),
     path(r"", TemplateView.as_view(template_name="home.html"), name="home"),
 ]
 

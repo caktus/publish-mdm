@@ -8,43 +8,5 @@ module.exports = {
     "./node_modules/flowbite/**/*.js",
     "./apps/chat/templatetags/chat_tags.py",
   ],
-  theme: {
-    extend: {
-      colors: {
-        primary: {
-          light: "#B9D5DF",
-          100: "#33BBFF",
-          200: "#1FB4FF",
-          300: "#0AADFF",
-          400: "#00A3F5",
-          500: "#0096E0",
-          600: "#0088CC",
-          700: "#007CBA",
-          800: "#006DA3",
-          900: "#005F85",
-          dark: "#363249",
-        },
-        brand: {
-          primary: {
-            light: "#595379",
-            medium: "#413C58",
-            dark: "#264653",
-          },
-          accent: {
-            light: "#E8E7EE", // input bg
-            medium: "#363249", // input border
-          },
-          gray: {
-            light: "rgb(107 114 128)",
-            medium: "rgb(107 114 128)",
-          },
-          danger: {
-            light: "rgb(254 229 229)",
-            medium: "rgb(244 72 77)",
-          },
-        },
-      },
-    },
-  },
   plugins: [require("flowbite/plugin")],
 };

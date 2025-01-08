@@ -2,7 +2,7 @@
 {% load i18n l10n django_tables2 %}
 {% block table.thead %}
     {% if table.show_header %}
-        <thead class="text-xs text-white uppercase bg-brand-primary-dark dark:bg-gray-700 dark:text-gray-400"
+        <thead class="text-xs text-white uppercase bg-primary dark:bg-gray-700 dark:text-gray-400"
                {{ table.attrs.thead.as_html }}>
             <tr>
                 {% for column in table.columns %}

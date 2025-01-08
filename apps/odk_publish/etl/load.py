@@ -33,7 +33,7 @@ def generate_and_save_app_user_collect_qrcodes(project: Project):
     """Generate and save QR codes for all app users in the project."""
     app_users = project.app_users.all()
     logger.info("Generating QR codes", project=project.name, app_users=len(app_users))
-    with ODKPublishClient.new_client(base_url=project.central_server.base_url) as client:
+    with ODKPublishClient(base_url=project.central_server.base_url) as client:
         central_app_users = client.odk_publish.get_app_users(
             project_id=project.project_id,
             display_names=[app_user.name for app_user in app_users],

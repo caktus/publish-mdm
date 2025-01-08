@@ -78,6 +78,7 @@ MIDDLEWARE = [
     "django_htmx.middleware.HtmxMiddleware",
     "django_structlog.middlewares.RequestMiddleware",
     "allauth.account.middleware.AccountMiddleware",
+    "apps.odk_publish.middleware.ODKProjectMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"

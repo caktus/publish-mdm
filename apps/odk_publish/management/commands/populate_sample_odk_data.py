@@ -25,15 +25,21 @@ class Command(BaseCommand):
             if file.is_file():
                 logger.info("Removing file", file=file.name)
                 file.unlink()
-        logger.info("Creating CentralServer...")
+        logger.info("Creating CentralServers...")
         central_server = odk_publish.CentralServer.objects.create(
             base_url="https://odk-central.caktustest.net/"
         )
-        logger.info("Creating Project...")
+        myodkcloud = odk_publish.CentralServer.objects.create(base_url="https://myodkcloud.com/")
+        logger.info("Creating Projects...")
         project = odk_publish.Project.objects.create(
             name="Caktus Test",
             project_id=1,
             central_server=central_server,
+        )
+        odk_publish.Project.objects.create(
+            name="Other Project",
+            project_id=5,
+            central_server=myodkcloud,
         )
         logger.info("Creating TemplateVariable...")
         center_id_var = odk_publish.TemplateVariable.objects.create(name="center_id")

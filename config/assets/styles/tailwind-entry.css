@@ -7,11 +7,19 @@
 @theme {
   --font-display: "Satoshi", "sans-serif";
   --color-primary: oklch(37.53% 0.0438 226.2);
+  --color-primary-100: oklch(97.02% 0.0067 233.64); /* #F1F6F9 */
+  --color-primary-200: oklch(90.96% 0.0211 232.15); /* #D4E4ED */
+  --color-primary-300: oklch(84.85% 0.0357 232.13); /* #B7D2E1 */
+  --color-primary-400: oklch(78.72% 0.0505 232.42); /* #9AC0D5 */
+  --color-primary-500: oklch(72.64% 0.0644 233.46); /* #7EAEC9 */
+  --color-primary-600: oklch(66.28% 0.0791 235.44); /* #619BBD */
+  --color-primary-700: oklch(59.96% 0.0867 236.06); /* #4888AD */
   --color-green: oklch(63.04% 0.1013 183.03);
   --color-yellow: oklch(83.42% 0.117 87.43);
   --color-orange: oklch(78.06% 0.1269 57.86);
   --color-red: oklch(67.83% 0.1559 35.18);
   --color-error: var(--color-red-500);
+  --color-danger-medium: var(--color-red-500);
 }
 
 @layer components {
@@ -19,15 +27,15 @@
     @apply font-medium text-center text-sm px-5 py-2.5 rounded-lg cursor-pointer;
   }
   .btn-primary {
-    @apply text-white bg-brand-primary-dark hover:bg-brand-primary-medium focus:ring-4 focus:outline-none focus:ring-primary-300;
+    @apply text-white bg-primary hover:bg-primary-500 focus:ring-4 focus:outline-none focus:ring-primary-300;
   }
   .btn-danger {
-    @apply text-brand-danger-medium  bg-white rounded-lg border border-brand-danger-medium hover:bg-brand-danger-light hover:text-brand-danger-medium focus:outline-none focus:ring-4 focus:ring-gray-200;
+    @apply text-danger-medium  bg-white rounded-lg border border-danger-medium hover:bg-danger-medium hover:text-danger-medium focus:outline-none focus:ring-4 focus:ring-gray-200;
   }
   .btn-outline {
-    @apply text-brand-primary-dark bg-white border border-blue-900 hover:bg-brand-primary-medium hover:text-white focus:ring-4 focus:outline-none focus:ring-primary-300;
+    @apply text-primary bg-white border border-blue-900 hover:bg-primary-500 hover:text-white focus:ring-4 focus:outline-none focus:ring-primary-300;
   }
   .btn-active {
-    @apply text-white bg-brand-primary-medium border border-blue-900 hover:bg-brand-primary-medium hover:text-white focus:ring-4 focus:outline-none focus:ring-primary-300;
+    @apply text-white bg-primary-500 border border-blue-900 hover:bg-primary-500 hover:text-white focus:ring-4 focus:outline-none focus:ring-primary-300;
   }
 }
