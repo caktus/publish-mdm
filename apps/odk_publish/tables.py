@@ -10,12 +10,12 @@ class FormTemplateTable(tables.Table):
         order_by=("app_user_count", "title_base"),
     )
     latest_version = tables.TemplateColumn(
-        template_code="{{ record.latest_version.0.version }} <span class='text-gray-400'>({{ record.latest_version.0.user.first_name }})</span>",
+        template_code="{{ record.latest_version.0.version }} - {{ record.latest_version.0.user.first_name }}",
         verbose_name="Latest Version",
     )
     publish_next_version = tables.LinkColumn(
-        "odk_publish:form-template-list",
-        args=[tables.A("pk")],
+        "odk_publish:form-template-publish-next-version",
+        args=[tables.A("project_id"), tables.A("pk")],
         text="Publish New Version",
         orderable=False,
         verbose_name="Actions",

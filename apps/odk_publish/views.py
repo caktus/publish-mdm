@@ -1,12 +1,14 @@
 import logging
 
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
 from django.db import models
 from django.http import HttpRequest
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import render, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 
 from .etl.load import generate_and_save_app_user_collect_qrcodes
 from .models import FormTemplateVersion
+from .nav import Breadcrumbs
 from .tables import FormTemplateTable
 
 
@@ -14,15 +16,22 @@ logger = logging.getLogger(__name__)
 
 
 @login_required
-def app_users_list(request: HttpRequest, odk_project_pk):
+def app_user_list(request: HttpRequest, odk_project_pk):
     app_users = request.odk_project.app_users.prefetch_related("app_user_forms__form_template")
-    return render(request, "odk_publish/app_users.html", {"app_users": app_users})
+    context = {
+        "app_users": app_users,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("App Users", "app-user-list")],
+        ),
+    }
+    return render(request, "odk_publish/app_user_list.html", context)
 
 
 @login_required
-def app_users_generate_qr_codes(request: HttpRequest, odk_project_pk):
+def app_user_generate_qr_codes(request: HttpRequest, odk_project_pk):
     generate_and_save_app_user_collect_qrcodes(project=request.odk_project)
-    return redirect("odk_publish:app-users-list", odk_project_pk=odk_project_pk)
+    return redirect("odk_publish:app-user-list", odk_project_pk=odk_project_pk)
 
 
 @login_required
@@ -37,5 +46,20 @@ def form_template_list(request: HttpRequest, odk_project_pk):
         )
     )
     table = FormTemplateTable(data=form_templates, request=request, show_footer=False)
-    context = {"form_templates": form_templates, "table": table}
+    context = {
+        "form_templates": form_templates,
+        "table": table,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("Form Templates", "form-template-list")],
+        ),
+    }
     return render(request, "odk_publish/form_template_list.html", context)
+
+
+@login_required
+def form_template_publish_next_version(request: HttpRequest, odk_project_pk, form_template_id):
+    form_template = get_object_or_404(request.odk_project.form_templates, pk=form_template_id)
+    version = form_template.create_next_version(user=request.user)
+    messages.add_message(request, messages.SUCCESS, f"{version} published.")
+    return redirect("odk_publish:form-template-list", odk_project_pk=odk_project_pk)

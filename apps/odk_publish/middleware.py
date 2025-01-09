@@ -4,6 +4,7 @@ from django.http import HttpRequest
 from django.urls import ResolverMatch
 
 from .models import Project
+from .nav import Breadcrumbs
 
 logger = structlog.getLogger(__name__)
 
@@ -24,6 +25,7 @@ class ODKProjectMiddleware:
         # Set common context for all views
         request.odk_project = None
         request.odk_projects = Project.objects.select_related()
+        request.odk_project_tabs = []
         # Automatically lookup the current project
         resolver_match: ResolverMatch = request.resolver_match
         if (
@@ -34,3 +36,10 @@ class ODKProjectMiddleware:
             project = Project.objects.select_related().filter(pk=odk_project_pk).first()
             logger.debug("odk_project_pk detected", odk_project_pk=odk_project_pk, project=project)
             request.odk_project = project
+            request.tabs = Breadcrumbs.from_items(
+                request=request,
+                items=[
+                    ("Form Templates", "form-template-list"),
+                    ("App Users", "app-user-list"),
+                ],
+            )

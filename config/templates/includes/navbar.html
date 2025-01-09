@@ -35,7 +35,7 @@
                          data-popper-placement="bottom">
                         {% for project in request.odk_projects %}
                             {% if project != request.odk_project %}
-                                <a href="{% url 'odk_publish:app-users-list' project.pk %}"
+                                <a href="{% url 'odk_publish:form-template-list' project.pk %}"
                                    class="flex items-center py-3 px-4 rounded hover:bg-gray-50 dark:hover:bg-gray-600">
                                     <div class="text-left">
                                         <div class="font-semibold leading-none text-gray-900 dark:text-white mb-0.5">{{ project.name }}</div>
@@ -136,15 +136,13 @@
             <div class="px-0 lg:px-6">
                 <div class="flex items-center">
                     <ul class="flex flex-col mt-0 w-full text-sm font-medium md:flex-row">
-                        <li class="block border-b dark:border-gray-700 md:inline md:border-b-0">
-                            <a href="#"
-                               class="block py-3 px-4 border-b-2 text-primary-600 hover:text-primary-600 dark:text-primary-500 dark:border-primary-500 border-primary-600"
-                               aria-current="page">App Users</a>
-                        </li>
-                        <li class="block border-b dark:border-gray-700 md:inline md:border-b-0">
-                            <a href="#"
-                               class="block py-3 px-4 text-gray-500 dark:text-gray-400 hover:text-primary-600 hover:border-b-2 dark:hover:text-primary-500 dark:hover:border-primary-500 hover:border-primary-600">Forms</a>
-                        </li>
+                        {% for tab in request.tabs %}
+                            <li class="block border-b dark:border-gray-700 md:inline md:border-b-0">
+                                <a href="{{ tab.path }}"
+                                   class="block py-3 px-4 hover:text-primary-600 {% if request.path == tab.path %}border-b-2 text-primary-600 dark:text-primary-500 dark:border-primary-500 border-primary-600{% else %} text-gray-500 dark:text-gray-400 hover:border-b-2 dark:hover:text-primary-500 dark:hover:border-primary-500 hover:border-primary-400{% endif %}"
+                                   aria-current="page">{{ tab.label }}</a>
+                            </li>
+                        {% endfor %}
                     </ul>
                 </div>
             </div>
