@@ -4,6 +4,7 @@
 
 /* https://tailwindcss.com/docs/v4-beta */
 /* https://coolors.co/palette/264653-2a9d8f-e9c46a-f4a261-e76f51 */
+/* https://oklch.com/ */
 @theme {
   --font-display: "Satoshi", "sans-serif";
   --color-primary: oklch(37.53% 0.0438 226.2);
@@ -15,6 +16,7 @@
   --color-primary-600: oklch(66.28% 0.0791 235.44); /* #619BBD */
   --color-primary-700: oklch(59.96% 0.0867 236.06); /* #4888AD */
   --color-green: oklch(63.04% 0.1013 183.03);
+  --color-green-100: oklch(97.86% 0.0129 185.1); /* #EFFBF9 */
   --color-yellow: oklch(83.42% 0.117 87.43);
   --color-orange: oklch(78.06% 0.1269 57.86);
   --color-red: oklch(67.83% 0.1559 35.18);

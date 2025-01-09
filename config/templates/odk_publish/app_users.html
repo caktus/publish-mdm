@@ -80,15 +80,13 @@
                 {% for app_user in app_users %}
                     <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                         <div class="h-64 w-full">
-                            <a href="#">
-                                {% if app_user.qr_code %}
-                                    <img class="mx-auto h-full"
-                                         width=""
-                                         height=""
-                                         src="{{ app_user.qr_code.url }}"
-                                         alt="" />
-                                {% endif %}
-                            </a>
+                            {% if app_user.qr_code %}
+                                <img class="mx-auto h-full"
+                                     width=""
+                                     height=""
+                                     src="{{ app_user.qr_code.url }}"
+                                     alt="ODK Collect QR Code for {{ app_user }}" />
+                            {% endif %}
                         </div>
                         <div class="pt-6">
                             <a href="#"

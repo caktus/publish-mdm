@@ -2,7 +2,7 @@ import structlog
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import QuerySet
 
-from ..models import AppUserFormTemplate, FormTemplate, Project
+from ..models import AppUser, AppUserFormTemplate, FormTemplate, Project
 from .odk.client import ODKPublishClient
 from .odk.qrcode import create_app_user_qrcode
 
@@ -31,7 +31,7 @@ def create_or_update_app_users(form_template: FormTemplate):
 
 def generate_and_save_app_user_collect_qrcodes(project: Project):
     """Generate and save QR codes for all app users in the project."""
-    app_users = project.app_users.all()
+    app_users: QuerySet[AppUser] = project.app_users.all()
     logger.info("Generating QR codes", project=project.name, app_users=len(app_users))
     with ODKPublishClient(base_url=project.central_server.base_url) as client:
         central_app_users = client.odk_publish.get_app_users(

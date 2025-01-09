@@ -14,4 +14,9 @@ urlpatterns = [
         views.app_users_generate_qr_codes,
         name="app-users-generate-qr-codes",
     ),
+    path(
+        "<int:odk_project_pk>/form-templates/",
+        views.form_template_list,
+        name="form-template-list",
+    ),
 ]
