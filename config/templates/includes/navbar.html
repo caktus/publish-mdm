@@ -16,9 +16,13 @@
                                 <div class="font-semibold leading-none text-gray-900 dark:text-white mb-0.5">
                                     {{ request.odk_project.name | default:"Select ODK Publish project..." }}
                                 </div>
-                                {% if request.odk_project %}
-                                    <div class="text-xs text-gray-500 dark:text-gray-400">{{ request.odk_project.central_server }}</div>
-                                {% endif %}
+                                <div class="text-xs text-gray-500 dark:text-gray-400">
+                                    {% if request.odk_project %}
+                                        {{ request.odk_project.central_server }}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </div>
                             </div>
                         </div>
                         <svg class="w-3 h-3 text-gray-500 dark:text-gray-400 ml-2"
