@@ -14,11 +14,11 @@ class FormTemplateTable(tables.Table):
         verbose_name="Latest Version",
     )
     publish_next_version = tables.LinkColumn(
-        "odk_publish:form-template-publish-next-version",
+        "odk_publish:form-template-detail",
         args=[tables.A("project_id"), tables.A("pk")],
-        text="Publish New Version",
+        text="View",
         orderable=False,
-        verbose_name="Actions",
+        verbose_name="",
         attrs={"a": {"class": "text-primary-600 hover:underline"}},
     )
 
@@ -26,5 +26,5 @@ class FormTemplateTable(tables.Table):
         model = FormTemplate
         fields = ["title_base", "form_id_base"]
         template_name = "patterns/tables/table.html"
-        attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap "}}
+        attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
         orderable = False

@@ -30,7 +30,14 @@
                              viewBox="0 0 24 24">
                             <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 5 7 7-7 7" />
                         </svg>
-                        <span class="ms-1 text-sm font-medium text-gray-500 dark:text-gray-400 md:ms-2">{{ crumb.label }}</span>
+                        {% if not forloop.last %}
+                            <a href="{{ crumb.path }}"
+                               class="ms-1 md:ms-2 text-sm font-medium text-gray-700 hover:text-primary-600 dark:text-gray-400 dark:hover:text-white">
+                                {{ crumb.label }}
+                            </a>
+                        {% else %}
+                            <span class="ms-1 md:ms-2 text-sm font-medium text-gray-400 dark:text-gray-600">{{ crumb.label }}</span>
+                        {% endif %}
                     </div>
                 </li>
             {% endfor %}

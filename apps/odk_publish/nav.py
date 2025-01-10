@@ -8,7 +8,7 @@ from django.urls import reverse
 class Link(BaseModel):
     label: str
     viewname: str
-    args: list[int | str] = None
+    args: list[int | str] | None = None
     namespace: str = "odk_publish"
 
     def __str__(self):
