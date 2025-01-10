@@ -1,3 +1,4 @@
+import datetime as dt
 from os import PathLike
 from typing import TYPE_CHECKING
 
@@ -28,18 +29,23 @@ class PublishService(bases.Service):
 
     Key features:
     - Service retains a reference to the client for easy access to other services.
+    - Defaults to using the client's project ID if not provided, since most operations
+      construct a new client.
     - Instantiates pyODK's ProjectAppUserService and FormAssignmentService for interacting
       with project app users and form assignments.
     """
 
     def __init__(self, client: "ODKPublishClient"):
         self.client = client
-        self.project_users = ProjectAppUserService(session=self.client.session)
-        self.form_assignments = FormAssignmentService(session=self.client.session)
-        logger.debug("Initialized ODK Publish service")
+        self.project_users = ProjectAppUserService(
+            session=self.client.session, default_project_id=self.client.project_id
+        )
+        self.form_assignments = FormAssignmentService(
+            session=self.client.session, default_project_id=self.client.project_id
+        )
 
     def get_app_users(
-        self, project_id: int, display_names: list[str] = None
+        self, project_id: int | None = None, display_names: list[str] | None = None
     ) -> dict[str, ProjectAppUserAssignment]:
         """Return a mapping of display names to ProjectAppUserAssignments for
         the given project, filtered by display names if provided.
@@ -55,7 +61,7 @@ class PublishService(bases.Service):
         return app_users
 
     def get_or_create_app_users(
-        self, display_names: list[str], project_id: int
+        self, display_names: list[str], project_id: int | None = None
     ) -> dict[str, ProjectAppUserAssignment]:
         """Return users for the given display names, creating them if they don't exist."""
         central_users = self.get_app_users(project_id=project_id)
@@ -77,6 +83,27 @@ class PublishService(bases.Service):
         """Return a mapping of form IDs to Form objects for the given project."""
         forms = self.client.forms.list(project_id=project_id)
         return {form.xmlFormId: form for form in forms}
+
+    def get_unique_version_by_form_id(self, xml_form_id_base: str, project_id: int | None = None):
+        """
+        Generates a new, unique version for the form whose xmlFormId starts with
+        the given xml_form_id_base.
+        """
+        today = dt.datetime.today().strftime("%Y-%m-%d")
+        central_forms = self.get_forms(project_id=project_id)
+        versions = [
+            int(form.version.split("v")[1])
+            for form in central_forms.values()
+            if form.xmlFormId.startswith(xml_form_id_base) and form.version.startswith(today)
+        ]
+        new_version = max(versions) + 1 if versions else 1
+        full_version = f"{today}-v{new_version}"
+        logger.debug(
+            "Generated new form version",
+            xml_form_id_base=xml_form_id_base,
+            version=full_version,
+        )
+        return full_version
 
     def create_or_update_form(
         self,
@@ -122,11 +149,11 @@ class PublishService(bases.Service):
         return form
 
     def assign_app_users_forms(
-        self, app_users: list[ProjectAppUserAssignment], project_id: int
+        self, app_users: list[ProjectAppUserAssignment], project_id: int | None = None
     ) -> None:
         """Assign forms to app users."""
         for app_user in app_users:
-            for xml_form_id in app_user.form_ids:
+            for xml_form_id in app_user.xml_form_ids:
                 try:
                     self.form_assignments.assign(
                         role_id=APP_USER_ROLE_ID,

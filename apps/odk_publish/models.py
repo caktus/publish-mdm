@@ -11,7 +11,6 @@ from apps.users.models import User
 from .etl import template
 from .etl.google import download_user_google_sheet
 from .etl.odk.client import ODKPublishClient
-from .etl.odk.forms import get_unique_version_by_form_id
 
 logger = structlog.getLogger(__name__)
 
@@ -103,8 +102,8 @@ class FormTemplate(AbstractBaseModel):
         with ODKPublishClient(
             base_url=self.project.central_server.base_url, project_id=self.project.project_id
         ) as client:
-            version = get_unique_version_by_form_id(
-                client=client, project_id=self.project.project_id, form_id_base=self.form_id_base
+            version = client.odk_publish.get_unique_version_by_form_id(
+                xml_form_id_base=self.form_id_base
             )
             name = f"{self.form_id_base}-{version}.xlsx"
             file = self.download_google_sheet(user=user, name=name)

@@ -21,3 +21,14 @@ class TestNewClient:
         stub_config_path.unlink(missing_ok=True)
         ODKPublishClient(base_url="https://central")
         assert stub_config_path.exists()
+
+    def test_check_unset_client_project_id(self):
+        assert ODKPublishClient(base_url="https://central").project_id is None
+
+    def test_set_client_project_id(self):
+        client = ODKPublishClient(base_url="https://central", project_id=1)
+        assert client.project_id == 1
+        assert client.projects.default_project_id == 1
+        assert client.forms.default_project_id == 1
+        assert client.odk_publish.project_users.default_project_id == 1
+        assert client.odk_publish.form_assignments.default_project_id == 1

@@ -1,3 +1,4 @@
+import structlog
 from pathlib import Path
 
 from django.conf import settings
@@ -5,6 +6,9 @@ from pyodk._utils import config
 from pyodk.client import Client, Session
 
 from .publish import PublishService
+
+
+logger = structlog.getLogger(__name__)
 
 CONFIG_TOML = """
 [central]
@@ -31,9 +35,9 @@ class ODKPublishClient(Client):
             api_version="v1",
             username=settings.ODK_CENTRAL_USERNAME,
             password=settings.ODK_CENTRAL_PASSWORD,
-            cache_path=None,
+            cache_path="",
         )
-        super().__init__(config_path=config_path, session=session, project_id=project_id)
+        super().__init__(config_path=str(config_path), session=session, project_id=project_id)
         # Update the stub config with the environment-provided authentication
         # details
         self.config: config.Config = config.objectify_config(
@@ -48,6 +52,7 @@ class ODKPublishClient(Client):
         # Create a ODK Publish service for this client, which provides
         # additional functionality for interacting with ODK Central
         self.odk_publish: PublishService = PublishService(client=self)
+        logger.debug("Initialized ODK Publish client", project_id=project_id, base_url=base_url)
 
     def __enter__(self) -> "ODKPublishClient":
-        return self.open()
+        return super().__enter__()  # type: ignore
