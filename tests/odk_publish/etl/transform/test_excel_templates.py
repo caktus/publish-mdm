@@ -62,8 +62,8 @@ class TestTemplate:
             TemplateVariable(name="color", value="red"),
         ]
         set_survey_template_variables(sheet=survey_sheet, variables=variables)
-        assert survey_sheet["K2"].value == "apple"
-        assert survey_sheet["K3"].value == "red"
+        assert survey_sheet["K2"].value == '"apple"'
+        assert survey_sheet["K3"].value == '"red"'
 
     def test_set_settings(self, workbook):
         """Test updating the settings sheet."""

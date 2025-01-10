@@ -2,7 +2,7 @@ import re
 import structlog
 from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from .excel import find_cells_containing_value, get_column_cell_by_value, get_header
 
@@ -14,6 +14,14 @@ class TemplateVariable(BaseModel):
 
     name: str
     value: str
+
+    @field_validator("value")
+    @classmethod
+    def quote_value(cls, value: str) -> str:
+        """XForm expressions must be quoted. Otherwise, an error is raised like:
+        Invalid calculate for the bind / null in expression
+        """
+        return f'"{value}"'
 
 
 def set_survey_template_variables(sheet: Worksheet, variables: list[TemplateVariable]):
