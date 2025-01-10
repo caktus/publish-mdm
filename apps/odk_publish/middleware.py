@@ -12,7 +12,8 @@ logger = structlog.getLogger(__name__)
 class ODKProjectMiddleware:
     """Middleware to lookup the current ODK project based on the URL.
 
-    The `odk_project` and `odk_projects` attributes are added to the request object.
+    The `odk_project`, `odk_project_tabs` and `odk_projects` attributes are
+    added to the request object.
     """
 
     def __init__(self, get_response):
@@ -24,8 +25,8 @@ class ODKProjectMiddleware:
     def process_view(self, request: HttpRequest, view_func, view_args, view_kwargs):
         # Set common context for all views
         request.odk_project = None
-        request.odk_projects = Project.objects.select_related()
         request.odk_project_tabs = []
+        request.odk_projects = Project.objects.select_related()
         # Automatically lookup the current project
         resolver_match: ResolverMatch = request.resolver_match
         if (
@@ -36,7 +37,7 @@ class ODKProjectMiddleware:
             project = Project.objects.select_related().filter(pk=odk_project_pk).first()
             logger.debug("odk_project_pk detected", odk_project_pk=odk_project_pk, project=project)
             request.odk_project = project
-            request.tabs = Breadcrumbs.from_items(
+            request.odk_project_tabs = Breadcrumbs.from_items(
                 request=request,
                 items=[
                     ("Form Templates", "form-template-list"),
