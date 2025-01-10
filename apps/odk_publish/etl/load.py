@@ -33,9 +33,10 @@ def generate_and_save_app_user_collect_qrcodes(project: Project):
     """Generate and save QR codes for all app users in the project."""
     app_users: QuerySet[AppUser] = project.app_users.all()
     logger.info("Generating QR codes", project=project.name, app_users=len(app_users))
-    with ODKPublishClient(base_url=project.central_server.base_url) as client:
+    with ODKPublishClient(
+        base_url=project.central_server.base_url, project_id=project.project_id
+    ) as client:
         central_app_users = client.odk_publish.get_app_users(
-            project_id=project.project_id,
             display_names=[app_user.name for app_user in app_users],
         )
         logger.info("Got central app users", central_app_users=len(central_app_users))
@@ -43,11 +44,10 @@ def generate_and_save_app_user_collect_qrcodes(project: Project):
             logger.info("Generating QR code", app_user=app_user.name)
             image = create_app_user_qrcode(
                 app_user=central_app_users[app_user.name],
-                base_url=project.central_server.base_url,
+                base_url=client.session.base_url,
                 project_id=project.project_id,
                 project_name_prefix=project.name,
             )
             app_user.qr_code.save(
                 f"{app_user.name}.png", SimpleUploadedFile("qrcode.png", image.getvalue())
             )
-            # app_user.save()

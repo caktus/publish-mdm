@@ -35,7 +35,7 @@ class ODKPublishClient(Client):
             api_version="v1",
             username=settings.ODK_CENTRAL_USERNAME,
             password=settings.ODK_CENTRAL_PASSWORD,
-            cache_path="",
+            cache_path=None,
         )
         super().__init__(config_path=str(config_path), session=session, project_id=project_id)
         # Update the stub config with the environment-provided authentication
