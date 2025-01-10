@@ -19,6 +19,7 @@ class FormTemplateTable(tables.Table):
         text="Publish New Version",
         orderable=False,
         verbose_name="Actions",
+        attrs={"a": {"class": "text-primary-600 hover:underline"}},
     )
 
     class Meta:

@@ -22,7 +22,7 @@ def create_or_update_app_users(form_template: FormTemplate):
         )
         # Link form assignments to app users locally
         for app_user_form in app_user_forms:
-            app_users[app_user_form.app_user.name].form_ids.append(app_user_form.form_id)
+            app_users[app_user_form.app_user.name].xml_form_ids.append(app_user_form.xml_form_id)
         # Create or update the form assignments on the server
         client.odk_publish.assign_forms(
             app_users=app_users.values(), project_id=form_template.project.project_id

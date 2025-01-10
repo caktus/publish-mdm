@@ -100,7 +100,9 @@ class FormTemplate(AbstractBaseModel):
         2. Download the Google Sheet Excel file for this form template.
         3. Create a new FormTemplateVersion instance with the downloaded file.
         """
-        with ODKPublishClient(base_url=self.project.central_server.base_url) as client:
+        with ODKPublishClient(
+            base_url=self.project.central_server.base_url, project_id=self.project.project_id
+        ) as client:
             version = get_unique_version_by_form_id(
                 client=client, project_id=self.project.project_id, form_id_base=self.form_id_base
             )
@@ -109,7 +111,12 @@ class FormTemplate(AbstractBaseModel):
             version = FormTemplateVersion.objects.create(
                 form_template=self, user=user, file=file, version=version
             )
-            version.create_app_user_versions()
+            app_user_versions = version.create_app_user_versions()
+            for app_user_version in app_user_versions:
+                client.odk_publish.create_or_update_form(
+                    xml_form_id=app_user_version.app_user_form_template.xml_form_id,
+                    definition=app_user_version.file.read(),
+                )
             return version
 
 
@@ -131,10 +138,12 @@ class FormTemplateVersion(AbstractBaseModel):
     def __str__(self):
         return self.file.name
 
-    def create_app_user_versions(self):
+    def create_app_user_versions(self) -> list["AppUserFormVersion"]:
+        app_user_versions = []
         for app_user_form in AppUserFormTemplate.objects.filter(form_template=self.form_template):
             logger.info("Creating next AppUserFormVersion", app_user_form=app_user_form)
-            app_user_form.create_next_version(form_template_version=self)
+            app_user_versions.append(app_user_form.create_next_version(form_template_version=self))
+        return app_user_versions
 
 
 class AppUserTemplateVariable(AbstractBaseModel):
@@ -203,8 +212,8 @@ class AppUserFormTemplate(AbstractBaseModel):
         return f"{self.app_user} - {self.form_template}"
 
     @property
-    def form_id(self) -> str:
-        """The ODK Central form_id for this AppUserFormTemplate."""
+    def xml_form_id(self) -> str:
+        """The ODK Central xmlFormId for this AppUserFormTemplate."""
         return f"{self.form_template.form_id_base}_{self.app_user.name}"
 
     def create_next_version(self, form_template_version: FormTemplateVersion):

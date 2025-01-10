@@ -2,12 +2,12 @@ import logging
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db import models
+from django.db import models, transaction
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404, redirect, render
 
 from .etl.load import generate_and_save_app_user_collect_qrcodes
-from .models import FormTemplateVersion
+from .models import FormTemplateVersion, FormTemplate
 from .nav import Breadcrumbs
 from .tables import FormTemplateTable
 
@@ -58,8 +58,11 @@ def form_template_list(request: HttpRequest, odk_project_pk):
 
 
 @login_required
+@transaction.atomic
 def form_template_publish_next_version(request: HttpRequest, odk_project_pk, form_template_id):
-    form_template = get_object_or_404(request.odk_project.form_templates, pk=form_template_id)
+    form_template: FormTemplate = get_object_or_404(
+        request.odk_project.form_templates, pk=form_template_id
+    )
     version = form_template.create_next_version(user=request.user)
     messages.add_message(request, messages.SUCCESS, f"{version} published.")
     return redirect("odk_publish:form-template-list", odk_project_pk=odk_project_pk)

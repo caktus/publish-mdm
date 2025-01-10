@@ -18,7 +18,7 @@ default_project_id = 999
 class ODKPublishClient(Client):
     """Extended pyODK Client for interacting with ODK Central."""
 
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str, project_id: int | None = None):
         """Create an ODK Central-configured client without a config file."""
         # Create stub config file if it doesn't exist, so that pyodk doesn't complain
         config_path = Path("/tmp/.pyodk_config.toml")
@@ -33,7 +33,7 @@ class ODKPublishClient(Client):
             password=settings.ODK_CENTRAL_PASSWORD,
             cache_path=None,
         )
-        super().__init__(config_path=config_path, session=session)
+        super().__init__(config_path=config_path, session=session, project_id=project_id)
         # Update the stub config with the environment-provided authentication
         # details
         self.config: config.Config = config.objectify_config(
@@ -48,3 +48,6 @@ class ODKPublishClient(Client):
         # Create a ODK Publish service for this client, which provides
         # additional functionality for interacting with ODK Central
         self.odk_publish: PublishService = PublishService(client=self)
+
+    def __enter__(self) -> "ODKPublishClient":
+        return self.open()
