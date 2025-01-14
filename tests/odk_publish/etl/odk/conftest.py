@@ -2,8 +2,10 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def disable_client_auth(mocker, settings):
+def disable_client_auth(mocker, monkeypatch):
     # Never attempt to authenticate with ODK Central
     mocker.patch("pyodk._utils.session.Auth.login")
-    settings.ODK_CENTRAL_USERNAME = "username"
-    settings.ODK_CENTRAL_PASSWORD = "password"
+    monkeypatch.setenv(
+        "ODK_CENTRAL_CREDENTIALS",
+        "base_url=https://central;username=username;password=password",
+    )
