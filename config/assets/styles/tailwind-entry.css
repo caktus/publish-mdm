@@ -35,3 +35,10 @@
     @apply border-primary-400 bg-gradient-to-r from-primary-100 via-primary-200 to-primary-200 dark:bg-none;
   }
 }
+
+.htmx-request .loading,
+.htmx-request.loading,
+.htmx-request .spinner,
+.htmx-request.spinner {
+  display: inline;
+}

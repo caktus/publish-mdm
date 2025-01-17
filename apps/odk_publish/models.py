@@ -32,6 +32,10 @@ class CentralServer(AbstractBaseModel):
         parsed_url = urlparse(self.base_url)
         return parsed_url.netloc
 
+    def save(self, *args, **kwargs):
+        self.base_url = self.base_url.rstrip("/")
+        super().save(*args, **kwargs)
+
 
 class TemplateVariable(AbstractBaseModel):
     name = models.CharField(
@@ -167,12 +171,15 @@ class AppUserTemplateVariable(AbstractBaseModel):
 
 class AppUser(AbstractBaseModel):
     name = models.CharField(max_length=255)
+    app_user_id = models.PositiveIntegerField(
+        verbose_name="app user ID", help_text="The internal ID of this app user in ODK Central."
+    )
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="app_users")
     qr_code = models.ImageField(
         verbose_name="QR Code", upload_to="qr-codes/", blank=True, null=True
     )
     template_variables = models.ManyToManyField(
-        through=AppUserTemplateVariable, to=TemplateVariable, related_name="app_users"
+        through=AppUserTemplateVariable, to=TemplateVariable, related_name="app_users", blank=True
     )
 
     class Meta:

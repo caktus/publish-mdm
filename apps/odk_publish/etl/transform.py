@@ -1,4 +1,5 @@
 import io
+from collections import defaultdict
 
 import openpyxl
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -44,3 +45,15 @@ def render_template_for_app_user(
         content=buffer.read(),
         content_type=ExportFormat.EXCEL,
     )
+
+
+def group_by_common_prefixes(strings) -> dict[str, list[str]]:
+    """Return strings grouped by their common prefixes. For example,
+    staff_registration_10000 and staff_registration_10001 would be grouped under
+    staff_registration.
+    """
+    prefixes = defaultdict(list)
+    for string in strings:
+        parts = string.rsplit("_", 1)
+        prefixes[parts[0]].append(string)
+    return prefixes

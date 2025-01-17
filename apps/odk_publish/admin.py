@@ -23,6 +23,7 @@ logger = structlog.getLogger(__name__)
 class CentralServerAdmin(admin.ModelAdmin):
     list_display = ("base_url", "created_at", "modified_at")
     search_fields = ("base_url",)
+    ordering = ("base_url",)
 
 
 @admin.register(TemplateVariable)

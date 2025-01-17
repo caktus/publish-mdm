@@ -1,17 +1,4 @@
 {% extends "base.html" %}
-{% block extra-css %}
-    <style>
-    .spinner {
-        display:none;
-    }
-    .htmx-request .spinner {
-        display:inline;
-    }
-    .htmx-request.spinner {
-        display:inline;
-    }
-    </style>
-{% endblock extra-css %}
 {% block content %}
     <div class="grid gap-4 pr-4 mb-4 sm:mb-5 sm:grid-cols-3 sm:gap-6 md:gap-12">
         <!-- Column -->
@@ -46,7 +33,7 @@
                     Publish
                     <svg aria-hidden="true"
                          role="status"
-                         class="spinner inline-flex items-center w-4.5 h-4.5 ml-1.5 -mr-1 -mt-0.5 me-3 text-gray-200 animate-spin dark:text-gray-600"
+                         class="spinner hidden items-center w-4.5 h-4.5 ml-1.5 -mr-1 -mt-0.5 me-3 text-gray-200 animate-spin dark:text-gray-600"
                          viewBox="0 0 100 101"
                          fill="none"
                          xmlns="http://www.w3.org/2000/svg">

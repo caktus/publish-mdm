@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load partials %}
+{% block extra-css %}
+    <style>
+    .htmx-request .loading {
+        display:inline;
+    }
+    .htmx-request.loading {
+        display:inline;
+    }
+    </style>
+{% endblock extra-css %}
+{% block content %}
+    <p class="mb-4">Use this form to sync a Project from an ODK Central server to ODK Publish.</p>
+    <form method="post" class="max-w-2xl">
+        {% csrf_token %}
+        <div class="grid gap-4 sm:grid-cols-1 sm:gap-6">
+            <div id="id_form_container">
+                {{ form.server.label_tag }}
+                {{ form.server }}
+                {{ form.server.errors }}
+            </div>
+            <div id="id_project_container">
+                {# djlint:off #}
+                {% partialdef project-select-partial inline %}
+                    <div class="flex flex-row items-center">
+                        <label for="{{ form.project.id_for_label }}" class="block mb-2 font-medium text-gray-900 dark:text-white">
+                            {{ form.project.label|title }}:
+                            {% if form.project.field.required %}<span class="text-red">*</span>{% endif %}
+                        </label>
+                        <div class="loading hidden ml-3 mb-2 px-3 py-1 text-xs font-medium leading-none text-center text-primary-700 bg-primary-200 rounded-full animate-pulse dark:bg-blue-900 dark:text-blue-200">loading...</div>
+                    </div>
+                    {{ form.project }}
+                    {{ form.project.errors }}
+                {% endpartialdef project-select-partial %}
+                {# djlint:on #}
+            </div>
+            <div class="flex items-center space-x-4">
+                <button type="submit" class="btn btn-outline btn-primary">Sync project</button>
+                <a type="button" class="btn btn-outline" href="{% url 'home' %}">Cancel</a>
+            </div>
+        </div>
+    </form>
+{% endblock content %}

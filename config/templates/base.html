@@ -1,4 +1,4 @@
-{% load static %}
+{% load static django_htmx %}
 <!DOCTYPE html>
 <html lang="en">
     <head>
@@ -114,5 +114,6 @@
 
             });
         </script>
+        {% django_htmx_script %}
     </body>
 </html>

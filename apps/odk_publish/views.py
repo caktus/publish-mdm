@@ -7,13 +7,42 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
-from .etl.load import generate_and_save_app_user_collect_qrcodes
+from .etl.load import generate_and_save_app_user_collect_qrcodes, sync_central_project
+from .forms import ProjectSyncForm
 from .models import FormTemplateVersion, FormTemplate
 from .nav import Breadcrumbs
 from .tables import FormTemplateTable
 
 
 logger = logging.getLogger(__name__)
+
+
+@login_required
+@transaction.atomic
+def server_sync(request: HttpRequest):
+    form = ProjectSyncForm(request=request, data=request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        sync_central_project(
+            base_url=form.cleaned_data["server"], project_id=form.cleaned_data["project"]
+        )
+        messages.add_message(request, messages.SUCCESS, "Project synced.")
+        return redirect(
+            "odk_publish:form-template-list", odk_project_pk=form.cleaned_data["project"]
+        )
+    context = {
+        "form": form,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("Sync Project", "sync-project")],
+        ),
+    }
+    return render(request, "odk_publish/project_sync.html", context)
+
+
+@login_required
+def server_sync_projects(request: HttpRequest):
+    form = ProjectSyncForm(request=request, data=request.GET or None)
+    return render(request, "odk_publish/project_sync.html#project-select-partial", {"form": form})
 
 
 @login_required

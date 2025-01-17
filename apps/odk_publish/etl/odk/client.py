@@ -103,5 +103,5 @@ class ODKPublishClient(Client):
             if server:
                 config = CentralConfig.model_validate(server)
                 servers[config.base_url] = config
-        logger.debug("Parsed ODK Central credentials", servers=servers.keys())
+        logger.debug("Parsed ODK Central credentials", servers=list(servers.keys()))
         return servers
