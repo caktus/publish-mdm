@@ -76,7 +76,7 @@ class FormTemplate(AbstractBaseModel):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="form_templates")
     title_base = models.CharField(max_length=255)
     form_id_base = models.CharField(max_length=255)
-    template_url = models.URLField(max_length=1024)
+    template_url = models.URLField(max_length=1024, blank=True)
 
     def __str__(self):
         return f"{self.form_id_base} ({self.id})"

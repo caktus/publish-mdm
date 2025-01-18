@@ -47,11 +47,15 @@
         <dl>
             <dt class="mb-2 font-semibold leading-none text-gray-900 dark:text-white">Latest version</dt>
             <dd class="mb-4 font-light text-gray-500 sm:mb-5 dark:text-gray-400">
-                {{ form_template.latest_version.0.version }}
+                {{ form_template.latest_version.0.version|default:"-" }}
             </dd>
             <dt class="mb-2 font-semibold leading-none text-gray-900 dark:text-white">Latest published by</dt>
             <dd class="mb-4 font-light text-gray-500 sm:mb-5 dark:text-gray-400">
-                {{ form_template.latest_version.0.user.first_name }} {{ form_template.latest_version.0.user.last_name }}
+                {% if form_template.latest_version.0.user %}
+                    {{ form_template.latest_version.0.user.first_name }} {{ form_template.latest_version.0.user.last_name }}
+                {% else %}
+                    -
+                {% endif %}
             </dd>
             <dt class="mb-2 font-semibold leading-none text-gray-900 dark:text-white">XML Form ID</dt>
             <dd class="mb-4 font-light text-gray-500 sm:mb-5 dark:text-gray-400">

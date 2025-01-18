@@ -48,9 +48,10 @@ def render_template_for_app_user(
 
 
 def group_by_common_prefixes(strings) -> dict[str, list[str]]:
-    """Return strings grouped by their common prefixes. For example,
-    staff_registration_10000 and staff_registration_10001 would be grouped under
-    staff_registration.
+    """Return strings grouped by their common prefixes.
+
+    For example, staff_registration_10000 and staff_registration_10001 would be
+    grouped under staff_registration.
     """
     prefixes = defaultdict(list)
     for string in strings:

@@ -11,7 +11,9 @@
     </style>
 {% endblock extra-css %}
 {% block content %}
-    <p class="mb-4">Use this form to sync a Project from an ODK Central server to ODK Publish.</p>
+    <p class="mb-4 dark:text-gray-400">
+        Use this form to sync a Project from an ODK Central server to ODK Publish. No changes are pushed to ODK Central.
+    </p>
     <form method="post" class="max-w-2xl">
         {% csrf_token %}
         <div class="grid gap-4 sm:grid-cols-1 sm:gap-6">

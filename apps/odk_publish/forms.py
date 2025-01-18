@@ -17,12 +17,6 @@ class ProjectSyncForm(PlatformFormMixin, forms.Form):
     """
 
     server = forms.ChoiceField(
-        # The server field is populated with the available ODK Central servers
-        # (from an environment variable) when the form is rendered.
-        choices=[("", "Select an ODK Central server...")]
-        + [
-            (config.base_url, config.base_url) for config in ODKPublishClient.get_configs().values()
-        ],
         # When a server is selected, the project field below is populated with
         # the available projects for that server using HMTX.
         widget=Select(
@@ -43,6 +37,12 @@ class ProjectSyncForm(PlatformFormMixin, forms.Form):
         # field is required" errors
         data = data if not request.htmx else None
         super().__init__(data, *args, **kwargs)
+        # The server field is populated with the available ODK Central servers
+        # (from an environment variable) when the form is rendered. Loaded here to
+        # avoid fetching during the project initialization sequence.
+        self.fields["server"].choices = [("", "Select an ODK Central server...")] + [
+            (config.base_url, config.base_url) for config in ODKPublishClient.get_configs().values()
+        ]
         # Set `project` field choices when a server is provided either via a
         # POST or HTMX request
         if server := htmx_data.get("server") or self.data.get("server"):

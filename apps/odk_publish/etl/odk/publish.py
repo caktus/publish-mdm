@@ -1,4 +1,5 @@
 import datetime as dt
+from collections import defaultdict
 from os import PathLike
 from typing import TYPE_CHECKING
 
@@ -21,6 +22,7 @@ logger = structlog.getLogger(__name__)
 class ProjectAppUserAssignment(ProjectAppUser):
     """Extended ProjectAppUser with additional form_ids attribute."""
 
+    forms: list[Form] = []
     xml_form_ids: list[str] = []
 
 
@@ -83,6 +85,24 @@ class PublishService(bases.Service):
         """Return a mapping of form IDs to Form objects for the given project."""
         forms = self.client.forms.list(project_id=project_id)
         return {form.xmlFormId: form for form in forms}
+
+    def find_form_templates(
+        self, app_users: dict[str, ProjectAppUserAssignment], forms: dict[str, Form]
+    ) -> dict[str, list[ProjectAppUserAssignment]]:
+        """Return form templates for the given app users and forms."""
+
+        form_templates = defaultdict(list)
+        for form in forms.values():
+            try:
+                xml_form_id_base, maybe_app_user = form.xmlFormId.rsplit("_", 1)
+            except ValueError:
+                continue
+            if app_user := app_users.get(maybe_app_user):
+                user = app_user.model_copy(deep=True)
+                user.forms.append(form)
+                form_templates[xml_form_id_base].append(user)
+        logger.info("Found form templates", form_templates=list(form_templates.keys()))
+        return form_templates
 
     def get_unique_version_by_form_id(self, xml_form_id_base: str, project_id: int | None = None):
         """

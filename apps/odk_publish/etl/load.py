@@ -5,7 +5,6 @@ from django.db.models import QuerySet
 from ..models import AppUser, AppUserFormTemplate, CentralServer, FormTemplate, Project
 from .odk.client import ODKPublishClient
 from .odk.qrcode import create_app_user_qrcode
-from .transform import group_by_common_prefixes
 
 logger = structlog.getLogger(__name__)
 
@@ -54,7 +53,7 @@ def generate_and_save_app_user_collect_qrcodes(project: Project):
             )
 
 
-def sync_central_project(base_url: str, project_id: int):
+def sync_central_project(base_url: str, project_id: int) -> Project:
     """Sync a project from ODK Central to the local database."""
     config = ODKPublishClient.get_config(base_url=base_url)
     with ODKPublishClient(base_url=config.base_url, project_id=project_id) as client:
@@ -92,24 +91,28 @@ def sync_central_project(base_url: str, project_id: int):
                 )
         # FormTemplate
         central_forms = client.odk_publish.get_forms()
-        possible_template_ids = group_by_common_prefixes(strings=central_forms.keys())
-        for central_form in central_forms.values():
-            for template_id, form_ids in possible_template_ids.items():
-                if central_form.xmlFormId in form_ids:
-                    break
-            form, created = project.form_templates.get_or_create(
-                form_id_base=central_form.xmlFormId,
-                defaults={
-                    "title_base": central_form.name,
-                },
+        central_form_templates = client.odk_publish.find_form_templates(
+            app_users=central_app_users, forms=central_forms
+        )
+        for form_id_base, app_users in central_form_templates.items():
+            form_name = app_users[0].forms[0].name.split("[")[0].strip()
+            form_template, created = project.form_templates.get_or_create(
+                form_id_base=form_id_base,
+                defaults={"title_base": form_name},
             )
             logger.info(
                 f"{'Created' if created else 'Retrieved'} FormTemplate",
-                id=form.id,
-                form_id_base=form.form_id_base,
-                form_title_base=form.title_base,
+                id=form_template.id,
+                form_id_base=form_template.form_id_base,
+                form_title_base=form_template.title_base,
             )
-        for central_form in central_forms.values():
-            print(central_form.xmlFormId)
-        raise ValueError
+            for app_user in app_users:
+                app_user_form, created = form_template.app_user_forms.get_or_create(
+                    app_user=project.app_users.get(app_user_id=app_user.id),
+                )
+                logger.info(
+                    f"{'Created' if created else 'Retrieved'} AppUserFormTemplate",
+                    id=app_user_form.id,
+                )
+
     return project

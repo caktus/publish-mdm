@@ -22,13 +22,11 @@ logger = logging.getLogger(__name__)
 def server_sync(request: HttpRequest):
     form = ProjectSyncForm(request=request, data=request.POST or None)
     if request.method == "POST" and form.is_valid():
-        sync_central_project(
+        project = sync_central_project(
             base_url=form.cleaned_data["server"], project_id=form.cleaned_data["project"]
         )
         messages.add_message(request, messages.SUCCESS, "Project synced.")
-        return redirect(
-            "odk_publish:form-template-list", odk_project_pk=form.cleaned_data["project"]
-        )
+        return redirect("odk_publish:form-template-list", odk_project_pk=project.id)
     context = {
         "form": form,
         "breadcrumbs": Breadcrumbs.from_items(
