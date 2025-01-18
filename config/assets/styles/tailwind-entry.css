@@ -29,11 +29,18 @@
     @apply font-medium text-center text-sm px-5 py-2.5 rounded-lg cursor-pointer;
   }
   .btn-outline {
-    @apply text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 hover:bg-gray-100 hover:text-primary-700 focus:z-10 focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 dark:hover:text-white dark:hover:bg-gray-700;
+    @apply text-gray-900 focus:outline-none bg-white rounded-lg border border-gray-200 enabled:hover:bg-gray-100 enabled:hover:text-primary-700 focus:z-10 focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-600 enabled:dark:hover:text-white enabled:dark:hover:bg-gray-700;
   }
   .btn-primary {
     @apply border-primary-400 bg-gradient-to-r from-primary-100 via-primary-200 to-primary-200 dark:bg-none;
   }
+  .btn-disabled {
+    @apply cursor-not-allowed opacity-50;
+  }
+}
+
+[x-cloak] {
+  display: none !important;
 }
 
 .htmx-request .loading,
