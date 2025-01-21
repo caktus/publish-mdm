@@ -18,14 +18,14 @@ def create_or_update_app_users(form_template: FormTemplate):
     ) as client:
         app_users = client.odk_publish.get_or_create_app_users(
             display_names=[app_user_form.app_user.name for app_user_form in app_user_forms],
-            project_id=form_template.project.project_id,
+            project_id=form_template.project.central_id,
         )
         # Link form assignments to app users locally
         for app_user_form in app_user_forms:
             app_users[app_user_form.app_user.name].xml_form_ids.append(app_user_form.xml_form_id)
         # Create or update the form assignments on the server
         client.odk_publish.assign_forms(
-            app_users=app_users.values(), project_id=form_template.project.project_id
+            app_users=app_users.values(), project_id=form_template.project.central_id
         )
 
 
@@ -34,7 +34,7 @@ def generate_and_save_app_user_collect_qrcodes(project: Project):
     app_users: QuerySet[AppUser] = project.app_users.all()
     logger.info("Generating QR codes", project=project.name, app_users=len(app_users))
     with ODKPublishClient(
-        base_url=project.central_server.base_url, project_id=project.project_id
+        base_url=project.central_server.base_url, project_id=project.central_id
     ) as client:
         central_app_users = client.odk_publish.get_app_users(
             display_names=[app_user.name for app_user in app_users],
@@ -45,7 +45,7 @@ def generate_and_save_app_user_collect_qrcodes(project: Project):
             image = create_app_user_qrcode(
                 app_user=central_app_users[app_user.name],
                 base_url=client.session.base_url,
-                project_id=project.project_id,
+                central_id=project.central_id,
                 project_name_prefix=project.name,
             )
             app_user.qr_code.save(
@@ -65,14 +65,14 @@ def sync_central_project(base_url: str, project_id: int) -> Project:
         # Project
         central_project = client.projects.get()
         project, created = Project.objects.get_or_create(
-            project_id=central_project.id,
+            central_id=central_project.id,
             central_server=server,
             defaults={"name": central_project.name},
         )
         logger.info(
             f"{'Created' if created else 'Retrieved'} Project",
             id=project.id,
-            project_id=project.project_id,
+            central_id=project.central_id,
             project_name=project.name,
         )
         # AppUser
@@ -80,13 +80,13 @@ def sync_central_project(base_url: str, project_id: int) -> Project:
         for central_app_user in central_app_users.values():
             if not central_app_user.deletedAt:
                 app_user, created = project.app_users.get_or_create(
-                    app_user_id=central_app_user.id,
+                    central_id=central_app_user.id,
                     defaults={"name": central_app_user.displayName},
                 )
                 logger.info(
                     f"{'Created' if created else 'Retrieved'} AppUser",
                     id=app_user.id,
-                    app_user_id=app_user.app_user_id,
+                    central_id=app_user.central_id,
                     app_user_name=app_user.name,
                 )
         # FormTemplate
@@ -108,7 +108,7 @@ def sync_central_project(base_url: str, project_id: int) -> Project:
             )
             for app_user in app_users:
                 app_user_form, created = form_template.app_user_forms.get_or_create(
-                    app_user=project.app_users.get(app_user_id=app_user.id),
+                    app_user=project.app_users.get(central_id=app_user.id),
                 )
                 logger.info(
                     f"{'Created' if created else 'Retrieved'} AppUserFormTemplate",

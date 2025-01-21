@@ -1,5 +1,4 @@
 import io
-from collections import defaultdict
 
 import openpyxl
 from django.core.files.uploadedfile import SimpleUploadedFile

@@ -60,7 +60,9 @@ class TemplateVariable(AbstractBaseModel):
 
 class Project(AbstractBaseModel):
     name = models.CharField(max_length=255)
-    project_id = models.PositiveIntegerField(verbose_name="project ID")
+    central_id = models.PositiveIntegerField(
+        verbose_name="project ID", help_text="The ID of this project in ODK Central."
+    )
     central_server = models.ForeignKey(
         CentralServer, on_delete=models.CASCADE, related_name="projects"
     )
@@ -69,7 +71,7 @@ class Project(AbstractBaseModel):
     )
 
     def __str__(self):
-        return f"{self.name} ({self.project_id})"
+        return f"{self.name} ({self.central_id})"
 
 
 class FormTemplate(AbstractBaseModel):
@@ -104,7 +106,7 @@ class FormTemplate(AbstractBaseModel):
         3. Create a new FormTemplateVersion instance with the downloaded file.
         """
         with ODKPublishClient(
-            base_url=self.project.central_server.base_url, project_id=self.project.project_id
+            base_url=self.project.central_server.base_url, project_id=self.project.central_id
         ) as client:
             version = client.odk_publish.get_unique_version_by_form_id(
                 xml_form_id_base=self.form_id_base
@@ -171,8 +173,8 @@ class AppUserTemplateVariable(AbstractBaseModel):
 
 class AppUser(AbstractBaseModel):
     name = models.CharField(max_length=255)
-    app_user_id = models.PositiveIntegerField(
-        verbose_name="app user ID", help_text="The internal ID of this app user in ODK Central."
+    central_id = models.PositiveIntegerField(
+        verbose_name="app user ID", help_text="The ID of this app user in ODK Central."
     )
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="app_users")
     qr_code = models.ImageField(
