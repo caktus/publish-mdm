@@ -1,0 +1,36 @@
+{% for error in errors %}
+    <div class="p-4 mb-4 text-sm text-brand-danger-medium rounded-lg bg-red-50 dark:bg-gray-800 dark:text-brand-danger-light"
+         role="alert">{{ error }}</div>
+{% endfor %}
+asdfasdf
+{% if errors and not fields %}
+    <div>
+        {% for field in hidden_fields %}{{ field }}{% endfor %}
+    </div>
+{% endif %}
+{% for field, errors in fields %}
+    <div {% with classes=field.css_classes %}
+         {% if classes %}classfixme="{{ classes }}"{% endif %}
+         {% endwith %}
+         class="mb-6"
+         id="id_{{ field.name }}_container">
+        {% if field.use_fieldset %}
+            <fieldset>
+                {% if field.label %}{{ field.legend_tag }}{% endif %}
+            {% else %}
+                {% if field.label %}{{ field.label_tag }}{% endif %}
+            {% endif %}
+            {% if field.help_text %}<div class="helptext">{{ field.help_text|safe }}</div>{% endif %}
+            {{ field }}
+            {% for error in erors %}
+                <p class="mt-2 text-sm text-brand-danger-medium dark:text-brand-danger-light">{{ error }}</p>
+            {% endfor %}
+            {% if field.use_fieldset %}</fieldset>{% endif %}
+        {% if forloop.last %}
+            {% for field in hidden_fields %}{{ field }}{% endfor %}
+        {% endif %}
+    </div>
+{% endfor %}
+{% if not fields and not errors %}
+    {% for field in hidden_fields %}{{ field }}{% endfor %}
+{% endif %}

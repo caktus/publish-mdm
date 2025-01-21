@@ -51,14 +51,16 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.sites",  # new
     # 3rd party
-    "django_filters",
-    "django_tables2",
-    "django_celery_beat",
-    "django_structlog",
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
+    "django_celery_beat",
+    "django_filters",
+    "django_htmx",
+    "django_structlog",
+    "django_tables2",
+    "template_partials",
     # Local
     "apps.odk_publish",
     "apps.patterns",

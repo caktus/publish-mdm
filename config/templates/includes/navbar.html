@@ -53,11 +53,22 @@
             </div>
             <div class="flex justify-between items-center lg:order-2">
                 <ul class="hidden flex-col mt-0 mr-0 w-full text-sm font-medium text-gray-900 md:flex md:flex-row dark:text-white">
+                    <li>
+                        <a href="{% url 'odk_publish:server-sync' %}"
+                           class="btn btn-outline mr-4">Sync Project</a>
+                    </li>
                     {% if request.user.is_superuser %}
                         <li>
                             <a href="{% url 'admin:index' %}"
                                class="py-3 px-2 hover:text-primary-600 dark:hover:text-primary-500"
                                aria-current="page">Admin</a>
+                        </li>
+                    {% endif %}
+                    {% if not request.user.is_authenticated %}
+                        <li>
+                            <a href="{% url 'account_login' %}"
+                               class="py-3 px-2 hover:text-primary-600 dark:hover:text-primary-500"
+                               aria-current="page">Log in</a>
                         </li>
                     {% endif %}
                 </ul>
@@ -99,7 +110,6 @@
                              id="dropdown">
                             <div class="py-3 px-4">
                                 <span class="block text-sm font-semibold text-gray-900 dark:text-white">{{ request.user.first_name }} {{ request.user.last_name }}</span>
-                                <span class="block text-sm text-gray-500 truncate dark:text-gray-400">{{ request.user.email }}</span>
                             </div>
                             <ul class="py-1 text-gray-500 dark:text-gray-400"
                                 aria-labelledby="dropdown">

@@ -5,6 +5,16 @@ from . import views
 app_name = "odk_publish"
 urlpatterns = [
     path(
+        "servers/sync/",
+        views.server_sync,
+        name="server-sync",
+    ),
+    path(
+        "servers/sync/projects/",
+        views.server_sync_projects,
+        name="server-sync-projects",
+    ),
+    path(
         "<int:odk_project_pk>/app-users/",
         views.app_user_list,
         name="app-user-list",

@@ -72,7 +72,7 @@ daphne==4.1.2
     # via -r requirements/base/base.in
 dj-database-url==2.3.0
     # via -r requirements/base/base.in
-django==5.1.4
+django==5.1.5
     # via
     #   -r requirements/base/base.in
     #   channels
@@ -84,6 +84,7 @@ django==5.1.4
     #   django-storages
     #   django-structlog
     #   django-tables2
+    #   django-template-partials
     #   django-timezone-field
 django-allauth==65.3.1
     # via -r requirements/base/base.in
@@ -103,8 +104,12 @@ django-structlog==9.0.0
     # via -r requirements/base/base.in
 django-tables2==2.7.5
     # via -r requirements/base/base.in
-django-timezone-field==7.0
+django-template-partials==24.4
+    # via -r requirements/base/base.in
+django-timezone-field==7.1
     # via django-celery-beat
+django-widget-tweaks==1.5.0
+    # via -r requirements/base/base.in
 et-xmlfile==2.0.0
     # via openpyxl
 google-auth==2.37.0
@@ -166,7 +171,7 @@ pyjwt==2.10.1
     # via -r requirements/base/base.in
 pyodk @ git+https://github.com/getodk/pyodk.git@b09fe11ebb47166c81df5831c4a58e7ffd8f759e
     # via -r requirements/base/base.in
-pyopenssl==24.3.0
+pyopenssl==25.0.0
     # via twisted
 python-crontab==3.2.0
     # via django-celery-beat
@@ -189,7 +194,7 @@ rsa==4.9
     # via google-auth
 segno==1.6.1
     # via -r requirements/base/base.in
-sentry-sdk==2.19.2
+sentry-sdk==2.20.0
     # via -r requirements/base/base.in
 service-identity==24.2.0
     # via twisted
@@ -215,6 +220,7 @@ typing-extensions==4.12.2
     #   psycopg
     #   pydantic
     #   pydantic-core
+    #   pyopenssl
     #   twisted
 tzdata==2024.2
     # via

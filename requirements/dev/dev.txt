@@ -42,9 +42,9 @@ black==24.10.0
     # via -r requirements/dev/dev.in
 bleach==6.2.0
     # via nbconvert
-boto3==1.35.93
+boto3==1.35.99
     # via -r requirements/dev/dev.in
-botocore==1.35.93
+botocore==1.35.99
     # via
     #   boto3
     #   s3transfer
@@ -85,7 +85,7 @@ defusedxml==0.7.1
     # via nbconvert
 distlib==0.3.9
     # via virtualenv
-django==5.1.4
+django==5.1.5
     # via
     #   -c requirements/dev/../base/base.txt
     #   django-browser-reload
@@ -93,7 +93,7 @@ django==5.1.4
     #   django-watchfiles
 django-browser-reload==1.17.0
     # via -r requirements/dev/dev.in
-django-debug-toolbar==4.4.6
+django-debug-toolbar==5.0.1
     # via -r requirements/dev/dev.in
 django-types==0.20.0
     # via -r requirements/dev/dev.in
@@ -401,7 +401,7 @@ urllib3==2.3.0
     #   requests
 virtualenv==20.28.1
     # via pre-commit
-watchfiles==1.0.3
+watchfiles==1.0.4
     # via django-watchfiles
 wcwidth==0.2.13
     # via

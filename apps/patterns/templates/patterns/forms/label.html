@@ -2,15 +2,15 @@
     <div class="flex flex-row items-center">
         <{{ tag }}
         {% include "patterns/forms/attrs.html" %}
-        class="block mb-2 text-sm font-medium text-blue-900
+        class="block mb-2 font-medium
         {% if not field.errors %}
-            text-blue-900 dark:text-white
+            text-gray-900 dark:text-white
         {% else %}
-            text-brand-danger-medium dark:text-brand-danger-light
+            text-red
         {% endif %}
         ">
         {{ label|title }}
-        {% if field.field.required %}<span class="text-brand-danger-medium">*</span>{% endif %}
+        {% if field.field.required %}<span class="text-red">*</span>{% endif %}
         </{{ tag }}>
         {% if field.help_text %}
             <span data-popover-target="{{ attrs.for }}_popover"
@@ -35,6 +35,6 @@
 {% else %}
     <span>
         {{ label|title }}
-        {% if field.field.required %}<span class="text-brand-danger-medium">*</span>{% endif %}
+        {% if field.field.required %}<span class="text-red">*</span>{% endif %}
     </span>
 {% endif %}

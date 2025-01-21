@@ -23,6 +23,7 @@ logger = structlog.getLogger(__name__)
 class CentralServerAdmin(admin.ModelAdmin):
     list_display = ("base_url", "created_at", "modified_at")
     search_fields = ("base_url",)
+    ordering = ("base_url",)
 
 
 @admin.register(TemplateVariable)
@@ -34,8 +35,8 @@ class TemplateVariableAdmin(admin.ModelAdmin):
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ("name", "project_id", "central_server")
-    search_fields = ("name", "project_id")
+    list_display = ("name", "central_id", "central_server")
+    search_fields = ("name", "central_id")
     list_filter = ("central_server",)
     filter_horizontal = ("template_variables",)
 
