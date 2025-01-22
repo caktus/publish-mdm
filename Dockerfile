@@ -5,7 +5,6 @@ ENV PATH /code/node_modules/.bin:$PATH
 COPY package.json package-lock.json tailwind.config.js postcss.config.js /code/
 RUN npm install --silent
 COPY config/assets config/assets
-COPY config/static config/static
 # Every template dir using Tailwind must be added below
 COPY config/templates config/templates
 COPY apps/patterns/templates apps/patterns/templates
