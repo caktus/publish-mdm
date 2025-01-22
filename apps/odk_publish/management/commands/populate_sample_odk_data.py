@@ -33,12 +33,12 @@ class Command(BaseCommand):
         logger.info("Creating Projects...")
         project = odk_publish.Project.objects.create(
             name="Caktus Test",
-            project_id=1,
+            central_id=1,
             central_server=central_server,
         )
         odk_publish.Project.objects.create(
             name="Other Project",
-            project_id=5,
+            central_id=5,
             central_server=myodkcloud,
         )
         logger.info("Creating TemplateVariable...")
@@ -61,6 +61,7 @@ class Command(BaseCommand):
             app_user = odk_publish.AppUser.objects.create(
                 name=center_id,
                 project=project,
+                central_id=1,
             )
             odk_publish.AppUserTemplateVariable.objects.create(
                 app_user=app_user, template_variable=center_id_var, value=center_id
