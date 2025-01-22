@@ -14,9 +14,9 @@
         <script>htmx.logAll()</script>
         <link href="{% static 'css/main.css' %}" rel="stylesheet" />
         {# favicon #}
-        <link rel="shortcut icon"
-              href="{% static 'favicon.ico' %}"
-              type="image/x-icon" />
+        {% comment "FIXME: Uncomment when the favicon file is added. Currently causing an error when DEBUG=False" %}
+        <link rel="shortcut icon" href="{% static 'favicon.ico' %}" type="image/x-icon" />
+        {% endcomment %}
         <title>
             {% block title %}
                 ODK Publish
