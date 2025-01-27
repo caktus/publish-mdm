@@ -49,7 +49,7 @@ class ODKPublishClient(Client):
             api_version="v1",
             username=server_config.username,
             password=server_config.password.get_secret_value(),
-            cache_path=None,
+            cache_path="/tmp/.pyodk_cache.toml",
         )
         super().__init__(config_path=str(config_path), session=session, project_id=project_id)
         # Update the stub config with the environment-provided authentication
