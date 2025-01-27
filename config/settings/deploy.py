@@ -9,7 +9,8 @@ SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost").split(":")
 
 ### ADMINS and MANAGERS
-ADMINS = (("Caktus Team", "team@caktusgroup.com"),)
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
+ADMINS = (("Admin", ADMIN_EMAIL),)
 
 # STATIC
 # ------------------------------------------------------------------------------
