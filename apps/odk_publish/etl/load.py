@@ -45,7 +45,7 @@ def generate_and_save_app_user_collect_qrcodes(project: Project):
             image = create_app_user_qrcode(
                 app_user=central_app_users[app_user.name],
                 base_url=client.session.base_url,
-                central_id=project.central_id,
+                project_id=project.central_id,
                 project_name_prefix=project.name,
             )
             app_user.qr_code.save(
