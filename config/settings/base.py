@@ -202,9 +202,7 @@ STATIC_ROOT = BASE_DIR / "public" / "static"
 # Uploaded media files
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 MEDIA_URL = "/media/"
-MEDIA_STORAGE_BUCKET_NAME = os.getenv("MEDIA_STORAGE_BUCKET_NAME", "")
-MEDIA_LOCATION = os.getenv("MEDIA_LOCATION", f"{ENVIRONMENT}/")
-MEDIA_S3_CUSTOM_DOMAIN = os.getenv("MEDIA_S3_CUSTOM_DOMAIN", "")
+
 STORAGES = {
     "default": {
         "BACKEND": os.getenv("DEFAULT_FILE_STORAGE", "django.core.files.storage.FileSystemStorage")
@@ -213,6 +211,19 @@ STORAGES = {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
+
+# Optionally configure settings for S3/MinIO
+AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
+AWS_S3_CUSTOM_DOMAIN = os.getenv("AWS_S3_CUSTOM_DOMAIN", "")
+AWS_LOCATION = os.getenv("AWS_LOCATION", f"{ENVIRONMENT}/")
+AWS_S3_ENDPOINT_URL = os.getenv("AWS_S3_ENDPOINT_URL")
+AWS_S3_USE_SSL = int(os.getenv("AWS_S3_USE_SSL", "1")) == 1
+# AWS_S3_VERIFY is a funny setting whose allowed values are
+# None, False, or a string (path to a AA bundle). Support all
+# those values here.
+AWS_S3_VERIFY = os.getenv("AWS_S3_VERIFY")
+if AWS_S3_VERIFY and AWS_S3_VERIFY.lower() in ("false", "0"):
+    AWS_S3_VERIFY = False
 AWS_DEFAULT_ACL = os.getenv("AWS_DEFAULT_ACL")
 AWS_S3_ADDRESSING_STYLE = os.getenv("AWS_S3_ADDRESSING_STYLE", None)
 AWS_S3_SIGNATURE_VERSION = os.getenv("AWS_S3_SIGNATURE_VERSION", "s3v4")
@@ -223,18 +234,6 @@ AWS_QUERYSTRING_AUTH = os.getenv("AWS_QUERYSTRING_AUTH", "True") == "True"
 # If not set, boto3 internally looks up IAM credentials
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-
-# Azure storage
-# https://django-storages.readthedocs.io/en/latest/backends/azure.html
-AZURE_ACCOUNT_KEY = os.getenv("AZURE_ACCOUNT_KEY")
-AZURE_ACCOUNT_NAME = os.getenv("AZURE_ACCOUNT_NAME")
-AZURE_CONTAINER = os.getenv("AZURE_CONTAINER")
-AZURE_OVERWRITE_FILES = os.getenv("AZURE_OVERWRITE_FILES", "True") == "True"
-AZURE_SSL = os.getenv("AZURE_SSL", "True") == "True"
-AZURE_LOCATION = os.getenv("AZURE_LOCATION", MEDIA_LOCATION)
-AZURE_URL_EXPIRATION_SECS = os.getenv("AZURE_URL_EXPIRATION_SECS")
-if AZURE_URL_EXPIRATION_SECS is not None:
-    AZURE_URL_EXPIRATION_SECS = int(AZURE_URL_EXPIRATION_SECS)
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

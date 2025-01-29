@@ -49,7 +49,8 @@ def generate_and_save_app_user_collect_qrcodes(project: Project):
                 project_name_prefix=project.name,
             )
             app_user.qr_code.save(
-                f"{app_user.name}.png", SimpleUploadedFile("qrcode.png", image.getvalue())
+                f"{app_user.name}.png",
+                SimpleUploadedFile("qrcode.png", image.getvalue(), content_type="image/png"),
             )
 
 
