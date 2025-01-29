@@ -1,5 +1,6 @@
 anyio<4
 beautifulsoup4
+boto3
 celery[redis]
 channels
 daphne
