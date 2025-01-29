@@ -2,11 +2,9 @@ name: Docker
 
 on:
   push:
-    branches: [master, deploy] # FIXME: Remove deploy, only temporary for testing
+    branches: [master]
     # Publish semver tags as releases.
     tags: ["v*.*.*"]
-  # FIXME: Remove workflow_dispatch. Only temporary for testing with manual deploys via the GitHub Actions Web UI
-  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
