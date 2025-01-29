@@ -5,15 +5,12 @@ ENV PATH /code/node_modules/.bin:$PATH
 COPY package.json package-lock.json tailwind.config.js postcss.config.js /code/
 RUN npm install --silent
 COPY config/assets config/assets
-COPY config/static config/static
 # Every template dir using Tailwind must be added below
-COPY apps/eportal/templates apps/eportal/templates
-COPY apps/inventory/templates apps/inventory/templates
-COPY apps/inventory_materials/templates apps/inventory_materials/templates
-COPY apps/portal_patterns/templates apps/portal_patterns/templates
+COPY config/templates config/templates
+COPY apps/patterns/templates apps/patterns/templates
 RUN npm run build
 
-FROM python:3.11-slim-bookworm as base
+FROM python:3.12-slim-bookworm as base
 
 # Install packages needed to run your application (not build deps):
 #   mime-support -- for mime types when serving static files

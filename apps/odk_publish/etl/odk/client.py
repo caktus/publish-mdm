@@ -41,6 +41,10 @@ class ODKPublishClient(Client):
         config_path = Path("/tmp/.pyodk_config.toml")
         if not config_path.exists():
             config_path.write_text(CONFIG_TOML)
+        # Create stub cache file if it doesn't exist, so that pyodk doesn't complain
+        cache_path = Path("/tmp/.pyodk_cache.toml")
+        if not cache_path.exists():
+            cache_path.write_text('token = ""')
         # Create a session with the given authentication details and supply the
         # session to the super class, so it doesn't try and create one itself
         server_config = self.get_config(base_url=base_url)
@@ -49,7 +53,7 @@ class ODKPublishClient(Client):
             api_version="v1",
             username=server_config.username,
             password=server_config.password.get_secret_value(),
-            cache_path=None,
+            cache_path=str(cache_path),
         )
         super().__init__(config_path=str(config_path), session=session, project_id=project_id)
         # Update the stub config with the environment-provided authentication
