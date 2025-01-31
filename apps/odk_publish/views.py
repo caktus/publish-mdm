@@ -8,7 +8,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
 from .etl.load import generate_and_save_app_user_collect_qrcodes, sync_central_project
-from .forms import ProjectSyncForm
+from .forms import ProjectSyncForm, PublishTemplateForm
 from .models import FormTemplateVersion, FormTemplate
 from .nav import Breadcrumbs
 from .tables import FormTemplateTable
@@ -120,7 +120,11 @@ def form_template_publish(request: HttpRequest, odk_project_pk: int, form_templa
     form_template: FormTemplate = get_object_or_404(
         request.odk_project.form_templates, pk=form_template_id
     )
+    form = PublishTemplateForm(request=request, data=request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        pass
     context = {
+        "form": form,
         "form_template": form_template,
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,

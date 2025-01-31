@@ -20,7 +20,8 @@
   --color-yellow: oklch(83.42% 0.117 87.43);
   --color-orange: oklch(78.06% 0.1269 57.86);
   --color-red: oklch(67.83% 0.1559 35.18);
-  --color-error: var(--color-red-500);
+  --color-red-700: oklch(48.16% 0.1526 34.7); /* #A23216 */
+  --color-error: var(--color-red-700);
   --color-danger-medium: var(--color-red-500);
 }
 

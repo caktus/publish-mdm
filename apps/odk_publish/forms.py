@@ -3,7 +3,7 @@ from django.http import QueryDict
 from django.urls import reverse_lazy
 
 from apps.patterns.forms import PlatformFormMixin
-from apps.patterns.widgets import Select
+from apps.patterns.widgets import Select, TextInput
 
 from .etl.odk.client import ODKPublishClient
 from .http import HttpRequest
@@ -54,3 +54,34 @@ class ProjectSyncForm(PlatformFormMixin, forms.Form):
             self.fields["project"].choices = [
                 (project.id, project.name) for project in client.projects.list()
             ]
+
+
+class PublishTemplateForm(PlatformFormMixin, forms.Form):
+    """Form for publishing a form template to ODK Central."""
+
+    app_users = forms.CharField(
+        required=False,
+        label="Limit App Users",
+        help_text="Publish to a limited set of app users by entering a comma-separated list.",
+        widget=TextInput(attrs={"placeholder": "e.g., 10001, 10002, 10003"}),
+    )
+
+    def __init__(self, request: HttpRequest, *args, **kwargs):
+        self.request = request
+        super().__init__(*args, **kwargs)
+
+    def clean_app_users(self):
+        """Validate by checking if the entered app users are in this project."""
+        if app_users := self.cleaned_data.get("app_users"):
+            app_users_list = app_users.split(",")
+            app_users_in_db = self.request.odk_project.app_users.filter(
+                name__in=app_users_list
+            ).order_by("name")
+            if not len(app_users_in_db) == len(app_users_list):
+                invalid_users = sorted(
+                    set(app_users_list) - {user.name for user in app_users_in_db}
+                )
+                error_message = "Invalid App Users: " + ", ".join(invalid_users)
+                raise forms.ValidationError(error_message)
+            return app_users_in_db
+        return []
