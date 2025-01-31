@@ -143,11 +143,21 @@ class FormTemplateVersion(AbstractBaseModel):
     def __str__(self):
         return self.file.name
 
-    def create_app_user_versions(self) -> list["AppUserFormVersion"]:
+    def create_app_user_versions(
+        self, app_users: models.QuerySet["AppUser"] = None, send_message=None
+    ) -> list["AppUserFormVersion"]:
         app_user_versions = []
-        for app_user_form in AppUserFormTemplate.objects.filter(form_template=self.form_template):
+        q = models.Q(form_template=self.form_template)
+        if app_users:
+            q &= models.Q(app_user__in=app_users)
+        for app_user_form in AppUserFormTemplate.objects.filter(q):
             logger.info("Creating next AppUserFormVersion", app_user_form=app_user_form)
-            app_user_versions.append(app_user_form.create_next_version(form_template_version=self))
+            app_user_version = app_user_form.create_next_version(form_template_version=self)
+            xml_form_id = app_user_version.app_user_form_template.xml_form_id
+            version = app_user_version.form_template_version.version
+            if send_message:
+                send_message(f"Created FormTemplateVersion({xml_form_id=}, {version=})")
+            app_user_versions.append(app_user_version)
         return app_user_versions
 
 

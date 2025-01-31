@@ -7,6 +7,7 @@ from apps.patterns.widgets import Select, TextInput
 
 from .etl.odk.client import ODKPublishClient
 from .http import HttpRequest
+from .models import FormTemplate
 
 
 class ProjectSyncForm(PlatformFormMixin, forms.Form):
@@ -59,6 +60,7 @@ class ProjectSyncForm(PlatformFormMixin, forms.Form):
 class PublishTemplateForm(PlatformFormMixin, forms.Form):
     """Form for publishing a form template to ODK Central."""
 
+    form_template = forms.IntegerField(widget=forms.HiddenInput())
     app_users = forms.CharField(
         required=False,
         label="Limit App Users",
@@ -66,8 +68,9 @@ class PublishTemplateForm(PlatformFormMixin, forms.Form):
         widget=TextInput(attrs={"placeholder": "e.g., 10001, 10002, 10003"}),
     )
 
-    def __init__(self, request: HttpRequest, *args, **kwargs):
+    def __init__(self, request: HttpRequest, form_template: FormTemplate, *args, **kwargs):
         self.request = request
+        kwargs["initial"] = {"form_template": form_template.id}
         super().__init__(*args, **kwargs)
 
     def clean_app_users(self):

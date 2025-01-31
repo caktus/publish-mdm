@@ -120,7 +120,9 @@ def form_template_publish(request: HttpRequest, odk_project_pk: int, form_templa
     form_template: FormTemplate = get_object_or_404(
         request.odk_project.form_templates, pk=form_template_id
     )
-    form = PublishTemplateForm(request=request, data=request.POST or None)
+    form = PublishTemplateForm(
+        request=request, form_template=form_template, data=request.POST or None
+    )
     if request.method == "POST" and form.is_valid():
         pass
     context = {

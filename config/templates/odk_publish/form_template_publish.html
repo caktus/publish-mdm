@@ -4,14 +4,12 @@
     Publish next version of {{ form_template.title_base }}
 {% endblock page_header %}
 {% block content %}
-    <!-- <p class="mb-4 dark:text-gray-400">
-    Use this form to sync a Project from an ODK Central server to ODK Publish. No changes are pushed to ODK Central.
-</p> -->
     <form method="post"
           class="max-w-2xl"
           x-data="{ submitting: false }"
           x-on:submit="submitting = true">
         {% csrf_token %}
+        {{ form.form_template.as_hidden }}
         <div class="grid gap-4 sm:grid-cols-1 sm:gap-6">
             <div id="id_form_container">
                 {{ form.app_users.label_tag }}
@@ -52,4 +50,18 @@
             </div>
         </div>
     </form>
+    {% if form.is_valid %}
+        <h3 class="text-l mt-5 mb-3 font-bold dark:text-white">Publishing...</h3>
+        <div id="message-list-wrapper"
+             hx-ext="ws"
+             ws-connect="/ws/publish-template/">
+            <form hx-ws="send" hx-trigger="load delay:1ms">
+                {{ form.form_template.as_hidden }}
+                {{ form.app_users.as_hidden }}
+            </form>
+            <div id="message-list"
+                 class="h-[50rem] overflow-y-auto"
+                 hx-swap-oob="beforeend"></div>
+        </div>
+    {% endif %}
 {% endblock content %}

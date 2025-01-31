@@ -1,0 +1,6 @@
+<div id="message-list" hx-swap-oob="beforeend">
+    <div class="p-4 mb-4 text-sm rounded-lg {% if not error %}text-primary-700 bg-primary-100 dark:bg-gray-800 dark:text-primary-300{% else %} font-mono text-red-700 bg-red-50 dark:bg-gray-800 dark:text-red-400{% endif %}">
+        {% if error %}<pre>{% endif %}{{ message_text|safe }}{% if error %}</pre>
+        {% endif %}
+    </div>
+</div>
