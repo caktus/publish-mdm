@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+    <div class="mb-4 grid gap-4 sm:grid-cols-2 md:mb-8 lg:grid-cols-3 xl:grid-cols-4">
+        {{ form.media }}
+        <form method="post" class="max-w-2xl">
+            {% csrf_token %}
+            <div class="grid gap-4 sm:grid-cols-1 sm:gap-6">
+                <div id="id_file_container">
+                    {{ form.format.label_tag }}
+                    {{ form.format }}
+                    {{ form.format.errors }}
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button type="submit" class="btn btn-outline btn-primary">Submit</button>
+                    <a type="button"
+                       class="btn btn-outline"
+                       href="{% url 'odk_publish:app-user-list' request.odk_project.pk %}"
+                       :disabled="submitting">Cancel</a>
+                </div>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

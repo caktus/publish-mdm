@@ -10,6 +10,7 @@ django-celery-beat
 django-email-bandit @ git+https://github.com/caktus/django-email-bandit@8d84bb5571e531946b46c63301b136f5369e149b
 django-filter
 django-htmx
+django-import-export[xls, xlsx]
 django-storages
 django-structlog[celery]
 django-tables2

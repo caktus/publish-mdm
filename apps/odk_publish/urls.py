@@ -25,6 +25,16 @@ urlpatterns = [
         name="app-users-generate-qr-codes",
     ),
     path(
+        "<int:odk_project_pk>/app-users/export/",
+        views.app_user_export,
+        name="app-users-export",
+    ),
+    path(
+        "<int:odk_project_pk>/app-users/import/",
+        views.app_user_import,
+        name="app-users-import",
+    ),
+    path(
         "<int:odk_project_pk>/form-templates/",
         views.form_template_list,
         name="form-template-list",
