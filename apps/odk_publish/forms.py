@@ -65,7 +65,7 @@ class PublishTemplateForm(PlatformFormMixin, forms.Form):
         required=False,
         label="Limit App Users",
         help_text="Publish to a limited set of app users by entering a comma-separated list.",
-        widget=TextInput(attrs={"placeholder": "e.g., 10001, 10002, 10003"}),
+        widget=TextInput(attrs={"placeholder": "e.g., 10001, 10002, 10003", "autofocus": True}),
     )
 
     def __init__(self, request: HttpRequest, form_template: FormTemplate, *args, **kwargs):

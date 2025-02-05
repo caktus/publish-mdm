@@ -123,8 +123,11 @@ def form_template_publish(request: HttpRequest, odk_project_pk: int, form_templa
     form = PublishTemplateForm(
         request=request, form_template=form_template, data=request.POST or None
     )
+    template = "odk_publish/form_template_publish.html"
     if request.method == "POST" and form.is_valid():
         pass
+    if request.htmx:
+        template = f"{template}#publish-partial"
     context = {
         "form": form,
         "form_template": form_template,
@@ -137,7 +140,7 @@ def form_template_publish(request: HttpRequest, odk_project_pk: int, form_templa
             ],
         ),
     }
-    return render(request, "odk_publish/form_template_publish.html", context)
+    return render(request, template, context)
 
 
 @login_required

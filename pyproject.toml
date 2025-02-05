@@ -39,7 +39,7 @@ known_first_party = [ "apps", "config" ]
 # H031 - Consider adding meta keywords.
 ignore="H030,H031"
 profile = "django"
-custom_blocks="switch"
+custom_blocks="switch,partialdef"
 
 [tool.pytest.ini_options]
 addopts = "--ds=config.settings.test --cov=apps --cov-report=html"

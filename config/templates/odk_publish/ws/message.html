@@ -1,6 +1,10 @@
-<div id="message-list" hx-swap-oob="beforeend">
-    <div class="p-4 mb-4 text-sm rounded-lg {% if not error %}text-primary-700 bg-primary-100 dark:bg-gray-800 dark:text-primary-300{% else %} font-mono text-red-700 bg-red-50 dark:bg-gray-800 dark:text-red-400{% endif %}">
-        {% if error %}<pre>{% endif %}{{ message_text|safe }}{% if error %}</pre>
+<div id="message-list" hx-swap-oob="afterbegin">
+    <div class="text-xs flex justify-end items-start p-3 {% if not error %}text-primary-700 bg-primary-100 dark:bg-gray-800 dark:text-primary-300{% else %} text-red-700 bg-red-50 dark:bg-gray-800 dark:text-red-400{% endif %}">
+        {% now "n/j G:i:s.u" %}
+    </div>
+    <div class="col-span-4 text-sm p-3 {% if complete %}font-bold{% endif %}{% if not error %}text-black dark:bg-gray-800 dark:text-primary-300{% else %} overflow-auto font-mono text-red-700 bg-red-50 dark:bg-gray-800 dark:text-red-400{% endif %}">
+        {% if error %}<pre class="text-xs">{% endif %}{{ message_text|escape }}{% if error %}</pre>
         {% endif %}
+        {% if complete or error %}<span x-data x-init="$store.publishing = false"></span>{% endif %}
     </div>
 </div>
