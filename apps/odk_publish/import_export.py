@@ -16,17 +16,18 @@ class AppUserTemplateVariableWidget(widgets.ForeignKeyWidget):
         return {"template_variable": self.template_variable, "app_user_id": row["id"] or None}
 
     def clean(self, value, row=None, **kwargs):
-        if value and len(str(value)) > 1024:
-            raise ValueError("Value cannot be more than 1024 characters long.")
         try:
             template_variable = super().clean(value, row, **kwargs)
         except AppUserTemplateVariable.DoesNotExist:
             template_variable = AppUserTemplateVariable(
                 value=value, **self.get_lookup_kwargs(value, row, **kwargs)
             )
-        else:
-            if template_variable is not None:
-                template_variable.value = value
+        if template_variable is not None:
+            template_variable.value = value
+            try:
+                template_variable.full_clean()
+            except ValidationError as e:
+                raise ValueError(e.messages[0])
         return template_variable
 
 
