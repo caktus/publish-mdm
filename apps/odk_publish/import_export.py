@@ -25,7 +25,7 @@ class AppUserTemplateVariableWidget(widgets.ForeignKeyWidget):
         if template_variable is not None:
             template_variable.value = value
             try:
-                template_variable.full_clean()
+                template_variable.full_clean(exclude=["app_user"])
             except ValidationError as e:
                 raise ValueError(e.messages[0])
         return template_variable
@@ -46,7 +46,7 @@ class PositiveIntegerWidget(widgets.IntegerWidget):
             val = super().clean(value, row, **kwargs)
         except InvalidOperation:
             raise ValueError("Value must be an integer.")
-        if val < 0:
+        if val and val < 0:
             raise ValueError("Value must be positive.")
         return val
 
