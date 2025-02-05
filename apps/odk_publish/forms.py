@@ -1,6 +1,7 @@
 from django import forms
 from django.http import QueryDict
 from django.urls import reverse_lazy
+from import_export.forms import ImportForm as BaseImportForm
 
 from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import Select
@@ -54,3 +55,30 @@ class ProjectSyncForm(PlatformFormMixin, forms.Form):
             self.fields["project"].choices = [
                 (project.id, project.name) for project in client.projects.list()
             ]
+
+
+class ImportForm(BaseImportForm):
+    def __init__(self, formats, resources, **kwargs):
+        self.formats = formats
+        super().__init__(formats, resources, **kwargs)
+
+    def clean(self):
+        import_format = self.cleaned_data.get("format")
+        import_file = self.cleaned_data.get("import_file")
+        if import_format and import_file:
+            import_format = self.formats[int(import_format)]()
+            data = import_file.read()
+            if not import_format.is_binary():
+                import_format.encoding = "utf-8-sig"
+            try:
+                self.dataset = import_format.create_dataset(data)
+            except Exception:
+                raise forms.ValidationError(
+                    {
+                        "format": (
+                            "An error was encountered while trying to read the file. "
+                            "Ensure you have chosen the correct format for the file."
+                        )
+                    }
+                )
+        return self.cleaned_data

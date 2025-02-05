@@ -7,11 +7,11 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 from django.utils.timezone import localdate
-from import_export.forms import ImportForm, ExportForm
+from import_export.forms import ExportForm
 from import_export.formats.base_formats import CSV, XLS, XLSX
 
 from .etl.load import generate_and_save_app_user_collect_qrcodes, sync_central_project
-from .forms import ProjectSyncForm
+from .forms import ProjectSyncForm, ImportForm
 from .import_export import AppUserResource
 from .models import FormTemplateVersion, FormTemplate
 from .nav import Breadcrumbs
@@ -201,13 +201,8 @@ def app_user_import(request, odk_project_pk):
     if request.POST:
         form = ImportForm(formats, [resource], data=request.POST, files=request.FILES)
         if form.is_valid():
-            import_format = formats[int(form.cleaned_data["format"])]()
-            data = form.cleaned_data["import_file"].read()
-            if not import_format.is_binary():
-                data = data.decode()
-            dataset = import_format.create_dataset(data)
             result = resource.import_data(
-                dataset, use_transactions=True, rollback_on_validation_errors=True
+                form.dataset, use_transactions=True, rollback_on_validation_errors=True
             )
             if not (result.has_validation_errors() or result.has_errors()):
                 return redirect("odk_publish:app-user-list", odk_project_pk=odk_project_pk)
