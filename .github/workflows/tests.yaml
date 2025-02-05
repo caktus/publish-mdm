@@ -21,4 +21,12 @@ jobs:
           sudo apt-get install -y --no-install-recommends postgresql-client
           pip install -U -q pip-tools
           pip-sync requirements/base/base.txt requirements/dev/dev.txt
-      - run: pytest
+      - name: Bring up auxiliary services
+        run: |
+          export COMPOSE_PARALLEL_LIMIT=1
+          while ! docker compose pull; do sleep 1; done
+          docker compose up --detach
+      - name: Run tests
+        run: |
+          export DATABASE_URL=postgresql://postgres@localhost:9062/odk_publish
+          pytest
