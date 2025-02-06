@@ -3,11 +3,26 @@ name: tests
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, app-user-import-export]
 
 jobs:
   tests:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        # From:
+        # https://docs.github.com/en/actions/guides/creating-postgresql-service-containers
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -21,12 +36,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends postgresql-client
           pip install -U -q pip-tools
           pip-sync requirements/base/base.txt requirements/dev/dev.txt
-      - name: Bring up auxiliary services
-        run: |
-          export COMPOSE_PARALLEL_LIMIT=1
-          while ! docker compose pull; do sleep 1; done
-          docker compose up --detach
       - name: Run tests
-        run: |
-          export DATABASE_URL=postgresql://postgres@localhost:9062/odk_publish
-          pytest
+        run: pytest
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
