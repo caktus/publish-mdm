@@ -3,7 +3,7 @@ name: tests
 on:
   pull_request:
   push:
-    branches: [main, app-user-import-export]
+    branches: [main]
 
 jobs:
   tests:
