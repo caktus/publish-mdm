@@ -1,10 +1,13 @@
 from decimal import InvalidOperation
 from functools import partial
 
+import structlog
 from django.core.exceptions import ValidationError
 from import_export import resources, fields, widgets
 
 from .models import AppUser, AppUserTemplateVariable
+
+logger = structlog.getLogger(__name__)
 
 
 class AppUserTemplateVariableWidget(widgets.ForeignKeyWidget):
@@ -100,9 +103,30 @@ class AppUserResource(resources.ModelResource):
         super().import_instance(instance, row, **kwargs)
 
     def do_instance_save(self, instance, is_create):
+        logger.info(
+            "Updating AppUser via file import",
+            new=is_create,
+            id=instance.id,
+            project_id=self.project.id,
+        )
         instance.save()
         for template_variable in instance._template_variables_to_save:
             template_variable.app_user = instance
+            logger.info(
+                "Updating AppUserTemplateVariable via file import",
+                new=not template_variable.pk,
+                id=template_variable.id,
+                variable_name=template_variable.template_variable.name,
+                app_user_id=instance.id,
+                project_id=self.project.id,
+            )
             template_variable.save()
-        for name in instance._template_variables_to_delete:
-            instance.app_user_template_variables.filter(template_variable__name=name).delete()
+        if not is_create:
+            for name in instance._template_variables_to_delete:
+                logger.info(
+                    "Deleting AppUserTemplateVariable via file import",
+                    variable_name=name,
+                    app_user_id=instance.id,
+                    project_id=self.project.id,
+                )
+                instance.app_user_template_variables.filter(template_variable__name=name).delete()
