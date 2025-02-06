@@ -7,6 +7,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 from django.utils.timezone import localdate
+from import_export.results import RowResult
 
 from .etl.load import generate_and_save_app_user_collect_qrcodes, sync_central_project
 from .forms import ProjectSyncForm, AppUserExportForm, AppUserImportForm
@@ -198,6 +199,11 @@ def app_user_import(request, odk_project_pk):
             form.dataset, use_transactions=True, rollback_on_validation_errors=True
         )
         if not (result.has_validation_errors() or result.has_errors()):
+            messages.success(
+                request,
+                f"Import finished successfully, with {result.totals[RowResult.IMPORT_TYPE_NEW]} "
+                f"new and {result.totals[RowResult.IMPORT_TYPE_UPDATE]} updated app users.",
+            )
             return redirect("odk_publish:app-user-list", odk_project_pk=odk_project_pk)
         for row in result.invalid_rows:
             for field, errors in row.error_dict.items():
