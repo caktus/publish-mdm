@@ -7,11 +7,9 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 from django.utils.timezone import localdate
-from import_export.forms import ExportForm
-from import_export.formats.base_formats import CSV, XLS, XLSX
 
 from .etl.load import generate_and_save_app_user_collect_qrcodes, sync_central_project
-from .forms import ProjectSyncForm, ImportForm
+from .forms import ProjectSyncForm, AppUserExportForm, AppUserImportForm
 from .import_export import AppUserResource
 from .models import FormTemplateVersion, FormTemplate
 from .nav import Breadcrumbs
@@ -158,24 +156,21 @@ def app_user_export(request, odk_project_pk):
     columns. Additionally there will be a column for each TemplateVariable related to
     the current project.
     """
-    formats = [CSV, XLS, XLSX]
     resource = AppUserResource(request.odk_project)
-    if request.method == "POST":
-        form = ExportForm(formats, [resource], data=request.POST)
-        if form.is_valid():
-            export_format = formats[int(form.cleaned_data["format"])]()
-            dataset = resource.export(
-                request.odk_project.app_users.prefetch_related("app_user_template_variables")
-            )
-            data = export_format.export_data(dataset)
-            filename = f"app_users_{odk_project_pk}_{localdate()}.{export_format.get_extension()}"
-            return HttpResponse(
-                data,
-                content_type=export_format.get_content_type(),
-                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-            )
-    else:
-        form = ExportForm(formats, [resource])
+    form = AppUserExportForm([resource], data=request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        export_format = form.cleaned_data["format"]
+        dataset = resource.export(
+            request.odk_project.app_users.prefetch_related("app_user_template_variables")
+        )
+        data = export_format.export_data(dataset)
+        filename = f"app_users_{odk_project_pk}_{localdate()}.{export_format.get_extension()}"
+        return HttpResponse(
+            data,
+            content_type=export_format.get_content_type(),
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
     context = {
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
@@ -196,29 +191,25 @@ def app_user_import(request, odk_project_pk):
     it will be deleted.
     """
     # TODO: Add a preview page after a file is uploaded, similar to imports in Django Admin
-    formats = [CSV, XLS, XLSX]
     resource = AppUserResource(request.odk_project)
-    if request.POST:
-        form = ImportForm(formats, [resource], data=request.POST, files=request.FILES)
-        if form.is_valid():
-            result = resource.import_data(
-                form.dataset, use_transactions=True, rollback_on_validation_errors=True
-            )
-            if not (result.has_validation_errors() or result.has_errors()):
-                return redirect("odk_publish:app-user-list", odk_project_pk=odk_project_pk)
-            for row in result.invalid_rows:
-                for field, errors in row.error_dict.items():
-                    if field == "__all__":
-                        field = "id"
-                    for error in errors:
-                        messages.error(request, f"Row {row.number}, Column '{field}': {error}")
-            for row in result.error_rows:
-                for error in row.errors:
-                    messages.error(request, f"Row {row.number}: {error.error!r}")
-            for error in result.base_errors:
-                messages.error(request, repr(error.error))
-    else:
-        form = ImportForm(formats, [resource])
+    form = AppUserImportForm([resource], data=request.POST or None, files=request.FILES or None)
+    if request.POST and form.is_valid():
+        result = resource.import_data(
+            form.dataset, use_transactions=True, rollback_on_validation_errors=True
+        )
+        if not (result.has_validation_errors() or result.has_errors()):
+            return redirect("odk_publish:app-user-list", odk_project_pk=odk_project_pk)
+        for row in result.invalid_rows:
+            for field, errors in row.error_dict.items():
+                if field == "__all__":
+                    field = "id"
+                for error in errors:
+                    messages.error(request, f"Row {row.number}, Column '{field}': {error}")
+        for row in result.error_rows:
+            for error in row.errors:
+                messages.error(request, f"Row {row.number}: {error.error!r}")
+        for error in result.base_errors:
+            messages.error(request, repr(error.error))
     context = {
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
