@@ -13,9 +13,7 @@ def create_or_update_app_users(form_template: FormTemplate):
     """Create or update app users for the form template."""
     app_user_forms: QuerySet[AppUserFormTemplate] = form_template.app_user_forms.select_related()
 
-    with ODKPublishClient.new_client(
-        base_url=form_template.project.central_server.base_url
-    ) as client:
+    with ODKPublishClient(base_url=form_template.project.central_server.base_url) as client:
         app_users = client.odk_publish.get_or_create_app_users(
             display_names=[app_user_form.app_user.name for app_user_form in app_user_forms],
             project_id=form_template.project.central_id,
@@ -24,7 +22,7 @@ def create_or_update_app_users(form_template: FormTemplate):
         for app_user_form in app_user_forms:
             app_users[app_user_form.app_user.name].xml_form_ids.append(app_user_form.xml_form_id)
         # Create or update the form assignments on the server
-        client.odk_publish.assign_forms(
+        client.odk_publish.assign_app_users_forms(
             app_users=app_users.values(), project_id=form_template.project.central_id
         )
         # Update any AppUsers related to the project whose central_id field is null
