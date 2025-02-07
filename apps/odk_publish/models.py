@@ -174,7 +174,10 @@ class AppUserTemplateVariable(AbstractBaseModel):
 class AppUser(AbstractBaseModel):
     name = models.CharField(max_length=255)
     central_id = models.PositiveIntegerField(
-        verbose_name="app user ID", help_text="The ID of this app user in ODK Central."
+        verbose_name="app user ID",
+        help_text="The ID of this app user in ODK Central.",
+        blank=True,
+        null=True,
     )
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="app_users")
     qr_code = models.ImageField(

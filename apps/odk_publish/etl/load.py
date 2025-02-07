@@ -27,6 +27,18 @@ def create_or_update_app_users(form_template: FormTemplate):
         client.odk_publish.assign_forms(
             app_users=app_users.values(), project_id=form_template.project.central_id
         )
+        # Update any AppUsers related to the project whose central_id field is null
+        for app_user in form_template.project.app_users.filter(
+            name__in=app_users, central_id__isnull=True
+        ):
+            app_user.central_id = app_users[app_user.name].id
+            app_user.save()
+            logger.debug(
+                "Updated AppUser.central_id",
+                id=app_user.id,
+                name=app_user.name,
+                central_id=app_user.central_id,
+            )
 
 
 def generate_and_save_app_user_collect_qrcodes(project: Project):

@@ -205,11 +205,10 @@ class TestAppUserResource:
         assert variables["center_label"] == "Center 11031"
 
     def test_validation_errors(self, app_user):
-        # CSV with 6 invalid rows and 1 valid row
+        # CSV with 5 invalid rows and 1 valid row
         csv_data = (
             "id,name,central_id,center_id,center_label,public_key,manager_password\n"
-            f"{app_user.id},,,,,,\n"  # Existing user has no name and no central_id
-            f",new,,,,,\n"  # New user has name but no central_id
+            f"{app_user.id},,,,,,\n"  # Existing user has no name
             ",,1,,,,\n"  # New user has central_id but no name
             ",new1,xx,,,,\n"  # New user has a non-integer central_id
             f",new2,2,{'1' * 1025},,,\n"  # New user has a center_id with more than 1024 characters
@@ -226,19 +225,17 @@ class TestAppUserResource:
             (
                 1,
                 {
-                    "central_id": ["This field cannot be null."],
                     "name": ["This field cannot be blank."],
                 },
             ),
-            (2, {"central_id": ["This field cannot be null."]}),
-            (3, {"name": ["This field cannot be blank."]}),
-            (4, {"central_id": ["Value must be an integer."]}),
-            (5, {"center_id": ["Ensure this value has at most 1024 characters (it has 1025)."]}),
-            (6, {"__all__": ["App user with this Project and Name already exists."]}),
+            (2, {"name": ["This field cannot be blank."]}),
+            (3, {"central_id": ["Value must be an integer."]}),
+            (4, {"center_id": ["Ensure this value has at most 1024 characters (it has 1025)."]}),
+            (5, {"__all__": ["App user with this Project and Name already exists."]}),
         ]
 
         assert result.has_validation_errors()
-        assert len(result.invalid_rows) == 6
+        assert len(result.invalid_rows) == len(expected_errors)
 
         for index, (row_number, row_errors) in enumerate(expected_errors):
             assert result.invalid_rows[index].number == row_number
