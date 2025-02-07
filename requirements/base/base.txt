@@ -26,13 +26,13 @@ autobahn==24.4.2
     # via daphne
 automat==24.8.1
     # via twisted
-beautifulsoup4==4.12.3
+beautifulsoup4==4.13.3
     # via -r requirements/base/base.in
 billiard==4.2.1
     # via celery
-boto3==1.36.8
+boto3==1.36.15
     # via -r requirements/base/base.in
-botocore==1.36.8
+botocore==1.36.15
     # via
     #   boto3
     #   s3transfer
@@ -43,7 +43,7 @@ celery==5.4.0
     #   -r requirements/base/base.in
     #   django-celery-beat
     #   django-structlog
-certifi==2024.12.14
+certifi==2025.1.31
     # via
     #   requests
     #   sentry-sdk
@@ -92,7 +92,7 @@ django==5.1.5
     #   django-tables2
     #   django-template-partials
     #   django-timezone-field
-django-allauth==65.3.1
+django-allauth==65.4.1
     # via -r requirements/base/base.in
 django-celery-beat==2.7.0
     # via -r requirements/base/base.in
@@ -100,13 +100,13 @@ django-email-bandit @ git+https://github.com/caktus/django-email-bandit@8d84bb55
     # via -r requirements/base/base.in
 django-filter==24.3
     # via -r requirements/base/base.in
-django-htmx==1.21.0
+django-htmx==1.22.0
     # via -r requirements/base/base.in
 django-ipware==7.0.1
     # via django-structlog
 django-storages==1.14.4
     # via -r requirements/base/base.in
-django-structlog==9.0.0
+django-structlog==9.0.1
     # via -r requirements/base/base.in
 django-tables2==2.7.5
     # via -r requirements/base/base.in
@@ -148,7 +148,7 @@ kombu==5.4.2
     # via celery
 markdown==3.7
     # via -r requirements/base/base.in
-newrelic==10.4.0
+newrelic==10.6.0
     # via -r requirements/base/base.in
 oauthlib==3.2.2
     # via requests-oauthlib
@@ -229,6 +229,7 @@ txaio==23.1.1
     # via autobahn
 typing-extensions==4.12.2
     # via
+    #   beautifulsoup4
     #   dj-database-url
     #   psycopg
     #   pydantic
@@ -252,7 +253,7 @@ vine==5.1.0
     #   kombu
 wcwidth==0.2.13
     # via prompt-toolkit
-whitenoise==6.8.2
+whitenoise==6.9.0
     # via -r requirements/base/base.in
 zope-interface==7.2
     # via twisted

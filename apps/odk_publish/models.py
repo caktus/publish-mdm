@@ -16,7 +16,7 @@ logger = structlog.getLogger(__name__)
 
 
 class AbstractBaseModel(models.Model):
-    """Abstract base model for all models in the app"""
+    """Abstract base model for all models in the app."""
 
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     modified_at = models.DateTimeField(auto_now=True, db_index=True)
@@ -26,6 +26,8 @@ class AbstractBaseModel(models.Model):
 
 
 class CentralServer(AbstractBaseModel):
+    """A server running ODK Central."""
+
     base_url = models.URLField(max_length=1024)
 
     def __str__(self):
@@ -38,6 +40,8 @@ class CentralServer(AbstractBaseModel):
 
 
 class TemplateVariable(AbstractBaseModel):
+    """A variable that can be used in a FormTemplate."""
+
     name = models.CharField(
         max_length=255,
         validators=[
@@ -59,6 +63,8 @@ class TemplateVariable(AbstractBaseModel):
 
 
 class Project(AbstractBaseModel):
+    """A project in ODK Central."""
+
     name = models.CharField(max_length=255)
     central_id = models.PositiveIntegerField(
         verbose_name="project ID", help_text="The ID of this project in ODK Central."
@@ -75,6 +81,8 @@ class Project(AbstractBaseModel):
 
 
 class FormTemplate(AbstractBaseModel):
+    """A form "template" published to potentially multiple ODK Central forms."""
+
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="form_templates")
     title_base = models.CharField(max_length=255)
     form_id_base = models.CharField(max_length=255)
@@ -126,6 +134,8 @@ class FormTemplate(AbstractBaseModel):
 
 
 class FormTemplateVersion(AbstractBaseModel):
+    """A version (like v5) of a form template."""
+
     form_template = models.ForeignKey(
         FormTemplate, on_delete=models.CASCADE, related_name="versions"
     )
@@ -144,12 +154,15 @@ class FormTemplateVersion(AbstractBaseModel):
         return self.file.name
 
     def create_app_user_versions(
-        self, app_users: models.QuerySet["AppUser"] = None, send_message=None
+        self, app_users: models.QuerySet["AppUser"] | None = None, send_message=None
     ) -> list["AppUserFormVersion"]:
+        """Create the next version of this form template for each app user."""
         app_user_versions = []
         q = models.Q(form_template=self.form_template)
+        # Optionally limit to specific app users (partial publish)
         if app_users:
             q &= models.Q(app_user__in=app_users)
+        # Create the next version for each app user
         for app_user_form in AppUserFormTemplate.objects.filter(q):
             logger.info("Creating next AppUserFormVersion", app_user_form=app_user_form)
             app_user_version = app_user_form.create_next_version(form_template_version=self)
@@ -214,6 +227,8 @@ class AppUser(AbstractBaseModel):
 
 
 class AppUserFormTemplate(AbstractBaseModel):
+    """An app user's form template assignment."""
+
     app_user = models.ForeignKey(AppUser, on_delete=models.CASCADE, related_name="app_user_forms")
     form_template = models.ForeignKey(
         FormTemplate, on_delete=models.CASCADE, related_name="app_user_forms"
@@ -227,7 +242,7 @@ class AppUserFormTemplate(AbstractBaseModel):
         ]
 
     def __str__(self):
-        return f"{self.app_user} - {self.form_template}"
+        return self.xml_form_id
 
     @property
     def xml_form_id(self) -> str:
@@ -235,6 +250,7 @@ class AppUserFormTemplate(AbstractBaseModel):
         return f"{self.form_template.form_id_base}_{self.app_user.name}"
 
     def create_next_version(self, form_template_version: FormTemplateVersion):
+        """Create the next version of this app user form template."""
         from .etl.transform import render_template_for_app_user
 
         version_file = render_template_for_app_user(

@@ -10,7 +10,13 @@ logger = structlog.getLogger(__name__)
 
 
 def create_or_update_app_users(form_template: FormTemplate):
-    """Create or update app users for the form template."""
+    """Create or update app users for the form template, effectively syncing
+    ODK Publish to ODK Central.
+
+    Steps include:
+    * Get or create app users in ODK Central
+    * Create or update form assignments in ODK Central
+    """
     app_user_forms: QuerySet[AppUserFormTemplate] = form_template.app_user_forms.select_related()
 
     with ODKPublishClient.new_client(
