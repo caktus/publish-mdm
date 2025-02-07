@@ -1,5 +1,7 @@
 import json
+from requests import Response
 import traceback
+import pprint
 
 import structlog
 from channels.generic.websocket import WebsocketConsumer
@@ -53,8 +55,17 @@ class PublishTemplateConsumer(WebsocketConsumer):
             self.publish_form_template(event_data=event_data)
         except Exception as e:
             logger.exception("Error publishing form")
-            tbe = traceback.TracebackException.from_exception(exc=e, capture_locals=True)
-            self.send_message("".join(tbe.format()), error=True)
+            tbe = traceback.TracebackException.from_exception(
+                exc=e,
+                capture_locals=True,
+                compact=True,
+                limit=1,
+            )
+            message = "".join(tbe.format())
+            if len(e.args) >= 2 and isinstance(e.args[1], Response):
+                data = e.args[1].json()
+                message = f"ODK Central error:\n\n{pprint.pformat(data)}\n\n{message}"
+            self.send_message(message, error=True)
 
     def publish_form_template(self, event_data: dict):
         """Publish a form template to ODK Central and stream progress to the browser."""
