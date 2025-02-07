@@ -2,6 +2,8 @@ import pytest
 from tablib import Dataset
 
 from apps.odk_publish import models, import_export
+from apps.odk_publish.etl.load import update_app_users_central_id
+from apps.odk_publish.etl.odk.publish import ProjectAppUserAssignment
 
 
 @pytest.mark.django_db
@@ -241,3 +243,22 @@ class TestAppUserResource:
         for index, (row_number, row_errors) in enumerate(expected_errors):
             assert result.invalid_rows[index].number == row_number
             assert result.invalid_rows[index].error_dict == row_errors
+
+    def test_appuser_central_id_updated(self, app_user):
+        app_user.central_id = None
+        app_user.save()
+        odk_central_user = ProjectAppUserAssignment(
+            **{
+                "projectId": 1,
+                "id": 3,
+                "type": "field_key",
+                "displayName": app_user.name,
+                "createdAt": "2024-07-08T21:43:16.249Z",
+                "updatedAt": None,
+                "deletedAt": None,
+                "token": "token3",
+            }
+        )
+        update_app_users_central_id(app_user.project, {app_user.name: odk_central_user})
+        app_user.refresh_from_db()
+        assert app_user.central_id == odk_central_user.id
