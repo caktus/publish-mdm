@@ -214,6 +214,7 @@ class TestAppUserResource:
             f",new2,2,{'1' * 1025},,,\n"  # New user has a center_id with more than 1024 characters
             f",{app_user.name},2,,,,\n"  # New user has the same name as the existing user
             ",new3,3,,,,\n"  # New user has both name and central_id, so is valid
+            ",new4,,,,,\n"  # New user with name only is valid
         )
 
         dataset = Dataset().load(csv_data)
