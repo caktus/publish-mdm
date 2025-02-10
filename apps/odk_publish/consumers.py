@@ -44,6 +44,7 @@ class PublishTemplateConsumer(WebsocketConsumer):
                 limit=1,
             )
             message = "".join(tbe.format())
+            # If the error is from ODK Central, format the error message for easier reading
             if len(e.args) >= 2 and isinstance(e.args[1], Response):
                 data = e.args[1].json()
                 message = f"ODK Central error:\n\n{pprint.pformat(data)}\n\n{message}"
