@@ -1,32 +1,13 @@
 import pytest
-
-
-from apps.odk_publish.etl.odk.client import ODKPublishClient
-from apps.odk_publish.etl.load import PublishTemplateEvent
-
 from django.core.files.uploadedfile import SimpleUploadedFile
 
-
+from apps.odk_publish.etl.load import PublishTemplateEvent
 from tests.odk_publish.factories import (
-    ProjectFactory,
     AppUserFormTemplateFactory,
     FormTemplateVersionFactory,
 )
 
 pytestmark = pytest.mark.django_db
-
-
-@pytest.fixture
-def project():
-    return ProjectFactory(central_server__base_url="https://central")
-
-
-@pytest.fixture
-def odk_client(project):
-    return ODKPublishClient(base_url="https://central", project_id=project.central_id)
-
-
-# app_user__project=factory.SelfAttribute("..form_template.project"),
 
 
 class TestPublishEvent:
