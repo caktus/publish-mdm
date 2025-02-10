@@ -17,6 +17,7 @@ from pathlib import Path
 
 import dj_database_url
 import structlog
+from import_export.formats import base_formats
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -60,6 +61,7 @@ INSTALLED_APPS = [
     "django_htmx",
     "django_structlog",
     "django_tables2",
+    "import_export",
     "template_partials",
     # Local
     "apps.odk_publish",
@@ -376,3 +378,6 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 # pyODK
 ODK_CENTRAL_USERNAME = os.getenv("ODK_CENTRAL_USERNAME")
 ODK_CENTRAL_PASSWORD = os.getenv("ODK_CENTRAL_PASSWORD")
+
+# django-import-export
+IMPORT_EXPORT_FORMATS = [base_formats.CSV, base_formats.XLSX]

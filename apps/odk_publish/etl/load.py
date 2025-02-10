@@ -83,6 +83,24 @@ def publish_form_template(event: PublishTemplateEvent, user: User, send_message:
     send_message(f"Successfully published {version}", complete=True)
 
 
+@transaction.atomic
+def update_app_users_central_id(project: Project, app_users):
+    """Update AppUser.central_id for any user related to `project` that has a
+    null central_id, using the data in `app_users`. `app_users` should be a dict
+    mapping user names to ProjectAppUserAssignment objects, like the dict returned
+    by PublishService.get_or_create_app_users().
+    """
+    for app_user in project.app_users.filter(name__in=app_users, central_id__isnull=True):
+        app_user.central_id = app_users[app_user.name].id
+        app_user.save()
+        logger.info(
+            "Updated AppUser.central_id",
+            id=app_user.id,
+            name=app_user.name,
+            central_id=app_user.central_id,
+        )
+
+
 def generate_and_save_app_user_collect_qrcodes(project: Project):
     """Generate and save QR codes for all app users in the project."""
     app_users: QuerySet[AppUser] = project.app_users.all()

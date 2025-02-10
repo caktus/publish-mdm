@@ -1,9 +1,11 @@
 from django import forms
+from django.conf import settings
 from django.http import QueryDict
 from django.urls import reverse_lazy
+from import_export import forms as import_export_forms
 
 from apps.patterns.forms import PlatformFormMixin
-from apps.patterns.widgets import Select, TextInput
+from apps.patterns.widgets import Select, FileInput, TextInput
 
 from .etl.odk.client import ODKPublishClient
 from .http import HttpRequest
@@ -88,3 +90,75 @@ class PublishTemplateForm(PlatformFormMixin, forms.Form):
                 raise forms.ValidationError(error_message)
             return app_users_in_db
         return []
+
+
+class FileFormatChoiceField(forms.ChoiceField):
+    """Field for selecting a file format for importing and exporting."""
+
+    widget = Select
+
+    def __init__(self, *args, **kwargs):
+        # Load the available file formats from Django settings
+        self.formats = settings.IMPORT_EXPORT_FORMATS
+        choices = [("", "---")] + [
+            (i, format().get_title()) for i, format in enumerate(self.formats)
+        ]
+        super().__init__(choices=choices, *args, **kwargs)
+
+    def clean(self, value):
+        """Return the selected file format instance."""
+        Format = self.formats[int(value)]
+        return Format()
+
+
+class AppUserImportExportFormMixin(PlatformFormMixin, forms.Form):
+    """Base form for importing and exporting AppUsers."""
+
+    format = FileFormatChoiceField()
+
+    def __init__(self, resources, **kwargs):
+        # Formats are handled by the FileFormatChoiceField, so we pass an empty list
+        # to the parent class
+        super().__init__(formats=[], resources=resources, **kwargs)
+
+    def _init_formats(self, formats):
+        # Again, formats are handled by the FileFormatChoiceField, so nothing to do here
+        pass
+
+
+class AppUserExportForm(AppUserImportExportFormMixin, import_export_forms.ImportExportFormBase):
+    """Form for exporting AppUsers to a file."""
+
+    pass
+
+
+class AppUserImportForm(AppUserImportExportFormMixin, import_export_forms.ImportForm):
+    """Form for importing AppUsers from a file."""
+
+    import_file = forms.FileField(label="File to import", widget=FileInput)
+
+    def __init__(self, resources, **kwargs):
+        super().__init__(resources, **kwargs)
+        # Add CSS classes to the import file and format fields so JS can detect them
+        self.fields["import_file"].widget.attrs["class"] = "guess_format"
+        self.fields["format"].widget.attrs["class"] = "guess_format"
+
+    def clean(self):
+        import_format = self.cleaned_data.get("format")
+        import_file = self.cleaned_data.get("import_file")
+        if import_format and import_file:
+            data = import_file.read()
+            if not import_format.is_binary():
+                import_format.encoding = "utf-8-sig"
+            try:
+                self.dataset = import_format.create_dataset(data)
+            except Exception:
+                raise forms.ValidationError(
+                    {
+                        "format": (
+                            "An error was encountered while trying to read the file. "
+                            "Ensure you have chosen the correct format for the file."
+                        )
+                    }
+                )
+        return self.cleaned_data

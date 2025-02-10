@@ -1,6 +1,6 @@
 <select name="{{ widget.name }}"
-        {% include "django/forms/widgets/attrs.html" %}
-        class="{% if 'disabled' in widget.attrs %}cursor-not-allowed {% endif %}border rounded-md block w-full p-2.5 {% if not field.errors %}bg-gray-50 border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary-200 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500{% else %} bg-red-50  border-brand-danger-medium  text-brand-danger-medium focus:ring-red-500 focus:border-brand-danger-medium dark:bg-brand-danger-light dark:border-brand-danger-light {% endif %} ">
+        class="{% if 'disabled' in widget.attrs %}cursor-not-allowed {% endif %}border rounded-md block w-full p-2.5 {% if not field.errors %}bg-gray-50 border border-gray-300 text-gray-900 focus:ring-2 focus:ring-primary-200 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500{% else %} bg-red-50 border-brand-danger-medium text-brand-danger-medium focus:ring-red-500 focus:border-brand-danger-medium dark:bg-brand-danger-light dark:border-brand-danger-light{% endif %}{% if widget.attrs.class %} {{ widget.attrs.class }}{% endif %}"
+        {% include "django/forms/widgets/attrs.html" %}>
     {% for group_name, group_choices, group_index in widget.optgroups %}
         {% if group_name %}<optgroup label="{{ group_name }}">{% endif %}
             {% for option in group_choices %}
