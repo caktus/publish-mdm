@@ -1,38 +1,86 @@
+from typing import Callable
+
 import structlog
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import transaction
 from django.db.models import QuerySet
+from pydantic import BaseModel, field_validator
 
-from ..models import AppUser, AppUserFormTemplate, CentralServer, FormTemplate, Project
+from apps.users.models import User
+
+from ..models import (
+    AppUser,
+    CentralServer,
+    FormTemplate,
+    FormTemplateVersion,
+    Project,
+)
 from .odk.client import ODKPublishClient
 from .odk.qrcode import create_app_user_qrcode
 
 logger = structlog.getLogger(__name__)
 
 
-def create_or_update_app_users(form_template: FormTemplate):
-    """Create or update app users for the form template, effectively syncing
-    ODK Publish to ODK Central.
+class PublishTemplateEvent(BaseModel):
+    """Model to parse and validate the publish WebSocket message payload."""
+
+    form_template: int
+    app_users: list[str]
+
+    @field_validator("app_users", mode="before")
+    @classmethod
+    def split_comma_separated_app_users(cls, v):
+        """Split comma-separated app users into a list."""
+        if isinstance(v, str):
+            return v.split(",")
+        return v
+
+
+def publish_form_template(event: PublishTemplateEvent, user: User, send_message: Callable):
+    """The main function for publishing a form template to ODK Central.
 
     Steps include:
+    * Download the form template from Google Sheets
+    * Create the next version of the form template and app user versions
     * Get or create app users in ODK Central
-    * Create or update form assignments in ODK Central
+    * Publish each app user version to ODK Central
     """
-    app_user_forms: QuerySet[AppUserFormTemplate] = form_template.app_user_forms.select_related()
-
-    with ODKPublishClient.new_client(
-        base_url=form_template.project.central_server.base_url
-    ) as client:
-        app_users = client.odk_publish.get_or_create_app_users(
-            display_names=[app_user_form.app_user.name for app_user_form in app_user_forms],
-            project_id=form_template.project.central_id,
+    send_message(f"New {repr(event)}")
+    # Get the form template
+    form_template = FormTemplate.objects.select_related().get(id=event.form_template)
+    send_message(f"Publishing next version of {repr(form_template)}")
+    # Get the next version by querying ODK Central
+    client = ODKPublishClient(
+        base_url=form_template.project.central_server.base_url,
+        project_id=form_template.project.central_id,
+    )
+    version = client.odk_publish.get_unique_version_by_form_id(
+        xml_form_id_base=form_template.form_id_base
+    )
+    send_message(f"Generated version: {version}")
+    # Download the template from Google Sheets
+    file = form_template.download_user_google_sheet(
+        user=user, name=f"{form_template.form_id_base}-{version}.xlsx"
+    )
+    send_message(f"Downloaded template: {file}")
+    with transaction.atomic():
+        # Create the next version
+        template_version = FormTemplateVersion.objects.create(
+            form_template=form_template, user=user, file=file, version=version
         )
-        # Link form assignments to app users locally
-        for app_user_form in app_user_forms:
-            app_users[app_user_form.app_user.name].xml_form_ids.append(app_user_form.xml_form_id)
-        # Create or update the form assignments on the server
-        client.odk_publish.assign_forms(
-            app_users=app_users.values(), project_id=form_template.project.central_id
+        # Create a version for each app user
+        app_users = form_template.project.app_users.filter(name__in=event.app_users)
+        app_user_versions = template_version.create_app_user_versions(
+            app_users=app_users, send_message=send_message
         )
+        # Publish each app user version to ODK Central
+        for app_user_version in app_user_versions:
+            form = client.odk_publish.create_or_update_form(
+                xml_form_id=app_user_version.app_user_form_template.xml_form_id,
+                definition=app_user_version.file.read(),
+            )
+            send_message(f"Published form: {form.xmlFormId}")
+    send_message(f"Successfully published {version}", complete=True)
 
 
 def generate_and_save_app_user_collect_qrcodes(project: Project):

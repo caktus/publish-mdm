@@ -10,7 +10,6 @@ from apps.users.models import User
 
 from .etl import template
 from .etl.google import download_user_google_sheet
-from .etl.odk.client import ODKPublishClient
 
 logger = structlog.getLogger(__name__)
 
@@ -91,7 +90,7 @@ class FormTemplate(AbstractBaseModel):
     def __str__(self):
         return f"{self.form_id_base} ({self.id})"
 
-    def download_google_sheet(self, user: User, name: str) -> SimpleUploadedFile:
+    def download_user_google_sheet(self, user: User, name: str) -> SimpleUploadedFile:
         """Download the Google Sheet Excel file for this form template."""
         social_token = user.get_google_social_token()
         if social_token is None:
@@ -102,35 +101,6 @@ class FormTemplate(AbstractBaseModel):
             sheet_url=self.template_url,
             name=name,
         )
-
-    def create_next_version(self, user: User) -> "FormTemplateVersion":
-        """Create the next version of this form template.
-
-        Steps to create the next version:
-
-        1. Query the ODK Central server for this `form_id_base` and increment
-           the version number with today's date.
-        2. Download the Google Sheet Excel file for this form template.
-        3. Create a new FormTemplateVersion instance with the downloaded file.
-        """
-        with ODKPublishClient(
-            base_url=self.project.central_server.base_url, project_id=self.project.central_id
-        ) as client:
-            version = client.odk_publish.get_unique_version_by_form_id(
-                xml_form_id_base=self.form_id_base
-            )
-            name = f"{self.form_id_base}-{version}.xlsx"
-            file = self.download_google_sheet(user=user, name=name)
-            version = FormTemplateVersion.objects.create(
-                form_template=self, user=user, file=file, version=version
-            )
-            app_user_versions = version.create_app_user_versions()
-            for app_user_version in app_user_versions:
-                client.odk_publish.create_or_update_form(
-                    xml_form_id=app_user_version.app_user_form_template.xml_form_id,
-                    definition=app_user_version.file.read(),
-                )
-            return version
 
 
 class FormTemplateVersion(AbstractBaseModel):
@@ -175,6 +145,8 @@ class FormTemplateVersion(AbstractBaseModel):
 
 
 class AppUserTemplateVariable(AbstractBaseModel):
+    """A template variable value for an app user."""
+
     app_user = models.ForeignKey(
         "AppUser", on_delete=models.CASCADE, related_name="app_user_template_variables"
     )
@@ -195,6 +167,8 @@ class AppUserTemplateVariable(AbstractBaseModel):
 
 
 class AppUser(AbstractBaseModel):
+    """An app user in ODK Central."""
+
     name = models.CharField(max_length=255)
     central_id = models.PositiveIntegerField(
         verbose_name="app user ID", help_text="The ID of this app user in ODK Central."
@@ -264,6 +238,8 @@ class AppUserFormTemplate(AbstractBaseModel):
 
 
 class AppUserFormVersion(AbstractBaseModel):
+    """A version of an app user's form template that is published to ODK Central."""
+
     app_user_form_template = models.ForeignKey(
         AppUserFormTemplate,
         on_delete=models.CASCADE,

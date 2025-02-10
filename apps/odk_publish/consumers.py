@@ -1,33 +1,15 @@
 import json
-from requests import Response
-import traceback
 import pprint
+import traceback
 
 import structlog
 from channels.generic.websocket import WebsocketConsumer
 from django.template.loader import render_to_string
-from django.db import transaction
-from pydantic import BaseModel, field_validator
+from requests import Response
 
-from .etl.odk.client import ODKPublishClient
-from .models import FormTemplate, FormTemplateVersion
+from .etl.load import PublishTemplateEvent, publish_form_template
 
 logger = structlog.getLogger(__name__)
-
-
-class PublishTemplateEvent(BaseModel):
-    """Model to parse and validate the publish WebSocket message payload."""
-
-    form_template: int
-    app_users: list[str]
-
-    @field_validator("app_users", mode="before")
-    @classmethod
-    def split_comma_separated_app_users(cls, v):
-        """Split comma-separated app users into a list."""
-        if isinstance(v, str):
-            return v.split(",")
-        return v
 
 
 class PublishTemplateConsumer(WebsocketConsumer):
@@ -69,42 +51,9 @@ class PublishTemplateConsumer(WebsocketConsumer):
 
     def publish_form_template(self, event_data: dict):
         """Publish a form template to ODK Central and stream progress to the browser."""
-        user = self.scope["user"]
         # Parse the event data and raise an error if it's invalid
         publish_event = PublishTemplateEvent(**event_data)
-        self.send_message(f"New {repr(publish_event)}")
-        # Get the form template
-        form_template = FormTemplate.objects.select_related().get(id=publish_event.form_template)
-        self.send_message(f"Publishing next version of {repr(form_template)}")
-        # Get the next version by querying ODK Central
-        client = ODKPublishClient(
-            base_url=form_template.project.central_server.base_url,
-            project_id=form_template.project.central_id,
+        # Hand off to the ETL process to publish the form template
+        publish_form_template(
+            event=publish_event, user=self.scope["user"], send_message=self.send_message
         )
-        version = client.odk_publish.get_unique_version_by_form_id(
-            xml_form_id_base=form_template.form_id_base
-        )
-        self.send_message(f"Generated version: {version}")
-        # Download the template from Google Sheets
-        file = form_template.download_google_sheet(
-            user=user, name=f"{form_template.form_id_base}-{version}.xlsx"
-        )
-        self.send_message(f"Downloaded template: {file}")
-        with transaction.atomic():
-            # Create the next version
-            template_version = FormTemplateVersion.objects.create(
-                form_template=form_template, user=user, file=file, version=version
-            )
-            # Create a version for each app user
-            app_users = form_template.project.app_users.filter(name__in=publish_event.app_users)
-            app_user_versions = template_version.create_app_user_versions(
-                app_users=app_users, send_message=self.send_message
-            )
-            # Publish each app user version to ODK Central
-            for app_user_version in app_user_versions:
-                form = client.odk_publish.create_or_update_form(
-                    xml_form_id=app_user_version.app_user_form_template.xml_form_id,
-                    definition=app_user_version.file.read(),
-                )
-                self.send_message(f"Published form: {form.xmlFormId}")
-        self.send_message(f"Successfully published {version}", complete=True)

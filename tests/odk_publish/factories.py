@@ -60,7 +60,7 @@ class FormTemplateFactory(
     class Meta:
         model = models.FormTemplate
 
-    form_id_base = factory.Faker("uuid4")
+    form_id_base = factory.Faker("word")
     project = factory.SubFactory(ProjectFactory)
     title_base = factory.Faker("word")
 

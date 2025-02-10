@@ -42,7 +42,7 @@ profile = "django"
 custom_blocks="switch,partialdef"
 
 [tool.pytest.ini_options]
-addopts = "--ds=config.settings.test --cov=apps --cov-report=html"
+addopts = "--ds=config.settings.test --cov=apps --cov-report=html --reuse-db --no-migrations"
 testpaths = [ "tests" ]
 pythonpath = [ "." ]
 

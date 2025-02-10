@@ -2,6 +2,7 @@ import pytest
 
 
 from apps.odk_publish.etl.odk.client import ODKPublishClient
+from apps.odk_publish.etl.load import PublishTemplateEvent
 
 from django.core.files.uploadedfile import SimpleUploadedFile
 
@@ -26,6 +27,18 @@ def odk_client(project):
 
 
 # app_user__project=factory.SelfAttribute("..form_template.project"),
+
+
+class TestPublishEvent:
+    def test_split_comma_separated_app_users(self):
+        """Test that the app users are split into a list."""
+        event = PublishTemplateEvent(form_template=1, app_users="user1,user2")
+        assert event.app_users == ["user1", "user2"]
+
+    def test_split_comma_separated_app_users_single(self):
+        """Test that a single app user is split into a list."""
+        event = PublishTemplateEvent(form_template=1, app_users="user1")
+        assert event.app_users == ["user1"]
 
 
 class TestCreateVersions:

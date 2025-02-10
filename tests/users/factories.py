@@ -1,4 +1,5 @@
 import factory
+from allauth.socialaccount.models import SocialAccount, SocialToken
 
 from apps.users.models import User
 
@@ -17,6 +18,7 @@ class UserFactory(factory.django.DjangoModelFactory):
 
     @factory.post_generation
     def password(self, create, extracted, **kwargs):
+        """Generate a password for the user."""
         password = (
             extracted
             if extracted
@@ -30,3 +32,24 @@ class UserFactory(factory.django.DjangoModelFactory):
             ).evaluate(None, None, extra={"locale": None})
         )
         self.set_password(password)
+
+    @factory.post_generation
+    def socialaccount(self, create, extracted, **kwargs):
+        """Create a social account for the user."""
+        if not create:
+            return
+        SocialTokenFactory(account__user=self)
+
+
+class SocialAccountFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = SocialAccount
+
+    provider = "google"
+
+
+class SocialTokenFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = SocialToken
+
+    account = factory.SubFactory(SocialAccountFactory)
