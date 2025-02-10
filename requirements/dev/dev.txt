@@ -10,8 +10,6 @@ anyio==3.7.1
     #   httpx
     #   jupyter-server
     #   watchfiles
-appnope==0.1.4
-    # via ipykernel
 argon2-cffi==23.1.0
     # via jupyter-server
 argon2-cffi-bindings==21.2.0
@@ -42,7 +40,7 @@ black==25.1.0
     # via -r requirements/dev/dev.in
 bleach==6.2.0
     # via nbconvert
-certifi==2024.12.14
+certifi==2025.1.31
     # via
     #   -c requirements/dev/../base/base.txt
     #   httpcore
@@ -126,7 +124,7 @@ iniconfig==2.0.0
     # via pytest
 ipykernel==6.29.5
     # via jupyterlab
-ipython==8.31.0
+ipython==8.32.0
     # via ipykernel
 isoduration==20.11.0
     # via jsonschema
@@ -291,7 +289,7 @@ pyyaml==6.0.2
     #   djlint
     #   jupyter-events
     #   pre-commit
-pyzmq==26.2.0
+pyzmq==26.2.1
     # via
     #   ipykernel
     #   jupyter-client

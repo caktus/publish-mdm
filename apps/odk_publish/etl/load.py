@@ -1,6 +1,7 @@
 import structlog
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import QuerySet
+from django.db.transaction import atomic
 
 from ..models import AppUser, AppUserFormTemplate, CentralServer, FormTemplate, Project
 from .odk.client import ODKPublishClient
@@ -13,9 +14,7 @@ def create_or_update_app_users(form_template: FormTemplate):
     """Create or update app users for the form template."""
     app_user_forms: QuerySet[AppUserFormTemplate] = form_template.app_user_forms.select_related()
 
-    with ODKPublishClient.new_client(
-        base_url=form_template.project.central_server.base_url
-    ) as client:
+    with ODKPublishClient(base_url=form_template.project.central_server.base_url) as client:
         app_users = client.odk_publish.get_or_create_app_users(
             display_names=[app_user_form.app_user.name for app_user_form in app_user_forms],
             project_id=form_template.project.central_id,
@@ -24,8 +23,28 @@ def create_or_update_app_users(form_template: FormTemplate):
         for app_user_form in app_user_forms:
             app_users[app_user_form.app_user.name].xml_form_ids.append(app_user_form.xml_form_id)
         # Create or update the form assignments on the server
-        client.odk_publish.assign_forms(
+        client.odk_publish.assign_app_users_forms(
             app_users=app_users.values(), project_id=form_template.project.central_id
+        )
+        # Update AppUsers with null central_id
+        update_app_users_central_id(form_template.project, app_users)
+
+
+@atomic
+def update_app_users_central_id(project: Project, app_users):
+    """Update AppUser.central_id for any user related to `project` that has a
+    null central_id, using the data in `app_users`. `app_users` should be a dict
+    mapping user names to ProjectAppUserAssignment objects, like the dict returned
+    by PublishService.get_or_create_app_users().
+    """
+    for app_user in project.app_users.filter(name__in=app_users, central_id__isnull=True):
+        app_user.central_id = app_users[app_user.name].id
+        app_user.save()
+        logger.info(
+            "Updated AppUser.central_id",
+            id=app_user.id,
+            name=app_user.name,
+            central_id=app_user.central_id,
         )
 
 
