@@ -16,6 +16,11 @@ class TestPublishEvent:
         event = PublishTemplateEvent(form_template=1, app_users="user1,user2")
         assert event.app_users == ["user1", "user2"]
 
+    def test_split_comma_separated_app_users_with_spaces(self):
+        """Test that the app users with spaces are stripped and split into a list."""
+        event = PublishTemplateEvent(form_template=1, app_users=" user1, user2 ")
+        assert event.app_users == ["user1", "user2"]
+
     def test_split_comma_separated_app_users_single(self):
         """Test that a single app user is split into a list."""
         event = PublishTemplateEvent(form_template=1, app_users="user1")

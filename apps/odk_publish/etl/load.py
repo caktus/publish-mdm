@@ -29,11 +29,11 @@ class PublishTemplateEvent(BaseModel):
 
     @field_validator("app_users", mode="before")
     @classmethod
-    def split_comma_separated_app_users(cls, v):
+    def split_comma_separated_app_users(cls, data):
         """Split comma-separated app users into a list."""
-        if isinstance(v, str):
-            return v.split(",")
-        return v
+        if isinstance(data, str):
+            return [v.strip() for v in data.split(",")]
+        return data
 
 
 def publish_form_template(event: PublishTemplateEvent, user: User, send_message: Callable):
