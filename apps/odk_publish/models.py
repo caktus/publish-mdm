@@ -205,6 +205,17 @@ class AppUser(AbstractBaseModel):
             for template_variable in variables
         ]
 
+    @property
+    def form_templates(self):
+        """Get a list of the form_id_base values from the user's related FormTemplates.
+        Used by the "form_templates" column in the files for exporting/importing AppUsers.
+        """
+        # Prevent `ValueError('AppUser' instance needs to have a primary key
+        # value before this relationship can be used)`
+        if self.pk:
+            return [obj.form_template.form_id_base for obj in self.app_user_forms.all()]
+        return []
+
 
 class AppUserFormTemplate(AbstractBaseModel):
     app_user = models.ForeignKey(AppUser, on_delete=models.CASCADE, related_name="app_user_forms")

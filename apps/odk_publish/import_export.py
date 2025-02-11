@@ -3,9 +3,10 @@ from functools import partial
 
 import structlog
 from django.core.exceptions import ValidationError
+from django.db.models import Prefetch
 from import_export import resources, fields, widgets
 
-from .models import AppUser, AppUserTemplateVariable
+from .models import AppUser, AppUserFormTemplate, AppUserTemplateVariable
 
 logger = structlog.getLogger(__name__)
 
@@ -73,16 +74,56 @@ class PositiveIntegerWidget(widgets.IntegerWidget):
         return val
 
 
+class FormTemplatesWidget(widgets.Widget):
+    """Widget for the `form_templates` column."""
+
+    def clean(self, value, row=None, **kwargs):
+        """Validates the form_templates column during import and returns a set
+        of the form_id_base strings. A ValueError will be raised if any of the
+        values in the comma-separated list does not match a FormTemplate related
+        to the project.
+        """
+        if not value:
+            return set()
+        template_ids = {t for i in value.split(",") if (t := i.strip())}
+        invalid = template_ids - set(kwargs["project_form_templates"])
+        if invalid:
+            raise ValueError(
+                f"The following form templates do not exist on the project: {', '.join(invalid)}"
+            )
+        return template_ids
+
+    def render(self, value, obj=None, **kwargs):
+        """Renders a user's AppUserFormTemplates as a comma-separated list of
+        their form_template.form_id_base values.
+        """
+        return ",".join(value) if value else ""
+
+
+class FormTemplatesField(fields.Field):
+    """Field for the `form_templates` column."""
+
+    def save(self, instance, row, is_m2m=False, **kwargs):
+        """Updates the `_new_form_templates` variable with a set of validated
+        FormTemplate.form_id_base values during import. We'll create and/or delete
+        the AppUserFormTemplates later in `AppUserResource.do_instance_save()`.
+        """
+        instance._new_form_templates = self.clean(row, **kwargs)
+
+
 class AppUserResource(resources.ModelResource):
     """Custom ModelResource for importing/exporting AppUsers."""
 
     central_id = fields.Field(
         attribute="central_id", column_name="central_id", widget=PositiveIntegerWidget()
     )
+    form_templates = FormTemplatesField(
+        attribute="form_templates", column_name="form_templates", widget=FormTemplatesWidget()
+    )
 
     class Meta:
         model = AppUser
-        fields = ("id", "name", "central_id")
+        fields = ("id", "name", "central_id", "form_templates")
         clean_model_instances = True
 
     def __init__(self, project):
@@ -113,8 +154,16 @@ class AppUserResource(resources.ModelResource):
         return super().export_resource(instance, selected_fields, **kwargs)
 
     def get_queryset(self):
-        # Queryset used to look up AppUsers during import
-        return self.project.app_users.all()
+        # Queryset used to look up AppUsers during import and export
+        return self.project.app_users.prefetch_related(
+            "app_user_template_variables",
+            Prefetch(
+                "app_user_forms",
+                AppUserFormTemplate.objects.select_related("form_template").order_by(
+                    "form_template__form_id_base"
+                ),
+            ),
+        )
 
     def get_instance(self, instance_loader, row):
         """Called during import to get the current AppUser, by querying the
@@ -143,10 +192,17 @@ class AppUserResource(resources.ModelResource):
         # or deleting together in the do_instance_save() method below.
         instance._template_variables_to_save = []
         instance._template_variables_to_delete = []
+        # This will be updated by FormTemplatesField.save() to the validated set
+        # of "form_id_base" strings for the instance. AppUserFormTemplate objects
+        # will be created and/or deleted in do_instance_save() based on this set
+        instance._new_form_templates = set()
+        # Dict of the project's FormTemplates to be used for validation in
+        # FormTemplatesWidget.clean()
+        kwargs["project_form_templates"] = self.form_templates
         super().import_instance(instance, row, **kwargs)
 
     def do_instance_save(self, instance, is_create):
-        """Save the AppUser and save/delete the AppUserTemplateVariables."""
+        """Save the AppUser and save/delete AppUserTemplateVariables and AppUserFormTemplates."""
         logger.info(
             "Updating AppUser via file import",
             new=is_create,
@@ -174,3 +230,31 @@ class AppUserResource(resources.ModelResource):
                     project_id=self.project.id,
                 )
                 instance.app_user_template_variables.filter(template_variable__name=name).delete()
+        if is_create:
+            existing_form_templates = set()
+        else:
+            existing_form_templates = set(instance.form_templates)
+        for form_id_base in instance._new_form_templates - existing_form_templates:
+            logger.info(
+                "Adding a AppUserFormTemplate via file import",
+                app_user_id=instance.id,
+                project_id=self.project.id,
+                form_id_base=form_id_base,
+                template_id=self.form_templates[form_id_base],
+            )
+            instance.app_user_forms.create(form_template_id=self.form_templates[form_id_base])
+        to_delete = existing_form_templates - instance._new_form_templates
+        if to_delete:
+            logger.info(
+                "Deleting AppUserFormTemplates via file import",
+                app_user_id=instance.id,
+                project_id=self.project.id,
+                form_id_base_set=to_delete,
+            )
+            instance.app_user_forms.filter(form_template__form_id_base__in=to_delete).delete()
+
+    def before_import(self, dataset, **kwargs):
+        # A dict of the project's form templates that will be used for validation
+        # of the "form_templates" column during import and for getting a FormTemplate ID
+        # when creating a new AppUserFormTemplate
+        self.form_templates = dict(self.project.form_templates.values_list("form_id_base", "id"))
