@@ -64,22 +64,40 @@ def publish_form_template(event: PublishTemplateEvent, user: User, send_message:
     )
     send_message(f"Downloaded template: {file}")
     with transaction.atomic():
-        # Create the next version
+        # Create the next version locally
         template_version = FormTemplateVersion.objects.create(
             form_template=form_template, user=user, file=file, version=version
         )
-        # Create a version for each app user
+        # Create a version for each app user locally
         app_users = form_template.project.app_users.filter(name__in=event.app_users)
         app_user_versions = template_version.create_app_user_versions(
             app_users=app_users, send_message=send_message
         )
-        # Publish each app user version to ODK Central
+        # Get or create app users in ODK Central
+        central_app_user_assignments = client.odk_publish.get_or_create_app_users(
+            display_names=[app_user.name for app_user in app_users]
+        )
+        send_message(f"Synced user(s): {', '.join(central_app_user_assignments.keys())}")
+        # Assign this form to the app users
+        for app_user_version in app_user_versions:
+            central_app_user_assignments[app_user_version.app_user.name].xml_form_ids.append(
+                app_user_version.xml_form_id
+            )
+        # Publish each app user form version to ODK Central
         for app_user_version in app_user_versions:
             form = client.odk_publish.create_or_update_form(
                 xml_form_id=app_user_version.app_user_form_template.xml_form_id,
                 definition=app_user_version.file.read(),
             )
             send_message(f"Published form: {form.xmlFormId}")
+        # Create or update the form assignments on the server
+        for assignment in central_app_user_assignments.values():
+            client.odk_publish.assign_app_users_forms(app_users=[assignment])
+            send_message(f"Assigned user {assignment.displayName} to {assignment.xml_form_ids[0]}")
+        # Update AppUsers with null central_id
+        update_app_users_central_id(
+            project=form_template.project, app_users=central_app_user_assignments
+        )
     send_message(f"Successfully published {version}", complete=True)
 
 

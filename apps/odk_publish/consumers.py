@@ -37,12 +37,7 @@ class PublishTemplateConsumer(WebsocketConsumer):
             self.publish_form_template(event_data=event_data)
         except Exception as e:
             logger.exception("Error publishing form")
-            tbe = traceback.TracebackException.from_exception(
-                exc=e,
-                capture_locals=True,
-                compact=True,
-                limit=1,
-            )
+            tbe = traceback.TracebackException.from_exception(exc=e, compact=True)
             message = "".join(tbe.format())
             # If the error is from ODK Central, format the error message for easier reading
             if len(e.args) >= 2 and isinstance(e.args[1], Response):

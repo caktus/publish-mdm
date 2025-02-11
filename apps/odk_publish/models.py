@@ -263,3 +263,13 @@ class AppUserFormVersion(AbstractBaseModel):
 
     def __str__(self):
         return f"{self.app_user_form_template} - {self.form_template_version}"
+
+    @property
+    def xml_form_id(self) -> str:
+        """The ODK Central xmlFormId for this version's AppUserFormTemplate."""
+        return self.app_user_form_template.xml_form_id
+
+    @property
+    def app_user(self) -> AppUser:
+        """The app user for this version."""
+        return self.app_user_form_template.app_user
