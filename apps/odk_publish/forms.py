@@ -78,7 +78,7 @@ class PublishTemplateForm(PlatformFormMixin, forms.Form):
     def clean_app_users(self):
         """Validate by checking if the entered app users are in this project."""
         if app_users := self.cleaned_data.get("app_users"):
-            app_users_list = app_users.split(",")
+            app_users_list = [name.strip() for name in app_users.split(",")]
             app_users_in_db = self.request.odk_project.app_users.filter(
                 name__in=app_users_list
             ).order_by("name")

@@ -37,3 +37,11 @@ class TestPublishTemplateForm:
         data = {"app_users": "user1,user2", "form_template": form_template.id}
         form = PublishTemplateForm(data=data, request=req, form_template=form_template)
         assert form.is_valid(), form.errors
+
+    def test_app_users_with_spaces(self, req: HttpRequest):
+        form_template = FormTemplateFactory(project=req.odk_project)
+        AppUserFactory(project=req.odk_project, name="user1")
+        AppUserFactory(project=req.odk_project, name="user2")
+        data = {"app_users": " user1, user2 ", "form_template": form_template.id}
+        form = PublishTemplateForm(data=data, request=req, form_template=form_template)
+        assert form.is_valid(), form.errors
