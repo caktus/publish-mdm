@@ -82,7 +82,7 @@ class PublishTemplateForm(PlatformFormMixin, forms.Form):
             app_users_in_db = self.request.odk_project.app_users.filter(
                 name__in=app_users_list
             ).order_by("name")
-            if not len(app_users_in_db) == len(app_users_list):
+            if len(app_users_in_db) != len(app_users_list):
                 invalid_users = sorted(
                     set(app_users_list) - {user.name for user in app_users_in_db}
                 )
