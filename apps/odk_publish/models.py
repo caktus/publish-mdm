@@ -130,7 +130,7 @@ class FormTemplateVersion(AbstractBaseModel):
         app_user_versions = []
         q = models.Q(form_template=self.form_template)
         # Optionally limit to specific app users (partial publish)
-        if app_users:
+        if app_users is not None:
             q &= models.Q(app_user__in=app_users)
         # Create the next version for each app user
         for app_user_form in AppUserFormTemplate.objects.filter(q):
