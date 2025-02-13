@@ -161,9 +161,7 @@ def app_user_export(request, odk_project_pk):
     form = AppUserExportForm([resource], data=request.POST or None)
     if request.method == "POST" and form.is_valid():
         export_format = form.cleaned_data["format"]
-        dataset = resource.export(
-            request.odk_project.app_users.prefetch_related("app_user_template_variables")
-        )
+        dataset = resource.export()
         data = export_format.export_data(dataset)
         filename = f"app_users_{odk_project_pk}_{localdate()}.{export_format.get_extension()}"
         return HttpResponse(
