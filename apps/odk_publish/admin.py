@@ -51,7 +51,7 @@ class FormTemplateVersionAdmin(admin.ModelAdmin):
     list_display = ("id", "form_template", "user", "version", "created_at")
     search_fields = ("form_template", "user")
     list_filter = ("created_at", "modified_at")
-    ordering = ("created_at",)
+    ordering = ("-created_at",)
 
 
 class AppUserTemplateVariableInline(admin.TabularInline):

@@ -26,6 +26,11 @@ class TestPublishEvent:
         event = PublishTemplateEvent(form_template=1, app_users="user1")
         assert event.app_users == ["user1"]
 
+    def test_no_app_users(self):
+        """Test that no app users are returned."""
+        event = PublishTemplateEvent(form_template=1, app_users="")
+        assert event.app_users == []
+
 
 class TestCreateVersions:
     """Test the creation of form template versions before publishing to ODK Central."""

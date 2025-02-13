@@ -91,10 +91,6 @@ class TestPublishFormTemplate:
                     definition=b"file content",
                     xml_form_id=user_form1.xml_form_id,
                 ),
-                mocker.call(
-                    definition=b"file content",
-                    xml_form_id=user_form2.xml_form_id,
-                ),
             ]
         )
         mock_assign_app_users_forms.assert_has_calls(

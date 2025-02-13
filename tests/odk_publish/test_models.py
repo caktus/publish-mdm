@@ -1,3 +1,5 @@
+import pytest
+
 from .factories import (
     CentralServerFactory,
     TemplateVariableFactory,
@@ -30,6 +32,27 @@ class TestFormTemplate:
     def test_str(self):
         template = FormTemplateFactory.build(form_id_base="staff_registration", id=2)
         assert str(template) == "staff_registration (2)"
+
+    @pytest.mark.django_db
+    def test_get_app_users_no_app_users(self):
+        template = FormTemplateFactory.create()
+        assert list(template.get_app_users()) == []
+
+    @pytest.mark.django_db
+    def test_get_app_users(self):
+        template = FormTemplateFactory.create()
+        app_user = AppUserFormTemplateFactory.create(form_template=template).app_user
+        # other user
+        AppUserFormTemplateFactory.create()
+        assert list(template.get_app_users()) == [app_user]
+
+    @pytest.mark.django_db
+    def test_get_app_users_names(self):
+        template = FormTemplateFactory.create()
+        app_user = AppUserFormTemplateFactory.create(form_template=template).app_user
+        AppUserFormTemplateFactory.create(form_template=template)
+        assert template.get_app_users().count() == 2
+        assert list(template.get_app_users(names=[app_user.name])) == [app_user]
 
 
 class TestAppUserFormTemplate:

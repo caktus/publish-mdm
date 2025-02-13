@@ -2,7 +2,11 @@ import pytest
 
 from apps.odk_publish.forms import PublishTemplateForm
 from apps.odk_publish.http import HttpRequest
-from tests.odk_publish.factories import AppUserFactory, FormTemplateFactory, ProjectFactory
+from tests.odk_publish.factories import (
+    FormTemplateFactory,
+    ProjectFactory,
+    AppUserFormTemplateFactory,
+)
 
 
 @pytest.mark.django_db
@@ -15,6 +19,12 @@ class TestPublishTemplateForm:
         request.odk_project = ProjectFactory()
         return request
 
+    def test_no_app_users(self, req: HttpRequest):
+        form_template = FormTemplateFactory(project=req.odk_project)
+        form = PublishTemplateForm(data={}, request=req, form_template=form_template)
+        assert not form.is_valid()
+        assert form.cleaned_data["app_users"] == []
+
     def test_app_users_do_not_exist(self, req: HttpRequest):
         form_template = FormTemplateFactory(project=req.odk_project)
         data = {"app_users": "user1,user2"}
@@ -24,7 +34,9 @@ class TestPublishTemplateForm:
 
     def test_app_users_one_does_not_exist(self, req: HttpRequest):
         form_template = FormTemplateFactory(project=req.odk_project)
-        AppUserFactory(project=req.odk_project, name="user1")
+        AppUserFormTemplateFactory(
+            form_template=form_template, app_user__name="user1", app_user__project=req.odk_project
+        )
         data = {"app_users": "user1,user2"}
         form = PublishTemplateForm(data=data, request=req, form_template=form_template)
         assert not form.is_valid()
@@ -32,16 +44,24 @@ class TestPublishTemplateForm:
 
     def test_app_users(self, req: HttpRequest):
         form_template = FormTemplateFactory(project=req.odk_project)
-        AppUserFactory(project=req.odk_project, name="user1")
-        AppUserFactory(project=req.odk_project, name="user2")
+        AppUserFormTemplateFactory(
+            form_template=form_template, app_user__name="user1", app_user__project=req.odk_project
+        )
+        AppUserFormTemplateFactory(
+            form_template=form_template, app_user__name="user2", app_user__project=req.odk_project
+        )
         data = {"app_users": "user1,user2", "form_template": form_template.id}
         form = PublishTemplateForm(data=data, request=req, form_template=form_template)
         assert form.is_valid(), form.errors
 
     def test_app_users_with_spaces(self, req: HttpRequest):
         form_template = FormTemplateFactory(project=req.odk_project)
-        AppUserFactory(project=req.odk_project, name="user1")
-        AppUserFactory(project=req.odk_project, name="user2")
+        AppUserFormTemplateFactory(
+            form_template=form_template, app_user__name="user1", app_user__project=req.odk_project
+        )
+        AppUserFormTemplateFactory(
+            form_template=form_template, app_user__name="user2", app_user__project=req.odk_project
+        )
         data = {"app_users": " user1, user2 ", "form_template": form_template.id}
         form = PublishTemplateForm(data=data, request=req, form_template=form_template)
         assert form.is_valid(), form.errors

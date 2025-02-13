@@ -2,7 +2,7 @@ import pytest
 from django.urls import reverse
 
 from tests.odk_publish.factories import (
-    AppUserFactory,
+    AppUserFormTemplateFactory,
     FormTemplateFactory,
     ProjectFactory,
     UserFactory,
@@ -44,14 +44,18 @@ class TestPublishTemplate:
         assert response.status_code == 200
 
     def test_post(self, client, url, user, project, form_template):
-        app_user = AppUserFactory(project=project)
+        app_user = AppUserFormTemplateFactory(
+            form_template=form_template, app_user__project=project
+        ).app_user
         data = {"app_users": app_user.name, "form_template": form_template.id}
         response = client.post(url, data=data)
         assert response.status_code == 200
         assert response.context["form"].is_valid()
 
     def test_htmx_post(self, client, url, user, project, form_template):
-        app_user = AppUserFactory(project=project)
+        app_user = AppUserFormTemplateFactory(
+            form_template=form_template, app_user__project=project
+        ).app_user
         data = {"app_users": app_user.name, "form_template": form_template.id}
         response = client.post(url, data=data, headers={"HX-Request": "true"})
         assert response.status_code == 200

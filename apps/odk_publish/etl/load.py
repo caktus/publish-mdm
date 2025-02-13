@@ -32,7 +32,7 @@ class PublishTemplateEvent(BaseModel):
     def split_comma_separated_app_users(cls, data):
         """Split comma-separated app users into a list."""
         if isinstance(data, str):
-            return [v.strip() for v in data.split(",")]
+            return [user for i in data.split(",") if (user := i.strip())]
         return data
 
 
@@ -69,7 +69,7 @@ def publish_form_template(event: PublishTemplateEvent, user: User, send_message:
             form_template=form_template, user=user, file=file, version=version
         )
         # Create a version for each app user locally
-        app_users = form_template.project.app_users.filter(name__in=event.app_users)
+        app_users = form_template.get_app_users(names=event.app_users)
         app_user_versions = template_version.create_app_user_versions(
             app_users=app_users, send_message=send_message
         )

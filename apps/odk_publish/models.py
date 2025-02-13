@@ -90,6 +90,13 @@ class FormTemplate(AbstractBaseModel):
     def __str__(self):
         return f"{self.form_id_base} ({self.id})"
 
+    def get_app_users(self, names: list[str] | None = None) -> models.QuerySet["AppUser"]:
+        """Get the app users assigned to this form template."""
+        q = models.Q(app_user_forms__form_template=self)
+        if names:
+            q &= models.Q(app_user_forms__app_user__name__in=names)
+        return AppUser.objects.filter(q)
+
     def download_user_google_sheet(self, user: User, name: str) -> SimpleUploadedFile:
         """Download the Google Sheet Excel file for this form template."""
         social_token = user.get_google_social_token()

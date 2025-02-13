@@ -72,6 +72,7 @@ class PublishTemplateForm(PlatformFormMixin, forms.Form):
 
     def __init__(self, request: HttpRequest, form_template: FormTemplate, *args, **kwargs):
         self.request = request
+        self.form_template = form_template
         kwargs["initial"] = {"form_template": form_template.id}
         super().__init__(*args, **kwargs)
 
@@ -79,9 +80,9 @@ class PublishTemplateForm(PlatformFormMixin, forms.Form):
         """Validate by checking if the entered app users are in this project."""
         if app_users := self.cleaned_data.get("app_users"):
             app_users_list = [name.strip() for name in app_users.split(",")]
-            app_users_in_db = self.request.odk_project.app_users.filter(
-                name__in=app_users_list
-            ).order_by("name")
+            app_users_in_db = self.form_template.get_app_users(names=app_users_list).order_by(
+                "name"
+            )
             if len(app_users_in_db) != len(app_users_list):
                 invalid_users = sorted(
                     set(app_users_list) - {user.name for user in app_users_in_db}
