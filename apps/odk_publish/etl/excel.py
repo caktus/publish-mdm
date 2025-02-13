@@ -45,5 +45,5 @@ def find_cells_containing_value(sheet: Worksheet, value: str) -> Generator[Cell,
     # skip header row
     for row in sheet.iter_rows(min_row=2):
         for cell in row:
-            if cell.value is not None and value in cell.value:
+            if cell.value is not None and value in str(cell.value):
                 yield cell

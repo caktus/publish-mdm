@@ -5,10 +5,11 @@ from django.urls import reverse_lazy
 from import_export import forms as import_export_forms
 
 from apps.patterns.forms import PlatformFormMixin
-from apps.patterns.widgets import Select, FileInput
+from apps.patterns.widgets import Select, FileInput, TextInput
 
 from .etl.odk.client import ODKPublishClient
 from .http import HttpRequest
+from .models import FormTemplate
 
 
 class ProjectSyncForm(PlatformFormMixin, forms.Form):
@@ -56,6 +57,40 @@ class ProjectSyncForm(PlatformFormMixin, forms.Form):
             self.fields["project"].choices = [
                 (project.id, project.name) for project in client.projects.list()
             ]
+
+
+class PublishTemplateForm(PlatformFormMixin, forms.Form):
+    """Form for publishing a form template to ODK Central."""
+
+    form_template = forms.IntegerField(widget=forms.HiddenInput())
+    app_users = forms.CharField(
+        required=False,
+        label="Limit App Users",
+        help_text="Publish to a limited set of app users by entering a comma-separated list.",
+        widget=TextInput(attrs={"placeholder": "e.g., 10001, 10002, 10003", "autofocus": True}),
+    )
+
+    def __init__(self, request: HttpRequest, form_template: FormTemplate, *args, **kwargs):
+        self.request = request
+        self.form_template = form_template
+        kwargs["initial"] = {"form_template": form_template.id}
+        super().__init__(*args, **kwargs)
+
+    def clean_app_users(self):
+        """Validate by checking if the entered app users are in this project."""
+        if app_users := self.cleaned_data.get("app_users"):
+            app_users_list = [name.strip() for name in app_users.split(",")]
+            app_users_in_db = self.form_template.get_app_users(names=app_users_list).order_by(
+                "name"
+            )
+            if len(app_users_in_db) != len(app_users_list):
+                invalid_users = sorted(
+                    set(app_users_list) - {user.name for user in app_users_in_db}
+                )
+                error_message = "Invalid App Users: " + ", ".join(invalid_users)
+                raise forms.ValidationError(error_message)
+            return app_users_in_db
+        return []
 
 
 class FileFormatChoiceField(forms.ChoiceField):

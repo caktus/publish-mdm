@@ -1,36 +1,107 @@
+from typing import Callable
+
 import structlog
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import transaction
 from django.db.models import QuerySet
-from django.db.transaction import atomic
+from pydantic import BaseModel, field_validator
 
-from ..models import AppUser, AppUserFormTemplate, CentralServer, FormTemplate, Project
+from apps.users.models import User
+
+from ..models import (
+    AppUser,
+    CentralServer,
+    FormTemplate,
+    FormTemplateVersion,
+    Project,
+)
 from .odk.client import ODKPublishClient
 from .odk.qrcode import create_app_user_qrcode
 
 logger = structlog.getLogger(__name__)
 
 
-def create_or_update_app_users(form_template: FormTemplate):
-    """Create or update app users for the form template."""
-    app_user_forms: QuerySet[AppUserFormTemplate] = form_template.app_user_forms.select_related()
+class PublishTemplateEvent(BaseModel):
+    """Model to parse and validate the publish WebSocket message payload."""
 
-    with ODKPublishClient(base_url=form_template.project.central_server.base_url) as client:
-        app_users = client.odk_publish.get_or_create_app_users(
-            display_names=[app_user_form.app_user.name for app_user_form in app_user_forms],
-            project_id=form_template.project.central_id,
+    form_template: int
+    app_users: list[str]
+
+    @field_validator("app_users", mode="before")
+    @classmethod
+    def split_comma_separated_app_users(cls, data):
+        """Split comma-separated app users into a list."""
+        if isinstance(data, str):
+            return [user for i in data.split(",") if (user := i.strip())]
+        return data
+
+
+def publish_form_template(event: PublishTemplateEvent, user: User, send_message: Callable):
+    """The main function for publishing a form template to ODK Central.
+
+    Steps include:
+    * Download the form template from Google Sheets
+    * Create the next version of the form template and app user versions
+    * Get or create app users in ODK Central
+    * Publish each app user version to ODK Central
+    """
+    send_message(f"New {repr(event)}")
+    # Get the form template
+    form_template = FormTemplate.objects.select_related().get(id=event.form_template)
+    send_message(f"Publishing next version of {repr(form_template)}")
+    # Get the next version by querying ODK Central
+    client = ODKPublishClient(
+        base_url=form_template.project.central_server.base_url,
+        project_id=form_template.project.central_id,
+    )
+    version = client.odk_publish.get_unique_version_by_form_id(
+        xml_form_id_base=form_template.form_id_base
+    )
+    send_message(f"Generated version: {version}")
+    # Download the template from Google Sheets
+    file = form_template.download_user_google_sheet(
+        user=user, name=f"{form_template.form_id_base}-{version}.xlsx"
+    )
+    send_message(f"Downloaded template: {file}")
+    with transaction.atomic():
+        # Create the next version locally
+        template_version = FormTemplateVersion.objects.create(
+            form_template=form_template, user=user, file=file, version=version
         )
-        # Link form assignments to app users locally
-        for app_user_form in app_user_forms:
-            app_users[app_user_form.app_user.name].xml_form_ids.append(app_user_form.xml_form_id)
+        # Create a version for each app user locally
+        app_users = form_template.get_app_users(names=event.app_users)
+        app_user_versions = template_version.create_app_user_versions(
+            app_users=app_users, send_message=send_message
+        )
+        # Get or create app users in ODK Central
+        central_app_user_assignments = client.odk_publish.get_or_create_app_users(
+            display_names=[app_user.name for app_user in app_users]
+        )
+        send_message(f"Synced user(s): {', '.join(central_app_user_assignments.keys())}")
+        # Assign this form to the app users
+        for app_user_version in app_user_versions:
+            central_app_user_assignments[app_user_version.app_user.name].xml_form_ids.append(
+                app_user_version.xml_form_id
+            )
+        # Publish each app user form version to ODK Central
+        for app_user_version in app_user_versions:
+            form = client.odk_publish.create_or_update_form(
+                xml_form_id=app_user_version.app_user_form_template.xml_form_id,
+                definition=app_user_version.file.read(),
+            )
+            send_message(f"Published form: {form.xmlFormId}")
         # Create or update the form assignments on the server
-        client.odk_publish.assign_app_users_forms(
-            app_users=app_users.values(), project_id=form_template.project.central_id
-        )
+        for assignment in central_app_user_assignments.values():
+            client.odk_publish.assign_app_users_forms(app_users=[assignment])
+            send_message(f"Assigned user {assignment.displayName} to {assignment.xml_form_ids[0]}")
         # Update AppUsers with null central_id
-        update_app_users_central_id(form_template.project, app_users)
+        update_app_users_central_id(
+            project=form_template.project, app_users=central_app_user_assignments
+        )
+    send_message(f"Successfully published {version}", complete=True)
 
 
-@atomic
+@transaction.atomic
 def update_app_users_central_id(project: Project, app_users):
     """Update AppUser.central_id for any user related to `project` that has a
     null central_id, using the data in `app_users`. `app_users` should be a dict
