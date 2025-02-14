@@ -8,6 +8,7 @@
 .coverage
 .direnv
 .envrc
+.env
 .google
 # Media/static
 main.css
@@ -27,3 +28,4 @@ client_secret*.json
 __pycache__/
 .pyodk_config.toml
 ~*.xlsx
+docs/_build/

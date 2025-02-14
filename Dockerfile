@@ -1,7 +1,7 @@
-FROM node:18-bookworm-slim as static_files
+FROM node:18-bookworm-slim AS static_files
 
 WORKDIR /code
-ENV PATH /code/node_modules/.bin:$PATH
+ENV PATH=/code/node_modules/.bin:$PATH
 COPY package.json package-lock.json tailwind.config.js postcss.config.js /code/
 RUN npm install --silent
 COPY config/assets config/assets
@@ -10,7 +10,7 @@ COPY config/templates config/templates
 COPY apps/patterns/templates apps/patterns/templates
 RUN npm run build
 
-FROM python:3.12-slim-bookworm as base
+FROM python:3.12-slim-bookworm AS base
 
 # Install packages needed to run your application (not build deps):
 #   mime-support -- for mime types when serving static files
@@ -82,4 +82,4 @@ USER ${APP_USER}:${APP_USER}
 ENTRYPOINT ["/code/docker-entrypoint.sh"]
 
 # Start uWSGI
-CMD ["newrelic-admin", "run-program", "gunicorn", "config.wsgi", "--bind", "0.0.0.0", "--config", "python:config.gunicorn"]
+CMD ["newrelic-admin", "run-program", "daphne", "config.asgi:application", "--bind", "0.0.0.0", "--port", "8000"]
