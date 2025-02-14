@@ -18,4 +18,4 @@ To build the documentation, run the following commands:
    sphinx-autobuild --port 8001 . _build/html
 
 
-Now visit http://127.0.0.1:8001/ in your browser to view the documentation. 
+Now visit http://127.0.0.1:8001/ in your browser to view the documentation.
