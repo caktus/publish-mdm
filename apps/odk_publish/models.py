@@ -1,3 +1,4 @@
+from functools import cached_property
 from urllib.parse import urlparse
 
 import structlog
@@ -207,14 +208,28 @@ class AppUser(AbstractBaseModel):
 
     @property
     def form_templates(self):
-        """Get a list of the form_id_base values from the user's related FormTemplates.
+        """Get a set of the form_id_base values from the user's related FormTemplates.
         Used by the "form_templates" column in the files for exporting/importing AppUsers.
         """
         # Prevent `ValueError('AppUser' instance needs to have a primary key
         # value before this relationship can be used)`
         if self.pk:
-            return [obj.form_template.form_id_base for obj in self.app_user_forms.all()]
-        return []
+            return {obj.form_template.form_id_base for obj in self.app_user_forms.all()}
+        return set()
+
+    @cached_property
+    def template_variables_dict(self):
+        """Get a dict of the user's template variable values, with the TemplateVariable
+        name as the key. Used during import/export of AppUsers to minimize DB queries.
+        This assumes the template variables are prefetched.
+        """
+        # Prevent `ValueError('AppUser' instance needs to have a primary key
+        # value before this relationship can be used)`
+        if self.pk:
+            return {
+                i.template_variable.name: i.value for i in self.app_user_template_variables.all()
+            }
+        return {}
 
 
 class AppUserFormTemplate(AbstractBaseModel):

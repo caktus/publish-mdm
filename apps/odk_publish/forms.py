@@ -3,6 +3,7 @@ from django.conf import settings
 from django.http import QueryDict
 from django.urls import reverse_lazy
 from import_export import forms as import_export_forms
+from import_export.tmp_storages import MediaStorage
 
 from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import Select, FileInput
@@ -127,4 +128,33 @@ class AppUserImportForm(AppUserImportExportFormMixin, import_export_forms.Import
                         )
                     }
                 )
+            self.file_data = data
+        return self.cleaned_data
+
+
+class AppUserConfirmImportForm(import_export_forms.ConfirmImportForm):
+    def clean(self):
+        import_format = self.cleaned_data.get("format")
+        import_file_name = self.cleaned_data.get("import_file_name")
+        if import_format and import_file_name:
+            # Read the temp file and create a tablib.Dataset that we'll use for importing
+            import_format = settings.IMPORT_EXPORT_FORMATS[int(import_format)]()
+            if not import_format.is_binary():
+                import_format.encoding = "utf-8-sig"
+            tmp_storage = MediaStorage(
+                name=import_file_name,
+                encoding=import_format.encoding,
+                read_mode=import_format.get_read_mode(),
+            )
+            try:
+                data = tmp_storage.read()
+                self.dataset = import_format.create_dataset(data)
+            except Exception:
+                # Either the temp file could not be read, or there was an error
+                # parsing the file using the selected format
+                raise forms.ValidationError(
+                    "An error was encountered while trying to read the file."
+                )
+            # Delete the temp file
+            tmp_storage.remove()
         return self.cleaned_data
