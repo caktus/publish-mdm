@@ -11,6 +11,11 @@ from Google Sheets to `ODK Central <https://getodk.org/>`_. It offers support
 for single sign-on with Google, project template variables, and a user-friendly
 interface for publishing form versions.
 
+.. figure:: _static/publish.gif
+   :alt: ODK Publish screenshot
+   :align: center
+
+   Sample ODK Publish interface
 
 .. toctree::
    :maxdepth: 2
