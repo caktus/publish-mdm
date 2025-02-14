@@ -1,4 +1,6 @@
 sphinx
 sphinx-autobuild
+sphinx-contributors
+sphinx-copybutton
 sphinxcontrib-mermaid
 shibuya

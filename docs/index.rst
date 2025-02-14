@@ -16,37 +16,9 @@ interface for publishing form versions.
    :maxdepth: 2
    :caption: Contents:
 
-Test diagram:
+   src/docker-compose
+   src/contributing
 
-.. mermaid::
+Contributors:
 
-   ---
-   config:
-      class:
-         hideEmptyMembersBox: true
-   ---
-   classDiagram
-      StaffForm_AppUser200 <|-- StaffForm
-      StaffForm_AppUser100 <|-- StaffForm
-      StaffForm_AppUser100 <|-- AppUser100
-      StaffForm_AppUser200 <|-- AppUser200
-      class StaffForm {
-         center_name
-         center_id
-      }
-      class AppUser100 {
-         center_name = School
-         center_id = 100
-      }
-      class AppUser200 {
-         center_name = Library
-         center_id = 200
-      }
-      class StaffForm_AppUser100 {
-         center_name = School
-         center_id = 100
-      }
-      class StaffForm_AppUser200 {
-         center_name = Library
-         center_id = 200
-      }
+.. contributors:: caktus/odk-publish

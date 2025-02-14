@@ -8,6 +8,7 @@
 .coverage
 .direnv
 .envrc
+.env
 .google
 # Media/static
 main.css
