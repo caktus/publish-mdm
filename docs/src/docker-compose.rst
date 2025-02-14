@@ -45,7 +45,7 @@ Setup
   services:
     app:
       image: ghcr.io/caktus/odk-publish:main
-      command: daphne config.asgi:application -p 8000
+      command: daphne config.asgi:application -b 0.0.0.0 -p 8000
       env_file:
         - .env
       ports:
@@ -101,6 +101,7 @@ Visit http://localhost:8000 in your browser and log in with your Google account.
 
 Local development
 -----------------
+
 
 Build development image locally
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
