@@ -14,7 +14,7 @@ To build the documentation, run the following commands:
 .. code-block:: bash
 
    cd docs
-   pip install -r requirements.txt
+   pip install -r requirements-docs.txt
    sphinx-autobuild --port 8001 . _build/html
 
 
