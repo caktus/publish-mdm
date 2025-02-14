@@ -49,9 +49,4 @@ urlpatterns = [
         views.form_template_publish,
         name="form-template-publish",
     ),
-    path(
-        "<int:odk_project_pk>/form-templates/<int:form_template_id>/publish-next-version/",
-        views.form_template_publish_next_version,
-        name="form-template-publish-next-version",
-    ),
 ]

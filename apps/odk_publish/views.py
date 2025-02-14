@@ -5,13 +5,19 @@ from django.contrib.auth.decorators import login_required
 from django.db import models, transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.views.decorators.http import require_http_methods
 from django.utils.timezone import localdate
 from import_export.results import RowResult
 from import_export.tmp_storages import MediaStorage
 
 from .etl.load import generate_and_save_app_user_collect_qrcodes, sync_central_project
-from .forms import ProjectSyncForm, AppUserConfirmImportForm, AppUserExportForm, AppUserImportForm
+
+from .forms import (
+    ProjectSyncForm,
+    AppUserConfirmImportForm,
+    AppUserExportForm,
+    AppUserImportForm,
+    PublishTemplateForm,
+)
 from .import_export import AppUserResource
 from .models import FormTemplateVersion, FormTemplate
 from .nav import Breadcrumbs
@@ -121,10 +127,23 @@ def form_template_detail(request: HttpRequest, odk_project_pk: int, form_templat
 
 @login_required
 def form_template_publish(request: HttpRequest, odk_project_pk: int, form_template_id: int):
+    """Publish a FormTemplate to ODK Central."""
     form_template: FormTemplate = get_object_or_404(
         request.odk_project.form_templates, pk=form_template_id
     )
+    form = PublishTemplateForm(
+        request=request, form_template=form_template, data=request.POST or None
+    )
+    template = "odk_publish/form_template_publish.html"
+    if request.htmx:
+        # Only render the form container for htmx requests
+        template = f"{template}#publish-partial"
+    if request.method == "POST" and form.is_valid():
+        # The publish process is initiated by the HTMX response, so we don't
+        # need to do anything here.
+        pass
     context = {
+        "form": form,
         "form_template": form_template,
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
@@ -135,19 +154,7 @@ def form_template_publish(request: HttpRequest, odk_project_pk: int, form_templa
             ],
         ),
     }
-    return render(request, "odk_publish/form_template_publish.html", context)
-
-
-@login_required
-@transaction.atomic
-@require_http_methods(["POST"])
-def form_template_publish_next_version(request: HttpRequest, odk_project_pk, form_template_id):
-    form_template: FormTemplate = get_object_or_404(
-        request.odk_project.form_templates, pk=form_template_id
-    )
-    version = form_template.create_next_version(user=request.user)
-    messages.add_message(request, messages.SUCCESS, f"{version} published.")
-    return HttpResponse(status=204)
+    return render(request, template, context)
 
 
 @login_required

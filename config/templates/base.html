@@ -4,9 +4,9 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.min.js"></script>
-        <script src="https://unpkg.com/htmx.org@2.0.2"
-                integrity="sha384-Y7hw+L/jvKeWIRRkqWYfPcvVxHzVzn5REgzbawhxAuQGwX1XWe70vji+VSeHOThJ"
+        <script src="https://cdn.jsdelivr.net/npm/flowbite@3.1.2/dist/flowbite.min.js"></script>
+        <script src="https://unpkg.com/htmx.org@2.0.4"
+                integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
                 crossorigin="anonymous"></script>
         <script src="https://unpkg.com/htmx.org/dist/ext/ws.js"></script>
         <script defer
@@ -49,9 +49,7 @@
                 event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
             })
             document.body.addEventListener("htmx:afterSwap", () => {
-                window.initDropdowns();
-                window.initModals();
-                window.Flowbite.initDatepickers();
+                window.initFlowbite();
             })
 
             document.body.addEventListener("showAlertMessage", (e) => {

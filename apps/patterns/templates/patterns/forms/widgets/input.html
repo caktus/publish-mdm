@@ -1,5 +1,5 @@
 <input type="{{ widget.type }}"
        name="{{ widget.name }}"
-       class="placeholder-gray-400 text-sm text-blue-900 w-full rounded-lg border-brand-accent-medium focus:border-blue-500 focus:ring-blue-400 focus:ring-2"
+       class="placeholder-gray-400 text-sm text-blue-900 w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-primary-300 focus:border-primary-300 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-primary-500 dark:focus:border-primary-500"
        {% if widget.value != None %}value="{{ widget.value|stringformat:'s' }}"{% endif %}
        {% include "django/forms/widgets/attrs.html" %}>

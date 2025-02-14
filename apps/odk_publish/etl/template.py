@@ -85,7 +85,7 @@ def discover_entity_lists(workbook: Workbook) -> list[str]:
         for cell in row:
             if cell.value:
                 for pattern in patterns:
-                    match = pattern.search(cell.value)
+                    match = pattern.search(str(cell.value))
                     if match:
                         entity_lists.add(match.group(1))
                         logger.debug(
@@ -99,7 +99,7 @@ def discover_entity_lists(workbook: Workbook) -> list[str]:
         for row in workbook["entities"].iter_rows(min_row=2, min_col=1, max_col=1):
             for cell in row:
                 if cell.value:
-                    entity_lists.add(cell.value)
+                    entity_lists.add(str(cell.value))
                     logger.debug(
                         "Discovered entity list",
                         entity_list=cell.value,
