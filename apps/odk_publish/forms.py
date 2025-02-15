@@ -1,3 +1,4 @@
+import structlog
 from django import forms
 from django.conf import settings
 from django.http import QueryDict
@@ -11,6 +12,8 @@ from apps.patterns.widgets import Select, FileInput, TextInput
 from .etl.odk.client import ODKPublishClient
 from .http import HttpRequest
 from .models import FormTemplate
+
+logger = structlog.getLogger(__name__)
 
 
 class ProjectSyncForm(PlatformFormMixin, forms.Form):
@@ -155,6 +158,14 @@ class AppUserImportForm(AppUserImportExportFormMixin, import_export_forms.Import
             try:
                 self.dataset = import_format.create_dataset(data)
             except Exception:
+                # Using debug() instead of exception() or error() so that it's not
+                # logged in Sentry
+                logger.debug(
+                    "An error occurred when reading AppUser import file",
+                    selected_format=import_format.get_title(),
+                    filename=import_file.name,
+                    exc_info=True,
+                )
                 raise forms.ValidationError(
                     {
                         "format": (
@@ -181,15 +192,23 @@ class AppUserConfirmImportForm(import_export_forms.ConfirmImportForm):
                 encoding=import_format.encoding,
                 read_mode=import_format.get_read_mode(),
             )
+            data = None
             try:
                 data = tmp_storage.read()
                 self.dataset = import_format.create_dataset(data)
             except Exception:
                 # Either the temp file could not be read, or there was an error
                 # parsing the file using the selected format
+                logger.exception(
+                    "An error occurred when reading AppUser import temp file in confirm stage",
+                    selected_format=import_format.get_title(),
+                    filename=import_file_name,
+                )
                 raise forms.ValidationError(
                     "An error was encountered while trying to read the file."
                 )
-            # Delete the temp file
-            tmp_storage.remove()
+            finally:
+                if data is not None:
+                    # Delete the temp file
+                    tmp_storage.remove()
         return self.cleaned_data
