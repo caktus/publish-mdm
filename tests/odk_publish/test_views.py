@@ -14,7 +14,7 @@ from tests.odk_publish.factories import (
     ProjectFactory,
     UserFactory,
 )
-from apps.odk_publish.forms import AppUserConfirmImportForm
+from apps.odk_publish.forms import AppUserConfirmImportForm, AppUserImportForm
 from apps.odk_publish.models import AppUser
 
 
@@ -87,7 +87,7 @@ class TestImport(ViewTestBase):
     @pytest.fixture
     def csv_data(self):
         """Valid CSV import data with one new user."""
-        return "id,name,central_id,form_templates\n" ",newuser,,\n"
+        return "id,name,central_id,form_templates\n,newuser,,"
 
     def teardown_class(cls):
         shutil.rmtree(os.path.join(settings.MEDIA_ROOT, "django-import-export"))
@@ -142,3 +142,25 @@ class TestImport(ViewTestBase):
             "Import finished successfully, with 1 new and 0 updated app users."
             in response.content.decode()
         )
+
+    def test_invalid_upload(self, client, url, user, csv_data, project):
+        """Ensure form validation errors are displayed in case of invalid data in the upload."""
+        # Add a row with an invalid central_id
+        csv_data += "\n,newuser2,xx,"
+        data = {"format": 0, "import_file": StringIO(csv_data)}
+        response = client.post(url, data=data)
+        response_content = response.content.decode()
+        expected_error = "Value must be an integer."
+        result = response.context["result"]
+
+        assert response.status_code == 200
+        assert isinstance(response.context["form"], AppUserImportForm)
+        assert (
+            "Please correct these errors in your data where possible, then reupload "
+            "it using the form above."
+        ) in response_content
+        assert len(result.invalid_rows) == 1
+        assert result.invalid_rows[0].field_specific_errors["central_id"] == [expected_error]
+        assert expected_error in response_content
+        # A user should not be created
+        assert AppUser.objects.count() == 0
