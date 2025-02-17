@@ -18,6 +18,7 @@ from pathlib import Path
 import dj_database_url
 import structlog
 from import_export.formats import base_formats
+from ..import_export_formats import XLSX
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -380,4 +381,4 @@ ODK_CENTRAL_USERNAME = os.getenv("ODK_CENTRAL_USERNAME")
 ODK_CENTRAL_PASSWORD = os.getenv("ODK_CENTRAL_PASSWORD")
 
 # django-import-export
-IMPORT_EXPORT_FORMATS = [base_formats.CSV, base_formats.XLSX]
+IMPORT_EXPORT_FORMATS = [base_formats.CSV, XLSX]
