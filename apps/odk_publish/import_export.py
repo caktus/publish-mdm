@@ -244,7 +244,11 @@ class AppUserResource(resources.ModelResource):
             existing_form_templates = set()
         else:
             existing_form_templates = instance.form_templates
-        for form_id_base in instance._new_form_templates - existing_form_templates:
+        # If the current instance has no `_new_form_templates` variable it means
+        # the import file did not have a "form_templates" column, so the user's
+        # form templates should be left unchanged
+        new_form_templates = getattr(instance, "_new_form_templates", existing_form_templates)
+        for form_id_base in new_form_templates - existing_form_templates:
             logger.info(
                 "Adding a AppUserFormTemplate via file import",
                 app_user_id=instance.id,
@@ -253,7 +257,7 @@ class AppUserResource(resources.ModelResource):
                 template_id=self.form_templates[form_id_base],
             )
             instance.app_user_forms.create(form_template_id=self.form_templates[form_id_base])
-        to_delete = existing_form_templates - instance._new_form_templates
+        to_delete = existing_form_templates - new_form_templates
         if to_delete:
             logger.info(
                 "Deleting AppUserFormTemplates via file import",
