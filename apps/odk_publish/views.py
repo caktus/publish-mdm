@@ -7,10 +7,17 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.timezone import localdate
 from import_export.results import RowResult
+from import_export.tmp_storages import MediaStorage
 
 from .etl.load import generate_and_save_app_user_collect_qrcodes, sync_central_project
 
-from .forms import ProjectSyncForm, AppUserExportForm, AppUserImportForm, PublishTemplateForm
+from .forms import (
+    ProjectSyncForm,
+    AppUserConfirmImportForm,
+    AppUserExportForm,
+    AppUserImportForm,
+    PublishTemplateForm,
+)
 from .import_export import AppUserResource
 from .models import FormTemplateVersion, FormTemplate
 from .nav import Breadcrumbs
@@ -188,38 +195,66 @@ def app_user_import(request, odk_project_pk):
     The file is expected to have the same columns as a file exported using the
     app_user_export view above. New AppUsers will be added if the "id" column is blank.
     If a AppUserTemplateVariable column is blank and it exists in the database,
-    it will be deleted.
+    it will be deleted. The import is done in 2 stages: first the user uploads a
+    file, then they will be shown a preview of the import and asked to confirm.
+    Once the user confirms, the database will be updated.
     """
-    # TODO: Add a preview page after a file is uploaded, similar to imports in Django Admin
     resource = AppUserResource(request.odk_project)
-    form = AppUserImportForm([resource], data=request.POST or None, files=request.FILES or None)
+    result = None
+    confirm = "original_file_name" in request.POST
+    if confirm:
+        # Confirm stage
+        form_class = AppUserConfirmImportForm
+        args = ()
+    else:
+        # Initial import stage
+        form_class = AppUserImportForm
+        args = ([resource],)
+    form = form_class(*args, data=request.POST or None, files=request.FILES or None)
     if request.POST and form.is_valid():
         result = resource.import_data(
-            form.dataset, use_transactions=True, rollback_on_validation_errors=True
+            form.dataset,
+            use_transactions=True,
+            rollback_on_validation_errors=True,
+            dry_run=not confirm,
         )
         if not (result.has_validation_errors() or result.has_errors()):
-            messages.success(
-                request,
-                f"Import finished successfully, with {result.totals[RowResult.IMPORT_TYPE_NEW]} "
-                f"new and {result.totals[RowResult.IMPORT_TYPE_UPDATE]} updated app users.",
+            if confirm:
+                messages.success(
+                    request,
+                    f"Import finished successfully, with {result.totals[RowResult.IMPORT_TYPE_NEW]} "
+                    f"new and {result.totals[RowResult.IMPORT_TYPE_UPDATE]} updated app users.",
+                )
+                return redirect("odk_publish:app-user-list", odk_project_pk=odk_project_pk)
+            # Save the import file data in a temporary file and show the confirm page
+            import_format = form.cleaned_data["format"]
+            tmp_storage = MediaStorage(
+                encoding=import_format.encoding,
+                read_mode=import_format.get_read_mode(),
             )
-            return redirect("odk_publish:app-user-list", odk_project_pk=odk_project_pk)
-        for row in result.invalid_rows:
-            for field, errors in row.error_dict.items():
-                if field == "__all__":
-                    field = "id"
-                for error in errors:
-                    messages.error(request, f"Row {row.number}, Column '{field}': {error}")
-        for row in result.error_rows:
-            for error in row.errors:
-                messages.error(request, f"Row {row.number}: {error.error!r}")
-        for error in result.base_errors:
-            messages.error(request, repr(error.error))
+            tmp_storage.save(form.file_data)
+            form = AppUserConfirmImportForm(
+                initial={
+                    "import_file_name": tmp_storage.name,
+                    "original_file_name": form.cleaned_data["import_file"].name,
+                    "format": form.data["format"],
+                    "resource": form.cleaned_data.get("resource", ""),
+                }
+            )
+    if confirm:
+        # An error has occurred during validation of the confirm form or during
+        # the actual import. Since there are no fields the user can edit in the
+        # confirm form, take them back to the initial import form so they can
+        # begin the import process afresh.
+        messages.error(request, "We could not complete your import. Please try importing again.")
+        form = AppUserImportForm([resource])
     context = {
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
             items=[("App Users", "app-user-list"), ("Import", "app-users-import")],
         ),
         "form": form,
+        "result": result,
+        "confirm": isinstance(form, AppUserConfirmImportForm),
     }
     return render(request, "odk_publish/app_user_import.html", context)

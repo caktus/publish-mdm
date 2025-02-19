@@ -112,7 +112,12 @@ class TestAppUserResource:
             project=project,
             central_id=2,
         )
-        assert models.AppUser.objects.count() == 2
+        app_user3 = models.AppUser.objects.create(
+            name="user3",
+            project=project,
+            central_id=3,
+        )
+        assert models.AppUser.objects.count() == 3
         assert models.AppUserTemplateVariable.objects.count() == project.template_variables.count()
         assert models.AppUserFormTemplate.objects.count() == 2
 
@@ -120,6 +125,7 @@ class TestAppUserResource:
             "id,name,central_id,form_templates,center_id,center_label,public_key,manager_password\n"
             f"{app_user.id},11031,31,template1,11031,Center 11031,key11031,pass11031\n"
             f"{app_user2.id},11033,33,template2,11033,Center 11033,key11033,pass11033\n"
+            f"{app_user3.id},user3,3,,,,,\n"
             ',11035,35,"template1,template2",11035,Center 11035,key11035,pass11035\n'
             ",11037,37,template2,11037,Center 11037,key11037,pass11037\n"
             ",11039,39, ,11039,Center 11039,key11039,pass11039\n"
@@ -132,14 +138,24 @@ class TestAppUserResource:
 
         assert not result.has_validation_errors()
         assert not result.has_errors()
-        assert models.AppUser.objects.count() == 5
+        assert models.AppUser.objects.count() == 6
         assert (
             models.AppUserTemplateVariable.objects.count() == project.template_variables.count() * 5
         )
         assert models.AppUserFormTemplate.objects.count() == 5
 
+        expected_import_types = [
+            "update",
+            "update",
+            "skip",
+            "new",
+            "new",
+            "new",
+        ]
+        valid_rows = result.valid_rows()
+
         # Make sure user data has been added / updated
-        for row in dataset.dict:
+        for index, row in enumerate(dataset.dict):
             pk = row.pop("id")
             name = row.pop("name")
             form_templates = row.pop("form_templates")
@@ -151,17 +167,20 @@ class TestAppUserResource:
                 # New user. Get by name
                 app_user = project.app_users.get(name=name)
             assert app_user.central_id == int(row.pop("central_id"))
-            assert (
-                dict(
-                    app_user.app_user_template_variables.values_list(
-                        "template_variable__name", "value"
-                    )
-                )
-                == row
-            )
+            assert dict(
+                app_user.app_user_template_variables.values_list("template_variable__name", "value")
+            ) == {k: v for k, v in row.items() if v}
             assert set(app_user.form_templates) == {
                 t for i in form_templates.split(",") if (t := i.strip())
             }
+            # Check the data that would be shown in a preview page
+            preview_row = valid_rows[index]
+            # In our HTML, the import_type is used to determine the color of the row
+            assert preview_row.import_type == expected_import_types[index]
+            # There should be some text in the diff for each column that had a value in the import data
+            assert [bool(i) for i in preview_row.diff[1:]] == [
+                bool(i.strip()) for i in dataset._data[index][1:]
+            ]
 
     def test_cannot_import_other_projects_users(self, app_user, other_project):
         app_user2 = models.AppUser.objects.create(

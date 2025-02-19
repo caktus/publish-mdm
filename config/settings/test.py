@@ -6,3 +6,5 @@ EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 CELERY_TASK_ALWAYS_EAGER = True
 # task_eager_propagates
 CELERY_TASK_EAGER_PROPAGATES = True
+
+MEDIA_ROOT = os.path.join(BASE_DIR, "test_media")  # noqa
