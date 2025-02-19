@@ -8,7 +8,6 @@ from pyodk._endpoints import bases
 from pyodk._endpoints.form_assignments import FormAssignmentService
 from pyodk._endpoints.forms import Form
 from pyodk._endpoints.project_app_users import ProjectAppUser, ProjectAppUserService
-from pyodk.errors import PyODKError
 
 from .constants import APP_USER_ROLE_ID
 
@@ -168,13 +167,45 @@ class PublishService(bases.Service):
             )
         return form
 
+    def get_app_users_assigned_to_form(self, project_id, form_id):
+        """Get a set with the IDs of all app users that have been assigned to a form.
+        https://docs.getodk.org/central-api-form-management/#listing-all-actors-assigned-some-form-role
+        """
+        logger.info(
+            "Getting app users assigned to form",
+            form_id=form_id,
+            project_id=project_id,
+        )
+        response = self.client.get(
+            f"projects/{project_id}/forms/{form_id}/assignments/{APP_USER_ROLE_ID}"
+        )
+        logger.info(
+            "Got app users assigned to form",
+            form_id=form_id,
+            project_id=project_id,
+            response_status_code=response.status_code,
+            response_content=response.content,
+        )
+        if response.status_code == 200:
+            return {i["id"] for i in response.json()}
+        return set()
+
     def assign_app_users_forms(
         self, app_users: list[ProjectAppUserAssignment], project_id: int | None = None
     ) -> None:
         """Assign forms to app users."""
         for app_user in app_users:
             for xml_form_id in app_user.xml_form_ids:
-                try:
+                if app_user.id in self.get_app_users_assigned_to_form(
+                    project_id or self.client.project_id, xml_form_id
+                ):
+                    logger.debug(
+                        "Form already assigned",
+                        form_id=xml_form_id,
+                        app_user=app_user.displayName,
+                        project_id=project_id,
+                    )
+                else:
                     self.form_assignments.assign(
                         role_id=APP_USER_ROLE_ID,
                         user_id=app_user.id,
@@ -183,15 +214,6 @@ class PublishService(bases.Service):
                     )
                     logger.debug(
                         "Assigned form",
-                        form_id=xml_form_id,
-                        app_user=app_user.displayName,
-                        project_id=project_id,
-                    )
-                except PyODKError as e:
-                    if not e.is_central_error(code="409.3"):
-                        raise
-                    logger.debug(
-                        "Form already assigned",
                         form_id=xml_form_id,
                         app_user=app_user.displayName,
                         project_id=project_id,
