@@ -179,12 +179,13 @@ class AppUserImportForm(AppUserImportExportFormMixin, import_export_forms.Import
 
 
 class AppUserConfirmImportForm(import_export_forms.ConfirmImportForm):
+    format = FileFormatChoiceField(widget=forms.HiddenInput)
+
     def clean(self):
         import_format = self.cleaned_data.get("format")
         import_file_name = self.cleaned_data.get("import_file_name")
         if import_format and import_file_name:
             # Read the temp file and create a tablib.Dataset that we'll use for importing
-            import_format = settings.IMPORT_EXPORT_FORMATS[int(import_format)]()
             if not import_format.is_binary():
                 import_format.encoding = "utf-8-sig"
             tmp_storage = MediaStorage(

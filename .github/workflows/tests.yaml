@@ -36,6 +36,8 @@ jobs:
           sudo apt-get install -y --no-install-recommends postgresql-client
           pip install -U -q pip-tools
           pip-sync requirements/base/base.txt requirements/dev/dev.txt
+      - name: Run pre-commit
+        run: pre-commit run --all-files
       - name: Run tests
         run: pytest
         env:
