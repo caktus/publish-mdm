@@ -1,8 +1,10 @@
+import structlog
 from django import forms
 from django.conf import settings
 from django.http import QueryDict
 from django.urls import reverse_lazy
 from import_export import forms as import_export_forms
+from import_export.tmp_storages import MediaStorage
 
 from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import Select, FileInput, TextInput
@@ -10,6 +12,8 @@ from apps.patterns.widgets import Select, FileInput, TextInput
 from .etl.odk.client import ODKPublishClient
 from .http import HttpRequest
 from .models import FormTemplate
+
+logger = structlog.getLogger(__name__)
 
 
 class ProjectSyncForm(PlatformFormMixin, forms.Form):
@@ -154,6 +158,14 @@ class AppUserImportForm(AppUserImportExportFormMixin, import_export_forms.Import
             try:
                 self.dataset = import_format.create_dataset(data)
             except Exception:
+                # Using debug() instead of exception() or error() so that it's not
+                # logged in Sentry
+                logger.debug(
+                    "An error occurred when reading AppUser import file",
+                    selected_format=import_format.get_title(),
+                    filename=import_file.name,
+                    exc_info=True,
+                )
                 raise forms.ValidationError(
                     {
                         "format": (
@@ -162,4 +174,42 @@ class AppUserImportForm(AppUserImportExportFormMixin, import_export_forms.Import
                         )
                     }
                 )
+            self.file_data = data
+        return self.cleaned_data
+
+
+class AppUserConfirmImportForm(import_export_forms.ConfirmImportForm):
+    format = FileFormatChoiceField(widget=forms.HiddenInput)
+
+    def clean(self):
+        import_format = self.cleaned_data.get("format")
+        import_file_name = self.cleaned_data.get("import_file_name")
+        if import_format and import_file_name:
+            # Read the temp file and create a tablib.Dataset that we'll use for importing
+            if not import_format.is_binary():
+                import_format.encoding = "utf-8-sig"
+            tmp_storage = MediaStorage(
+                name=import_file_name,
+                encoding=import_format.encoding,
+                read_mode=import_format.get_read_mode(),
+            )
+            data = None
+            try:
+                data = tmp_storage.read()
+                self.dataset = import_format.create_dataset(data)
+            except Exception:
+                # Either the temp file could not be read, or there was an error
+                # parsing the file using the selected format
+                logger.exception(
+                    "An error occurred when reading AppUser import temp file in confirm stage",
+                    selected_format=import_format.get_title(),
+                    filename=import_file_name,
+                )
+                raise forms.ValidationError(
+                    "An error was encountered while trying to read the file."
+                )
+            finally:
+                if data is not None:
+                    # Delete the temp file
+                    tmp_storage.remove()
         return self.cleaned_data

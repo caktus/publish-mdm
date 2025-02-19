@@ -40,6 +40,12 @@ class AppUserTemplateVariableWidget(widgets.ForeignKeyWidget):
                 raise ValueError(e.messages[0])
         return template_variable
 
+    def render(self, value, obj=None, **kwargs):
+        """Return the string value of the variable, or an empty string if the user
+        does not have the variable (value is None).
+        """
+        return value or ""
+
 
 class AppUserTemplateVariableField(fields.Field):
     """Field for the AppUserTemplateVariable columns in the import/export files."""
@@ -51,12 +57,22 @@ class AppUserTemplateVariableField(fields.Field):
         AppUserTemplateVariable later in `AppUserResource.do_instance_save()`.
         """
         # Get the validated AppUserTemplateVariable. It will be None if the value
-        # is blank in the import file, in which case we need to delete the variable
+        # is blank in the import file, in which case we need to delete the variable.
+        # We'll also update template_variables_dict so that the preview page can show
+        # the changes made to template variables, and unchanged rows can be skipped
+        # when saving changes in the DB
         cleaned = self.clean(row, **kwargs)
         if cleaned is None:
-            instance._template_variables_to_delete.append(self.column_name)
+            if self.column_name in instance.template_variables_dict:
+                instance._template_variables_to_delete.append(self.column_name)
+                del instance.template_variables_dict[self.column_name]
         else:
             instance._template_variables_to_save.append(cleaned)
+            instance.template_variables_dict[self.column_name] = cleaned.value
+
+    def get_value(self, instance):
+        # Get the value of the template variable using the dehydrate method
+        return self.dehydrate_method(instance)
 
 
 class PositiveIntegerWidget(widgets.IntegerWidget):
@@ -97,7 +113,7 @@ class FormTemplatesWidget(widgets.Widget):
         """Renders a user's AppUserFormTemplates as a comma-separated list of
         their form_template.form_id_base values.
         """
-        return ",".join(value) if value else ""
+        return ",".join(sorted(value)) if value else ""
 
 
 class FormTemplatesField(fields.Field):
@@ -109,6 +125,11 @@ class FormTemplatesField(fields.Field):
         the AppUserFormTemplates later in `AppUserResource.do_instance_save()`.
         """
         instance._new_form_templates = self.clean(row, **kwargs)
+
+    def get_value(self, instance):
+        # `instance._new_form_templates` will be set in save() above during import.
+        # `instance.form_templates` will be the original templates before import.
+        return getattr(instance, "_new_form_templates", instance.form_templates)
 
 
 class AppUserResource(resources.ModelResource):
@@ -125,6 +146,7 @@ class AppUserResource(resources.ModelResource):
         model = AppUser
         fields = ("id", "name", "central_id", "form_templates")
         clean_model_instances = True
+        skip_unchanged = True
 
     def __init__(self, project):
         # The project for which we are importing/exporting AppUsers
@@ -138,25 +160,17 @@ class AppUserResource(resources.ModelResource):
                 # The `dehydrate_method` will be called with an AppUser instance as
                 # the only argument to get the value for the AppUserTemplateVariable
                 # column during export
-                dehydrate_method=partial(self.get_template_variable_value, template_variable.pk),
+                dehydrate_method=partial(self.get_template_variable_value, template_variable.name),
                 widget=AppUserTemplateVariableWidget(template_variable),
             )
-
-    def export_resource(self, instance, selected_fields=None, **kwargs):
-        """Called for each AppUser instance during export."""
-        # Create a dictionary that we can use to look up template variables
-        # for the instance, instead of doing a DB query for each variable.
-        # The template variables are prefetched in the queryset passed in to
-        # the `AppUserResource.export()` call in the view
-        instance.template_variables_dict = {
-            i.template_variable_id: i.value for i in instance.app_user_template_variables.all()
-        }
-        return super().export_resource(instance, selected_fields, **kwargs)
 
     def get_queryset(self):
         # Queryset used to look up AppUsers during import and export
         return self.project.app_users.prefetch_related(
-            "app_user_template_variables",
+            Prefetch(
+                "app_user_template_variables",
+                AppUserTemplateVariable.objects.select_related("template_variable"),
+            ),
             Prefetch(
                 "app_user_forms",
                 AppUserFormTemplate.objects.select_related("form_template").order_by(
@@ -179,11 +193,11 @@ class AppUserResource(resources.ModelResource):
         return instance
 
     @staticmethod
-    def get_template_variable_value(variable_pk, app_user):
+    def get_template_variable_value(variable_name, app_user):
         """Used to set the `dehydrate_method` argument when instantiating a
         AppUserTemplateVariableField.
         """
-        return app_user.template_variables_dict.get(variable_pk)
+        return app_user.template_variables_dict.get(variable_name)
 
     def import_instance(self, instance, row, **kwargs):
         """Called for each AppUser during import."""
@@ -192,10 +206,6 @@ class AppUserResource(resources.ModelResource):
         # or deleting together in the do_instance_save() method below.
         instance._template_variables_to_save = []
         instance._template_variables_to_delete = []
-        # This will be updated by FormTemplatesField.save() to the validated set
-        # of "form_id_base" strings for the instance. AppUserFormTemplate objects
-        # will be created and/or deleted in do_instance_save() based on this set
-        instance._new_form_templates = set()
         # Dict of the project's FormTemplates to be used for validation in
         # FormTemplatesWidget.clean()
         kwargs["project_form_templates"] = self.form_templates
@@ -233,8 +243,12 @@ class AppUserResource(resources.ModelResource):
         if is_create:
             existing_form_templates = set()
         else:
-            existing_form_templates = set(instance.form_templates)
-        for form_id_base in instance._new_form_templates - existing_form_templates:
+            existing_form_templates = instance.form_templates
+        # If the current instance has no `_new_form_templates` variable it means
+        # the import file did not have a "form_templates" column, so the user's
+        # form templates should be left unchanged
+        new_form_templates = getattr(instance, "_new_form_templates", existing_form_templates)
+        for form_id_base in new_form_templates - existing_form_templates:
             logger.info(
                 "Adding a AppUserFormTemplate via file import",
                 app_user_id=instance.id,
@@ -243,7 +257,7 @@ class AppUserResource(resources.ModelResource):
                 template_id=self.form_templates[form_id_base],
             )
             instance.app_user_forms.create(form_template_id=self.form_templates[form_id_base])
-        to_delete = existing_form_templates - instance._new_form_templates
+        to_delete = existing_form_templates - new_form_templates
         if to_delete:
             logger.info(
                 "Deleting AppUserFormTemplates via file import",

@@ -1,6 +1,13 @@
 {% extends "base.html" %}
+{% load i18n %}
 {% block content %}
-    <p class="mb-4 dark:text-gray-400">Import App Users using a file previously exported from this project.</p>
+    {% if confirm %}
+        <p class="mb-4 dark:text-gray-400">
+            Below is a preview of data to be imported. If you are satisfied with the results, click 'Confirm import'.
+        </p>
+    {% else %}
+        <p class="mb-4 dark:text-gray-400">Import App Users using a file previously exported from this project.</p>
+    {% endif %}
     <div class="mb-4 grid gap-4 sm:grid-cols-2 md:mb-8">
         {{ form.media }}
         <form method="post"
@@ -9,6 +16,7 @@
               x-data="{ submitting: false }"
               x-on:submit="submitting = true">
             {% csrf_token %}
+            {% for field in form.hidden_fields %}{{ field }}{% endfor %}
             <div class="grid gap-4 sm:grid-cols-1 sm:gap-6">
                 {% for field in form.visible_fields %}
                     <div>
@@ -22,7 +30,11 @@
                             :disabled="submitting"
                             :class="{'btn-disabled': submitting}"
                             class="btn btn-outline btn-primary">
-                        Import app users
+                        {% if confirm %}
+                            Confirm import
+                        {% else %}
+                            Import app users
+                        {% endif %}
                         <svg aria-hidden="true"
                              role="status"
                              x-cloak
@@ -37,10 +49,122 @@
                     </button>
                     <a type="button"
                        class="btn btn-outline"
-                       href="{% url 'odk_publish:app-user-list' request.odk_project.pk %}"
+                       href="{% if not confirm %}{% url 'odk_publish:app-user-list' request.odk_project.pk %}{% endif %}"
                        :disabled="submitting">Cancel</a>
                 </div>
             </div>
         </form>
     </div>
+    {% if result %}
+        {% if result.has_errors or result.has_validation_errors %}
+            {% if result.has_errors %}
+                <div class="mb-4">
+                    <h3 class="font-semibold text-gray-900 dark:text-white mb-0.5">{% trans "Errors" %}</h3>
+                    <ul>
+                        {% for error in result.base_errors %}
+                            <li class="mb-2">
+                                {{ error.error }}
+                                <div class="col-span-4 text-sm p-3 overflow-auto font-mono text-red-700 bg-red-50 dark:bg-gray-800 dark:text-red-400">
+                                    <pre class="text-xs">{{ error.traceback|linebreaks }}</pre>
+                                </div>
+                            </li>
+                        {% endfor %}
+                        {% for line, errors in result.row_errors %}
+                            {% for error in errors %}
+                                <li class="mb-2">
+                                    Row {{ line }}: {{ error.error }}
+                                    <div>
+                                        <code>{{ error.row.values|join:", " }}</code>
+                                    </div>
+                                    <div class="col-span-4 text-sm p-3 overflow-auto font-mono text-red-700 bg-red-50 dark:bg-gray-800 dark:text-red-400">
+                                        <pre class="text-xs">{{ error.traceback|linebreaks }}</pre>
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+            {% if result.has_validation_errors %}
+                <div class="mb-4">
+                    <h3 class="font-semibold text-gray-900 dark:text-white mb-0.5">{% trans "Some rows failed to validate" %}</h3>
+                    <p class="mb-1 dark:text-gray-400">
+                        {% trans "Please correct these errors in your data where possible, then reupload it using the form above." %}
+                    </p>
+                    <table class="text-left w-full h-full text-sm text-gray-500 dark:text-gray-400 dark:bg-gray-800">
+                        <thead class="text-xs text-gray-700 uppercase bg-primary-100 dark:bg-gray-700 dark:text-gray-400">
+                            <tr>
+                                <th class="px-4 py-3 whitespace-nowrap">{% trans "Row" %}</th>
+                                <th class="px-4 py-3 whitespace-nowrap">{% trans "Errors" %}</th>
+                                {% for field in result.diff_headers %}<th class="px-4 py-3 whitespace-nowrap">{{ field }}</th>{% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody class="mb-4">
+                            {% for row in result.invalid_rows %}
+                                <tr class="border-b border-primary-100 dark:border-gray-700 text-sm row">
+                                    <td class="px-4 py-3">{{ row.number|add:1 }}</td>
+                                    <td class="px-4 py-3">
+                                        <span data-popover-target="errors-{{ forloop.counter }}"
+                                              data-popover-placement="bottom-start"
+                                              class="px-2 rounded text-red bg-red-50 dark:bg-gray-900 dark:text-red-400">{{ row.error_count }}</span>
+                                        <div id="errors-{{ forloop.counter }}"
+                                             role="tooltip"
+                                             class="absolute min-w-sm z-10 invisible inline-block px-3 py-2 text-sm font-medium text-red bg-red-50 dark:bg-gray-900 dark:text-red-400 border border-gray-200 shadow-xs opacity-0 tooltip dark:border-gray-700">
+                                            <ul class="validation-error-list">
+                                                {% for field_name, error_list in row.field_specific_errors.items %}
+                                                    <li>
+                                                        <span class="font-bold uppercase underline">{{ field_name }}</span>
+                                                        <ul>
+                                                            {% for error in error_list %}<li>{{ error }}</li>{% endfor %}
+                                                        </ul>
+                                                    </li>
+                                                {% endfor %}
+                                                {% if row.non_field_specific_errors %}
+                                                    <li>
+                                                        <span class="font-bold uppercase underline">{% trans "Non field specific" %}</span>
+                                                        <ul>
+                                                            {% for error in row.non_field_specific_errors %}<li>{{ error }}</li>{% endfor %}
+                                                        </ul>
+                                                    </li>
+                                                {% endif %}
+                                            </ul>
+                                        </div>
+                                    </td>
+                                    {% for field in row.values %}<td class="px-4 py-3">{{ field }}</td>{% endfor %}
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+        {% else %}
+            <h3 class="font-semibold text-gray-900 dark:text-white mb-0.5">{% trans "Preview" %}</h3>
+            <table class="text-left w-full h-full text-sm text-gray-500 dark:text-gray-400 dark:bg-gray-800">
+                <thead class="text-xs text-gray-700 uppercase bg-primary-100 dark:bg-gray-700 dark:text-gray-400">
+                    <tr>
+                        <th class="px-4 py-3 whitespace-nowrap"></th>
+                        {% for field in result.diff_headers %}<th class="px-4 py-3 whitespace-nowrap">{{ field }}</th>{% endfor %}
+                    </tr>
+                </thead>
+                <tbody class="mb-4">
+                    {% for row in result.valid_rows %}
+                        <tr class="{% if row.import_type == 'update' %}bg-yellow-100 {% elif row.import_type == 'new' %}bg-blue-200 {% endif %}border-b border-primary-100 dark:border-gray-700 text-sm row">
+                            <td class="px-4 py-3">
+                                {% if row.import_type == 'new' %}
+                                    {% trans "New" %}
+                                {% elif row.import_type == 'skip' %}
+                                    {% trans "Unchanged" %}
+                                {% elif row.import_type == 'delete' %}
+                                    {% trans "Delete" %}
+                                {% elif row.import_type == 'update' %}
+                                    {% trans "Update" %}
+                                {% endif %}
+                            </td>
+                            {% for field in row.diff %}<td class="px-4 py-3">{{ field }}</td>{% endfor %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    {% endif %}
 {% endblock content %}
