@@ -82,4 +82,4 @@ USER ${APP_USER}:${APP_USER}
 ENTRYPOINT ["/code/docker-entrypoint.sh"]
 
 # Start uWSGI
-CMD ["newrelic-admin", "run-program", "daphne", "config.asgi:application", "--bind", "0.0.0.0", "--port", "8000"]
+CMD ["/code/run_server.sh"]
