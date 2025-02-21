@@ -81,5 +81,5 @@ USER ${APP_USER}:${APP_USER}
 # Uncomment after creating your docker-entrypoint.sh
 ENTRYPOINT ["/code/docker-entrypoint.sh"]
 
-# Start uWSGI
+# Start a Gunicorn server if a USE_GUNICORN environment variable is set, else start a Daphne server
 CMD ["/code/run_server.sh"]
