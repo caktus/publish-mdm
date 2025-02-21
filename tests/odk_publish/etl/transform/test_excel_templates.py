@@ -119,4 +119,9 @@ class TestEntityReferences:
             survey_sheet["K10"].value == f"instance('{new}')/root/item[name=${{cats_entity}}]/color"
         )
         entity_sheet = workbook["entities"]
-        assert entity_sheet["A4"].value == new
+        # Ensure project-wide entity list names are unchanged
+        assert survey_sheet["A4"].value == "select_one_from_file fruits.csv"
+        assert entity_sheet["A2"].value == "fruits"
+        assert (
+            survey_sheet["K5"].value == "instance('fruits')/root/item[name=${fruits_entity}]/color"
+        )
