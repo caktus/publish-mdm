@@ -111,22 +111,26 @@ def discover_entity_lists(workbook: Workbook) -> list[str]:
 
 
 def build_entity_list_mapping(workbook: Workbook, app_user: str) -> dict[str, str]:
-    """Build a mapping of entity lists to new entity list names."""
+    """Build a mapping of app user entity lists to new entity list names."""
     entity_lists = discover_entity_lists(workbook=workbook)
-    return {entity_list: f"{entity_list}_{app_user}" for entity_list in entity_lists}
+    return {
+        entity_list: entity_list[:-8] + app_user
+        for entity_list in entity_lists
+        if entity_list.endswith("_APP_USER")
+    }
 
 
 def update_entity_references(workbook: Workbook, entity_list_mapping: dict[str, str] = None):
     """Update references to entity lists in the workbook, based on the mapping.
 
-    For example: `filename.csv` -> `filename_11030.csv`
+    For example: `filename_APP_USER.csv` -> `filename_11030.csv`
     """
     if not entity_list_mapping:
         entity_list_mapping = {}
 
     # Update references to entity lists in the `survey`` sheet
     for entity_list_orig, entity_list_new in entity_list_mapping.items():
-        # Replace references to "filename.csv"
+        # Replace references to "filename_APP_USER.csv"
         for cell in find_cells_containing_value(
             sheet=workbook["survey"], value=f"{entity_list_orig}.csv"
         ):
@@ -137,7 +141,8 @@ def update_entity_references(workbook: Workbook, entity_list_mapping: dict[str, 
                 value=cell.value,
                 sheet="survey",
             )
-        # Replace references to the fill in pulldata() (in single quotes, e.g., "'file_name'")
+        # Replace references to the fill in pulldata() and instance()
+        # (in single quotes, e.g., "'filename_APP_USER'")
         for cell in find_cells_containing_value(
             sheet=workbook["survey"], value=f"'{entity_list_orig}'"
         ):
