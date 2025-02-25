@@ -22,6 +22,7 @@ interface for publishing form versions.
    :caption: Contents:
 
    src/docker-compose
+   src/local-development/index
    src/contributing
 
 Contributors:

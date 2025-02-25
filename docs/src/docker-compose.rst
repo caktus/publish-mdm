@@ -1,5 +1,5 @@
-Quickstart with Docker Compose
-==============================
+Quickstart with Docker
+======================
 
 This guide will walk you through setting up ODK Publish locally using Docker
 Compose.
