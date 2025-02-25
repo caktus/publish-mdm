@@ -43,7 +43,6 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/accounts/login/"
 
 INSTALLED_APPS = [
-    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -70,6 +69,9 @@ INSTALLED_APPS = [
     "apps.tailscale",
     "apps.users",
 ]
+
+if not os.getenv("USE_GUNICORN"):
+    INSTALLED_APPS.insert(0, "daphne")
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
