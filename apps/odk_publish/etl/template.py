@@ -1,3 +1,4 @@
+import os
 import re
 import structlog
 from openpyxl import Workbook
@@ -45,6 +46,48 @@ def set_survey_template_variables(sheet: Worksheet, variables: list[TemplateVari
             cell=calculation_cell.coordinate,
         )
         calculation_cell.value = variable.value
+
+
+def set_survey_attachments(sheet: Worksheet, attachments: dict | None = None):
+    """Fill in the static attachments on the survey sheet.
+
+    Attachment columns' headers are either "media::image", "media::audio", or "media::video".
+    The `attachments` dict should contain data from the ProjectAttachment model,
+    with the values from the `name` and `file` fields as the keys and values respectively.
+    The dict will be updated in place to remove attachments that are not detected in the
+    survey sheet. To detect an attachment, we will look for the key from the `attachments`
+    dict in the "name" column, then offset to the "media::*" column to fill in the value.
+    """
+    if not attachments:
+        return
+    name_header = get_header(sheet=sheet, column_name="name")
+    # Get all the "media::" columns in the sheet and their offsets from the name column
+    media_headers = [
+        (header, header.column - name_header.column)
+        for media_type in ("image", "audio", "video")
+        if (header := get_header(sheet=sheet, column_name=f"media::{media_type}"))
+    ]
+    if not media_headers:
+        # None of the attachments are being used in this form. Empty the dict
+        attachments.clear()
+        return
+    for name, file in list(attachments.items()):
+        variable_cell = get_column_cell_by_value(column_header=name_header, value=name)
+        if not variable_cell:
+            # This attachment is not being used in this form. Remove it from the dict
+            del attachments[name]
+            continue
+        for header, offset in media_headers:
+            attachment_cell = variable_cell.offset(column=offset)
+            value = os.path.basename(file.name)
+            logger.debug(
+                "Setting attachment value",
+                name=name,
+                value=value,
+                cell=attachment_cell.coordinate,
+                header=header.value,
+            )
+            attachment_cell.value = value
 
 
 def update_setting_variables(

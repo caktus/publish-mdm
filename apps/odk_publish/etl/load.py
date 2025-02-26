@@ -1,9 +1,11 @@
+import os
 from typing import Callable
 
 import structlog
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import transaction
 from django.db.models import QuerySet
+from django.core.files.storage import storages
 from pydantic import BaseModel, field_validator
 
 from apps.users.models import User
@@ -70,8 +72,9 @@ def publish_form_template(event: PublishTemplateEvent, user: User, send_message:
         )
         # Create a version for each app user locally
         app_users = form_template.get_app_users(names=event.app_users)
+        attachments = {i.name: i.file for i in form_template.project.attachments.all()}
         app_user_versions = template_version.create_app_user_versions(
-            app_users=app_users, send_message=send_message
+            app_users=app_users, send_message=send_message, attachments=attachments
         )
         # Get or create app users in ODK Central
         central_app_user_assignments = client.odk_publish.get_or_create_app_users(
@@ -83,11 +86,15 @@ def publish_form_template(event: PublishTemplateEvent, user: User, send_message:
             central_app_user_assignments[app_user_version.app_user.name].xml_form_ids.append(
                 app_user_version.xml_form_id
             )
+        # At this point `attachments` will contain only the attachments detected
+        # in the form. Get local absolute paths for them
+        attachments, is_temp_attachments = get_attachment_paths(attachments)
         # Publish each app user form version to ODK Central
         for app_user_version in app_user_versions:
             form = client.odk_publish.create_or_update_form(
                 xml_form_id=app_user_version.app_user_form_template.xml_form_id,
                 definition=app_user_version.file.read(),
+                attachments=attachments,
             )
             send_message(f"Published form: {form.xmlFormId}")
         # Create or update the form assignments on the server
@@ -98,6 +105,10 @@ def publish_form_template(event: PublishTemplateEvent, user: User, send_message:
         update_app_users_central_id(
             project=form_template.project, app_users=central_app_user_assignments
         )
+        if is_temp_attachments:
+            # Delete temp files created by `get_attachment_paths`
+            for name in attachments:
+                storages["temp"].delete(name)
     send_message(f"Successfully published {version}", complete=True)
 
 
@@ -207,3 +218,28 @@ def sync_central_project(base_url: str, project_id: int) -> Project:
                 )
 
     return project
+
+
+def get_attachment_paths(attachments):
+    """Get local filesystem paths for the attachments provided. The attachments
+    should be the values from the `ProjectAttachment.file` field. If an external
+    storage is being used (like S3), the attachments will be downloaded and saved
+    in temp files.
+    """
+    logger.info("Getting paths for detected attachments", attachments=attachments)
+    paths = []
+    is_temp_attachments = False
+    for file in attachments.values():
+        try:
+            paths.append(file.path)
+        except NotImplementedError:
+            # The storage cannot provide a local filesystem path for the file,
+            # so it's external. Download the file and save it in a temp file
+            # with the same name, since it's the name the ODK API expects
+            name = os.path.basename(file.name)
+            logger.info("Downloading static attachment", file=file.name, url=file.url)
+            with storages["temp"].open(name, "wb") as temp_file:
+                temp_file.write(file.read())
+            paths.append(storages["temp"].path(name))
+            is_temp_attachments = True
+    return paths, is_temp_attachments

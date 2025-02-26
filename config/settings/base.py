@@ -213,6 +213,12 @@ STORAGES = {
     "staticfiles": {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
+    "temp": {
+        "BACKEND": "django.contrib.staticfiles.storage.FileSystemStorage",
+        "OPTIONS": {
+            "location": "/tmp",
+        },
+    },
 }
 
 # Optionally configure settings for S3/MinIO

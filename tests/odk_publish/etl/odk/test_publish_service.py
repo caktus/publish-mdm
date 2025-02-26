@@ -3,6 +3,7 @@ import datetime as dt
 from typing import Generator
 from pathlib import Path
 
+from django.core.files.temp import NamedTemporaryFile
 from pyodk.errors import PyODKError
 
 from apps.odk_publish.etl.odk.publish import ProjectAppUserAssignment, Form
@@ -189,7 +190,10 @@ class TestPublishServiceForms:
         assert form2.version == "2025-01-10-v6"
         assert form2.name == "My Other From"
 
-    def test_create_form(self, mocker, requests_mock, forms, odk_client: ODKPublishClient):
+    @pytest.mark.parametrize("with_attachments", [False, True])
+    def test_create_form(
+        self, mocker, requests_mock, forms, odk_client: ODKPublishClient, with_attachments: bool
+    ):
         definition = Path(__file__).parent / "../transform/ODK XLSForm Template.xlsx"
         # Mock the get_forms method to return the existing forms
         mocker.patch.object(odk_client.odk_publish, "get_forms", return_value=forms)
@@ -219,15 +223,29 @@ class TestPublishServiceForms:
             "https://central/v1/projects/1/forms/newform_10000/draft/publish",
             json={"success": True},
         )
+        if with_attachments:
+            attachment = NamedTemporaryFile()
+            basename = Path(attachment.name).name
+            # Third request is to upload the attachment
+            requests_mock.post(
+                f"https://central/v1/projects/1/forms/newform_10000/draft/attachments/{basename}",
+                json={"success": True},
+            )
+            attachments = [attachment.name]
+        else:
+            attachments = None
         form = odk_client.odk_publish.create_or_update_form(
-            xml_form_id="newform_10000", definition=definition
+            xml_form_id="newform_10000", definition=definition, attachments=attachments
         )
-        # Two total requests to the ODK Central API
-        assert requests_mock.call_count == 2
+        # Two total requests to the ODK Central API if no attachment, 3 otherwise
+        assert requests_mock.call_count == 2 + with_attachments
         assert form.xmlFormId == "newform_10000"
         assert form.name == "New Form"
 
-    def test_update_form(self, mocker, requests_mock, forms, odk_client: ODKPublishClient):
+    @pytest.mark.parametrize("with_attachments", [False, True])
+    def test_update_form(
+        self, mocker, requests_mock, forms, odk_client: ODKPublishClient, with_attachments: bool
+    ):
         definition = Path(__file__).parent / "../transform/ODK XLSForm Template.xlsx"
         # Mock the get_forms method to return the existing forms
         mocker.patch.object(odk_client.odk_publish, "get_forms", return_value=forms)
@@ -262,11 +280,22 @@ class TestPublishServiceForms:
                 "name": "My Form",
             },
         )
+        if with_attachments:
+            attachment = NamedTemporaryFile()
+            basename = Path(attachment.name).name
+            # Fourth request is to upload the attachment
+            requests_mock.post(
+                f"https://central/v1/projects/1/forms/myform_10000/draft/attachments/{basename}",
+                json={"success": True},
+            )
+            attachments = [attachment.name]
+        else:
+            attachments = None
         form = odk_client.odk_publish.create_or_update_form(
-            xml_form_id="myform_10000", definition=definition
+            xml_form_id="myform_10000", definition=definition, attachments=attachments
         )
-        # Three total requests to the ODK Central API
-        assert requests_mock.call_count == 3
+        # Three total requests to the ODK Central API if no attachment, 4 otherwise
+        assert requests_mock.call_count == 3 + with_attachments
         assert form.version == "newversion"
 
 

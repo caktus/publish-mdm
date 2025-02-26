@@ -94,3 +94,12 @@ class AppUserFormVersionFactory(factory.django.DjangoModelFactory):
     app_user_form_template = factory.SubFactory(AppUserFormTemplateFactory)
     form_template_version = factory.SubFactory(FormTemplateVersionFactory)
     file = factory.django.FileField()
+
+
+class ProjectAttachmentFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.ProjectAttachment
+
+    name = factory.Faker("word")
+    project = factory.SubFactory(ProjectFactory)
+    file = factory.django.FileField()
