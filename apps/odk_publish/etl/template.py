@@ -113,11 +113,12 @@ def discover_entity_lists(workbook: Workbook) -> list[str]:
 def build_entity_list_mapping(workbook: Workbook, app_user: str) -> dict[str, str]:
     """Build a mapping of app user entity lists to new entity list names."""
     entity_lists = discover_entity_lists(workbook=workbook)
-    return {
-        entity_list: entity_list[:-8] + app_user
-        for entity_list in entity_lists
-        if entity_list.endswith("_APP_USER")
-    }
+    substitutes = {}
+    for entity_list in entity_lists:
+        if entity_list.endswith("_APP_USER"):
+            name_substitute = f"{entity_list.rsplit('_APP_USER', 1)[0]}_{app_user}"
+            substitutes[entity_list] = name_substitute
+    return substitutes
 
 
 def update_entity_references(workbook: Workbook, entity_list_mapping: dict[str, str] = None):
