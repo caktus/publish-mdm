@@ -4,6 +4,7 @@ from typing import Generator
 from pathlib import Path
 
 from django.core.files.temp import NamedTemporaryFile
+from django.core.serializers.json import DjangoJSONEncoder
 from pyodk.errors import PyODKError
 
 from apps.odk_publish.etl.odk.publish import ProjectAppUserAssignment, Form
@@ -100,20 +101,27 @@ class TestPublishServiceFormAssignments:
         }
 
     def test_assign_app_users_forms(self, requests_mock, app_users, odk_client: ODKPublishClient):
+        requests_mock.get(
+            "https://central/v1/projects/1/forms/myform_10000/assignments/2",
+            json=[],
+        )
         requests_mock.post(
             "https://central/v1/projects/1/forms/myform_10000/assignments/2/1",
             json={"success": True},
         )
         odk_client.odk_publish.assign_app_users_forms(app_users=app_users.values())
-        assert requests_mock.call_count == 1
+        assert requests_mock.call_count == 2
 
     def test_assign_app_users_forms_already_assigned(
         self, requests_mock, app_users, odk_client: ODKPublishClient
     ):
-        requests_mock.post(
-            "https://central/v1/projects/1/forms/myform_10000/assignments/2/1",
-            json={"code": "409.3", "success": False},
-            status_code=409,
+        requests_mock.get(
+            "https://central/v1/projects/1/forms/myform_10000/assignments/2",
+            json=[
+                user.model_dump(exclude=["xml_form_ids", "forms", "projectId"])
+                for user in app_users.values()
+            ],
+            json_encoder=DjangoJSONEncoder,
         )
         odk_client.odk_publish.assign_app_users_forms(app_users=app_users.values())
         assert requests_mock.call_count == 1
@@ -121,6 +129,10 @@ class TestPublishServiceFormAssignments:
     def test_assign_app_users_forms_unexpected_error(
         self, requests_mock, app_users, odk_client: ODKPublishClient
     ):
+        requests_mock.get(
+            "https://central/v1/projects/1/forms/myform_10000/assignments/2",
+            json=[],
+        )
         requests_mock.post(
             "https://central/v1/projects/1/forms/myform_10000/assignments/2/1",
             json={"code": "500.1", "success": False},
@@ -128,7 +140,7 @@ class TestPublishServiceFormAssignments:
         )
         with pytest.raises(PyODKError):
             odk_client.odk_publish.assign_app_users_forms(app_users=app_users.values())
-        assert requests_mock.call_count == 1
+        assert requests_mock.call_count == 2
 
 
 class TestPublishServiceForms:

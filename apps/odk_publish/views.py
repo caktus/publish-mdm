@@ -258,3 +258,10 @@ def app_user_import(request, odk_project_pk):
         "confirm": isinstance(form, AppUserConfirmImportForm),
     }
     return render(request, "odk_publish/app_user_import.html", context)
+
+
+def websockets_server_health(request):
+    """When using separate ASGI and WSGI deployments, this can be used for health checks
+    for the ASGI (Websockets) server.
+    """
+    return HttpResponse("OK")
