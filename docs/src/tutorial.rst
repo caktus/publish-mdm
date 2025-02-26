@@ -35,7 +35,7 @@ Development <local-development/index>` guide to run ODK Publish locally.
 
    - ``ODK_CENTRAL_CREDENTIALS``: The ODK Central server and credentials of the admin user
      you created above.
-     
+
      If you're using the local Docker-based instance, you can set this to
      ``base_url=http://central-dev.localhost:9100;username=user1;password=pass1``.
      Additionally, you may need to add ``central-dev.localhost`` to your
@@ -74,4 +74,4 @@ to ODK Publish.
 .. _project in the admin: http://localhost:8000/admin/odk_publish/project/
 .. _Export App Users: http://localhost:8000/odk/1/app-users/export/
 .. _Import App Users: http://localhost:8000/odk/1/app-users/import/
-.. _App Users: http://localhost:8000/odk/1/app-users/ 
+.. _App Users: http://localhost:8000/odk/1/app-users/
