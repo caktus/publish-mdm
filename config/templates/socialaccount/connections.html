@@ -18,8 +18,8 @@
                     {% with base_account.get_provider_account as account %}
                     <li class="flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
                         <div class="flex items-center space-x-3">
-                            <input type="radio" name="account" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
-                            <span class="text-gray-800 dark:text-gray-200 font-medium">{{ account }}</span>
+                            <input type="radio" id="google-account" name="account" class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                            <label for="google-account" class="text-gray-800 dark:text-gray-200 font-medium">{{ account }}</label>
                         </div>
                         <a href="{% url 'socialaccount_connections' %}?remove={{ base_account.id }}" class="text-red-500 hover:text-red-700 text-sm">
                             Remove
