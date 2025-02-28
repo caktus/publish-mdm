@@ -69,6 +69,9 @@ to ODK Publish.
 4. **Generate ODK Collect QR codes:** Generate QR codes by clicking
    Actions->Regenerate QR Codes on the `App Users`_ page.
 
+5. **Publish forms:** Publish the forms to ODK Central by clicking Publish on a
+   form detail page.
+
 .. _Add a form template: http://localhost:8000/admin/odk_publish/formtemplate/add/
 .. _Add template variables: http://localhost:8000/admin/odk_publish/templatevariable/add/
 .. _project in the admin: http://localhost:8000/admin/odk_publish/project/
