@@ -94,3 +94,12 @@ class AppUserFormVersionFactory(factory.django.DjangoModelFactory):
     app_user_form_template = factory.SubFactory(AppUserFormTemplateFactory)
     form_template_version = factory.SubFactory(FormTemplateVersionFactory)
     file = factory.django.FileField()
+
+
+class AppUserTemplateVariableFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.AppUserTemplateVariable
+
+    app_user = factory.SubFactory(AppUserFactory)
+    template_variable = factory.SubFactory(TemplateVariableFactory)
+    value = factory.Faker("word")

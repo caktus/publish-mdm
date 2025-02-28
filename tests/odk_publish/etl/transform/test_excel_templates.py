@@ -1,3 +1,4 @@
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from apps.odk_publish.etl.template import (
     update_setting_variables,
     update_entity_references,
     set_survey_template_variables,
+    VariableTransform,
 )
 
 
@@ -60,10 +62,14 @@ class TestTemplate:
         variables = [
             TemplateVariable(name="fruit", value="apple"),
             TemplateVariable(name="color", value="red"),
+            TemplateVariable(
+                name="password", value="pwd", transform=VariableTransform.SHA256_DIGEST
+            ),
         ]
         set_survey_template_variables(sheet=survey_sheet, variables=variables)
         assert survey_sheet["K2"].value == '"apple"'
         assert survey_sheet["K3"].value == '"red"'
+        assert survey_sheet["K12"].value == f'"{hashlib.sha256(b"pwd").hexdigest()}"'
 
     def test_set_settings(self, workbook):
         """Test updating the settings sheet."""
