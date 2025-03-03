@@ -177,7 +177,7 @@ class AppUserTemplateVariable(AbstractBaseModel):
 class AppUser(AbstractBaseModel):
     """An app user in ODK Central."""
 
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, db_collation="case_insensitive")
     central_id = models.PositiveIntegerField(
         verbose_name="app user ID",
         help_text="The ID of this app user in ODK Central.",
