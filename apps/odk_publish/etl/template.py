@@ -70,7 +70,7 @@ def set_survey_template_variables(sheet: Worksheet, variables: list[TemplateVari
 
 
 def set_survey_attachments(sheet: Worksheet, attachments: dict | None = None):
-    """Fill in the static attachments on the survey sheet.
+    """Detect static attachments on the survey sheet.
 
     Attachment columns' headers are either "media::image", "media::audio", or "media::video".
     The `attachments` dict should contain data from the ProjectAttachment model,
