@@ -1,26 +1,47 @@
+import hashlib
 import re
+from enum import StrEnum
+
 import structlog
 from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, computed_field
 
 from .excel import find_cells_containing_value, get_column_cell_by_value, get_header
 
 logger = structlog.getLogger(__name__)
 
 
+class VariableTransform(StrEnum):
+    SHA256_DIGEST = "sha256-digest"
+
+    @classmethod
+    def choices(cls):
+        return [(item.value, item.name) for item in cls]
+
+
 class TemplateVariable(BaseModel):
     """A template variable to fill in the survey sheet."""
 
     name: str
+    transform: VariableTransform | None = None
     value: str
 
-    @field_validator("value")
-    @classmethod
-    def quote_value(cls, value: str) -> str:
+    @computed_field
+    @property
+    def rendered_value(self) -> str:
         """XForm expressions must be quoted. Otherwise, an error is raised like:
         Invalid calculate for the bind / null in expression
         """
+        value = self.value
+        if self.transform == VariableTransform.SHA256_DIGEST:
+            value = hashlib.sha256(value.encode()).hexdigest()
+            logger.debug(
+                "Transformed variable value",
+                name=self.name,
+                value=value,
+                transform=self.transform.value,
+            )
         return f'"{value}"'
 
 
@@ -38,13 +59,14 @@ def set_survey_template_variables(sheet: Worksheet, variables: list[TemplateVari
     for variable in variables:
         variable_cell = get_column_cell_by_value(column_header=name_header, value=variable.name)
         calculation_cell = variable_cell.offset(column=offset)
+        value = variable.rendered_value
         logger.debug(
             "Setting variable value",
             variable=variable.name,
-            value=variable.value,
+            value=value,
             cell=calculation_cell.coordinate,
         )
-        calculation_cell.value = variable.value
+        calculation_cell.value = value
 
 
 def update_setting_variables(
