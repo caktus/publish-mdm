@@ -1,3 +1,6 @@
+import contextlib
+import tempfile
+from pathlib import Path
 from typing import Callable
 
 import structlog
@@ -6,6 +9,7 @@ from django.db import transaction
 from django.db.models import QuerySet
 from django.core.files.storage import storages
 from pydantic import BaseModel, field_validator
+from storages.base import BaseStorage
 
 from apps.users.models import User
 
@@ -87,15 +91,15 @@ def publish_form_template(event: PublishTemplateEvent, user: User, send_message:
             )
         # At this point `attachments` will contain only the attachments detected
         # in the form. Get local absolute paths for them
-        attachments, is_temp_attachments = get_attachment_paths(attachments)
-        # Publish each app user form version to ODK Central
-        for app_user_version in app_user_versions:
-            form = client.odk_publish.create_or_update_form(
-                xml_form_id=app_user_version.app_user_form_template.xml_form_id,
-                definition=app_user_version.file.read(),
-                attachments=attachments,
-            )
-            send_message(f"Published form: {form.xmlFormId}")
+        with attachment_paths_for_upload(attachments) as attachment_paths:
+            # Publish each app user form version to ODK Central
+            for app_user_version in app_user_versions:
+                form = client.odk_publish.create_or_update_form(
+                    xml_form_id=app_user_version.app_user_form_template.xml_form_id,
+                    definition=app_user_version.file.read(),
+                    attachments=attachment_paths,
+                )
+                send_message(f"Published form: {form.xmlFormId}")
         # Create or update the form assignments on the server
         for assignment in central_app_user_assignments.values():
             client.odk_publish.assign_app_users_forms(app_users=[assignment])
@@ -104,10 +108,6 @@ def publish_form_template(event: PublishTemplateEvent, user: User, send_message:
         update_app_users_central_id(
             project=form_template.project, app_users=central_app_user_assignments
         )
-        if is_temp_attachments:
-            # Delete temp files created by `get_attachment_paths`
-            for name in attachments:
-                storages["temp"].delete(name)
     send_message(f"Successfully published {version}", complete=True)
 
 
@@ -219,25 +219,23 @@ def sync_central_project(base_url: str, project_id: int) -> Project:
     return project
 
 
-def get_attachment_paths(attachments):
+@contextlib.contextmanager
+def attachment_paths_for_upload(attachments: dict[str, SimpleUploadedFile]):
     """Get local filesystem paths for the attachments provided. The attachments
     should be the values from the `ProjectAttachment.file` field. If an external
     storage is being used (like S3), the attachments will be downloaded and saved
     in temp files.
     """
-    logger.info("Getting paths for detected attachments", attachments=attachments)
-    paths = []
-    is_temp_attachments = False
-    for name, file in attachments.items():
-        try:
-            paths.append(file.path)
-        except NotImplementedError:
-            # The storage cannot provide a local filesystem path for the file,
-            # so it's external. Download the file and save it in a temp file
-            # with the same name, since it's the name the ODK API expects
-            logger.info("Downloading static attachment", file=file.name, url=file.url)
-            with storages["temp"].open(name, "wb") as temp_file:
-                temp_file.write(file.read())
-            paths.append(storages["temp"].path(name))
-            is_temp_attachments = True
-    return paths, is_temp_attachments
+    if not isinstance(storages["default"], BaseStorage):
+        # Just return the paths if the default storage is a local filesystem
+        yield [file.path for file in attachments.values()]
+    else:
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            temp_dir = Path(tmpdirname)
+            paths = []
+            for name, file in attachments.items():
+                path = temp_dir / name
+                logger.debug("Temporarily saving attachment for upload", path=path)
+                path.write_bytes(file.read())
+                paths.append(path)
+            yield paths

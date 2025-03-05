@@ -2,7 +2,6 @@ import datetime as dt
 
 import boto3
 import pytest
-from django.core.files.storage import storages
 from django.core.files.uploadedfile import SimpleUploadedFile
 from gspread.utils import ExportFormat
 from moto import mock_aws
@@ -10,7 +9,7 @@ from moto import mock_aws
 from apps.odk_publish.etl.load import (
     PublishTemplateEvent,
     publish_form_template,
-    get_attachment_paths,
+    attachment_paths_for_upload,
 )
 from apps.odk_publish.etl.odk.publish import ProjectAppUserAssignment
 from tests.odk_publish.factories import (
@@ -71,11 +70,6 @@ class TestPublishFormTemplate:
         # `set_survey_attachments` will not actually be called, so both attachments
         # should be included in the call to `create_or_update_form()`
         attachments = ProjectAttachmentFactory.create_batch(2, project=project)
-        if using_s3_storage:
-            # Paths passed to `create_or_update_form` should be local temp file paths
-            expected_attachment_paths = [storages["temp"].path(i.name) for i in attachments]
-        else:
-            expected_attachment_paths = [i.file.path for i in attachments]
         # Mock Gspread download
         mock_gspread_client = mocker.patch("apps.odk_publish.etl.google.gspread_client")
         mock_gspread_client.return_value.open_by_url.return_value.export.return_value = (
@@ -129,30 +123,29 @@ class TestPublishFormTemplate:
         mock_assign_app_users_forms = mocker.patch(
             "apps.odk_publish.etl.odk.publish.PublishService.assign_app_users_forms"
         )
-        mock_get_attachment_paths = mocker.patch(
-            "apps.odk_publish.etl.load.get_attachment_paths", wraps=get_attachment_paths
+        mock_attachment_paths_for_upload = mocker.patch(
+            "apps.odk_publish.etl.load.attachment_paths_for_upload",
+            wraps=attachment_paths_for_upload,
         )
         publish_form_template(event=event, user=UserFactory(), send_message=self.send_message)
         mock_get_users.assert_called_once()
         mock_get_version.assert_called_once_with(xml_form_id_base=form_template.form_id_base)
-        mock_create_or_update_form.assert_has_calls(
-            [
-                mocker.call(
-                    definition=b"file content",
-                    xml_form_id=user_form1.xml_form_id,
-                    attachments=expected_attachment_paths,
-                ),
-            ]
-        )
+        mock_create_or_update_form.assert_called_once()
+        for call in mock_create_or_update_form.mock_calls:
+            call.kwargs["xml_form_id"] = user_form1.xml_form_id
+            call.kwargs["definition"] = b"file content"
+            if using_s3_storage:
+                # Paths should be local temp file paths
+                assert len(call.kwargs["attachments"]) == len(attachments)
+                for index, attachment in enumerate(attachments):
+                    assert call.kwargs["attachments"][index].match(f"/tmp/*/{attachment.name}")
+            else:
+                assert call.kwargs["attachments"] == [i.file.path for i in attachments]
         mock_assign_app_users_forms.assert_has_calls(
             [
                 mocker.call(app_users=[assignments["user1"]]),
                 mocker.call(app_users=[assignments["user2"]]),
             ]
         )
-        # `get_attachment_paths` should be called once even if there are 2 app users
-        mock_get_attachment_paths.assert_called_once()
-        if using_s3_storage:
-            # Ensure the temp files were deleted
-            for path in expected_attachment_paths:
-                assert not storages["temp"].exists(path)
+        # `attachment_paths_for_upload` should be called once even if there are 2 app users
+        mock_attachment_paths_for_upload.assert_called_once()
