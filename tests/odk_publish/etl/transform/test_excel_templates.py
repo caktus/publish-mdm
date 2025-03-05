@@ -96,14 +96,12 @@ class TestTemplate:
     def test_set_attachments(self, survey_sheet):
         """Test setting a static attachment."""
         # Create one attachment with the name in the in the survey sheet
-        should_detect = ProjectAttachmentFactory(name="logo")
+        should_detect = ProjectAttachmentFactory(name="logo.png")
         # Create 2 more attachments that are not used in the survey sheet
         ProjectAttachmentFactory.create_batch(2, project=should_detect.project)
         attachments = {i.name: i.file for i in should_detect.project.attachments.all()}
         assert len(attachments) == 3
         set_survey_attachments(sheet=survey_sheet, attachments=attachments)
-        # The survey sheet has been updated
-        assert survey_sheet["T8"].value == f"{Path(should_detect.file.name).name}"
         # The `attachments` dictionary has been updated and only contains the
         # attachment that was detected in the form
         assert attachments == {should_detect.name: should_detect.file}

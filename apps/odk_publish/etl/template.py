@@ -1,5 +1,4 @@
 import hashlib
-import os
 import re
 from enum import StrEnum
 
@@ -78,38 +77,41 @@ def set_survey_attachments(sheet: Worksheet, attachments: dict | None = None):
     with the values from the `name` and `file` fields as the keys and values respectively.
     The dict will be updated in place to remove attachments that are not detected in the
     survey sheet. To detect an attachment, we will look for the key from the `attachments`
-    dict in the "name" column, then offset to the "media::*" column to fill in the value.
+    dict in the "media::*" columns.
     """
     if not attachments:
         return
-    name_header = get_header(sheet=sheet, column_name="name")
-    # Get all the "media::" columns in the sheet and their offsets from the name column
-    media_headers = [
-        (header, header.column - name_header.column)
-        for media_type in ("image", "audio", "video")
-        if (header := get_header(sheet=sheet, column_name=f"media::{media_type}"))
-    ]
+    # Get all the "media::" columns in the sheet
+    media_headers = []
+    for media_type in ("image", "audio", "video"):
+        header = get_header(sheet=sheet, column_name=f"media::{media_type}")
+        if header:
+            media_headers.append(header)
     if not media_headers:
-        # None of the attachments are being used in this form. Empty the dict
+        # No media headers found, so there are no attachments in the form
         attachments.clear()
         return
+    logger.debug("Found media headers", media_headers=media_headers)
     for name, file in list(attachments.items()):
-        variable_cell = get_column_cell_by_value(column_header=name_header, value=name)
-        if not variable_cell:
+        found_attachment_name = False
+        for media_header in media_headers:
+            attachment_cell = get_column_cell_by_value(column_header=media_header, value=name)
+            if attachment_cell:
+                found_attachment_name = True
+                logger.debug(
+                    "Found attachment reference",
+                    name=name,
+                    cell=attachment_cell.coordinate,
+                    header=media_header.value,
+                )
+                break
+        if not found_attachment_name:
             # This attachment is not being used in this form. Remove it from the dict
             del attachments[name]
             continue
-        for header, offset in media_headers:
-            attachment_cell = variable_cell.offset(column=offset)
-            value = os.path.basename(file.name)
-            logger.debug(
-                "Setting attachment value",
-                name=name,
-                value=value,
-                cell=attachment_cell.coordinate,
-                header=header.value,
-            )
-            attachment_cell.value = value
+    if attachments:
+        # Log the attachments that are being used in the form
+        logger.debug("All found form attachments", attachments=list(attachments.keys()))
 
 
 def update_setting_variables(

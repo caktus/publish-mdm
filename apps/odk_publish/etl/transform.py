@@ -26,7 +26,7 @@ def render_template_for_app_user(
     set_survey_template_variables(
         sheet=workbook["survey"], variables=app_user.get_template_variables()
     )
-    # Fill in survey static attachments
+    # Detect static attachments in the survey sheet
     set_survey_attachments(sheet=workbook["survey"], attachments=attachments)
     # Update ODK entity references on both the survey and entities sheets
     entity_list_mapping = build_entity_list_mapping(workbook=workbook, app_user=app_user.name)

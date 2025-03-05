@@ -1,4 +1,3 @@
-import os
 from typing import Callable
 
 import structlog
@@ -229,14 +228,13 @@ def get_attachment_paths(attachments):
     logger.info("Getting paths for detected attachments", attachments=attachments)
     paths = []
     is_temp_attachments = False
-    for file in attachments.values():
+    for name, file in attachments.items():
         try:
             paths.append(file.path)
         except NotImplementedError:
             # The storage cannot provide a local filesystem path for the file,
             # so it's external. Download the file and save it in a temp file
             # with the same name, since it's the name the ODK API expects
-            name = os.path.basename(file.name)
             logger.info("Downloading static attachment", file=file.name, url=file.url)
             with storages["temp"].open(name, "wb") as temp_file:
                 temp_file.write(file.read())

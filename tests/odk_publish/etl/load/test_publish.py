@@ -1,5 +1,4 @@
 import datetime as dt
-import os
 
 import boto3
 import pytest
@@ -74,9 +73,7 @@ class TestPublishFormTemplate:
         attachments = ProjectAttachmentFactory.create_batch(2, project=project)
         if using_s3_storage:
             # Paths passed to `create_or_update_form` should be local temp file paths
-            expected_attachment_paths = [
-                storages["temp"].path(os.path.basename(i.file.name)) for i in attachments
-            ]
+            expected_attachment_paths = [storages["temp"].path(i.name) for i in attachments]
         else:
             expected_attachment_paths = [i.file.path for i in attachments]
         # Mock Gspread download
