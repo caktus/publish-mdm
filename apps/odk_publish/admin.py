@@ -26,7 +26,7 @@ class CentralServerAdmin(admin.ModelAdmin):
 
 @admin.register(TemplateVariable)
 class TemplateVariableAdmin(admin.ModelAdmin):
-    list_display = ("name",)
+    list_display = ("name", "transform")
     search_fields = ("name",)
     ordering = ("name",)
 

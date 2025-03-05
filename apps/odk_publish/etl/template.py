@@ -1,27 +1,48 @@
+import hashlib
 import os
 import re
+from enum import StrEnum
+
 import structlog
 from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, computed_field
 
 from .excel import find_cells_containing_value, get_column_cell_by_value, get_header
 
 logger = structlog.getLogger(__name__)
 
 
+class VariableTransform(StrEnum):
+    SHA256_DIGEST = "sha256-digest"
+
+    @classmethod
+    def choices(cls):
+        return [(item.value, item.name) for item in cls]
+
+
 class TemplateVariable(BaseModel):
     """A template variable to fill in the survey sheet."""
 
     name: str
+    transform: VariableTransform | None = None
     value: str
 
-    @field_validator("value")
-    @classmethod
-    def quote_value(cls, value: str) -> str:
+    @computed_field
+    @property
+    def rendered_value(self) -> str:
         """XForm expressions must be quoted. Otherwise, an error is raised like:
         Invalid calculate for the bind / null in expression
         """
+        value = self.value
+        if self.transform == VariableTransform.SHA256_DIGEST:
+            value = hashlib.sha256(value.encode()).hexdigest()
+            logger.debug(
+                "Transformed variable value",
+                name=self.name,
+                value=value,
+                transform=self.transform.value,
+            )
         return f'"{value}"'
 
 
@@ -39,13 +60,14 @@ def set_survey_template_variables(sheet: Worksheet, variables: list[TemplateVari
     for variable in variables:
         variable_cell = get_column_cell_by_value(column_header=name_header, value=variable.name)
         calculation_cell = variable_cell.offset(column=offset)
+        value = variable.rendered_value
         logger.debug(
             "Setting variable value",
             variable=variable.name,
-            value=variable.value,
+            value=value,
             cell=calculation_cell.coordinate,
         )
-        calculation_cell.value = variable.value
+        calculation_cell.value = value
 
 
 def set_survey_attachments(sheet: Worksheet, attachments: dict | None = None):
@@ -154,22 +176,27 @@ def discover_entity_lists(workbook: Workbook) -> list[str]:
 
 
 def build_entity_list_mapping(workbook: Workbook, app_user: str) -> dict[str, str]:
-    """Build a mapping of entity lists to new entity list names."""
+    """Build a mapping of app user entity lists to new entity list names."""
     entity_lists = discover_entity_lists(workbook=workbook)
-    return {entity_list: f"{entity_list}_{app_user}" for entity_list in entity_lists}
+    substitutes = {}
+    for entity_list in entity_lists:
+        if entity_list.endswith("_APP_USER"):
+            name_substitute = f"{entity_list.rsplit('_APP_USER', 1)[0]}_{app_user}"
+            substitutes[entity_list] = name_substitute
+    return substitutes
 
 
 def update_entity_references(workbook: Workbook, entity_list_mapping: dict[str, str] = None):
     """Update references to entity lists in the workbook, based on the mapping.
 
-    For example: `filename.csv` -> `filename_11030.csv`
+    For example: `filename_APP_USER.csv` -> `filename_11030.csv`
     """
     if not entity_list_mapping:
         entity_list_mapping = {}
 
     # Update references to entity lists in the `survey`` sheet
     for entity_list_orig, entity_list_new in entity_list_mapping.items():
-        # Replace references to "filename.csv"
+        # Replace references to "filename_APP_USER.csv"
         for cell in find_cells_containing_value(
             sheet=workbook["survey"], value=f"{entity_list_orig}.csv"
         ):
@@ -180,7 +207,8 @@ def update_entity_references(workbook: Workbook, entity_list_mapping: dict[str, 
                 value=cell.value,
                 sheet="survey",
             )
-        # Replace references to the fill in pulldata() (in single quotes, e.g., "'file_name'")
+        # Replace references to the fill in pulldata() and instance()
+        # (in single quotes, e.g., "'filename_APP_USER'")
         for cell in find_cells_containing_value(
             sheet=workbook["survey"], value=f"'{entity_list_orig}'"
         ):

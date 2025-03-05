@@ -1,3 +1,4 @@
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ from apps.odk_publish.etl.template import (
     update_entity_references,
     set_survey_template_variables,
     set_survey_attachments,
+    VariableTransform,
 )
 from tests.odk_publish.factories import ProjectAttachmentFactory
 
@@ -63,10 +65,14 @@ class TestTemplate:
         variables = [
             TemplateVariable(name="fruit", value="apple"),
             TemplateVariable(name="color", value="red"),
+            TemplateVariable(
+                name="password", value="pwd", transform=VariableTransform.SHA256_DIGEST
+            ),
         ]
         set_survey_template_variables(sheet=survey_sheet, variables=variables)
         assert survey_sheet["K2"].value == '"apple"'
         assert survey_sheet["K3"].value == '"red"'
+        assert survey_sheet["K12"].value == f'"{hashlib.sha256(b"pwd").hexdigest()}"'
 
     def test_set_settings(self, workbook):
         """Test updating the settings sheet."""
@@ -106,24 +112,41 @@ class TestTemplate:
 class TestEntityReferences:
     def test_discovers_entity_references(self, workbook):
         """Test discovering entity references in the survey sheet."""
-        assert {"fruits", "vegetables", "nuts", "staff"} == discover_entity_lists(workbook=workbook)
+        assert {
+            "fruits",
+            "vegetables",
+            "nuts",
+            "staff",
+            "cats_APP_USER",
+            "dogs_APP_USER",
+            "pets_APP_USER",
+        } == discover_entity_lists(workbook=workbook)
 
     def test_build_entity_list_mapping(self, workbook):
         """Test building a mapping of entity lists to new entity list names."""
         mapping = build_entity_list_mapping(workbook=workbook, app_user="11030")
+        # Entity lists not ending in "_APP_USER" will remain the same, so will
+        # not be included in the mapping
         assert {
-            "fruits": "fruits_11030",
-            "vegetables": "vegetables_11030",
-            "nuts": "nuts_11030",
-            "staff": "staff_11030",
+            "cats_APP_USER": "cats_11030",
+            "dogs_APP_USER": "dogs_11030",
+            "pets_APP_USER": "pets_11030",
         } == mapping
 
     def test_update_entity_references(self, workbook):
         """Test updating entity list references in the survey and entity sheets."""
-        orig = "fruits"
-        new = "fruits_11030"
+        orig = "cats_APP_USER"
+        new = "cats_11030"
         update_entity_references(workbook=workbook, entity_list_mapping={orig: new})
         survey_sheet = workbook["survey"]
-        assert survey_sheet["A4"].value == f"select_one_from_file {new}.csv"
+        assert survey_sheet["A8"].value == f"select_one_from_file {new}.csv"
+        assert (
+            survey_sheet["K10"].value == f"instance('{new}')/root/item[name=${{cats_entity}}]/color"
+        )
         entity_sheet = workbook["entities"]
-        assert entity_sheet["A2"].value == new
+        # Ensure project-wide entity list names are unchanged
+        assert survey_sheet["A4"].value == "select_one_from_file fruits.csv"
+        assert entity_sheet["A2"].value == "fruits"
+        assert (
+            survey_sheet["K5"].value == "instance('fruits')/root/item[name=${fruits_entity}]/color"
+        )

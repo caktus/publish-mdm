@@ -5,7 +5,8 @@ import structlog
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.validators import RegexValidator
 from django.db import models
-from django.db.models import F
+from django.db.models import F, Value
+from django.db.models.functions import NullIf
 
 from apps.users.models import User
 
@@ -52,6 +53,7 @@ class TemplateVariable(AbstractBaseModel):
             )
         ],
     )
+    transform = models.CharField(choices=template.VariableTransform.choices(), blank=True)
 
     def __str__(self):
         return self.name
@@ -182,7 +184,7 @@ class AppUserTemplateVariable(AbstractBaseModel):
 class AppUser(AbstractBaseModel):
     """An app user in ODK Central."""
 
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, db_collation="case_insensitive")
     central_id = models.PositiveIntegerField(
         verbose_name="app user ID",
         help_text="The ID of this app user in ODK Central.",
@@ -208,8 +210,9 @@ class AppUser(AbstractBaseModel):
     def get_template_variables(self) -> list[template.TemplateVariable]:
         """Get the project's template variables with this app user's values."""
         variables = self.app_user_template_variables.annotate(
-            name=F("template_variable__name")
-        ).values("name", "value")
+            name=F("template_variable__name"),
+            transform=NullIf(F("template_variable__transform"), Value("")),
+        ).values("name", "value", "transform")
         return [
             template.TemplateVariable.model_validate(template_variable)
             for template_variable in variables
