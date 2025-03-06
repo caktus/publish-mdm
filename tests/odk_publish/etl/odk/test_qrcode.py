@@ -32,11 +32,13 @@ class TestCollectSettings:
         assert collect_settings["project"]["name"] == "Project: 10000 (en)"
 
     def test_create_app_user_qrcode(self, app_user):
-        qr_code = create_app_user_qrcode(
-            app_user=app_user,
-            base_url="https://central",
-            project_id=1,
-            project_name_prefix="Project",
-            language="en",
-        )
+        kwargs = {
+            "app_user": app_user,
+            "base_url": "https://central",
+            "project_id": 1,
+            "project_name_prefix": "Project",
+            "language": "en",
+        }
+        qr_code, collect_settings = create_app_user_qrcode(**kwargs)
         assert qr_code.getvalue()[:4] == b"\x89PNG"
+        assert collect_settings == build_collect_settings(**kwargs)

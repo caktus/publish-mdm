@@ -193,6 +193,7 @@ class AppUser(AbstractBaseModel):
     template_variables = models.ManyToManyField(
         through=AppUserTemplateVariable, to=TemplateVariable, related_name="app_users", blank=True
     )
+    qr_code_data = models.JSONField(verbose_name="QR Code data", blank=True, null=True)
 
     class Meta:
         constraints = [

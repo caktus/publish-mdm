@@ -20,6 +20,11 @@ urlpatterns = [
         name="app-user-list",
     ),
     path(
+        "<int:odk_project_pk>/app-users/<int:app_user_pk>/",
+        views.app_user_detail,
+        name="app-user-detail",
+    ),
+    path(
         "<int:odk_project_pk>/app-users/generate-qr-codes/",
         views.app_user_generate_qr_codes,
         name="app-users-generate-qr-codes",

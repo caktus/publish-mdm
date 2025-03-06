@@ -31,3 +31,4 @@ requests
 segno
 sentry-sdk
 whitenoise
+pygments

@@ -30,13 +30,13 @@ beautifulsoup4==4.13.3
     # via -r requirements/base/base.in
 billiard==4.2.1
     # via celery
-boto3==1.36.19
+boto3==1.37.7
     # via -r requirements/base/base.in
-botocore==1.36.19
+botocore==1.37.7
     # via
     #   boto3
     #   s3transfer
-cachetools==5.5.1
+cachetools==5.5.2
     # via google-auth
 celery==5.4.0
     # via
@@ -69,7 +69,7 @@ constantly==23.10.4
     # via twisted
 cron-descriptor==1.4.5
     # via django-celery-beat
-cryptography==44.0.1
+cryptography==44.0.2
     # via
     #   autobahn
     #   pyopenssl
@@ -101,15 +101,15 @@ django-celery-beat==2.7.0
     # via -r requirements/base/base.in
 django-email-bandit @ git+https://github.com/caktus/django-email-bandit@8d84bb5571e531946b46c63301b136f5369e149b
     # via -r requirements/base/base.in
-django-filter==24.3
+django-filter==25.1
     # via -r requirements/base/base.in
 django-htmx==1.22.0
     # via -r requirements/base/base.in
-django-import-export==4.3.5
+django-import-export==4.3.7
     # via -r requirements/base/base.in
 django-ipware==7.0.1
     # via django-structlog
-django-storages==1.14.4
+django-storages==1.14.5
     # via -r requirements/base/base.in
 django-structlog==9.0.1
     # via -r requirements/base/base.in
@@ -129,7 +129,7 @@ google-auth==2.38.0
     #   gspread
 google-auth-oauthlib==1.2.1
     # via gspread
-gspread==6.1.4
+gspread==6.2.0
     # via -r requirements/base/base.in
 gunicorn==23.0.0
     # via -r requirements/base/base.in
@@ -167,7 +167,7 @@ pillow==11.1.0
     # via -r requirements/base/base.in
 prompt-toolkit==3.0.50
     # via click-repl
-psycopg==3.2.4
+psycopg==3.2.5
     # via -r requirements/base/base.in
 pyasn1==0.6.1
     # via
@@ -184,6 +184,8 @@ pydantic==2.9.2
     # via pyodk
 pydantic-core==2.23.4
     # via pydantic
+pygments==2.19.1
+    # via -r requirements/base/base.in
 pyjwt==2.10.1
     # via -r requirements/base/base.in
 pyodk @ git+https://github.com/getodk/pyodk.git@b09fe11ebb47166c81df5831c4a58e7ffd8f759e
@@ -210,11 +212,11 @@ requests-oauthlib==2.0.0
     # via google-auth-oauthlib
 rsa==4.9
     # via google-auth
-s3transfer==0.11.2
+s3transfer==0.11.4
     # via boto3
 segno==1.6.1
     # via -r requirements/base/base.in
-sentry-sdk==2.21.0
+sentry-sdk==2.22.0
     # via -r requirements/base/base.in
 service-identity==24.2.0
     # via twisted

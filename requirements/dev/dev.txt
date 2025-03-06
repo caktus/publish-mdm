@@ -10,8 +10,6 @@ anyio==3.7.1
     #   httpx
     #   jupyter-server
     #   watchfiles
-appnope==0.1.4
-    # via ipykernel
 argon2-cffi==23.1.0
     # via jupyter-server
 argon2-cffi-bindings==21.2.0
@@ -69,11 +67,11 @@ comm==0.2.2
     # via ipykernel
 coverage==7.6.12
     # via pytest-cov
-cssbeautifier==1.15.3
+cssbeautifier==1.15.4
     # via djlint
-debugpy==1.8.12
+debugpy==1.8.13
     # via ipykernel
-decorator==5.1.1
+decorator==5.2.1
     # via ipython
 defusedxml==0.7.1
     # via nbconvert
@@ -103,7 +101,7 @@ executing==2.2.0
     # via stack-data
 factory-boy==3.3.3
     # via -r requirements/dev/dev.in
-faker==36.1.0
+faker==36.2.2
     # via factory-boy
 fastjsonschema==2.21.1
     # via nbformat
@@ -117,7 +115,7 @@ httpcore==1.0.7
     # via httpx
 httpx==0.28.1
     # via jupyterlab
-identify==2.6.7
+identify==2.6.8
     # via pre-commit
 idna==3.10
     # via
@@ -130,19 +128,21 @@ iniconfig==2.0.0
     # via pytest
 ipykernel==6.29.5
     # via jupyterlab
-ipython==8.32.0
+ipython==9.0.1
     # via ipykernel
+ipython-pygments-lexers==1.1.1
+    # via ipython
 isoduration==20.11.0
     # via jsonschema
 jedi==0.19.2
     # via ipython
-jinja2==3.1.5
+jinja2==3.1.6
     # via
     #   jupyter-server
     #   jupyterlab
     #   jupyterlab-server
     #   nbconvert
-jsbeautifier==1.15.3
+jsbeautifier==1.15.4
     # via
     #   cssbeautifier
     #   djlint
@@ -199,7 +199,7 @@ matplotlib-inline==0.1.7
     # via
     #   ipykernel
     #   ipython
-mistune==3.1.1
+mistune==3.1.2
     # via nbconvert
 mypy-extensions==1.0.0
     # via black
@@ -256,7 +256,7 @@ prompt-toolkit==3.0.50
     # via
     #   -c requirements/dev/../base/base.txt
     #   ipython
-psutil==6.1.1
+psutil==7.0.0
     # via ipykernel
 ptyprocess==0.7.0
     # via
@@ -270,9 +270,11 @@ pycparser==2.22
     #   cffi
 pygments==2.19.1
     # via
+    #   -c requirements/dev/../base/base.txt
     #   ipython
+    #   ipython-pygments-lexers
     #   nbconvert
-pytest==8.3.4
+pytest==8.3.5
     # via
     #   -r requirements/dev/dev.in
     #   pytest-cov
@@ -323,7 +325,7 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
-rpds-py==0.22.3
+rpds-py==0.23.1
     # via
     #   jsonschema
     #   referencing
