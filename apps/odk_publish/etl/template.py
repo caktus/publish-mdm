@@ -69,6 +69,51 @@ def set_survey_template_variables(sheet: Worksheet, variables: list[TemplateVari
         calculation_cell.value = value
 
 
+def set_survey_attachments(sheet: Worksheet, attachments: dict | None = None):
+    """Detect static attachments on the survey sheet.
+
+    Attachment columns' headers are either "media::image", "media::audio", or "media::video".
+    The `attachments` dict should contain data from the ProjectAttachment model,
+    with the values from the `name` and `file` fields as the keys and values respectively.
+    The dict will be updated in place to remove attachments that are not detected in the
+    survey sheet. To detect an attachment, we will look for the key from the `attachments`
+    dict in the "media::*" columns.
+    """
+    if not attachments:
+        return
+    # Get all the "media::" columns in the sheet
+    media_headers = []
+    for media_type in ("image", "audio", "video"):
+        header = get_header(sheet=sheet, column_name=f"media::{media_type}")
+        if header:
+            media_headers.append(header)
+    if not media_headers:
+        # No media headers found, so there are no attachments in the form
+        attachments.clear()
+        return
+    logger.debug("Found media headers", media_headers=media_headers)
+    for name, file in list(attachments.items()):
+        found_attachment_name = False
+        for media_header in media_headers:
+            attachment_cell = get_column_cell_by_value(column_header=media_header, value=name)
+            if attachment_cell:
+                found_attachment_name = True
+                logger.debug(
+                    "Found attachment reference",
+                    name=name,
+                    cell=attachment_cell.coordinate,
+                    header=media_header.value,
+                )
+                break
+        if not found_attachment_name:
+            # This attachment is not being used in this form. Remove it from the dict
+            del attachments[name]
+            continue
+    if attachments:
+        # Log the attachments that are being used in the form
+        logger.debug("All found form attachments", attachments=list(attachments.keys()))
+
+
 def update_setting_variables(
     sheet: Worksheet, title_base: str, form_id_base: str, app_user: str, version: str
 ):
