@@ -2,7 +2,7 @@ name: Docker
 
 on:
   push:
-    branches: [main]
+    branches: [main, 4386-fix-dup-log-messages]
     # Publish semver tags as releases.
     tags: ["v*.*.*"]
 
