@@ -60,7 +60,8 @@ def set_survey_template_variables(sheet: Worksheet, variables: list[TemplateVari
         variable_cell = get_column_cell_by_value(column_header=name_header, value=variable.name)
         if not variable_cell:
             raise LookupError(
-                f"'{variable.name}' is not a valid variable in the XLSForm template. Please check the variable name and try again."
+                f"'{variable.name}' is not a valid variable in the XLSForm template. "
+                "Please check the variable name and try again."
             )
         calculation_cell = variable_cell.offset(column=offset)
         value = variable.rendered_value
