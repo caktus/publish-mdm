@@ -14,7 +14,7 @@
     <h3 class="font-semibold text-xl text-gray-900 dark:text-white mb-2">QR Code Data</h3>
     {% if qr_code_data %}
         <input id="qr-code-data" type="hidden" value="{{ qr_code_data }}">
-        <div class="relative rounded-lg border border-gray-200 p-4 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm">
+        <div class="relative rounded-lg border border-gray-200 p-4 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-sm overflow-x-scroll">
             {{ qr_code_highlight_html|safe }}
             <div class="absolute top-2 end-2 bg-gray-50 dark:bg-gray-800 leading-none">
                 <button data-copy-to-clipboard-target="qr-code-data"
