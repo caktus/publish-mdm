@@ -55,9 +55,6 @@ class ProjectTemplateVariableFactory(
     template_variable = factory.SubFactory(TemplateVariableFactory)
     value = factory.Faker("word")
 
-    class Meta:
-        model = models.ProjectTemplateVariable
-
 
 class AppUserFactory(factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.AppUser]):
     class Meta:
