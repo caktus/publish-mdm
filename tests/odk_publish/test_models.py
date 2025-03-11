@@ -1,5 +1,5 @@
 import pytest
-from django.db.utils import IntegrityError 
+from django.db.utils import IntegrityError
 
 from .factories import (
     CentralServerFactory,
@@ -32,6 +32,7 @@ class TestProject:
         project = ProjectFactory.build(name="project", central_id=2)
         assert str(project) == "project (2)"
 
+
 @pytest.mark.django_db
 class TestProjectTemplateVariable:
     def test_create_project_template_variable(self):
@@ -57,6 +58,7 @@ class TestProjectTemplateVariable:
         """Test that the __str__ method returns the expected format."""
         ptv = ProjectTemplateVariableFactory(value="test-value")
         assert str(ptv) == f"test-value ({ptv.id})"
+
 
 class TestFormTemplate:
     def test_str(self):
