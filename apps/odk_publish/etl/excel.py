@@ -15,7 +15,7 @@ def get_header(sheet: Worksheet, column_name: str) -> Cell:
                 header_cell = cell
                 break
     if not header_cell:
-        logger.warning("Could not find column header", column_name=column_name)
+        logger.debug("Could not find column header", column_name=column_name)
     return header_cell
 
 
@@ -34,9 +34,7 @@ def get_column_cell_by_value(column_header: Cell, value: str) -> Cell:
                 target_cell = cell
                 break
     if not target_cell:
-        logger.warning(
-            "Could not find value in column", column_name=column_header.value, value=value
-        )
+        logger.debug("Could not find value in column", column_name=column_header.value, value=value)
     return target_cell
 
 

@@ -14,3 +14,4 @@ pytest-cov
 pytest-django
 pytest-mock
 requests-mock
+moto[s3]

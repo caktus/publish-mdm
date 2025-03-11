@@ -10,6 +10,7 @@ from .models import (
     AppUserFormTemplate,
     AppUserFormVersion,
     TemplateVariable,
+    ProjectAttachment,
 )
 
 
@@ -30,12 +31,18 @@ class TemplateVariableAdmin(admin.ModelAdmin):
     ordering = ("name",)
 
 
+class ProjectAttachmentInline(admin.TabularInline):
+    model = ProjectAttachment
+    extra = 0
+
+
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
     list_display = ("name", "central_id", "central_server")
     search_fields = ("name", "central_id")
     list_filter = ("central_server",)
     filter_horizontal = ("template_variables",)
+    inlines = (ProjectAttachmentInline,)
 
 
 @admin.register(FormTemplate)
