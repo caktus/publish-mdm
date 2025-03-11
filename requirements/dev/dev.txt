@@ -40,11 +40,11 @@ black==25.1.0
     # via -r requirements/dev/dev.in
 bleach==6.2.0
     # via nbconvert
-boto3==1.37.1
+boto3==1.37.11
     # via
     #   -c requirements/dev/../base/base.txt
     #   moto
-botocore==1.37.1
+botocore==1.37.11
     # via
     #   -c requirements/dev/../base/base.txt
     #   boto3
@@ -78,13 +78,13 @@ comm==0.2.2
     # via ipykernel
 coverage==7.6.12
     # via pytest-cov
-cryptography==44.0.1
+cryptography==44.0.2
     # via
     #   -c requirements/dev/../base/base.txt
     #   moto
-cssbeautifier==1.15.3
+cssbeautifier==1.15.4
     # via djlint
-debugpy==1.8.12
+debugpy==1.8.13
     # via ipykernel
 decorator==5.2.1
     # via ipython
@@ -116,7 +116,7 @@ executing==2.2.0
     # via stack-data
 factory-boy==3.3.3
     # via -r requirements/dev/dev.in
-faker==36.1.1
+faker==37.0.0
     # via factory-boy
 fastjsonschema==2.21.1
     # via nbformat
@@ -130,7 +130,7 @@ httpcore==1.0.7
     # via httpx
 httpx==0.28.1
     # via jupyterlab
-identify==2.6.8
+identify==2.6.9
     # via pre-commit
 idna==3.10
     # via
@@ -143,13 +143,15 @@ iniconfig==2.0.0
     # via pytest
 ipykernel==6.29.5
     # via jupyterlab
-ipython==8.32.0
+ipython==9.0.2
     # via ipykernel
+ipython-pygments-lexers==1.1.1
+    # via ipython
 isoduration==20.11.0
     # via jsonschema
 jedi==0.19.2
     # via ipython
-jinja2==3.1.5
+jinja2==3.1.6
     # via
     #   jupyter-server
     #   jupyterlab
@@ -161,7 +163,7 @@ jmespath==1.0.1
     #   -c requirements/dev/../base/base.txt
     #   boto3
     #   botocore
-jsbeautifier==1.15.3
+jsbeautifier==1.15.4
     # via
     #   cssbeautifier
     #   djlint
@@ -221,7 +223,7 @@ matplotlib-inline==0.1.7
     #   ipython
 mistune==3.1.2
     # via nbconvert
-moto==5.1.0
+moto==5.1.1
     # via -r requirements/dev/dev.in
 mypy-extensions==1.0.0
     # via black
@@ -294,9 +296,11 @@ pycparser==2.22
     #   cffi
 pygments==2.19.1
     # via
+    #   -c requirements/dev/../base/base.txt
     #   ipython
+    #   ipython-pygments-lexers
     #   nbconvert
-pytest==8.3.4
+pytest==8.3.5
     # via
     #   -r requirements/dev/dev.in
     #   pytest-cov
@@ -315,7 +319,7 @@ python-dateutil==2.9.0.post0
     #   botocore
     #   jupyter-client
     #   moto
-python-json-logger==3.2.1
+python-json-logger==3.3.0
     # via jupyter-events
 pyyaml==6.0.2
     # via
@@ -345,7 +349,7 @@ requests==2.32.3
     #   responses
 requests-mock==1.12.1
     # via -r requirements/dev/dev.in
-responses==0.25.6
+responses==0.25.7
     # via moto
 rfc3339-validator==0.1.4
     # via
@@ -359,7 +363,7 @@ rpds-py==0.23.1
     # via
     #   jsonschema
     #   referencing
-s3transfer==0.11.2
+s3transfer==0.11.4
     # via
     #   -c requirements/dev/../base/base.txt
     #   boto3
@@ -437,7 +441,7 @@ urllib3==2.3.0
     #   botocore
     #   requests
     #   responses
-virtualenv==20.29.2
+virtualenv==20.29.3
     # via pre-commit
 watchfiles==1.0.4
     # via django-watchfiles
