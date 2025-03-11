@@ -1,9 +1,11 @@
 import pytest
+from django.db.utils import IntegrityError 
 
 from .factories import (
     CentralServerFactory,
     TemplateVariableFactory,
     ProjectFactory,
+    ProjectTemplateVariableFactory,
     FormTemplateFactory,
     AppUserFormTemplateFactory,
     FormTemplateVersionFactory,
@@ -30,6 +32,31 @@ class TestProject:
         project = ProjectFactory.build(name="project", central_id=2)
         assert str(project) == "project (2)"
 
+@pytest.mark.django_db
+class TestProjectTemplateVariable:
+    def test_create_project_template_variable(self):
+        """Test that a project template variable can be created successfully."""
+        ptv = ProjectTemplateVariableFactory()
+        assert ptv.project is not None
+        assert ptv.template_variable is not None
+        assert isinstance(ptv.value, str)
+
+    def test_unique_constraint(self):
+        """Test that a project cannot have duplicate template variables."""
+        project = ProjectFactory()
+        template_variable = TemplateVariableFactory()
+
+        # Create first instance
+        ProjectTemplateVariableFactory(project=project, template_variable=template_variable)
+
+        # Creating another with the same project & template_variable should raise IntegrityError
+        with pytest.raises(IntegrityError):
+            ProjectTemplateVariableFactory(project=project, template_variable=template_variable)
+
+    def test_str_method(self):
+        """Test that the __str__ method returns the expected format."""
+        ptv = ProjectTemplateVariableFactory(value="test-value")
+        assert str(ptv) == f"test-value ({ptv.id})"
 
 class TestFormTemplate:
     def test_str(self):
