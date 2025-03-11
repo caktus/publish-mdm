@@ -28,11 +28,11 @@ def render_template_for_app_user(
     workbook = openpyxl.load_workbook(filename=template_version.file)
 
     # Fill in the survey template variables
+    variables = app_user.get_template_variables()
     set_survey_template_variables(sheet=workbook["survey"], variables=variables)
  
     # Detect static attachments in the survey sheet
     set_survey_attachments(sheet=workbook["survey"], attachments=attachments)
-    variables = app_user.get_template_variables()
     logger.debug("App user variables", variables=variables)
 
     # Update ODK entity references on both the survey and entities sheets
