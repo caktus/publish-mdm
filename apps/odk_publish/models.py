@@ -75,11 +75,39 @@ class Project(AbstractBaseModel):
         CentralServer, on_delete=models.CASCADE, related_name="projects"
     )
     template_variables = models.ManyToManyField(
-        TemplateVariable, related_name="projects", blank=True
+        TemplateVariable,
+        related_name="projects",
+        verbose_name="App user template variables",
+        help_text="Variables selected here will be set for each app user.",
+        blank=True,
     )
 
     def __str__(self):
         return f"{self.name} ({self.central_id})"
+
+
+class ProjectTemplateVariable(AbstractBaseModel):
+    """A template variable value for a project."""
+
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name="project_template_variables"
+    )
+    template_variable = models.ForeignKey(
+        TemplateVariable, on_delete=models.CASCADE, related_name="projects_through"
+    )
+    value = models.CharField(
+        verbose_name="Project-wide value", max_length=1024, blank=True, help_text="Optional"
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "template_variable"], name="unique_project_template_variable"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.value} ({self.id})"
 
 
 class FormTemplate(AbstractBaseModel):
@@ -209,13 +237,22 @@ class AppUser(AbstractBaseModel):
 
     def get_template_variables(self) -> list[template.TemplateVariable]:
         """Get the project's template variables with this app user's values."""
-        variables = self.app_user_template_variables.annotate(
+        # First get project-level variables
+        variables = {
+            var["name"]: var
+            for var in self.project.project_template_variables.annotate(
+                name=F("template_variable__name"),
+                transform=NullIf(F("template_variable__transform"), Value("")),
+            ).values("name", "value", "transform")
+        }
+        # Then get app-level variables
+        for app_user_var in self.app_user_template_variables.annotate(
             name=F("template_variable__name"),
             transform=NullIf(F("template_variable__transform"), Value("")),
-        ).values("name", "value", "transform")
+        ).values("name", "value", "transform"):
+            variables[app_user_var["name"]] = app_user_var
         return [
-            template.TemplateVariable.model_validate(template_variable)
-            for template_variable in variables
+            template.TemplateVariable.model_validate(variable) for variable in variables.values()
         ]
 
     @property
