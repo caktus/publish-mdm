@@ -63,7 +63,7 @@ Setup
 .. note::
 
     If you're on Linux, you may need to update the PostgreSQL configuration to
-    allow connections from the Docker network. Here's how you can do that on 
+    allow connections from the Docker network. Here's how you can do that on
     a fresh PostgreSQL 17 installation:
 
     .. code-block:: bash
