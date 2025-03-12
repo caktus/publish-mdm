@@ -5,7 +5,8 @@ import structlog
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.validators import RegexValidator
 from django.db import models
-from django.db.models import F
+from django.db.models import F, Value
+from django.db.models.functions import NullIf
 
 from apps.users.models import User
 
@@ -52,6 +53,7 @@ class TemplateVariable(AbstractBaseModel):
             )
         ],
     )
+    transform = models.CharField(choices=template.VariableTransform.choices(), blank=True)
 
     def __str__(self):
         return self.name
@@ -132,7 +134,10 @@ class FormTemplateVersion(AbstractBaseModel):
         return self.file.name
 
     def create_app_user_versions(
-        self, app_users: models.QuerySet["AppUser"] | None = None, send_message=None
+        self,
+        app_users: models.QuerySet["AppUser"] | None = None,
+        send_message=None,
+        attachments: dict | None = None,
     ) -> list["AppUserFormVersion"]:
         """Create the next version of this form template for each app user."""
         app_user_versions = []
@@ -143,7 +148,9 @@ class FormTemplateVersion(AbstractBaseModel):
         # Create the next version for each app user
         for app_user_form in AppUserFormTemplate.objects.filter(q):
             logger.info("Creating next AppUserFormVersion", app_user_form=app_user_form)
-            app_user_version = app_user_form.create_next_version(form_template_version=self)
+            app_user_version = app_user_form.create_next_version(
+                form_template_version=self, attachments=attachments
+            )
             xml_form_id = app_user_version.app_user_form_template.xml_form_id
             version = app_user_version.form_template_version.version
             if send_message:
@@ -177,7 +184,7 @@ class AppUserTemplateVariable(AbstractBaseModel):
 class AppUser(AbstractBaseModel):
     """An app user in ODK Central."""
 
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, db_collation="case_insensitive")
     central_id = models.PositiveIntegerField(
         verbose_name="app user ID",
         help_text="The ID of this app user in ODK Central.",
@@ -191,6 +198,7 @@ class AppUser(AbstractBaseModel):
     template_variables = models.ManyToManyField(
         through=AppUserTemplateVariable, to=TemplateVariable, related_name="app_users", blank=True
     )
+    qr_code_data = models.JSONField(verbose_name="QR Code data", blank=True, null=True)
 
     class Meta:
         constraints = [
@@ -203,8 +211,9 @@ class AppUser(AbstractBaseModel):
     def get_template_variables(self) -> list[template.TemplateVariable]:
         """Get the project's template variables with this app user's values."""
         variables = self.app_user_template_variables.annotate(
-            name=F("template_variable__name")
-        ).values("name", "value")
+            name=F("template_variable__name"),
+            transform=NullIf(F("template_variable__transform"), Value("")),
+        ).values("name", "value", "transform")
         return [
             template.TemplateVariable.model_validate(template_variable)
             for template_variable in variables
@@ -259,12 +268,14 @@ class AppUserFormTemplate(AbstractBaseModel):
         """The ODK Central xmlFormId for this AppUserFormTemplate."""
         return f"{self.form_template.form_id_base}_{self.app_user.name}"
 
-    def create_next_version(self, form_template_version: FormTemplateVersion):
+    def create_next_version(
+        self, form_template_version: FormTemplateVersion, attachments: dict | None = None
+    ):
         """Create the next version of this app user form template."""
         from .etl.transform import render_template_for_app_user
 
         version_file = render_template_for_app_user(
-            app_user=self.app_user, template_version=form_template_version
+            app_user=self.app_user, template_version=form_template_version, attachments=attachments
         )
         return AppUserFormVersion.objects.create(
             app_user_form_template=self,
@@ -306,3 +317,21 @@ class AppUserFormVersion(AbstractBaseModel):
     def app_user(self) -> AppUser:
         """The app user for this version."""
         return self.app_user_form_template.app_user
+
+
+def project_directory_path(instance: "ProjectAttachment", filename: str):
+    return f"project/{instance.project.id}/attachment/{filename}"
+
+
+class ProjectAttachment(AbstractBaseModel):
+    name = models.CharField(max_length=255)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="attachments")
+    file = models.FileField(upload_to=project_directory_path)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["project", "name"], name="unique_project_attachments"),
+        ]
+
+    def __str__(self):
+        return f"{self.name}: {self.file.name}"

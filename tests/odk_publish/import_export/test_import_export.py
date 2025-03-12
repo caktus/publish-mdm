@@ -252,7 +252,17 @@ class TestAppUserResource:
         assert variables["center_label"] == "Center 11031"
 
     def test_validation_errors(self, app_user):
-        # CSV with 6 invalid rows and 2 valid rows
+        app_user2 = models.AppUser.objects.create(
+            name="user2",
+            project=app_user.project,
+            central_id=2,
+        )
+        app_user3 = models.AppUser.objects.create(
+            name="user3",
+            project=app_user.project,
+            central_id=3,
+        )
+        # CSV with some invalid rows
         csv_data = (
             "id,name,central_id,form_templates,center_id,center_label,public_key,manager_password\n"
             f"{app_user.id},,,,,,,\n"  # Existing user has no name
@@ -261,9 +271,13 @@ class TestAppUserResource:
             f",new2,2,,{'1' * 1025},,,\n"  # New user has a center_id with more than 1024 characters
             f",{app_user.name},2,,,,,\n"  # New user has the same name as the existing user
             ",new5,5,nonexistent,,,,\n"  # New user with invalid template ID
+            f",{app_user2.name.upper()},,,,,,\n"  # New user with same name as existing user, but uppercase
+            f"{app_user2.id},{app_user3.name.upper()},,,,,,\n"  # Renaming with same name as another user, but uppercase
             # Valid rows
             ",new3,3,,,,,\n"  # New user has both name and central_id, so is valid
             ",new4,,,,,,\n"  # New user with name only is valid
+            # End valid rows
+            ",NEW4,,,,,,\n"  # Same name as valid new user, but uppercase
         )
 
         dataset = Dataset().load(csv_data)
@@ -271,6 +285,7 @@ class TestAppUserResource:
         result = resource.import_data(
             dataset, use_transactions=True, rollback_on_validation_errors=True
         )
+        same_name_error = {"__all__": ["App user with this Project and Name already exists."]}
         expected_errors = [
             (
                 1,
@@ -281,7 +296,7 @@ class TestAppUserResource:
             (2, {"name": ["This field cannot be blank."]}),
             (3, {"central_id": ["Value must be an integer."]}),
             (4, {"center_id": ["Ensure this value has at most 1024 characters (it has 1025)."]}),
-            (5, {"__all__": ["App user with this Project and Name already exists."]}),
+            (5, same_name_error),
             (
                 6,
                 {
@@ -290,6 +305,9 @@ class TestAppUserResource:
                     ]
                 },
             ),
+            (7, same_name_error),
+            (8, same_name_error),
+            (11, same_name_error),
         ]
 
         assert result.has_validation_errors()

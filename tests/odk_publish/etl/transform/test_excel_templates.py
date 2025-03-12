@@ -1,3 +1,4 @@
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,10 @@ from apps.odk_publish.etl.template import (
     update_setting_variables,
     update_entity_references,
     set_survey_template_variables,
+    set_survey_attachments,
+    VariableTransform,
 )
+from tests.odk_publish.factories import ProjectAttachmentFactory
 
 
 @pytest.fixture(scope="module")
@@ -33,6 +37,7 @@ class TestExcelHelpers:
             ("type", 1),
             ("name", 2),
             ("calculation", 11),
+            ("media::image", 20),
         ],
     )
     def test_find_name_column(self, survey_sheet, column_name, expected_column_index):
@@ -60,10 +65,14 @@ class TestTemplate:
         variables = [
             TemplateVariable(name="fruit", value="apple"),
             TemplateVariable(name="color", value="red"),
+            TemplateVariable(
+                name="password", value="pwd", transform=VariableTransform.SHA256_DIGEST
+            ),
         ]
         set_survey_template_variables(sheet=survey_sheet, variables=variables)
         assert survey_sheet["K2"].value == '"apple"'
         assert survey_sheet["K3"].value == '"red"'
+        assert survey_sheet["K12"].value == f'"{hashlib.sha256(b"pwd").hexdigest()}"'
 
     def test_set_settings(self, workbook):
         """Test updating the settings sheet."""
@@ -82,6 +91,20 @@ class TestTemplate:
         assert settings_sheet["A2"].value == f"{title_base} [11030]"
         assert settings_sheet["B2"].value == f"{form_id_base}_11030"
         assert settings_sheet["C2"].value == version
+
+    @pytest.mark.django_db
+    def test_set_attachments(self, survey_sheet):
+        """Test setting a static attachment."""
+        # Create one attachment with the name in the in the survey sheet
+        should_detect = ProjectAttachmentFactory(name="logo.png")
+        # Create 2 more attachments that are not used in the survey sheet
+        ProjectAttachmentFactory.create_batch(2, project=should_detect.project)
+        attachments = {i.name: i.file for i in should_detect.project.attachments.all()}
+        assert len(attachments) == 3
+        set_survey_attachments(sheet=survey_sheet, attachments=attachments)
+        # The `attachments` dictionary has been updated and only contains the
+        # attachment that was detected in the form
+        assert attachments == {should_detect.name: should_detect.file}
 
 
 class TestEntityReferences:

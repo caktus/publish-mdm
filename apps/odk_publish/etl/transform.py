@@ -6,6 +6,7 @@ from gspread.utils import ExportFormat
 
 from apps.odk_publish.etl.template import (
     build_entity_list_mapping,
+    set_survey_attachments,
     set_survey_template_variables,
     update_entity_references,
     update_setting_variables,
@@ -15,7 +16,9 @@ from ..models import AppUser, FormTemplateVersion
 
 
 def render_template_for_app_user(
-    app_user: AppUser, template_version: FormTemplateVersion
+    app_user: AppUser,
+    template_version: FormTemplateVersion,
+    attachments: dict | None = None,
 ) -> SimpleUploadedFile:
     """Create the next version of the app user's form."""
     workbook = openpyxl.load_workbook(filename=template_version.file)
@@ -23,6 +26,8 @@ def render_template_for_app_user(
     set_survey_template_variables(
         sheet=workbook["survey"], variables=app_user.get_template_variables()
     )
+    # Detect static attachments in the survey sheet
+    set_survey_attachments(sheet=workbook["survey"], attachments=attachments)
     # Update ODK entity references on both the survey and entities sheets
     entity_list_mapping = build_entity_list_mapping(workbook=workbook, app_user=app_user.name)
     update_entity_references(workbook=workbook, entity_list_mapping=entity_list_mapping)

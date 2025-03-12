@@ -1,26 +1,47 @@
+import hashlib
 import re
+from enum import StrEnum
+
 import structlog
 from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, computed_field
 
 from .excel import find_cells_containing_value, get_column_cell_by_value, get_header
 
 logger = structlog.getLogger(__name__)
 
 
+class VariableTransform(StrEnum):
+    SHA256_DIGEST = "sha256-digest"
+
+    @classmethod
+    def choices(cls):
+        return [(item.value, item.name) for item in cls]
+
+
 class TemplateVariable(BaseModel):
     """A template variable to fill in the survey sheet."""
 
     name: str
+    transform: VariableTransform | None = None
     value: str
 
-    @field_validator("value")
-    @classmethod
-    def quote_value(cls, value: str) -> str:
+    @computed_field
+    @property
+    def rendered_value(self) -> str:
         """XForm expressions must be quoted. Otherwise, an error is raised like:
         Invalid calculate for the bind / null in expression
         """
+        value = self.value
+        if self.transform == VariableTransform.SHA256_DIGEST:
+            value = hashlib.sha256(value.encode()).hexdigest()
+            logger.debug(
+                "Transformed variable value",
+                name=self.name,
+                value=value,
+                transform=self.transform.value,
+            )
         return f'"{value}"'
 
 
@@ -38,13 +59,59 @@ def set_survey_template_variables(sheet: Worksheet, variables: list[TemplateVari
     for variable in variables:
         variable_cell = get_column_cell_by_value(column_header=name_header, value=variable.name)
         calculation_cell = variable_cell.offset(column=offset)
+        value = variable.rendered_value
         logger.debug(
             "Setting variable value",
             variable=variable.name,
-            value=variable.value,
+            value=value,
             cell=calculation_cell.coordinate,
         )
-        calculation_cell.value = variable.value
+        calculation_cell.value = value
+
+
+def set_survey_attachments(sheet: Worksheet, attachments: dict | None = None):
+    """Detect static attachments on the survey sheet.
+
+    Attachment columns' headers are either "media::image", "media::audio", or "media::video".
+    The `attachments` dict should contain data from the ProjectAttachment model,
+    with the values from the `name` and `file` fields as the keys and values respectively.
+    The dict will be updated in place to remove attachments that are not detected in the
+    survey sheet. To detect an attachment, we will look for the key from the `attachments`
+    dict in the "media::*" columns.
+    """
+    if not attachments:
+        return
+    # Get all the "media::" columns in the sheet
+    media_headers = []
+    for media_type in ("image", "audio", "video"):
+        header = get_header(sheet=sheet, column_name=f"media::{media_type}")
+        if header:
+            media_headers.append(header)
+    if not media_headers:
+        # No media headers found, so there are no attachments in the form
+        attachments.clear()
+        return
+    logger.debug("Found media headers", media_headers=media_headers)
+    for name, file in list(attachments.items()):
+        found_attachment_name = False
+        for media_header in media_headers:
+            attachment_cell = get_column_cell_by_value(column_header=media_header, value=name)
+            if attachment_cell:
+                found_attachment_name = True
+                logger.debug(
+                    "Found attachment reference",
+                    name=name,
+                    cell=attachment_cell.coordinate,
+                    header=media_header.value,
+                )
+                break
+        if not found_attachment_name:
+            # This attachment is not being used in this form. Remove it from the dict
+            del attachments[name]
+            continue
+    if attachments:
+        # Log the attachments that are being used in the form
+        logger.debug("All found form attachments", attachments=list(attachments.keys()))
 
 
 def update_setting_variables(
