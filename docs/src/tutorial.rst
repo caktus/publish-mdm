@@ -63,8 +63,7 @@ to ODK Publish.
 
 3. **Create app users with variables:** `Export App Users`_  and fill in app
    user details, variable values, and assign them to forms. Then `Import App
-   Users`_  using the exported file to create app users in ODK Publish and ODK
-   Central.
+   Users`_  using the exported file to create or update app users in ODK Publish.
 
 4. **Generate ODK Collect QR codes:** Generate QR codes by clicking
    Actions->Regenerate QR Codes on the `App Users`_ page.
