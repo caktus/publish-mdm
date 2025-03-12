@@ -1,6 +1,8 @@
 import structlog
 
+from django.conf import settings
 from django.contrib import admin
+
 from .models import (
     CentralServer,
     Project,
@@ -51,6 +53,27 @@ class FormTemplateAdmin(admin.ModelAdmin):
     search_fields = ("title_base", "form_id_base")
     list_filter = ("created_at", "modified_at")
     ordering = ("form_id_base",)
+
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        extra_context = extra_context or {}
+        # Add context variables needed for the Google Picker
+        extra_context.update(
+            {
+                "google_client_id": settings.GOOGLE_CLIENT_ID,
+                "google_scopes": " ".join(settings.SOCIALACCOUNT_PROVIDERS["google"]["SCOPE"]),
+                "google_api_key": settings.GOOGLE_API_KEY,
+                "google_app_id": settings.GOOGLE_APP_ID,
+            }
+        )
+        response = super().changeform_view(
+            request,
+            object_id,
+            form_url,
+            extra_context=extra_context,
+        )
+        # Needed for the Google Picker popup to work
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+        return response
 
 
 @admin.register(FormTemplateVersion)
