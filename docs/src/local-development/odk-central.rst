@@ -80,6 +80,8 @@ Setup
 
         DOMAIN=<your-tunnel-fqdn> DB_HOST=172.17.0.1 DB_PASSWORD=<your-pass> docker compose up -d
 
+    Or you can set the environment variables in a `.env` file.
+
 2. Start the ODK Central services:
 
 .. code-block:: bash
