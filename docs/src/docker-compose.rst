@@ -1,5 +1,5 @@
-Quickstart with Docker Compose
-==============================
+Quickstart with Docker
+======================
 
 This guide will walk you through setting up ODK Publish locally using Docker
 Compose.
@@ -88,7 +88,7 @@ Setup
 
 .. code-block:: bash
 
-   docker-compose up
+   docker compose up
 
 Visit http://localhost:8000 in your browser and log in with your Google account.
 
