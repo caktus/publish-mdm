@@ -60,6 +60,26 @@ Setup
 
     dropdb --if-exists central && createdb central
 
+.. note::
+
+    If you're on Linux, you may need to update the PostgreSQL configuration to
+    allow connections from the Docker network. Here's how you can do that on 
+    a fresh PostgreSQL 17 installation:
+
+    .. code-block:: bash
+
+        sudo -u postgres psql -c "ALTER SYSTEM SET listen_addresses TO '*';"
+        sudo -u postgres createuser --superuser <your-username>
+        sudo -u postgres psql -c "ALTER USER <your-username> WITH PASSWORD '<your-password>';"
+        sudo -u postgres sh -c "echo 'host    all             all             0.0.0.0/0               md5' >> /etc/postgresql/17/main/pg_hba.conf"
+        sudo systemctl restart postgresql
+
+    Then you can start the services with the following command:
+
+    .. code-block:: bash
+
+        DOMAIN=<your-tunnel-fqdn> DB_HOST=172.17.0.1 DB_PASSWORD=<your-pass> docker compose up -d
+
 2. Start the ODK Central services:
 
 .. code-block:: bash
