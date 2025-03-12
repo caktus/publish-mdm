@@ -3,6 +3,8 @@ import datetime as dt
 from typing import Generator
 from pathlib import Path
 
+from django.core.files.temp import NamedTemporaryFile
+from django.core.serializers.json import DjangoJSONEncoder
 from pyodk.errors import PyODKError
 
 from apps.odk_publish.etl.odk.publish import ProjectAppUserAssignment, Form
@@ -99,20 +101,27 @@ class TestPublishServiceFormAssignments:
         }
 
     def test_assign_app_users_forms(self, requests_mock, app_users, odk_client: ODKPublishClient):
+        requests_mock.get(
+            "https://central/v1/projects/1/forms/myform_10000/assignments/2",
+            json=[],
+        )
         requests_mock.post(
             "https://central/v1/projects/1/forms/myform_10000/assignments/2/1",
             json={"success": True},
         )
         odk_client.odk_publish.assign_app_users_forms(app_users=app_users.values())
-        assert requests_mock.call_count == 1
+        assert requests_mock.call_count == 2
 
     def test_assign_app_users_forms_already_assigned(
         self, requests_mock, app_users, odk_client: ODKPublishClient
     ):
-        requests_mock.post(
-            "https://central/v1/projects/1/forms/myform_10000/assignments/2/1",
-            json={"code": "409.3", "success": False},
-            status_code=409,
+        requests_mock.get(
+            "https://central/v1/projects/1/forms/myform_10000/assignments/2",
+            json=[
+                user.model_dump(exclude=["xml_form_ids", "forms", "projectId"])
+                for user in app_users.values()
+            ],
+            json_encoder=DjangoJSONEncoder,
         )
         odk_client.odk_publish.assign_app_users_forms(app_users=app_users.values())
         assert requests_mock.call_count == 1
@@ -120,6 +129,10 @@ class TestPublishServiceFormAssignments:
     def test_assign_app_users_forms_unexpected_error(
         self, requests_mock, app_users, odk_client: ODKPublishClient
     ):
+        requests_mock.get(
+            "https://central/v1/projects/1/forms/myform_10000/assignments/2",
+            json=[],
+        )
         requests_mock.post(
             "https://central/v1/projects/1/forms/myform_10000/assignments/2/1",
             json={"code": "500.1", "success": False},
@@ -127,7 +140,7 @@ class TestPublishServiceFormAssignments:
         )
         with pytest.raises(PyODKError):
             odk_client.odk_publish.assign_app_users_forms(app_users=app_users.values())
-        assert requests_mock.call_count == 1
+        assert requests_mock.call_count == 2
 
 
 class TestPublishServiceForms:
@@ -189,7 +202,10 @@ class TestPublishServiceForms:
         assert form2.version == "2025-01-10-v6"
         assert form2.name == "My Other From"
 
-    def test_create_form(self, mocker, requests_mock, forms, odk_client: ODKPublishClient):
+    @pytest.mark.parametrize("with_attachments", [False, True])
+    def test_create_form(
+        self, mocker, requests_mock, forms, odk_client: ODKPublishClient, with_attachments: bool
+    ):
         definition = Path(__file__).parent / "../transform/ODK XLSForm Template.xlsx"
         # Mock the get_forms method to return the existing forms
         mocker.patch.object(odk_client.odk_publish, "get_forms", return_value=forms)
@@ -219,15 +235,29 @@ class TestPublishServiceForms:
             "https://central/v1/projects/1/forms/newform_10000/draft/publish",
             json={"success": True},
         )
+        if with_attachments:
+            attachment = NamedTemporaryFile()
+            basename = Path(attachment.name).name
+            # Third request is to upload the attachment
+            requests_mock.post(
+                f"https://central/v1/projects/1/forms/newform_10000/draft/attachments/{basename}",
+                json={"success": True},
+            )
+            attachments = [attachment.name]
+        else:
+            attachments = None
         form = odk_client.odk_publish.create_or_update_form(
-            xml_form_id="newform_10000", definition=definition
+            xml_form_id="newform_10000", definition=definition, attachments=attachments
         )
-        # Two total requests to the ODK Central API
-        assert requests_mock.call_count == 2
+        # Two total requests to the ODK Central API if no attachment, 3 otherwise
+        assert requests_mock.call_count == 2 + with_attachments
         assert form.xmlFormId == "newform_10000"
         assert form.name == "New Form"
 
-    def test_update_form(self, mocker, requests_mock, forms, odk_client: ODKPublishClient):
+    @pytest.mark.parametrize("with_attachments", [False, True])
+    def test_update_form(
+        self, mocker, requests_mock, forms, odk_client: ODKPublishClient, with_attachments: bool
+    ):
         definition = Path(__file__).parent / "../transform/ODK XLSForm Template.xlsx"
         # Mock the get_forms method to return the existing forms
         mocker.patch.object(odk_client.odk_publish, "get_forms", return_value=forms)
@@ -262,11 +292,22 @@ class TestPublishServiceForms:
                 "name": "My Form",
             },
         )
+        if with_attachments:
+            attachment = NamedTemporaryFile()
+            basename = Path(attachment.name).name
+            # Fourth request is to upload the attachment
+            requests_mock.post(
+                f"https://central/v1/projects/1/forms/myform_10000/draft/attachments/{basename}",
+                json={"success": True},
+            )
+            attachments = [attachment.name]
+        else:
+            attachments = None
         form = odk_client.odk_publish.create_or_update_form(
-            xml_form_id="myform_10000", definition=definition
+            xml_form_id="myform_10000", definition=definition, attachments=attachments
         )
-        # Three total requests to the ODK Central API
-        assert requests_mock.call_count == 3
+        # Three total requests to the ODK Central API if no attachment, 4 otherwise
+        assert requests_mock.call_count == 3 + with_attachments
         assert form.version == "newversion"
 
 

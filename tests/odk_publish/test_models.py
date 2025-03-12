@@ -7,7 +7,10 @@ from .factories import (
     FormTemplateFactory,
     AppUserFormTemplateFactory,
     FormTemplateVersionFactory,
+    AppUserFactory,
+    AppUserTemplateVariableFactory,
 )
+from apps.odk_publish.etl import template
 
 
 class TestCentralServer:
@@ -68,3 +71,34 @@ class TestFormTemplateVersion:
     def test_str(self):
         version = FormTemplateVersionFactory.build(version="v1")
         assert str(version) == version.file.name
+
+
+@pytest.mark.django_db
+class TestAppUser:
+    def test_get_template_variables(self):
+        """Ensures the AppUser.get_template_variables method returns the correct
+        template.TemplateVariable objects.
+        """
+        app_user = AppUserFactory()
+        # 2 variables without any transform
+        variables = TemplateVariableFactory.create_batch(2)
+        # 2 variables with the SHA256_DIGEST transform
+        variables += TemplateVariableFactory.create_batch(
+            2, transform=template.VariableTransform.SHA256_DIGEST.value
+        )
+        expected = []
+
+        for variable in variables:
+            user_variable = AppUserTemplateVariableFactory(
+                template_variable=variable,
+                app_user=app_user,
+            )
+            expected.append(
+                template.TemplateVariable(
+                    name=variable.name,
+                    value=user_variable.value,
+                    transform=variable.transform or None,
+                )
+            )
+
+        assert app_user.get_template_variables() == expected

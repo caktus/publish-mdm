@@ -1,4 +1,5 @@
 import logging
+import json
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -8,6 +9,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.timezone import localdate
 from import_export.results import RowResult
 from import_export.tmp_storages import MediaStorage
+from pygments import highlight
+from pygments.formatters import HtmlFormatter
+from pygments.lexers.data import JsonLexer
 
 from .etl.load import generate_and_save_app_user_collect_qrcodes, sync_central_project
 
@@ -258,3 +262,39 @@ def app_user_import(request, odk_project_pk):
         "confirm": isinstance(form, AppUserConfirmImportForm),
     }
     return render(request, "odk_publish/app_user_import.html", context)
+
+
+def websockets_server_health(request):
+    """When using separate ASGI and WSGI deployments, this can be used for health checks
+    for the ASGI (Websockets) server.
+    """
+    return HttpResponse("OK")
+
+
+@login_required
+def app_user_detail(request: HttpRequest, odk_project_pk, app_user_pk):
+    """Detail page for an AppUser."""
+    app_user = get_object_or_404(request.odk_project.app_users, pk=app_user_pk)
+    if app_user.qr_code_data:
+        # Generate the HTML for the syntax-highligted JSON
+        qr_code_data = json.dumps(app_user.qr_code_data, indent=4)
+        qr_code_highlight_html = highlight(
+            qr_code_data, JsonLexer(), HtmlFormatter(linenos="table")
+        )
+        # Get the JSON without newlines and extra spaces
+        qr_code_data = json.dumps(app_user.qr_code_data, separators=(",", ":"))
+    else:
+        qr_code_highlight_html = qr_code_data = None
+    context = {
+        "app_user": app_user,
+        "qr_code_highlight_html": qr_code_highlight_html,
+        "qr_code_data": qr_code_data,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[
+                ("App Users", "app-user-list"),
+                (app_user.name, "app-user-detail", [app_user.pk]),
+            ],
+        ),
+    }
+    return render(request, "odk_publish/app_user_detail.html", context)
