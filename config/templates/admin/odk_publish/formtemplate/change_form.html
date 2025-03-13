@@ -44,7 +44,12 @@
     function createPicker() {
       const showPicker = () => {
         const picker = new google.picker.PickerBuilder()
-            .addView(new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS).setMode(google.picker.DocsViewMode.LIST))
+            .addView(
+                new google.picker.DocsView(google.picker.ViewId.SPREADSHEETS)
+                .setMode(google.picker.DocsViewMode.LIST)
+                // Exclude Excel files stored in Google Drive (https://drive.google.com/file/... URLs)
+                // which gspread won't be able to open (raises gspread.exceptions.NoValidUrlKeyFound)
+                .setMimeTypes("application/vnd.google-apps.spreadsheet"))
             .enableFeature(google.picker.Feature.NAV_HIDDEN)
             .setOAuthToken(accessToken)
             .setDeveloperKey('{{ google_api_key }}')
