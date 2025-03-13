@@ -9,6 +9,7 @@
 .direnv
 .envrc
 .env
+!services/.env
 .google
 # Media/static
 main.css

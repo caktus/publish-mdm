@@ -61,7 +61,7 @@
                     {% endif %}
                 </div>
                 <div class="pt-6">
-                    <a href="#"
+                    <a href="{% url 'odk_publish:app-user-detail' app_user.project_id app_user.pk %}"
                        class="text-lg font-semibold leading-tight text-gray-900 hover:underline dark:text-white">{{ app_user }}</a>
                     <p class="mb-3 font-normal text-gray-700 dark:text-gray-400">
                         Forms:

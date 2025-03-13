@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load socialaccount %}
+{% block content %}
+    <div class="flex items-center justify-center transition-colors duration-300">
+        <div class="w-full max-w-md p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
+            <h2 class="text-2xl font-bold text-center text-gray-800 dark:text-white">Account Connections</h2>
+            <p class="text-gray-600 dark:text-gray-400 text-center mt-2">Manage your linked third-party accounts.</p>
+            {% if form.accounts %}
+                <ul class="mt-4 space-y-4">
+                    {% for base_account in form.accounts %}
+                        {% with base_account.get_provider_account as account %}
+                            <li class="flex items-center justify-between p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
+                                <div class="flex items-center space-x-3">
+                                    <input type="radio"
+                                           id="google-account"
+                                           name="account"
+                                           class="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500">
+                                    <label for="google-account"
+                                           class="text-gray-800 dark:text-gray-200 font-medium">{{ account }}</label>
+                                </div>
+                                <a href="{% url 'socialaccount_connections' %}?remove={{ base_account.id }}"
+                                   class="text-red-500 hover:text-red-700 text-sm">Remove</a>
+                            </li>
+                        {% endwith %}
+                    {% endfor %}
+                </ul>
+            {% endif %}
+            <div class="mt-6">
+                <a href="{% provider_login_url 'google' %}"
+                   class="w-full flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg shadow-md transition duration-300">
+                    <svg class="w-5 h-5 mr-2" viewBox="0 0 48 48">
+                        <path fill="#4285F4" d="M24 9.5c3.54 0 6.67 1.22 9.19 3.25l6.85-6.85C35.91 2.15 30.3 0 24 0 14.66 0 6.67 5.35 2.8 13.16l8.07 6.27C13.11 12.65 18.11 9.5 24 9.5z">
+                        </path>
+                        <path fill="#34A853" d="M46.14 24.46c0-1.6-.14-3.13-.4-4.6H24v9.39h12.51c-.58 3.03-2.21 5.63-4.69 7.39l7.49 5.83c4.41-4.07 6.97-10.07 6.97-17.01z">
+                        </path>
+                        <path fill="#FBBC05" d="M11.2 28.63c-1.66-4.99-1.66-10.37 0-15.36L3.13 6.9C-1.04 13.28-1.04 22.68 3.13 29.06l8.07-6.27z">
+                        </path>
+                        <path fill="#EA4335" d="M24 48c6.3 0 11.71-2.1 15.62-5.7l-7.49-5.83c-2.1 1.42-4.75 2.27-8.13 2.27-5.89 0-10.89-3.15-13.13-7.8l-8.07 6.27C6.67 42.65 14.66 48 24 48z">
+                        </path>
+                    </svg>
+                    Add Google Account
+                </a>
+            </div>
+            <p class="text-center text-gray-500 dark:text-gray-400 text-sm mt-4">
+                <a href="{% url 'account_login' %}"
+                   class="text-blue-500 hover:underline">Back to login</a>
+            </p>
+        </div>
+    </div>
+{% endblock content %}

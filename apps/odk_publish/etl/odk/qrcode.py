@@ -42,7 +42,7 @@ def create_app_user_qrcode(
     project_id: int,
     project_name_prefix: str,
     language: str = "en",
-) -> io.BytesIO:
+) -> tuple[io.BytesIO, dict]:
     """Generate a QR code as a PNG for the given app user."""
 
     # Build app user settings
@@ -72,4 +72,4 @@ def create_app_user_qrcode(
     png_buffer = io.BytesIO()
     png.save(png_buffer, format="PNG")
     logger.info("Generated QR code", app_user=app_user.displayName, qr_code=label)
-    return png_buffer
+    return png_buffer, collect_settings

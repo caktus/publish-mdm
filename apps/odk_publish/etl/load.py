@@ -136,13 +136,13 @@ def generate_and_save_app_user_collect_qrcodes(project: Project):
     with ODKPublishClient(
         base_url=project.central_server.base_url, project_id=project.central_id
     ) as client:
-        central_app_users = client.odk_publish.get_app_users(
+        central_app_users = client.odk_publish.get_or_create_app_users(
             display_names=[app_user.name for app_user in app_users],
         )
         logger.info("Got central app users", central_app_users=len(central_app_users))
         for app_user in app_users:
             logger.info("Generating QR code", app_user=app_user.name)
-            image = create_app_user_qrcode(
+            image, app_user.qr_code_data = create_app_user_qrcode(
                 app_user=central_app_users[app_user.name],
                 base_url=client.session.base_url,
                 project_id=project.central_id,
