@@ -107,6 +107,24 @@ class TestTemplate:
         # attachment that was detected in the form
         assert attachments == {should_detect.name: should_detect.file}
 
+    def test_set_template_variable_not_in_sheet(self, survey_sheet):
+        """Attempting to set a template variable that is not in the survey sheet
+        should raise an error with an informative error message.
+        """
+        # One variable exists in the sheet and the other doesn't
+        variables = [
+            TemplateVariable(name="fruit", value="apple"),
+            TemplateVariable(name="NOT_IN_SHEET", value="12345"),
+        ]
+        with pytest.raises(
+            LookupError,
+            match=(
+                "'NOT_IN_SHEET' is not a valid variable in the XLSForm template. "
+                "Please check the variable name and try again."
+            ),
+        ):
+            set_survey_template_variables(sheet=survey_sheet, variables=variables)
+
 
 class TestEntityReferences:
     def test_discovers_entity_references(self, workbook):
