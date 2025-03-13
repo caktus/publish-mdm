@@ -184,7 +184,25 @@ class AppUserTemplateVariable(AbstractBaseModel):
 class AppUser(AbstractBaseModel):
     """An app user in ODK Central."""
 
-    name = models.CharField(max_length=255, db_collation="case_insensitive")
+    # While ODK Central does not limit the characters that can be used in an
+    # app user's name, we have to limit the characters so that we can use the name
+    # in `build_entity_list_mapping()` to generate valid entity list names.
+    # An entity list name must be a valid XML identifier and cannot include a period.
+    # (See https://docs.getodk.org/central-api-dataset-management/#creating-datasets and
+    # https://getodk.github.io/xforms-spec/entities.html#declaring-that-a-form-creates-entities)
+    # The RegexValidator below ensures that *when this name is appended* to an entity
+    # name prefix it will result in a valid entity list name.
+    name = models.CharField(
+        max_length=255,
+        db_collation="case_insensitive",
+        validators=[
+            RegexValidator(
+                regex=r"^(((:[a-zA-Z_]:?)?[-\w]*)|([-\w]+:[a-zA-Z_][-\w]*))$",
+                message="Name can only contain alphanumeric characters, "
+                "underscores, hyphens, and not more than one colon.",
+            )
+        ],
+    )
     central_id = models.PositiveIntegerField(
         verbose_name="app user ID",
         help_text="The ID of this app user in ODK Central.",

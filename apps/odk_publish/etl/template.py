@@ -3,7 +3,6 @@ import re
 from enum import StrEnum
 
 import structlog
-from django.utils.text import slugify
 from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 from pydantic import BaseModel, computed_field
@@ -183,15 +182,13 @@ def discover_entity_lists(workbook: Workbook) -> list[str]:
     return entity_lists
 
 
-def build_entity_list_mapping(workbook: Workbook, app_user) -> dict[str, str]:
+def build_entity_list_mapping(workbook: Workbook, app_user: str) -> dict[str, str]:
     """Build a mapping of app user entity lists to new entity list names."""
     entity_lists = discover_entity_lists(workbook=workbook)
     substitutes = {}
     for entity_list in entity_lists:
         if entity_list.endswith("_APP_USER"):
-            name_substitute = (
-                f"{entity_list.rsplit('_APP_USER', 1)[0]}_{slugify(app_user.name)}_{app_user.id}"
-            )
+            name_substitute = f"{entity_list.rsplit('_APP_USER', 1)[0]}_{app_user}"
             substitutes[entity_list] = name_substitute
     return substitutes
 

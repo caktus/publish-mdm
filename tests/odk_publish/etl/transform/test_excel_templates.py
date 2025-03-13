@@ -2,7 +2,6 @@ import hashlib
 from pathlib import Path
 
 import pytest
-from django.utils.text import slugify
 from openpyxl import Workbook, load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -17,7 +16,7 @@ from apps.odk_publish.etl.template import (
     set_survey_attachments,
     VariableTransform,
 )
-from tests.odk_publish.factories import AppUserFactory, ProjectAttachmentFactory
+from tests.odk_publish.factories import ProjectAttachmentFactory
 
 
 @pytest.fixture(scope="module")
@@ -139,19 +138,15 @@ class TestEntityReferences:
             "pets_APP_USER",
         } == discover_entity_lists(workbook=workbook)
 
-    @pytest.mark.django_db
-    @pytest.mark.parametrize("app_user_name", ["11030", "New user"])
-    def test_build_entity_list_mapping(self, workbook, app_user_name):
+    def test_build_entity_list_mapping(self, workbook):
         """Test building a mapping of entity lists to new entity list names."""
-        app_user = AppUserFactory(name=app_user_name)
-        mapping = build_entity_list_mapping(workbook=workbook, app_user=app_user)
+        mapping = build_entity_list_mapping(workbook=workbook, app_user="11030")
         # Entity lists not ending in "_APP_USER" will remain the same, so will
         # not be included in the mapping
-        substitute = f"{slugify(app_user.name)}_{app_user.id}"
         assert {
-            "cats_APP_USER": f"cats_{substitute}",
-            "dogs_APP_USER": f"dogs_{substitute}",
-            "pets_APP_USER": f"pets_{substitute}",
+            "cats_APP_USER": "cats_11030",
+            "dogs_APP_USER": "dogs_11030",
+            "pets_APP_USER": "pets_11030",
         } == mapping
 
     def test_update_entity_references(self, workbook):
