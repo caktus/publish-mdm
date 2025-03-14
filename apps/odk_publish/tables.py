@@ -21,6 +21,14 @@ class FormTemplateTable(tables.Table):
         verbose_name="",
         attrs={"a": {"class": "text-primary-600 hover:underline"}},
     )
+    edit = tables.LinkColumn(
+        "odk_publish:edit-form-template",
+        args=[tables.A("project_id"), tables.A("pk")],
+        text="Edit",
+        orderable=False,
+        verbose_name="",
+        attrs={"a": {"class": "text-primary-600 hover:underline"}},
+    )
 
     class Meta:
         model = FormTemplate

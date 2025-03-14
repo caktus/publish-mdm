@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load socialaccount %}
+{% load static %}
+{% block content %}
+    <div class="mb-4 grid gap-4 sm:grid-cols-2 md:mb-8">
+        {{ form.media }}
+        <form method="post" class="max-w-2xl">
+            {% csrf_token %}
+            <div class="grid gap-4 sm:grid-cols-1 sm:gap-6">
+                {% for field in form %}
+                    <div id="id_{{ field.name }}_container">
+                        {{ field.label_tag }}
+                        {{ field }}
+                        {{ field.errors }}
+                    </div>
+                {% endfor %}
+                <div class="flex items-center space-x-4">
+                    <button type="submit" class="btn btn-outline btn-primary">Save</button>
+                    <a type="button"
+                       class="btn btn-outline"
+                       href="{% url 'odk_publish:form-template-list' request.odk_project.pk %}">Cancel</a>
+                </div>
+            </div>
+        </form>
+    </div>
+    {% get_social_accounts user as accounts %}
+    {# Start Google Picker code #}
+    <script>
+    let googlePickerConfig = {
+        accessToken: "{{ accounts.google.0.socialtoken_set.all.0.token }}",
+        clientId: "{{ google_client_id }}",
+        scopes: "{{ google_scopes }}",
+        apiKey: "{{ google_api_key }}",
+        appId: "{{ google_app_id }}",
+        inputSelector: "#id_template_url",
+    }
+    </script>
+    <script src="{% static 'js/google_picker.js' %}"></script>
+    <!-- Load the Google API Loader script. -->
+    <script async
+            defer
+            src="https://apis.google.com/js/api.js"
+            onload="onApiLoad()"></script>
+    <script async
+            defer
+            src="https://accounts.google.com/gsi/client"
+            onload="gisLoaded()"></script>
+    {# End Google Picker code #}
+{% endblock content %}
