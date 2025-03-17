@@ -2,6 +2,7 @@ from functools import cached_property
 from urllib.parse import urlparse
 
 import structlog
+from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.validators import RegexValidator
 from django.db import models
@@ -89,6 +90,9 @@ class FormTemplate(AbstractBaseModel):
     title_base = models.CharField(max_length=255)
     form_id_base = models.CharField(max_length=255)
     template_url = models.URLField(max_length=1024, blank=True)
+    template_url_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, blank=True, null=True, on_delete=models.CASCADE
+    )
 
     def __str__(self):
         return f"{self.form_id_base} ({self.id})"
@@ -100,9 +104,11 @@ class FormTemplate(AbstractBaseModel):
             q &= models.Q(app_user_forms__app_user__name__in=names)
         return AppUser.objects.filter(q)
 
-    def download_user_google_sheet(self, user: User, name: str) -> SimpleUploadedFile:
+    def download_user_google_sheet(self, name: str) -> SimpleUploadedFile:
         """Download the Google Sheet Excel file for this form template."""
-        social_token = user.get_google_social_token()
+        if not self.template_url_user:
+            raise ValueError("The user who gave access to the Google Sheet is not known.")
+        social_token = self.template_url_user.get_google_social_token()
         if social_token is None:
             raise ValueError("User does not have a Google social token.")
         return download_user_google_sheet(

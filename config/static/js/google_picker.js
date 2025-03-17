@@ -75,6 +75,8 @@ function pickerCallback(data) {
   if (data[google.picker.Response.ACTION] == google.picker.Action.PICKED) {
     const doc = data[google.picker.Response.DOCUMENTS][0];
     url = doc[google.picker.Document.URL];
-    document.querySelector(googlePickerConfig.inputSelector).value = url;
+    document.querySelector(googlePickerConfig.urlInputSelector).value = url;
+    document.querySelector(googlePickerConfig.userInputSelector).value =
+      googlePickerConfig.user;
   }
 }

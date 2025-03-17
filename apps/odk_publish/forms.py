@@ -225,4 +225,5 @@ class FormTemplateForm(PlatformFormMixin, forms.ModelForm):
             "template_url": InputWithAddon(
                 addon_content="Select with Google Picker", addon_attrs={"onclick": "createPicker()"}
             ),
+            "template_url_user": forms.HiddenInput,
         }

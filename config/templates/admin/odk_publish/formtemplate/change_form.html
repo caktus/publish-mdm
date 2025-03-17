@@ -12,7 +12,9 @@
         scopes: "{{ google_scopes }}",
         apiKey: "{{ google_api_key }}",
         appId: "{{ google_app_id }}",
-        inputSelector: "#id_template_url",
+        urlInputSelector: "#id_template_url",
+        userInputSelector: "#id_template_url_user",
+        user: {{ user.id }},
         initCallback: function() {
             // Add a button for launching the Google Picker dialog after the "template URL" input
             document.getElementById('id_template_url').insertAdjacentHTML(

@@ -2,6 +2,7 @@ import structlog
 
 from django.conf import settings
 from django.contrib import admin
+from django import forms
 
 from .models import (
     CentralServer,
@@ -47,12 +48,22 @@ class ProjectAdmin(admin.ModelAdmin):
     inlines = (ProjectAttachmentInline,)
 
 
+class FormTemplateForm(forms.ModelForm):
+    class Meta:
+        model = FormTemplate
+        fields = "__all__"
+        widgets = {
+            "template_url_user": forms.HiddenInput,
+        }
+
+
 @admin.register(FormTemplate)
 class FormTemplateAdmin(admin.ModelAdmin):
     list_display = ("id", "title_base", "form_id_base", "modified_at")
     search_fields = ("title_base", "form_id_base")
     list_filter = ("created_at", "modified_at")
     ordering = ("form_id_base",)
+    form = FormTemplateForm
 
     def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
         extra_context = extra_context or {}
