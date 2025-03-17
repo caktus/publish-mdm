@@ -255,6 +255,34 @@ class TestGenerateQRCodes(ViewTestBase):
         assert project.app_users.filter(Q(qr_code="") | Q(qr_code_data__isnull=True)).count() == 0
 
 
+@pytest.mark.django_db
+class TestNonExistentProjectID:
+    @pytest.fixture
+    def user(self, client):
+        user = UserFactory()
+        user.save()
+        client.force_login(user=user)
+        return user
+
+    @pytest.mark.parametrize(
+        "url_name",
+        [
+            "app-user-list",
+            "app-users-generate-qr-codes",
+            "app-users-export",
+            "app-users-import",
+            "form-template-list",
+        ],
+    )
+    def test_get_returns_404(self, client, user, url_name):
+        """Ensure URLs that take a project ID as an argument return a 404 status code
+        instead of a 500 for non-existent project IDs.
+        """
+        url = reverse(f"odk_publish:{url_name}", args=[99])
+        response = client.get(url)
+        assert response.status_code == 404
+
+
 class TestAddFormTemplate(ViewTestBase):
     """Test the adding a form template."""
 

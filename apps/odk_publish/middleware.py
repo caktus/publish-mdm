@@ -2,6 +2,7 @@ import structlog
 
 from django.http import HttpRequest
 from django.urls import ResolverMatch
+from django.shortcuts import get_object_or_404
 
 from .models import Project
 from .nav import Breadcrumbs
@@ -34,7 +35,7 @@ class ODKProjectMiddleware:
             and "odk_project_pk" in resolver_match.captured_kwargs
         ):
             odk_project_pk = resolver_match.captured_kwargs["odk_project_pk"]
-            project = Project.objects.select_related().filter(pk=odk_project_pk).first()
+            project = get_object_or_404(Project.objects.select_related(), pk=odk_project_pk)
             logger.debug("odk_project_pk detected", odk_project_pk=odk_project_pk, project=project)
             request.odk_project = project
             request.odk_project_tabs = Breadcrumbs.from_items(

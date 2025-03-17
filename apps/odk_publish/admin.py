@@ -59,9 +59,9 @@ class FormTemplateForm(forms.ModelForm):
 
 @admin.register(FormTemplate)
 class FormTemplateAdmin(admin.ModelAdmin):
-    list_display = ("id", "title_base", "form_id_base", "modified_at")
+    list_display = ("id", "title_base", "form_id_base", "project", "modified_at")
     search_fields = ("title_base", "form_id_base")
-    list_filter = ("created_at", "modified_at")
+    list_filter = ("created_at", "project")
     ordering = ("form_id_base",)
     form = FormTemplateForm
 
@@ -121,4 +121,4 @@ class AppUserFormAdmin(admin.ModelAdmin):
 class AppUserFormVersionAdmin(admin.ModelAdmin):
     list_display = ("id", "app_user_form_template", "form_template_version", "modified_at")
     list_filter = ("modified_at",)
-    ordering = ("app_user_form_template__app_user__name", "form_template_version__version")
+    ordering = ("-form_template_version__version",)
