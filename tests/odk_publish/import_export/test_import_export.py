@@ -278,6 +278,7 @@ class TestAppUserResource:
             ",new4,,,,,,\n"  # New user with name only is valid
             # End valid rows
             ",NEW4,,,,,,\n"  # Same name as valid new user, but uppercase
+            ",with space,,,,,,\n"  # A name with a space is invalid
         )
 
         dataset = Dataset().load(csv_data)
@@ -308,6 +309,15 @@ class TestAppUserResource:
             (7, same_name_error),
             (8, same_name_error),
             (11, same_name_error),
+            (
+                12,
+                {
+                    "name": [
+                        "Name can only contain alphanumeric characters, underscores, hyphens, "
+                        "and not more than one colon."
+                    ]
+                },
+            ),
         ]
 
         assert result.has_validation_errors()
