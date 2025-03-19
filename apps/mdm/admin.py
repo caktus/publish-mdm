@@ -11,7 +11,7 @@ class PolicyAdmin(admin.ModelAdmin):
 
 @admin.register(Device)
 class DeviceAdmin(admin.ModelAdmin):
-    list_display = ("name", "serial_number", "policy", "app_user_name")
+    list_display = ("name", "serial_number", "app_user_name", "policy")
     search_fields = ("serial_number", "app_user_name", "policy__name")
     readonly_fields = ("name", "device_id", "raw_mdm_device")
-    list_filter = ("policy",)
+    list_filter = ("policy", "app_user_name")

@@ -15,6 +15,7 @@ class Policy(models.Model):
         Project,
         on_delete=models.CASCADE,
         help_text="The project that this policy belongs to.",
+        related_name="policies",
     )
 
     class Meta:
@@ -63,6 +64,13 @@ class Device(models.Model):
         help_text="Name of the app user (in the ODK Publish app) to assign to this device, if any.",
         blank=True,
     )
+
+    def save(self, *args, **kwargs):
+        from apps.mdm.tasks import get_tinymdm_session, push_device_config
+
+        super().save(*args, **kwargs)
+        session = get_tinymdm_session()
+        push_device_config(session, self)
 
     class Meta:
         constraints = [
