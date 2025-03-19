@@ -25,7 +25,6 @@ rather use Docker, see :doc:`/src/docker-compose`.
     export PGUSER=$USER
     export PGDATABASE=odk_publish
     export DATABASE_URL=postgresql://$PGUSER@$PGHOST:$PGPORT/$PGDATABASE
-    export DATABASE_URL_SQLALCHEMY=postgresql+psycopg://$PGUSER@$PGHOST:$PGPORT/$PGDATABASE
 
     # google oauth for django-allauth
     export GOOGLE_CLIENT_ID=
