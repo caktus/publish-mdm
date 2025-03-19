@@ -10,7 +10,8 @@ Prerequisites
 
 - `Docker <https://docs.docker.com/get-docker/>`_ and `Docker Compose <https://docs.docker.com/compose/install/>`_
 - Credentials to access an ODK Central server, such as `ODK Cloud <https://getodk.org/>`_
-- A Google Cloud Platform project with the `Google Sheets API <https://console.developers.google.com/apis/library/sheets.googleapis.com>`_ enabled
+- A Google Cloud Platform project with the `Google Drive <https://console.developers.google.com/apis/library/drive.googleapis.com>`_
+  and `Google Picker <https://console.developers.google.com/apis/library/picker.googleapis.com>`_ APIs enabled.
 
 
 Google OAuth Client ID
@@ -24,6 +25,25 @@ client ID, follow the steps below:
    <https://docs.gspread.org/en/latest/oauth2.html#for-end-users-using-oauth-client-id>`_
    from the gspread documentation to create a new OAuth client ID.
 2. Save the client ID and client secret for the next step.
+
+We use the ``https://www.googleapis.com/auth/drive.file`` Google Oauth scope, which
+allows users to only give access to specific files in their Google account.
+The scope is configured in the ``SOCIALACCOUNT_PROVIDERS`` Django setting.
+When adding or editing a form template, a user can select the spreadsheet for that template using
+the `Google Picker <https://developers.google.com/drive/picker/guides/overview>`_.
+
+
+Google API Key
+~~~~~~~~~~~~~~
+
+`Create an API key <https://developers.google.com/drive/picker/guides/overview#api-key>`_
+and save it for the next step. We need this to use the Google Picker API.
+
+
+Google App ID
+~~~~~~~~~~~~~
+Go to your `Google Cloud dashboard <https://console.cloud.google.com/home/dashboard>`_
+and save the "Project number" for the next step. We need this to use the Google Picker API.
 
 
 Setup
@@ -80,6 +100,8 @@ Setup
   # google oauth for django-allauth
   GOOGLE_CLIENT_ID="your-client-id-from-above"
   GOOGLE_CLIENT_SECRET="your-client-secret-from-above"
+  GOOGLE_API_KEY="your-api-key-from-above"
+  GOOGLE_APP_ID="your-app-id-from-above"
 
   # odk central
   ODK_CENTRAL_CREDENTIALS="base_url=https://myserver.com;username=user1;password=pass1"
