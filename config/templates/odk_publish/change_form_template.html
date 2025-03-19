@@ -21,7 +21,14 @@
                     </div>
                 {% endfor %}
                 <div class="flex items-center space-x-4">
-                    <button type="submit" class="btn btn-outline btn-primary">{% if form_template.id %}Save{% else %}Add{% endif %} form template</button>
+                    <button type="submit" class="btn btn-outline btn-primary">
+                        {% if form_template.id %}
+                            Save
+                        {% else %}
+                            Add
+                        {% endif %}
+                        form template
+                    </button>
                     <a type="button"
                        class="btn btn-outline"
                        href="{% url 'odk_publish:form-template-list' request.odk_project.pk %}">Cancel</a>

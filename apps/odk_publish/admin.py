@@ -59,7 +59,14 @@ class FormTemplateForm(forms.ModelForm):
 
 @admin.register(FormTemplate)
 class FormTemplateAdmin(admin.ModelAdmin):
-    list_display = ("id", "title_base", "form_id_base", "template_url_user", "project", "modified_at")
+    list_display = (
+        "id",
+        "title_base",
+        "form_id_base",
+        "template_url_user",
+        "project",
+        "modified_at",
+    )
     search_fields = ("title_base", "form_id_base")
     list_filter = ("created_at", "project")
     ordering = ("form_id_base",)
