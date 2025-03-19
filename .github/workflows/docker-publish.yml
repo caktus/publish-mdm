@@ -2,7 +2,7 @@ name: Docker
 
 on:
   push:
-    branches: [main, 4457-google-oauth-scopes]
+    branches: [main]
     # Publish semver tags as releases.
     tags: ["v*.*.*"]
 
