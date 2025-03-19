@@ -339,13 +339,6 @@ def change_form_template(request: HttpRequest, odk_project_pk, form_template_id=
         "google_app_id": settings.GOOGLE_APP_ID,
         "form_template": form_template,
     }
-        # Variables needed for selecting a spreadsheet for the `template_url` using Google Picker
-        "google_client_id": settings.GOOGLE_CLIENT_ID,
-        "google_scopes": " ".join(settings.SOCIALACCOUNT_PROVIDERS["google"]["SCOPE"]),
-        "google_api_key": settings.GOOGLE_API_KEY,
-        "google_app_id": settings.GOOGLE_APP_ID,
-        "form_template": form_template,
-    }
     response = render(request, "odk_publish/change_form_template.html", context)
     # Needed for the Google Picker popup to work
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"

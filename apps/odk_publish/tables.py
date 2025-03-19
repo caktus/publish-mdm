@@ -13,11 +13,6 @@ class FormTemplateTable(tables.Table):
         template_code="{{ record.latest_version.0.version }} - {{ record.latest_version.0.user.first_name }}",
         verbose_name="Latest Version",
     )
-    publish_next_version = tables.LinkColumn(
-        "odk_publish:form-template-detail",
-        args=[tables.A("project_id"), tables.A("pk")],
-        text="View",
-        orderable=False,
     title_base = tables.LinkColumn(
         "odk_publish:form-template-detail",
         args=[tables.A("project_id"), tables.A("pk")],
