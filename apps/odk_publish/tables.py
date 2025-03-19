@@ -18,15 +18,9 @@ class FormTemplateTable(tables.Table):
         args=[tables.A("project_id"), tables.A("pk")],
         text="View",
         orderable=False,
-        verbose_name="",
-        attrs={"a": {"class": "text-primary-600 hover:underline"}},
-    )
-    edit = tables.LinkColumn(
-        "odk_publish:edit-form-template",
+    title_base = tables.LinkColumn(
+        "odk_publish:form-template-detail",
         args=[tables.A("project_id"), tables.A("pk")],
-        text="Edit",
-        orderable=False,
-        verbose_name="",
         attrs={"a": {"class": "text-primary-600 hover:underline"}},
     )
 

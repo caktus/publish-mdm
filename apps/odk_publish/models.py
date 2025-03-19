@@ -87,9 +87,30 @@ class FormTemplate(AbstractBaseModel):
     """A form "template" published to potentially multiple ODK Central forms."""
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="form_templates")
-    title_base = models.CharField(max_length=255)
-    form_id_base = models.CharField(max_length=255)
-    template_url = models.URLField(max_length=1024, blank=True)
+    title_base = models.CharField(
+        max_length=255,
+        help_text=(
+            "The title to appear in the ODK Collect form list and header of each form "
+            "page. The App User will be appended to this title."
+        ),
+    )
+    form_id_base = models.CharField(
+        verbose_name="Form ID Base",
+        max_length=255,
+        help_text=(
+            "The prefix of the xml_form_id used to identify the form in ODK Central. "
+            "The App User will be appended to this value."
+        ),
+    )
+    template_url = models.URLField(
+        verbose_name="Template URL",
+        max_length=1024,
+        blank=True,
+        help_text=(
+            "The URL of the Google Sheet template. A new version of this sheet will be "
+            "downloaded for each form publish event."
+        ),
+    )
     template_url_user = models.ForeignKey(
         settings.AUTH_USER_MODEL, blank=True, null=True, on_delete=models.CASCADE
     )

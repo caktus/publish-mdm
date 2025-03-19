@@ -319,22 +319,32 @@ def change_form_template(request: HttpRequest, odk_project_pk, form_template_id=
             f"Successfully {'edit' if form_template_id else 'add'}ed {form_template.title_base}.",
         )
         return redirect("odk_publish:form-template-list", odk_project_pk)
+    if form_template_id:
+        crumbs = [
+            (form_template.title_base, "form-template-detail", [form_template_id]),
+            ("Edit form template", "edit-form-template", [form_template_id]),
+        ]
+    else:
+        crumbs = [("Add form template", "form-template-add")]
     context = {
         "form": form,
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
-            items=[
-                ("Form Templates", "form-template-list"),
-                (f"Edit {form_template.title_base}", "edit-form-template", [form_template_id])
-                if form_template_id
-                else ("Add", "add-form-template"),
-            ],
+            items=[("Form Templates", "form-template-list")] + crumbs,
         ),
         # Variables needed for selecting a spreadsheet for the `template_url` using Google Picker
         "google_client_id": settings.GOOGLE_CLIENT_ID,
         "google_scopes": " ".join(settings.SOCIALACCOUNT_PROVIDERS["google"]["SCOPE"]),
         "google_api_key": settings.GOOGLE_API_KEY,
         "google_app_id": settings.GOOGLE_APP_ID,
+        "form_template": form_template,
+    }
+        # Variables needed for selecting a spreadsheet for the `template_url` using Google Picker
+        "google_client_id": settings.GOOGLE_CLIENT_ID,
+        "google_scopes": " ".join(settings.SOCIALACCOUNT_PROVIDERS["google"]["SCOPE"]),
+        "google_api_key": settings.GOOGLE_API_KEY,
+        "google_app_id": settings.GOOGLE_APP_ID,
+        "form_template": form_template,
     }
     response = render(request, "odk_publish/change_form_template.html", context)
     # Needed for the Google Picker popup to work

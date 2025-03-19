@@ -2,6 +2,11 @@
 {% load socialaccount %}
 {% load static %}
 {% block content %}
+    <p class="mb-4 dark:text-gray-400">
+        A form template is used to create forms in ODK Central, one for each
+        assigned App User. Use the App User Import/Export to assign form
+        templates to App Users.
+    </p>
     <div class="mb-4 grid gap-4 sm:grid-cols-2 md:mb-8">
         {{ form.media }}
         <form method="post" class="max-w-2xl">
@@ -16,7 +21,7 @@
                     </div>
                 {% endfor %}
                 <div class="flex items-center space-x-4">
-                    <button type="submit" class="btn btn-outline btn-primary">Save</button>
+                    <button type="submit" class="btn btn-outline btn-primary">{% if form_template.id %}Save{% else %}Add{% endif %} form template</button>
                     <a type="button"
                        class="btn btn-outline"
                        href="{% url 'odk_publish:form-template-list' request.odk_project.pk %}">Cancel</a>
