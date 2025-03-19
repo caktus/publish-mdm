@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "template_partials",
     # Local
     "apps.odk_publish",
+    "apps.mdm",
     "apps.patterns",
     "apps.tailscale",
     "apps.users",
