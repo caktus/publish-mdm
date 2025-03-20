@@ -44,6 +44,10 @@
                         <a href="{% url 'odk_publish:app-users-import' request.odk_project.pk %}"
                            class="group inline-flex w-full items-center rounded-md px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-600 dark:hover:text-white">Import</a>
                     </li>
+                    <li>
+                        <a href="{% url 'odk_publish:add-app-user' request.odk_project.pk %}"
+                           class="group inline-flex w-full items-center rounded-md px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-600 dark:hover:text-white">Add app user</a>
+                    </li>
                 </ul>
             </div>
         </div>
