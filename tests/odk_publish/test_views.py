@@ -23,7 +23,7 @@ from tests.odk_publish.factories import (
 from apps.odk_publish.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from apps.odk_publish.etl.odk.publish import ProjectAppUserAssignment
 from apps.odk_publish.forms import AppUserConfirmImportForm, AppUserImportForm
-from apps.odk_publish.models import AppUser
+from apps.odk_publish.models import AppUser, FormTemplate
 
 
 @pytest.mark.django_db
@@ -281,3 +281,106 @@ class TestNonExistentProjectID:
         url = reverse(f"odk_publish:{url_name}", args=[99])
         response = client.get(url)
         assert response.status_code == 404
+
+
+class TestAddFormTemplate(ViewTestBase):
+    """Test the adding a form template."""
+
+    @pytest.fixture
+    def url(self, project):
+        return reverse(
+            "odk_publish:add-form-template",
+            kwargs={"odk_project_pk": project.pk},
+        )
+
+    def test_get(self, client, url, user):
+        response = client.get(url)
+        assert response.status_code == 200
+        # Ensure the context includes the variables required for the Google Picker JS
+        for var in ("google_client_id", "google_api_key", "google_app_id"):
+            assert response.context[var] == getattr(settings, var.upper())
+        assert response.context["google_scopes"] == " ".join(
+            settings.SOCIALACCOUNT_PROVIDERS["google"]["SCOPE"]
+        )
+        # Ensure the 'Cross-Origin-Opener-Policy' header has the value required
+        # for the Google Picker popup to work correctly
+        assert response.headers["Cross-Origin-Opener-Policy"] == "same-origin-allow-popups"
+
+    def test_post(self, client, url, user, project):
+        data = {
+            "title_base": "Test template",
+            "form_id_base": "testing",
+            "template_url": "https://docs.google.com/spreadsheets/d/1/edit",
+            "template_url_user": user.id,
+        }
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        # Ensure a new FormTemplate was created with the expected values
+        assert FormTemplate.objects.count() == 1
+        form_template_values = FormTemplate.objects.values("project", *data.keys()).get()
+        assert form_template_values.pop("project") == project.id
+        assert form_template_values == data
+        # Ensure the view redirects to the form templates list page
+        assert response.redirect_chain == [
+            (reverse("odk_publish:form-template-list", args=[project.id]), 302)
+        ]
+        # Ensure there is a success message
+        assert (
+            f"Successfully added {form_template_values['title_base']}." in response.content.decode()
+        )
+
+
+class TestEditFormTemplate(ViewTestBase):
+    """Test the editing a form template."""
+
+    @pytest.fixture
+    def form_template(self, project):
+        return FormTemplateFactory(project=project)
+
+    @pytest.fixture
+    def url(self, form_template):
+        return reverse(
+            "odk_publish:edit-form-template",
+            kwargs={
+                "odk_project_pk": form_template.project_id,
+                "form_template_id": form_template.id,
+            },
+        )
+
+    def test_get(self, client, url, user):
+        response = client.get(url)
+        assert response.status_code == 200
+        # Ensure the context includes the variables required for the Google Picker JS
+        for var in ("google_client_id", "google_api_key", "google_app_id"):
+            assert response.context[var] == getattr(settings, var.upper())
+        assert response.context["google_scopes"] == " ".join(
+            settings.SOCIALACCOUNT_PROVIDERS["google"]["SCOPE"]
+        )
+        # Ensure the 'Cross-Origin-Opener-Policy' header has the value required
+        # for the Google Picker popup to work correctly
+        assert response.headers["Cross-Origin-Opener-Policy"] == "same-origin-allow-popups"
+
+    def test_post(self, client, url, user, form_template):
+        data = {
+            "title_base": "Test template",
+            "form_id_base": "testing",
+            "template_url": "https://docs.google.com/spreadsheets/d/1/edit",
+            "template_url_user": user.id,
+        }
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        # Ensure the FormTemplate was edited with the expected values
+        assert FormTemplate.objects.count() == 1
+        form_template_values = FormTemplate.objects.values("id", "project", *data.keys()).get()
+        assert form_template_values.pop("id") == form_template.id
+        assert form_template_values.pop("project") == form_template.project_id
+        assert form_template_values == data
+        # Ensure the view redirects to the form templates list page
+        assert response.redirect_chain == [
+            (reverse("odk_publish:form-template-list", args=[form_template.project_id]), 302)
+        ]
+        # Ensure there is a success message
+        assert (
+            f"Successfully edited {form_template_values['title_base']}."
+            in response.content.decode()
+        )
