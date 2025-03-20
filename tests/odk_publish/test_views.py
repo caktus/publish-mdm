@@ -22,7 +22,12 @@ from tests.odk_publish.factories import (
 )
 from apps.odk_publish.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from apps.odk_publish.etl.odk.publish import ProjectAppUserAssignment
-from apps.odk_publish.forms import AppUserConfirmImportForm, AppUserImportForm
+from apps.odk_publish.forms import (
+    AppUserConfirmImportForm,
+    AppUserImportForm,
+    AppUserForm,
+    AppUserTemplateVariableFormSet,
+)
 from apps.odk_publish.models import AppUser, FormTemplate
 
 
@@ -384,3 +389,274 @@ class TestEditFormTemplate(ViewTestBase):
             f"Successfully edited {form_template_values['title_base']}."
             in response.content.decode()
         )
+
+
+class TestAddAppUser(ViewTestBase):
+    @pytest.fixture
+    def url(self, project):
+        return reverse(
+            "odk_publish:add-app-user",
+            kwargs={"odk_project_pk": project.pk},
+        )
+
+    @pytest.fixture
+    def template_variables(self, project):
+        return [
+            project.template_variables.create(name="var1"),
+            project.template_variables.create(name="var2"),
+        ]
+
+    def test_get(self, client, url, user):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), AppUserForm)
+        assert isinstance(response.context.get("variables_formset"), AppUserTemplateVariableFormSet)
+        assert response.context["form"].instance.pk is None
+        assert response.context["variables_formset"].instance.pk is None
+        assert len(response.context["variables_formset"].forms) == 0
+
+    @pytest.fixture
+    def data(self):
+        return {
+            "name": "testuser",
+            "app_user_template_variables-TOTAL_FORMS": 0,
+            "app_user_template_variables-INITIAL_FORMS": 0,
+            "app_user_template_variables-MIN_NUM_FORMS": 0,
+            "app_user_template_variables-MAX_NUM_FORMS": 1000,
+        }
+
+    def test_valid_form(self, client, url, user, project, data):
+        """Test a form with a valid name and no template variables."""
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        # Ensure a new AppUser was created with the expected name
+        assert AppUser.objects.count() == 1
+        app_user = AppUser.objects.get()
+        assert app_user.name == data["name"]
+        # No app user template variables were created
+        assert app_user.template_variables.count() == 0
+        # Ensure the view redirects to the app users list page
+        assert response.redirect_chain == [
+            (reverse("odk_publish:app-user-list", args=[project.id]), 302)
+        ]
+        # Ensure there is a success message
+        assert f"Successfully added {app_user}." in response.content.decode()
+
+    def test_valid_form_and_valid_formset(
+        self, client, url, user, project, data, template_variables
+    ):
+        """Test a form with a valid name and valid template variables formset."""
+        data["app_user_template_variables-TOTAL_FORMS"] = 2
+        for index, var in enumerate(template_variables):
+            data[f"app_user_template_variables-{index}-template_variable"] = var.id
+            data[f"app_user_template_variables-{index}-value"] = f"{var.name} value"
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        # Ensure a new AppUser was created with the expected name
+        assert AppUser.objects.count() == 1
+        app_user = AppUser.objects.get()
+        assert app_user.name == data["name"]
+        # Ensure 2 AppUserTemplateVariables were created with the expected values
+        assert app_user.app_user_template_variables.count() == 2
+        for var in app_user.app_user_template_variables.all():
+            assert var.value == f"{var.template_variable.name} value"
+        # Ensure the view redirects to the app users list page
+        assert response.redirect_chain == [
+            (reverse("odk_publish:app-user-list", args=[project.id]), 302)
+        ]
+        # Ensure there is a success message
+        assert f"Successfully added {app_user}." in response.content.decode()
+
+    def test_invalid_name(self, client, url, user, data):
+        """Test a form with an invalid name and no template variables."""
+        data["name"] = "test user"
+        response = client.post(url, data=data)
+        assert response.status_code == 200
+        # No AppUser created
+        assert AppUser.objects.count() == 0
+        # The form and template variables formset are included in the context
+        assert isinstance(response.context.get("form"), AppUserForm)
+        assert isinstance(response.context.get("variables_formset"), AppUserTemplateVariableFormSet)
+        # Ensure the expected error message is displayed on the page
+        expected_error = "Name can only contain alphanumeric characters, underscores, hyphens, and not more than one colon."
+        assert response.context["form"].errors["name"][0] == expected_error
+        assert expected_error in response.content.decode()
+
+    def test_duplicate_name(self, client, url, user, project, data):
+        """Test a form with a name already used for another user and no template variables."""
+        other_user = AppUserFactory(project=project, name="appuser")
+        data["name"] = other_user.name
+        response = client.post(url, data=data)
+        assert response.status_code == 200
+        # No new AppUser created
+        assert AppUser.objects.count() == 1
+        # The form and template variables formset are included in the context
+        assert isinstance(response.context.get("form"), AppUserForm)
+        assert isinstance(response.context.get("variables_formset"), AppUserTemplateVariableFormSet)
+        # Ensure the expected error message is displayed on the page
+        expected_error = "An app user with the same name already exists in the current project."
+        assert response.context["form"].errors["name"][0] == expected_error
+        assert expected_error in response.content.decode()
+
+    def test_valid_form_and_invalid_formset(self, client, url, user, data, template_variables):
+        """Test a form with a valid name and invalid template variables formset."""
+        data.update(
+            {
+                "app_user_template_variables-TOTAL_FORMS": 1,
+                "app_user_template_variables-0-template_variable": template_variables[0].id,
+                "app_user_template_variables-0-value": "",
+            }
+        )
+        response = client.post(url, data=data)
+        assert response.status_code == 200
+        # No AppUser created
+        assert AppUser.objects.count() == 0
+        # The form and template variables formset are included in the context
+        assert isinstance(response.context.get("form"), AppUserForm)
+        assert isinstance(response.context.get("variables_formset"), AppUserTemplateVariableFormSet)
+        # Ensure the expected error message is displayed on the page
+        expected_error = "This field is required."
+        assert response.context["variables_formset"].errors[0]["value"][0] == expected_error
+        assert expected_error in response.content.decode()
+
+
+class TestEditAppUser(ViewTestBase):
+    @pytest.fixture
+    def template_variables(self, project):
+        return [
+            project.template_variables.create(name="var1"),
+            project.template_variables.create(name="var2"),
+        ]
+
+    @pytest.fixture
+    def app_user(self, project, template_variables):
+        app_user = AppUserFactory(project=project, name="testuser")
+        var = template_variables[0]
+        app_user.app_user_template_variables.create(
+            template_variable=var, value=f"{var.name} value"
+        )
+        return app_user
+
+    @pytest.fixture
+    def url(self, app_user):
+        return reverse(
+            "odk_publish:edit-app-user",
+            kwargs={"odk_project_pk": app_user.project_id, "app_user_id": app_user.id},
+        )
+
+    def test_get(self, client, url, user, app_user):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), AppUserForm)
+        assert isinstance(response.context.get("variables_formset"), AppUserTemplateVariableFormSet)
+        assert response.context["form"].instance == app_user
+        assert response.context["variables_formset"].instance == app_user
+        assert len(response.context["variables_formset"].forms) == 1
+
+    @pytest.fixture
+    def data(self, app_user, template_variables):
+        """POST data with a different valid name and valid formset data that changes the
+        user's current template variable and adds a new one.
+        """
+        app_user_template_var = app_user.app_user_template_variables.get()
+        new_var = template_variables[1]
+        return {
+            "name": "newname",
+            "app_user_template_variables-TOTAL_FORMS": 2,
+            "app_user_template_variables-INITIAL_FORMS": 1,
+            "app_user_template_variables-MIN_NUM_FORMS": 0,
+            "app_user_template_variables-MAX_NUM_FORMS": 1000,
+            "app_user_template_variables-0-app_user": app_user.id,
+            "app_user_template_variables-0-id": app_user_template_var.id,
+            "app_user_template_variables-0-template_variable": app_user_template_var.template_variable_id,
+            "app_user_template_variables-0-value": f"edited {app_user_template_var.value}",
+            "app_user_template_variables-1-template_variable": new_var.id,
+            "app_user_template_variables-1-value": f"edited {new_var.name} value",
+        }
+
+    def test_valid_form_and_valid_formset(self, client, url, user, app_user, data):
+        """Test a form with a valid name and valid template variables formset."""
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        # Ensure the app user's name was changed
+        assert AppUser.objects.count() == 1
+        app_user.refresh_from_db()
+        assert app_user.name == data["name"]
+        # Ensure the existing AppUserTemplateVariable was changed and a new one was added
+        assert app_user.app_user_template_variables.count() == 2
+        for var in app_user.app_user_template_variables.all():
+            assert var.value == f"edited {var.template_variable.name} value"
+        # Ensure the view redirects to the app users list page
+        assert response.redirect_chain == [
+            (reverse("odk_publish:app-user-list", args=[app_user.project_id]), 302)
+        ]
+        # Ensure there is a success message
+        assert f"Successfully edited {app_user}." in response.content.decode()
+
+    def test_valid_form_and_valid_formset_deleting_variable(
+        self, client, url, user, app_user, data, template_variables
+    ):
+        """Test a form with a valid name and valid template variables formset that deletes
+        the user's existing template variable.
+        """
+        data["app_user_template_variables-0-DELETE"] = "on"
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        # Ensure the app user's name was changed
+        assert AppUser.objects.count() == 1
+        app_user.refresh_from_db()
+        assert app_user.name == data["name"]
+        # Ensure the existing AppUserTemplateVariable was deleted and a new one was added
+        assert app_user.app_user_template_variables.count() == 1
+        app_user_template_var = app_user.app_user_template_variables.get()
+        assert app_user_template_var.template_variable == template_variables[1]
+        # Ensure the view redirects to the app users list page
+        assert response.redirect_chain == [
+            (reverse("odk_publish:app-user-list", args=[app_user.project_id]), 302)
+        ]
+        # Ensure there is a success message
+        assert f"Successfully edited {app_user}." in response.content.decode()
+
+    def check_invalid_form_or_formset(self, app_user, data, response):
+        assert response.status_code == 200
+        # The AppUser's name was not changed
+        app_user.refresh_from_db()
+        assert app_user.name != data["name"]
+        # Ensure the existing AppUserTemplateVariable was not changed and a new one was not added
+        assert app_user.app_user_template_variables.count() == 1
+        for var in app_user.app_user_template_variables.all():
+            assert var.value != f"edited {var.template_variable.name} value"
+        # The form and template variables formset are included in the context
+        assert isinstance(response.context.get("form"), AppUserForm)
+        assert isinstance(response.context.get("variables_formset"), AppUserTemplateVariableFormSet)
+
+    def test_invalid_name(self, client, url, user, app_user, data):
+        """Test a form with an invalid name and no template variables."""
+        data["name"] = "invalid name"
+        response = client.post(url, data=data)
+        self.check_invalid_form_or_formset(app_user, data, response)
+        # Ensure the expected error message is displayed on the page
+        expected_error = "Name can only contain alphanumeric characters, underscores, hyphens, and not more than one colon."
+        assert response.context["form"].errors["name"][0] == expected_error
+        assert expected_error in response.content.decode()
+
+    def test_duplicate_name(self, client, url, user, app_user, data):
+        """Test a form with a name already used for another user and no template variables."""
+        other_user = AppUserFactory(project=app_user.project, name="newname")
+        data["name"] = other_user.name
+        response = client.post(url, data=data)
+        self.check_invalid_form_or_formset(app_user, data, response)
+        # Ensure the expected error message is displayed on the page
+        expected_error = "An app user with the same name already exists in the current project."
+        assert response.context["form"].errors["name"][0] == expected_error
+        assert expected_error in response.content.decode()
+
+    def test_valid_form_and_invalid_formset(self, client, url, user, app_user, data):
+        """Test a form with a valid name and invalid template variables formset."""
+        data["app_user_template_variables-0-value"] = ""
+        response = client.post(url, data=data)
+        self.check_invalid_form_or_formset(app_user, data, response)
+        # Ensure the expected error message is displayed on the page
+        expected_error = "This field is required."
+        assert response.context["variables_formset"].errors[0]["value"][0] == expected_error
+        assert expected_error in response.content.decode()

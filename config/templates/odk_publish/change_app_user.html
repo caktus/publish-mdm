@@ -104,7 +104,8 @@
         </div>
     </form>
     <script>
-    document.getElementById("add-template-variable").addEventListener("click", function() {
+    document.getElementById("add-template-variable").addEventListener("click", function(event) {
+        event.preventDefault();
         var totalFormsInput = document.querySelector("[name={{ variables_formset.prefix }}-TOTAL_FORMS]");
         var emptyForm = document.getElementById("{{ variables_formset.empty_form.prefix }}");
         var formCount = parseInt(totalFormsInput.value);
