@@ -21,9 +21,13 @@ def build_collect_settings(
     project_id: int,
     project_name_prefix: str,
     language: str = "en",
+    admin_pw: str = "",
 ):
     """Build Collect settings for the given app user."""
     collect_settings = DEFAULT_COLLECT_SETTINGS.copy()
+
+    if admin_pw:
+        collect_settings["admin_pw"] = str(admin_pw) if admin_pw else ""
 
     # Customize settings
     url = f"{base_url.rstrip("/")}/key/{app_user.token}/projects/{project_id}"
@@ -38,16 +42,20 @@ def build_collect_settings(
 
 def create_app_user_qrcode(
     app_user: ProjectAppUserAssignment,
+    admin_pw: str,
     base_url: str,
     project_id: int,
     project_name_prefix: str,
     language: str = "en",
 ) -> tuple[io.BytesIO, dict]:
     """Generate a QR code as a PNG for the given app user."""
-
+    
+    admin_pw = str(admin_pw) if admin_pw else ""
+    
     # Build app user settings
     collect_settings = build_collect_settings(
         app_user=app_user,
+        admin_pw=admin_pw,
         base_url=base_url,
         project_id=project_id,
         project_name_prefix=project_name_prefix,
