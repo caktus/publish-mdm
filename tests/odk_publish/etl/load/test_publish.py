@@ -1,4 +1,5 @@
 import datetime as dt
+import tempfile
 
 import boto3
 import pytest
@@ -141,7 +142,9 @@ class TestPublishFormTemplate:
                 # Paths should be local temp file paths
                 assert len(call.kwargs["attachments"]) == len(attachments)
                 for index, attachment in enumerate(attachments):
-                    assert call.kwargs["attachments"][index].match(f"/tmp/*/{attachment.name}")
+                    assert call.kwargs["attachments"][index].match(
+                        f"{tempfile.gettempdir()}/*/{attachment.name}"
+                    )
             else:
                 assert call.kwargs["attachments"] == [i.file.path for i in attachments]
         mock_assign_app_users_forms.assert_has_calls(
