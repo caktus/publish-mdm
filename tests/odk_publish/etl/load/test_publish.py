@@ -62,7 +62,10 @@ class TestPublishFormTemplate:
             settings.STORAGES["default"]["BACKEND"] == "config.storages.MediaBoto3Storage"
         )
         project = ProjectFactory(central_server__base_url="https://central", central_id=2)
-        form_template = FormTemplateFactory(project=project, form_id_base="staff_registration")
+        user = UserFactory()
+        form_template = FormTemplateFactory(
+            project=project, form_id_base="staff_registration", template_url_user=user
+        )
         # Create 2 app users
         user_form1 = AppUserFormTemplateFactory(form_template=form_template, app_user__name="user1")
         user_form2 = AppUserFormTemplateFactory(form_template=form_template, app_user__name="user2")
@@ -128,7 +131,7 @@ class TestPublishFormTemplate:
             "apps.odk_publish.etl.load.attachment_paths_for_upload",
             wraps=attachment_paths_for_upload,
         )
-        publish_form_template(event=event, user=UserFactory(), send_message=self.send_message)
+        publish_form_template(event=event, user=user, send_message=self.send_message)
         mock_get_users.assert_called_once()
         mock_get_version.assert_called_once_with(xml_form_id_base=form_template.form_id_base)
         mock_create_or_update_form.assert_called_once()

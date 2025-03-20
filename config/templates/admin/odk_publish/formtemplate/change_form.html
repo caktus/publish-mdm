@@ -1,0 +1,38 @@
+{% extends "admin/change_form.html" %}
+{% load socialaccount %}
+{% load static %}
+{% block extrahead %}
+    {{ block.super }}
+    {% get_social_accounts user as accounts %}
+    {# Start Google Picker code #}
+    <script>
+    let googlePickerConfig = {
+        accessToken: "{{ accounts.google.0.socialtoken_set.all.0.token }}",
+        clientId: "{{ google_client_id }}",
+        scopes: "{{ google_scopes }}",
+        apiKey: "{{ google_api_key }}",
+        appId: "{{ google_app_id }}",
+        urlInputSelector: "#id_template_url",
+        userInputSelector: "#id_template_url_user",
+        user: {{ user.id }},
+        initCallback: function() {
+            // Add a button for launching the Google Picker dialog after the "template URL" input
+            document.getElementById('id_template_url').insertAdjacentHTML(
+              'afterend',
+              '<button onclick="createPicker()" type="button">Select with Google Picker</button>'
+            );
+        },
+    }
+    </script>
+    <script src="{% static 'js/google_picker.js' %}"></script>
+    <!-- Load the Google API Loader script. -->
+    <script async
+            defer
+            src="https://apis.google.com/js/api.js"
+            onload="onApiLoad()"></script>
+    <script async
+            defer
+            src="https://accounts.google.com/gsi/client"
+            onload="gisLoaded()"></script>
+    {# End Google Picker code #}
+{% endblock extrahead %}
