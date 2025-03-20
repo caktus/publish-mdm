@@ -18,6 +18,13 @@ class Policy(models.Model):
         related_name="policies",
     )
 
+    def save(self, *args, **kwargs):
+        from apps.mdm.tasks import get_tinymdm_session, pull_devices
+
+        super().save(*args, **kwargs)
+        if session := get_tinymdm_session():
+            pull_devices(session, self)
+
     class Meta:
         verbose_name_plural = "policies"
 
@@ -69,8 +76,8 @@ class Device(models.Model):
         from apps.mdm.tasks import get_tinymdm_session, push_device_config
 
         super().save(*args, **kwargs)
-        session = get_tinymdm_session()
-        push_device_config(session, self)
+        if session := get_tinymdm_session():
+            push_device_config(session, self)
 
     class Meta:
         constraints = [
