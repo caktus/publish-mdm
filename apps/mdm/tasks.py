@@ -1,5 +1,6 @@
 import json
 import os
+import structlog
 
 from django.db.models import Q
 
@@ -9,6 +10,9 @@ from requests.adapters import HTTPAdapter
 
 from apps.odk_publish.models import AppUser
 from apps.mdm.models import Policy, Device
+
+
+logger = structlog.getLogger(__name__)
 
 
 def get_tinymdm_session():
@@ -109,8 +113,10 @@ def push_device_config(session, device):
     """
     Updates "custom_field_1" on the device's user record in TinyMDM
     with the ODK Collect configuration necessary to attach to the devices project.
-    """
 
+    https://www.tinymdm.net/mobile-device-management/api/#overview--api-operations
+    """
+    logger.debug("Syncing device", device=device)
     if (device.app_user_name) and (
         app_user := AppUser.objects.filter(
             name=device.app_user_name, project=device.policy.project
@@ -121,11 +127,25 @@ def push_device_config(session, device):
         qr_code_data = ""
     user_id = device.raw_mdm_device["user_id"]
     url = f"https://www.tinymdm.net/api/v1/users/{user_id}"
-    response = session.get(url)
-    data = response.json()
-    data["custom_field_1"] = qr_code_data
+    data = {"custom_field_1": qr_code_data}
+    logger.debug("MDM: Updating user", url=url, user_id=user_id, data=data)
     response = session.request("PUT", url, json=data)
-    print(response.text)
+    response.raise_for_status()
+    # Send a message to the user to inform them of the update and trigger a policy reload
+    url = "https://www.tinymdm.net/api/v1/actions/message"
+    logger.debug("MDM: Re-add user to policy", url=url, user_id=user_id)
+    data = {
+        "message": (
+            f"This device has been configured for Center Number {device.app_user_name}.\n\n"
+            "Please close and re-open the HNEC Collect app to see the new project.\n\n"
+            "In case of any issues, please open the TinyMDM app and reload the policy "
+            "or restart the device."
+        ),
+        "title": "HNEC Collect Project Update",
+        "devices": [device.device_id],
+    }
+    response = session.request("POST", url, json=data)
+    response.raise_for_status()
 
 
 def sync_policy(session, policy):
@@ -134,9 +154,9 @@ def sync_policy(session, policy):
     and updates the device (user) configuration in TinyMDM based on the
     configured ODK Central app users.
     """
+    logger.info("MDM: Syncing policy to TinyMDM devices", policy=policy)
     pull_devices(session, policy)
     for device in policy.devices.exclude(app_user_name="").select_related("policy").all():
-        print(device)
         push_device_config(session, device)
 
 
@@ -145,6 +165,7 @@ def sync_policies():
     Synchronizes all configured policies with TinyMDM and updates the applicable
     device configurations.
     """
+    logger.info("MDM: Syncing policies with TinyMDM")
     session = get_tinymdm_session()
     for policy in Policy.objects.all():
         sync_policy(session, policy)
