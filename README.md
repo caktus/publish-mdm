@@ -17,4 +17,10 @@
   </a>
 </div>
 
-This repository contains the proof-of-concept ODK Publish project.
+ODK Publish is a proof-of-concept open-source tool to publish XLSForm templates
+from Google Sheets to [ODK Central](https://getodk.org/). It offers support
+for single sign-on with Google, project template variables, and a user-friendly
+interface for publishing form versions.
+
+See the [documentation](https://odk-publish.readthedocs.io/) for more
+information on how to set up and use ODK Publish.
