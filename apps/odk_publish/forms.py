@@ -18,7 +18,7 @@ from apps.patterns.widgets import (
 
 from .etl.odk.client import ODKPublishClient
 from .http import HttpRequest
-from .models import FormTemplate, Project, ProjectTemplateVariable
+from .models import AppUser, AppUserTemplateVariable, FormTemplate, Project, ProjectTemplateVariable
 
 logger = structlog.getLogger(__name__)
 
@@ -234,6 +234,48 @@ class FormTemplateForm(PlatformFormMixin, forms.ModelForm):
             ),
             "template_url_user": forms.HiddenInput,
         }
+
+
+class AppUserForm(PlatformFormMixin, forms.ModelForm):
+    """A form for adding or editing an AppUser."""
+
+    class Meta:
+        model = AppUser
+        fields = ["name"]
+        widgets = {
+            "name": TextInput,
+        }
+
+    def clean_name(self):
+        """Check if another AppUser has the same name within the same project."""
+        name = self.cleaned_data.get("name")
+        if name and (
+            self.instance.project.app_users.exclude(id=self.instance.id)
+            .filter(name__iexact=name)
+            .exists()
+        ):
+            raise forms.ValidationError(
+                "An app user with the same name already exists in the current project."
+            )
+        return name
+
+
+class AppUserTemplateVariableForm(PlatformFormMixin, forms.ModelForm):
+    """A form for adding or editing an AppUserTemplateVariable."""
+
+    class Meta:
+        model = AppUserTemplateVariable
+        fields = ["template_variable", "value"]
+        widgets = {
+            "template_variable": Select,
+            "value": TextInput,
+        }
+
+
+AppUserTemplateVariableFormSet = forms.models.inlineformset_factory(
+    AppUser, AppUserTemplateVariable, form=AppUserTemplateVariableForm, extra=0
+)
+AppUserTemplateVariableFormSet.deletion_widget = CheckboxInput
 
 
 class ProjectForm(PlatformFormMixin, forms.ModelForm):

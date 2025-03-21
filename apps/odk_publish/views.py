@@ -23,11 +23,13 @@ from .forms import (
     AppUserImportForm,
     PublishTemplateForm,
     FormTemplateForm,
+    AppUserForm,
+    AppUserTemplateVariableFormSet,
     ProjectForm,
     ProjectTemplateVariableFormSet,
 )
 from .import_export import AppUserResource
-from .models import FormTemplateVersion, FormTemplate
+from .models import FormTemplateVersion, FormTemplate, AppUser
 from .nav import Breadcrumbs
 from .tables import FormTemplateTable
 
@@ -345,6 +347,44 @@ def change_form_template(request: HttpRequest, odk_project_pk, form_template_id=
     # Needed for the Google Picker popup to work
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
     return response
+
+
+@login_required
+def change_app_user(request: HttpRequest, odk_project_pk, app_user_id=None):
+    """Add or edit an AppUser."""
+    if app_user_id:
+        # Editing an AppUser
+        app_user = get_object_or_404(request.odk_project.app_users, pk=app_user_id)
+    else:
+        # Adding a new AppUser
+        app_user = AppUser(project=request.odk_project)
+    form = AppUserForm(request.POST or None, instance=app_user)
+    variables_formset = AppUserTemplateVariableFormSet(request.POST or None, instance=app_user)
+    if request.method == "POST" and all([form.is_valid(), variables_formset.is_valid()]):
+        app_user = form.save()
+        variables_formset.save()
+        messages.success(
+            request,
+            f"Successfully {'edit' if app_user_id else 'add'}ed {app_user}.",
+        )
+        return redirect("odk_publish:app-user-list", odk_project_pk)
+    if app_user_id:
+        crumbs = [
+            (app_user.name, "app-user-detail", [app_user.pk]),
+            ("Edit app user", "edit-app-user", [app_user_id]),
+        ]
+    else:
+        crumbs = [("Add app user", "add-app-user")]
+    context = {
+        "form": form,
+        "variables_formset": variables_formset,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("App Users", "app-user-list")] + crumbs,
+        ),
+        "app_user": app_user,
+    }
+    return render(request, "odk_publish/change_app_user.html", context)
 
 
 @login_required

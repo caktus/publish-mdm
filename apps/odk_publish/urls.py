@@ -69,4 +69,14 @@ urlpatterns = [
         views.change_form_template,
         name="edit-form-template",
     ),
+    path(
+        "<int:odk_project_pk>/app-users/add/",
+        views.change_app_user,
+        name="add-app-user",
+    ),
+    path(
+        "<int:odk_project_pk>/app-users/<int:app_user_id>/edit/",
+        views.change_app_user,
+        name="edit-app-user",
+    ),
 ]
