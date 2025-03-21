@@ -9,6 +9,10 @@
 {% block content %}
     <p class="mb-4 dark:text-gray-400">
         When publishing forms to ODK Central, a form will be created for each
+        assigned App User. See <a
+        href="https://docs.getodk.org/central-users/#managing-app-users"
+        target="_blank" class="text-primary-600 hover:underline">Managing App
+        Users</a> for more information regarding ODK Central's App Users.
         assigned App User.
     </p>
     <form method="post">
@@ -24,6 +28,12 @@
             {% endfor %}
         </div>
         <h3 class="font-semibold text-gray-900 dark:text-white mb-2">Template variables</h3>
+        <p class="mb-4 dark:text-gray-400">
+            Template variables are used to substitute values in the form's
+            definition for every matching <a class="text-primary-600 hover:underline"
+            href="https://docs.getodk.org/form-logic/#calculations"
+            target="_blank">calculate</a> question type.
+        </p>
         {{ variables_formset.management_form }}
         {% with num_cols=variables_formset.empty_form.visible_fields|length %}
             <table class="mb-4 text-left w-full h-full text-sm text-gray-500 dark:text-gray-400 dark:bg-gray-800">
