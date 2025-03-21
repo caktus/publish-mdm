@@ -1,6 +1,7 @@
 import logging
 import json
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import models, transaction
@@ -21,6 +22,7 @@ from .forms import (
     AppUserExportForm,
     AppUserImportForm,
     PublishTemplateForm,
+    FormTemplateForm,
 )
 from .import_export import AppUserResource
 from .models import FormTemplateVersion, FormTemplate
@@ -298,3 +300,46 @@ def app_user_detail(request: HttpRequest, odk_project_pk, app_user_pk):
         ),
     }
     return render(request, "odk_publish/app_user_detail.html", context)
+
+
+@login_required
+def change_form_template(request: HttpRequest, odk_project_pk, form_template_id=None):
+    """Add or edit a FormTemplate."""
+    if form_template_id:
+        # Editing a FormTemplate
+        form_template = get_object_or_404(request.odk_project.form_templates, pk=form_template_id)
+    else:
+        # Adding a new FormTemplate
+        form_template = FormTemplate(project=request.odk_project)
+    form = FormTemplateForm(request.POST or None, instance=form_template)
+    if request.method == "POST" and form.is_valid():
+        form_template = form.save()
+        messages.success(
+            request,
+            f"Successfully {'edit' if form_template_id else 'add'}ed {form_template.title_base}.",
+        )
+        return redirect("odk_publish:form-template-list", odk_project_pk)
+    if form_template_id:
+        crumbs = [
+            (form_template.title_base, "form-template-detail", [form_template_id]),
+            ("Edit form template", "edit-form-template", [form_template_id]),
+        ]
+    else:
+        crumbs = [("Add form template", "form-template-add")]
+    context = {
+        "form": form,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("Form Templates", "form-template-list")] + crumbs,
+        ),
+        # Variables needed for selecting a spreadsheet for the `template_url` using Google Picker
+        "google_client_id": settings.GOOGLE_CLIENT_ID,
+        "google_scopes": " ".join(settings.SOCIALACCOUNT_PROVIDERS["google"]["SCOPE"]),
+        "google_api_key": settings.GOOGLE_API_KEY,
+        "google_app_id": settings.GOOGLE_APP_ID,
+        "form_template": form_template,
+    }
+    response = render(request, "odk_publish/change_form_template.html", context)
+    # Needed for the Google Picker popup to work
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    return response

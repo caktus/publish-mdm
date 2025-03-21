@@ -28,6 +28,7 @@ PyJWT
 pyodk @ git+https://github.com/getodk/pyodk.git@b09fe11ebb47166c81df5831c4a58e7ffd8f759e
 psycopg
 requests
+requests-ratelimiter
 segno
 sentry-sdk
 whitenoise
