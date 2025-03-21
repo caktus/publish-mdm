@@ -115,12 +115,12 @@ def pull_devices(session, policy):
     create_new_devices(policy, mdm_devices_to_create)
 
 
-def push_device_config(session, device):
+def push_device_config(session, device: Device):
     """
     Updates "custom_field_1" on the device's user record in TinyMDM
     with the ODK Collect configuration necessary to attach to the devices project.
 
-    https://www.tinymdm.net/mobile-device-management/api/#overview--api-operations
+    https://www.tinymdm.net/mobile-device-management/api/#put-/users/-id-
     """
     logger.debug("Syncing device", device=device)
     if (device.app_user_name) and (
@@ -133,7 +133,11 @@ def push_device_config(session, device):
         qr_code_data = ""
     user_id = device.raw_mdm_device["user_id"]
     url = f"https://www.tinymdm.net/api/v1/users/{user_id}"
-    data = {"custom_field_1": qr_code_data}
+    device_name = device.raw_mdm_device["nickname"] or device.raw_mdm_device["name"]
+    data = {
+        "name": f"{device.app_user_name}-{device_name}",
+        "custom_field_1": qr_code_data,
+    }
     logger.debug("Updating user", url=url, user_id=user_id, data=data)
     response = session.request("PUT", url, json=data)
     response.raise_for_status()
