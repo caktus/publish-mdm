@@ -8,6 +8,7 @@ from import_export.tmp_storages import MediaStorage
 
 from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import (
+    CheckboxInput,
     CheckboxSelectMultiple,
     FileInput,
     InputWithAddon,
@@ -17,7 +18,7 @@ from apps.patterns.widgets import (
 
 from .etl.odk.client import ODKPublishClient
 from .http import HttpRequest
-from .models import FormTemplate, Project
+from .models import FormTemplate, Project, ProjectTemplateVariable
 
 logger = structlog.getLogger(__name__)
 
@@ -246,3 +247,21 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
             "central_server": Select,
             "template_variables": CheckboxSelectMultiple,
         }
+
+
+class ProjectTemplateVariableForm(PlatformFormMixin, forms.ModelForm):
+    """A form for adding or editing a ProjectTemplateVariable."""
+
+    class Meta:
+        model = ProjectTemplateVariable
+        fields = ["template_variable", "value"]
+        widgets = {
+            "template_variable": Select,
+            "value": TextInput,
+        }
+
+
+ProjectTemplateVariableFormSet = forms.models.inlineformset_factory(
+    Project, ProjectTemplateVariable, form=ProjectTemplateVariableForm, extra=0
+)
+ProjectTemplateVariableFormSet.deletion_widget = CheckboxInput

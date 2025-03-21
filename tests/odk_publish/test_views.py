@@ -24,7 +24,12 @@ from tests.odk_publish.factories import (
 )
 from apps.odk_publish.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from apps.odk_publish.etl.odk.publish import ProjectAppUserAssignment
-from apps.odk_publish.forms import AppUserConfirmImportForm, AppUserImportForm
+from apps.odk_publish.forms import (
+    AppUserConfirmImportForm,
+    AppUserImportForm,
+    ProjectForm,
+    ProjectTemplateVariableFormSet,
+)
 from apps.odk_publish.models import AppUser, FormTemplate
 
 
@@ -401,34 +406,132 @@ class TestEditProject(ViewTestBase):
         assert response.status_code == 200
         assert response.context["form"].instance == project
 
-    def test_valid_form(self, client, url, user, project):
-        """Ensures the Project is updated when a valid form is submitted."""
-        template_variables = TemplateVariableFactory.create_batch(4)
-        other_central_server = CentralServerFactory()
-        data = {
+    @pytest.fixture
+    def other_central_server(self):
+        return CentralServerFactory()
+
+    @pytest.fixture
+    def template_variables(self):
+        return TemplateVariableFactory.create_batch(2)
+
+    @pytest.fixture
+    def data(self, project, template_variables):
+        """POST data with a different valid name and valid formset data that changes
+        an existing ProjectTemplateVariable and adds a new one.
+        """
+        var = template_variables[0]
+        project_template_var = project.project_template_variables.create(
+            template_variable=var, value=f"{var.name} value"
+        )
+        new_var = template_variables[1]
+        return {
             "name": "New name",
-            "central_server": other_central_server.id,
-            "template_variables": [i.id for i in template_variables],
+            "central_server": project.central_server_id,
+            "project_template_variables-TOTAL_FORMS": 2,
+            "project_template_variables-INITIAL_FORMS": 1,
+            "project_template_variables-MIN_NUM_FORMS": 0,
+            "project_template_variables-MAX_NUM_FORMS": 1000,
+            "project_template_variables-0-project": project.id,
+            "project_template_variables-0-id": project_template_var.id,
+            "project_template_variables-0-template_variable": project_template_var.template_variable_id,
+            "project_template_variables-0-value": f"edited {project_template_var.value}",
+            "project_template_variables-1-template_variable": new_var.id,
+            "project_template_variables-1-value": f"edited {new_var.name} value",
         }
+
+    def test_valid_form_and_valid_formset(
+        self, client, url, user, project, data, template_variables, other_central_server
+    ):
+        """Ensures the Project is updated when a valid form and valid variables formset are submitted."""
+        data.update(
+            {
+                "central_server": other_central_server.id,
+                "template_variables": [i.id for i in template_variables],
+            }
+        )
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
         project.refresh_from_db()
         assert project.name == "New name"
         assert project.central_server == other_central_server
         assert set(project.template_variables.all()) == set(template_variables)
+        # Ensure the existing ProjectTemplateVariable was changed and a new one was added
+        assert project.project_template_variables.count() == 2
+        for var in project.project_template_variables.all():
+            assert var.value == f"edited {var.template_variable.name} value"
+        # Ensure the view redirects to the form templates list page
         assert response.redirect_chain == [
             (reverse("odk_publish:form-template-list", args=[project.id]), 302)
         ]
+        # Ensure there is a success message
         assert f"Successfully edited {project}." in response.content.decode()
 
-    def test_invalid_form(self, client, url, user):
-        data = {
-            "name": "",
-            "central_server": "",
-        }
-        response = client.post(url, data=data)
+    def test_valid_form_and_valid_formset_deleting_variable(
+        self, client, url, user, project, data, template_variables, other_central_server
+    ):
+        """Test a valid form and valid template variables formset that deletes
+        the existing ProjectTemplateVariable.
+        """
+        data.update(
+            {
+                "central_server": other_central_server.id,
+                "template_variables": [i.id for i in template_variables],
+                "project_template_variables-0-DELETE": "on",
+            }
+        )
+        response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
+        project.refresh_from_db()
+        assert project.name == "New name"
+        assert project.central_server == other_central_server
+        assert set(project.template_variables.all()) == set(template_variables)
+        # Ensure the existing ProjectTemplateVariable was changed and a new one was added
+        assert project.project_template_variables.count() == 1
+        project_template_var = project.project_template_variables.get()
+        assert project_template_var.template_variable == template_variables[1]
+        # Ensure the view redirects to the form templates list page
+        assert response.redirect_chain == [
+            (reverse("odk_publish:form-template-list", args=[project.id]), 302)
+        ]
+        # Ensure there is a success message
+        assert f"Successfully edited {project}." in response.content.decode()
+
+    def check_invalid_form_or_formset(self, project, data, response):
+        assert response.status_code == 200
+        # The Project was not changed
+        project.refresh_from_db()
+        assert project.name != data["name"]
+        # Ensure the existing ProjectTemplateVariable was not changed and a new one was not added
+        assert project.project_template_variables.count() == 1
+        for var in project.project_template_variables.all():
+            assert var.value != f"edited {var.template_variable.name} value"
+        # The form and template variables formset are included in the context
+        assert isinstance(response.context.get("form"), ProjectForm)
+        assert isinstance(response.context.get("variables_formset"), ProjectTemplateVariableFormSet)
+
+    def test_invalid_form(self, client, url, user, project, data):
+        data.update(
+            {
+                "name": "",
+                "central_server": "",
+            }
+        )
+        response = client.post(url, data=data)
+        self.check_invalid_form_or_formset(project, data, response)
         assert response.context["form"].errors == {
             "name": ["This field is required."],
             "central_server": ["This field is required."],
         }
+
+    def test_valid_form_and_invalid_formset(self, client, url, user, project, data):
+        """Test a form with a valid name and invalid template variables formset."""
+        data["project_template_variables-0-template_variable"] = ""
+        response = client.post(url, data=data)
+        self.check_invalid_form_or_formset(project, data, response)
+        # Ensure the expected error message is displayed on the page
+        expected_error = "This field is required."
+        assert (
+            response.context["variables_formset"].errors[0]["template_variable"][0]
+            == expected_error
+        )
+        assert expected_error in response.content.decode()

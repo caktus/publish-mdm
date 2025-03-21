@@ -32,3 +32,7 @@ class InputWithAddon(widgets.TextInput):
         context = super().get_context(name, value, attrs)
         context["addon"] = {"content": self.addon_content, "attrs": self.addon_attrs}
         return context
+
+
+class CheckboxInput(widgets.CheckboxInput):
+    template_name = "patterns/forms/widgets/checkbox.html"

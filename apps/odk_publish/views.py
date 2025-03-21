@@ -24,6 +24,7 @@ from .forms import (
     PublishTemplateForm,
     FormTemplateForm,
     ProjectForm,
+    ProjectTemplateVariableFormSet,
 )
 from .import_export import AppUserResource
 from .models import FormTemplateVersion, FormTemplate
@@ -350,8 +351,12 @@ def change_form_template(request: HttpRequest, odk_project_pk, form_template_id=
 def edit_project(request, odk_project_pk):
     """Edit a Project."""
     form = ProjectForm(request.POST or None, instance=request.odk_project)
-    if request.method == "POST" and form.is_valid():
+    variables_formset = ProjectTemplateVariableFormSet(
+        request.POST or None, instance=request.odk_project
+    )
+    if request.method == "POST" and all([form.is_valid(), variables_formset.is_valid()]):
         form.save()
+        variables_formset.save()
         messages.success(
             request,
             f"Successfully edited {request.odk_project}.",
@@ -359,6 +364,7 @@ def edit_project(request, odk_project_pk):
         return redirect("odk_publish:form-template-list", request.odk_project.id)
     context = {
         "form": form,
+        "variables_formset": variables_formset,
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
             items=[("Edit project", "edit-project")],
