@@ -19,6 +19,8 @@ from tests.odk_publish.factories import (
     FormTemplateFactory,
     ProjectFactory,
     UserFactory,
+    CentralServerFactory,
+    TemplateVariableFactory,
 )
 from apps.odk_publish.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from apps.odk_publish.etl.odk.publish import ProjectAppUserAssignment
@@ -384,3 +386,49 @@ class TestEditFormTemplate(ViewTestBase):
             f"Successfully edited {form_template_values['title_base']}."
             in response.content.decode()
         )
+
+
+class TestEditProject(ViewTestBase):
+    @pytest.fixture
+    def url(self, project):
+        return reverse(
+            "odk_publish:edit-project",
+            kwargs={"odk_project_pk": project.pk},
+        )
+
+    def test_get(self, client, url, user, project):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert response.context["form"].instance == project
+
+    def test_valid_form(self, client, url, user, project):
+        """Ensures the Project is updated when a valid form is submitted."""
+        template_variables = TemplateVariableFactory.create_batch(4)
+        other_central_server = CentralServerFactory()
+        data = {
+            "name": "New name",
+            "central_server": other_central_server.id,
+            "template_variables": [i.id for i in template_variables],
+        }
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        project.refresh_from_db()
+        assert project.name == "New name"
+        assert project.central_server == other_central_server
+        assert set(project.template_variables.all()) == set(template_variables)
+        assert response.redirect_chain == [
+            (reverse("odk_publish:form-template-list", args=[project.id]), 302)
+        ]
+        assert f"Successfully edited {project}." in response.content.decode()
+
+    def test_invalid_form(self, client, url, user):
+        data = {
+            "name": "",
+            "central_server": "",
+        }
+        response = client.post(url, data=data)
+        assert response.status_code == 200
+        assert response.context["form"].errors == {
+            "name": ["This field is required."],
+            "central_server": ["This field is required."],
+        }

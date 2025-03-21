@@ -7,11 +7,17 @@ from import_export import forms as import_export_forms
 from import_export.tmp_storages import MediaStorage
 
 from apps.patterns.forms import PlatformFormMixin
-from apps.patterns.widgets import Select, FileInput, TextInput, InputWithAddon
+from apps.patterns.widgets import (
+    CheckboxSelectMultiple,
+    FileInput,
+    InputWithAddon,
+    Select,
+    TextInput,
+)
 
 from .etl.odk.client import ODKPublishClient
 from .http import HttpRequest
-from .models import FormTemplate
+from .models import FormTemplate, Project
 
 logger = structlog.getLogger(__name__)
 
@@ -226,4 +232,17 @@ class FormTemplateForm(PlatformFormMixin, forms.ModelForm):
                 addon_content="Select with Google Picker", addon_attrs={"onclick": "createPicker()"}
             ),
             "template_url_user": forms.HiddenInput,
+        }
+
+
+class ProjectForm(PlatformFormMixin, forms.ModelForm):
+    """A form for editing a Project."""
+
+    class Meta:
+        model = Project
+        fields = ["name", "central_server", "template_variables"]
+        widgets = {
+            "name": TextInput,
+            "central_server": Select,
+            "template_variables": CheckboxSelectMultiple,
         }

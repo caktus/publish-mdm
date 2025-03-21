@@ -15,6 +15,11 @@ urlpatterns = [
         name="server-sync-projects",
     ),
     path(
+        "<int:odk_project_pk>/edit/",
+        views.edit_project,
+        name="edit-project",
+    ),
+    path(
         "<int:odk_project_pk>/app-users/",
         views.app_user_list,
         name="app-user-list",

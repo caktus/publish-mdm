@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+    <p class="mb-4 dark:text-gray-400">An ODK Central project.</p>
+    <div class="mb-4 grid gap-4 sm:grid-cols-2 md:mb-8">
+        <form method="post" class="max-w-2xl">
+            {% csrf_token %}
+            {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+            <div class="grid gap-4 sm:grid-cols-1 sm:gap-6">
+                {% for field in form.visible_fields %}
+                    <div id="id_{{ field.name }}_container">
+                        {{ field.label_tag }}
+                        {{ field }}
+                        {{ field.errors }}
+                    </div>
+                {% endfor %}
+                <div class="flex items-center space-x-4">
+                    <button type="submit" class="btn btn-outline btn-primary">Save project</button>
+                    <a type="button"
+                       class="btn btn-outline"
+                       href="{% url 'odk_publish:form-template-list' request.odk_project.pk %}">Cancel</a>
+                </div>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

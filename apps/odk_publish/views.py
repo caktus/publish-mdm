@@ -23,6 +23,7 @@ from .forms import (
     AppUserImportForm,
     PublishTemplateForm,
     FormTemplateForm,
+    ProjectForm,
 )
 from .import_export import AppUserResource
 from .models import FormTemplateVersion, FormTemplate
@@ -343,3 +344,24 @@ def change_form_template(request: HttpRequest, odk_project_pk, form_template_id=
     # Needed for the Google Picker popup to work
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
     return response
+
+
+@login_required
+def edit_project(request, odk_project_pk):
+    """Edit a Project."""
+    form = ProjectForm(request.POST or None, instance=request.odk_project)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(
+            request,
+            f"Successfully edited {request.odk_project}.",
+        )
+        return redirect("odk_publish:form-template-list", request.odk_project.id)
+    context = {
+        "form": form,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("Edit project", "edit-project")],
+        ),
+    }
+    return render(request, "odk_publish/change_project.html", context)

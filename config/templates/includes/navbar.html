@@ -57,6 +57,12 @@
                         <a href="{% url 'odk_publish:server-sync' %}"
                            class="btn btn-outline mr-4">Sync Project</a>
                     </li>
+                    {% if request.odk_project %}
+                        <li>
+                            <a href="{% url 'odk_publish:edit-project' request.odk_project.pk %}"
+                               class="btn btn-outline mr-4">Edit Project</a>
+                        </li>
+                    {% endif %}
                     {% if request.user.is_superuser %}
                         <li>
                             <a href="{% url 'admin:index' %}"
