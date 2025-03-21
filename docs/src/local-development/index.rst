@@ -10,3 +10,4 @@ Publish, and optionally ODK Central.
    :caption: Contents:
 
    odk-central
+   setup
