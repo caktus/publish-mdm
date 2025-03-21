@@ -29,6 +29,8 @@ rather use Docker, see :doc:`/src/docker-compose`.
     # google oauth for django-allauth
     export GOOGLE_CLIENT_ID=
     export GOOGLE_CLIENT_SECRET=
+    export GOOGLE_API_KEY=
+    export GOOGLE_APP_ID=
 
     # odk central
     export ODK_CENTRAL_CREDENTIALS="base_url=https://myserver.com;username=user1;password=pass1"
