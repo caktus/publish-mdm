@@ -82,10 +82,11 @@ class TestAppUserImport:
         response = client.post(url, data=data)
         assert response.status_code == 200
         assert isinstance(response.context["form"], AppUserConfirmImportForm)
+        response_content = response.content.decode()
         assert (
             "Below is a preview of data to be imported. If you are satisfied "
             "with the results, click 'Confirm import'."
-        ) in response.content.decode()
+        ) in response_content
         assert len(response.context["result"].valid_rows()) == 2
         # The user should not be created yet
         assert AppUser.objects.count() == 0
@@ -99,6 +100,12 @@ class TestAppUserImport:
         tmp_dataset = import_format.create_dataset(tmp_storage.read())
         # A Dataset created from an Excel file will have None values instead of empty strings
         assert dataset.dict == [{k: v or "" for k, v in row.items()} for row in tmp_dataset.dict]
+        # Ensure there is a warning message for numeric values
+        assert (
+            "If some numeric values are not displayed correctly here, consider "
+            "setting the correct number format for those values in your original "
+            "document, then try importing it again."
+        ) in response_content
 
     @pytest.mark.parametrize("format_name", ["csv", "xlsx"])
     def test_valid_upload(self, client, url, user, dataset, format_name):
@@ -160,6 +167,12 @@ class TestAppUserImport:
         assert expected_error in response_content
         # A user should not be created
         assert AppUser.objects.count() == 0
+        # Ensure there is a warning message for numeric values
+        assert (
+            "If some numeric values are not displayed correctly here, consider "
+            "setting the correct number format for those values in your original "
+            "document, then try importing it again."
+        ) in response_content
 
     def test_valid_google_sheets_xlsx_upload(self, client, url, user, dataset):
         """Ensures a valid xlsx file edited and downloaded from Google Sheets can be
