@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "template_partials",
     # Local
     "apps.odk_publish",
+    "apps.mdm",
     "apps.patterns",
     "apps.tailscale",
     "apps.users",
@@ -167,8 +168,7 @@ SOCIALACCOUNT_PROVIDERS = {
         "SCOPE": [
             "profile",
             "email",
-            "https://www.googleapis.com/auth/drive.readonly",
-            "https://www.googleapis.com/auth/drive.metadata.readonly",
+            "https://www.googleapis.com/auth/drive.file",
         ],
         "AUTH_PARAMS": {
             "access_type": "offline",
@@ -179,6 +179,8 @@ SOCIALACCOUNT_PROVIDERS = {
 # Google Auth
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+GOOGLE_APP_ID = os.getenv("GOOGLE_APP_ID")
 
 
 # Internationalization

@@ -33,6 +33,11 @@ Development <local-development/index>` guide to run ODK Publish locally.
      credentials for the Google account you will use to authenticate with ODK
      Central and to download forms from Google Sheets.
 
+   - ``GOOGLE_API_KEY`` and ``GOOGLE_APP_ID`` are used to enable the `Google Picker <https://developers.google.com/drive/picker/guides/overview>`_,
+     which users will use to give access to specific spreadsheets in their Google accounts.
+     To get the API key, `create it in your Google Cloud dashboard <https://developers.google.com/drive/picker/guides/overview#setup>`_.
+     The ``GOOGLE_APP_ID`` is the "Project number" in the `Google Cloud dashboard <https://console.cloud.google.com/home/dashboard>`_.
+
    - ``ODK_CENTRAL_CREDENTIALS``: The ODK Central server and credentials of the admin user
      you created above.
 

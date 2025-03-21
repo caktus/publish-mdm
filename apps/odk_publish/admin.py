@@ -1,6 +1,9 @@
 import structlog
 
+from django.conf import settings
 from django.contrib import admin
+from django import forms
+
 from .models import (
     CentralServer,
     Project,
@@ -11,6 +14,7 @@ from .models import (
     AppUserFormVersion,
     TemplateVariable,
     ProjectAttachment,
+    ProjectTemplateVariable,
 )
 
 
@@ -36,21 +40,68 @@ class ProjectAttachmentInline(admin.TabularInline):
     extra = 0
 
 
+class ProjectTemplateVariableInline(admin.TabularInline):
+    """Allows editing project-level template variables directly in ProjectAdmin."""
+
+    model = ProjectTemplateVariable
+    extra = 1
+    fields = ("template_variable", "value")
+    autocomplete_fields = ["template_variable"]
+
+
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
     list_display = ("name", "central_id", "central_server")
     search_fields = ("name", "central_id")
     list_filter = ("central_server",)
     filter_horizontal = ("template_variables",)
-    inlines = (ProjectAttachmentInline,)
+    inlines = (ProjectAttachmentInline, ProjectTemplateVariableInline)
+
+
+class FormTemplateForm(forms.ModelForm):
+    class Meta:
+        model = FormTemplate
+        fields = "__all__"
+        widgets = {
+            "template_url_user": forms.HiddenInput,
+        }
 
 
 @admin.register(FormTemplate)
 class FormTemplateAdmin(admin.ModelAdmin):
-    list_display = ("id", "title_base", "form_id_base", "project", "modified_at")
+    list_display = (
+        "id",
+        "title_base",
+        "form_id_base",
+        "template_url_user",
+        "project",
+        "modified_at",
+    )
     search_fields = ("title_base", "form_id_base")
     list_filter = ("created_at", "project")
     ordering = ("form_id_base",)
+    form = FormTemplateForm
+
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        extra_context = extra_context or {}
+        # Add context variables needed for the Google Picker
+        extra_context.update(
+            {
+                "google_client_id": settings.GOOGLE_CLIENT_ID,
+                "google_scopes": " ".join(settings.SOCIALACCOUNT_PROVIDERS["google"]["SCOPE"]),
+                "google_api_key": settings.GOOGLE_API_KEY,
+                "google_app_id": settings.GOOGLE_APP_ID,
+            }
+        )
+        response = super().changeform_view(
+            request,
+            object_id,
+            form_url,
+            extra_context=extra_context,
+        )
+        # Needed for the Google Picker popup to work
+        response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+        return response
 
 
 @admin.register(FormTemplateVersion)

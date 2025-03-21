@@ -7,7 +7,7 @@ from import_export import forms as import_export_forms
 from import_export.tmp_storages import MediaStorage
 
 from apps.patterns.forms import PlatformFormMixin
-from apps.patterns.widgets import Select, FileInput, TextInput
+from apps.patterns.widgets import Select, FileInput, TextInput, InputWithAddon
 
 from .etl.odk.client import ODKPublishClient
 from .http import HttpRequest
@@ -213,3 +213,17 @@ class AppUserConfirmImportForm(import_export_forms.ConfirmImportForm):
                     # Delete the temp file
                     tmp_storage.remove()
         return self.cleaned_data
+
+
+class FormTemplateForm(PlatformFormMixin, forms.ModelForm):
+    class Meta:
+        model = FormTemplate
+        exclude = ["project"]
+        widgets = {
+            "title_base": TextInput,
+            "form_id_base": TextInput,
+            "template_url": InputWithAddon(
+                addon_content="Select with Google Picker", addon_attrs={"onclick": "createPicker()"}
+            ),
+            "template_url_user": forms.HiddenInput,
+        }

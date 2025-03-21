@@ -16,3 +16,19 @@ class Select(widgets.Select):
 
 class TextInput(widgets.TextInput):
     template_name = "patterns/forms/widgets/input.html"
+
+
+class InputWithAddon(widgets.TextInput):
+    """An input with a button appended to its right end."""
+
+    template_name = "patterns/forms/widgets/input_with_addon.html"
+
+    def __init__(self, addon_content, addon_attrs=None, attrs=None):
+        self.addon_content = addon_content
+        self.addon_attrs = addon_attrs
+        super().__init__(attrs)
+
+    def get_context(self, name, value, attrs):
+        context = super().get_context(name, value, attrs)
+        context["addon"] = {"content": self.addon_content, "attrs": self.addon_attrs}
+        return context
