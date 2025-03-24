@@ -1,8 +1,8 @@
 from django.contrib import admin
 from import_export.admin import ImportExportMixin
 from import_export.forms import ExportForm
-from import_export.resources import ModelResource
 
+from .import_export import DeviceResource
 from .models import Policy, Device
 
 
@@ -11,16 +11,6 @@ class PolicyAdmin(admin.ModelAdmin):
     list_display = ("name", "policy_id", "project")
     search_fields = ("name", "policy_id", "project__name")
     list_filter = ("project",)
-
-
-class DeviceResource(ModelResource):
-    """Custom ModelResource for importing/exporting Devices."""
-
-    class Meta:
-        model = Device
-        fields = ("id", "policy", "serial_number", "app_user_name", "device_id")
-        clean_model_instances = True
-        skip_unchanged = True
 
 
 @admin.register(Device)
