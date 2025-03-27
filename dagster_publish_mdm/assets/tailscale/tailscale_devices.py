@@ -8,7 +8,7 @@ from dagster_publish_mdm.resources.tailscale import TailscaleResource
 
 django.setup()
 
-from apps.tailscale.models import DeviceSnapshot  # noqa: E402
+from apps.tailscale.models import Device, DeviceSnapshot  # noqa: E402
 
 
 @dg.asset(
@@ -35,8 +35,10 @@ def tailscale_append_device_snapshot_table(
     context: dg.AssetExecutionContext, tailscale_device_snapshot: dict
 ) -> list[DeviceSnapshot]:
     """Convert the Tailscale device list to a table and store in PostgreSQL."""
+    device_map = dict(Device.objects.values_list("node_id", "id"))
     snapshots: list[DeviceSnapshot] = []
     for device in tailscale_device_snapshot["devices"]:
+        existing_device_id = device_map.get(device["nodeId"])
         expires = dt.datetime.fromisoformat(device["expires"])
         if expires.year == 1:
             # Tailscale uses 0001-01-01T00:00:00Z to indicate no expiration
@@ -54,6 +56,8 @@ def tailscale_append_device_snapshot_table(
             tags=device["tags"] if "tags" in device else None,
             update_available=device["updateAvailable"],
             user=device["user"],
+            # Non-API fields
+            device_id=existing_device_id,
             tailnet=tailscale_device_snapshot["tailnet"],
             raw_data=device,
             synced_at=dt.datetime.now(tz=dt.UTC),
