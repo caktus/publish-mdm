@@ -6,7 +6,7 @@
 #
 anyio==3.7.1
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   httpx
     #   jupyter-server
     #   watchfiles
@@ -20,7 +20,7 @@ arrow==1.3.0
     # via isoduration
 asgiref==3.8.1
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   django
     #   django-browser-reload
 asttokens==3.0.0
@@ -29,60 +29,60 @@ async-lru==2.0.5
     # via jupyterlab
 attrs==25.3.0
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   jsonschema
     #   referencing
 babel==2.17.0
     # via jupyterlab-server
 beautifulsoup4==4.13.3
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   nbconvert
 black==25.1.0
     # via -r requirements/dev/dev.in
 bleach==6.2.0
     # via nbconvert
-boto3==1.37.15
+boto3==1.37.20
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   moto
-botocore==1.37.15
+botocore==1.37.20
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   boto3
     #   moto
     #   s3transfer
 certifi==2025.1.31
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   httpcore
     #   httpx
     #   requests
 cffi==1.17.1
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   argon2-cffi-bindings
     #   cryptography
 cfgv==3.4.0
     # via pre-commit
 charset-normalizer==3.4.1
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   requests
 click==8.1.8
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   black
     #   djlint
 colorama==0.4.6
     # via djlint
 comm==0.2.2
     # via ipykernel
-coverage==7.7.0
+coverage==7.7.1
     # via pytest-cov
 cryptography==44.0.2
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   moto
 cssbeautifier==1.15.4
     # via djlint
@@ -96,13 +96,13 @@ distlib==0.3.9
     # via virtualenv
 django==5.1.5
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   django-browser-reload
     #   django-debug-toolbar
     #   django-watchfiles
 django-browser-reload==1.18.0
     # via -r requirements/dev/dev.in
-django-debug-toolbar==5.0.1
+django-debug-toolbar==5.1.0
     # via -r requirements/dev/dev.in
 django-types==0.20.0
     # via -r requirements/dev/dev.in
@@ -118,16 +118,20 @@ executing==2.2.0
     # via stack-data
 factory-boy==3.3.3
     # via -r requirements/dev/dev.in
-faker==37.0.2
+faker==37.1.0
     # via factory-boy
 fastjsonschema==2.21.1
     # via nbformat
 filelock==3.18.0
-    # via virtualenv
+    # via
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
+    #   virtualenv
 fqdn==1.5.1
     # via jsonschema
 h11==0.14.0
-    # via httpcore
+    # via
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
+    #   httpcore
 httpcore==1.0.7
     # via httpx
 httpx==0.28.1
@@ -136,12 +140,12 @@ identify==2.6.9
     # via pre-commit
 idna==3.10
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   anyio
     #   httpx
     #   jsonschema
     #   requests
-iniconfig==2.0.0
+iniconfig==2.1.0
     # via pytest
 ipykernel==6.29.5
     # via jupyterlab
@@ -155,6 +159,7 @@ jedi==0.19.2
     # via ipython
 jinja2==3.1.6
     # via
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   jupyter-server
     #   jupyterlab
     #   jupyterlab-server
@@ -162,7 +167,7 @@ jinja2==3.1.6
     #   nbconvert
 jmespath==1.0.1
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   boto3
     #   botocore
 jsbeautifier==1.15.4
@@ -216,6 +221,7 @@ jupyterlab-server==2.27.3
     # via jupyterlab
 markupsafe==3.0.2
     # via
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   jinja2
     #   nbconvert
     #   werkzeug
@@ -248,7 +254,7 @@ overrides==7.7.0
     # via jupyter-server
 packaging==24.2
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   black
     #   ipykernel
     #   jupyter-events
@@ -267,7 +273,7 @@ pathspec==0.12.1
     #   djlint
 pexpect==4.9.0
     # via ipython
-platformdirs==4.3.6
+platformdirs==4.3.7
     # via
     #   black
     #   jupyter-core
@@ -280,7 +286,7 @@ prometheus-client==0.21.1
     # via jupyter-server
 prompt-toolkit==3.0.50
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   ipython
 psutil==7.0.0
     # via ipykernel
@@ -294,11 +300,11 @@ py-partiql-parser==0.6.1
     # via moto
 pycparser==2.22
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   cffi
 pygments==2.19.1
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   ipython
     #   ipython-pygments-lexers
     #   nbconvert
@@ -316,7 +322,7 @@ pytest-mock==3.14.0
     # via -r requirements/dev/dev.in
 python-dateutil==2.9.0.post0
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   arrow
     #   botocore
     #   jupyter-client
@@ -325,6 +331,7 @@ python-json-logger==3.3.0
     # via jupyter-events
 pyyaml==6.0.2
     # via
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   djlint
     #   jupyter-events
     #   moto
@@ -344,7 +351,7 @@ regex==2024.11.6
     # via djlint
 requests==2.32.3
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   jupyterlab-server
     #   moto
     #   requests-mock
@@ -361,34 +368,34 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
-rpds-py==0.23.1
+rpds-py==0.24.0
     # via
     #   jsonschema
     #   referencing
 s3transfer==0.11.4
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   boto3
 send2trash==1.8.3
     # via jupyter-server
 six==1.17.0
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   cssbeautifier
     #   jsbeautifier
     #   python-dateutil
     #   rfc3339-validator
 sniffio==1.3.1
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   anyio
 soupsieve==2.6
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   beautifulsoup4
 sqlparse==0.5.3
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   django
     #   django-debug-toolbar
 stack-data==0.6.3
@@ -407,7 +414,9 @@ tornado==6.4.2
     #   jupyterlab
     #   terminado
 tqdm==4.67.1
-    # via djlint
+    # via
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
+    #   djlint
 traitlets==5.14.3
     # via
     #   comm
@@ -426,30 +435,32 @@ types-psycopg2==2.9.21.20250318
     # via django-types
 types-python-dateutil==2.9.0.20241206
     # via arrow
-typing-extensions==4.12.2
+typing-extensions==4.13.0
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   beautifulsoup4
     #   referencing
 tzdata==2025.1
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   faker
 uri-template==1.3.0
     # via jsonschema
 urllib3==2.3.0
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   botocore
     #   requests
     #   responses
 virtualenv==20.29.3
     # via pre-commit
 watchfiles==1.0.4
-    # via django-watchfiles
+    # via
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
+    #   django-watchfiles
 wcwidth==0.2.13
     # via
-    #   -c requirements/dev/../base/base.txt
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   prompt-toolkit
 webcolors==24.11.1
     # via jsonschema

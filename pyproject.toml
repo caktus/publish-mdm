@@ -48,3 +48,7 @@ pythonpath = [ "." ]
 
 [tool.ruff]
 line-length = 100
+
+[tool.dagster]
+module_name = "dagster_publish_mdm.definitions"
+code_location_name = "dagster_publish_mdm"

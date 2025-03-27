@@ -41,6 +41,7 @@ class DeviceSnapshotAdmin(admin.ModelAdmin):
         "update_available",
         "user",
         # Non-API fields
+        "device",
         "tailnet",
         "synced_at",
         "raw_data",
@@ -77,6 +78,7 @@ class DeviceAdmin(admin.ModelAdmin):
     readonly_fields = (
         "name",
         "node_id",
+        "tailnet",
         "last_seen",
         "latest_snapshot",
     )

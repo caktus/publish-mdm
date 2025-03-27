@@ -33,3 +33,7 @@ segno
 sentry-sdk
 whitenoise
 pygments
+# Dagster
+dagster
+dagster-webserver
+pandas
