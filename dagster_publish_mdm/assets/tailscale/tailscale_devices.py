@@ -3,7 +3,6 @@ import datetime as dt
 import dagster as dg
 import django
 
-from dagster_publish_mdm.resources.postgres import PostgresResource
 from dagster_publish_mdm.resources.tailscale import TailscaleResource
 
 django.setup()
@@ -74,10 +73,7 @@ def tailscale_append_device_snapshot_table(
     deps=["tailscale_append_device_snapshot_table"],
     description="Updates consolidated list of Tailscale devices",
 )
-def tailscale_insert_and_update_devices(
-    context: dg.AssetExecutionContext,
-    db: PostgresResource,
-) -> tuple[int, int]:
+def tailscale_insert_and_update_devices(context: dg.AssetExecutionContext) -> tuple[int, int]:
     """Maintain a consolidated list of Tailscale devices"""
     updated_devices, new_devices = DeviceSnapshot.objects.assign_devices()
     context.log.info(

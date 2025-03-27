@@ -1,6 +1,5 @@
 [tool.black]
 line-length = 100
-target_version = [ 'py311' ]
 exclude = '''
 /(
   \.git
@@ -11,7 +10,7 @@ exclude = '''
 '''
 
 [tool.coverage.paths]
-source = ["apps"]
+source = ["apps", "dagster_publish_mdm"]
 
 [tool.coverage.report]
 show_missing = true
@@ -42,7 +41,7 @@ profile = "django"
 custom_blocks="switch,partialdef"
 
 [tool.pytest.ini_options]
-addopts = "--ds=config.settings.test --cov=apps --cov-report=html"
+addopts = "--ds=config.settings.test --cov=apps --cov=dagster_publish_mdm --cov-report=html"
 testpaths = [ "tests" ]
 pythonpath = [ "." ]
 

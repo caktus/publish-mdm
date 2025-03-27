@@ -35,36 +35,44 @@ class Device(models.Model):
 class DeviceSnapshotManager(models.Manager):
     @transaction.atomic()
     def assign_devices(self) -> tuple[int, int]:
-        with transaction.atomic():
-            """ """
-            # Get all snapshots that don't have a device
-            qs = self.get_queryset().filter(device_id=None).select_for_update()
-            # Get the device ID for each snapshot's node ID
-            subquery = Device.objects.filter(node_id=OuterRef("node_id"))
-            qs = qs.annotate(existing_device_id=Subquery(subquery.values("id")[:1]))
-            # Update the device_id field with the existing device ID
-            num_updated = qs.filter(existing_device_id__isnull=False).update(
-                device_id=models.F("existing_device_id")
+        """Assign devices to snapshots that don't have one."""
+        # Get all snapshots that don't have a device
+        qs = self.get_queryset().filter(device_id=None).select_for_update()
+        # Get the device ID for each snapshot's node ID
+        qs = qs.annotate(
+            existing_device_id=Subquery(
+                Device.objects.filter(node_id=OuterRef("node_id")).values("id")[:1]
             )
-            Device.objects.filter(node_id__in=qs.values("node_id")).update(
-                last_seen=models.F("latest_snapshot__last_seen")
+        )
+        # Update the device_id field with the existing device ID
+        num_updated = qs.filter(existing_device_id__isnull=False).update(
+            device_id=models.F("existing_device_id")
+        )
+        # Create new devices for any snapshots that don't have one
+        new_devices = []
+        for snapshot in qs.filter(existing_device_id=None):
+            device, _ = Device.objects.get_or_create(
+                node_id=snapshot.node_id,
+                defaults={
+                    "name": snapshot.name,
+                    "last_seen": snapshot.last_seen,
+                    "tailnet": snapshot.tailnet,
+                    "latest_snapshot": snapshot,
+                },
             )
-            # Create new devices for any snapshots that don't have one
-            new_devices = []
-            for snapshot in qs.filter(existing_device_id=None):
-                device, _ = Device.objects.get_or_create(
-                    node_id=snapshot.node_id,
-                    defaults={
-                        "name": snapshot.name,
-                        "last_seen": snapshot.last_seen,
-                        "tailnet": snapshot.tailnet,
-                        "latest_snapshot": snapshot,
-                    },
-                )
-                snapshot.device = device
-                snapshot.save()
-                new_devices.append(device)
-            return num_updated, len(new_devices)
+            # Update the snapshot with the new device too
+            snapshot.device = device
+            snapshot.save()
+            new_devices.append(device)
+        # Update the latest_snapshot_id field for all devices
+        Device.objects.annotate(
+            new_snapshot_id=Subquery(
+                DeviceSnapshot.objects.filter(device_id=OuterRef("id"))
+                .order_by("-synced_at")
+                .values("id")[:1]
+            )
+        ).update(latest_snapshot_id=models.F("new_snapshot_id"))
+        return num_updated, len(new_devices)
 
 
 class DeviceSnapshot(models.Model):
