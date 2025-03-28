@@ -297,6 +297,13 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
             "template_variables": CheckboxSelectMultiple,
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Limit template variables to those linked to the project's organization
+        self.fields[
+            "template_variables"
+        ].queryset = self.instance.organization.template_variables.all()
+
 
 class ProjectTemplateVariableForm(PlatformFormMixin, forms.ModelForm):
     """A form for adding or editing a ProjectTemplateVariable."""
@@ -308,6 +315,12 @@ class ProjectTemplateVariableForm(PlatformFormMixin, forms.ModelForm):
             "template_variable": Select,
             "value": TextInput,
         }
+
+    def __init__(self, *args, **kwargs):
+        valid_template_variables = kwargs.pop("valid_template_variables", None)
+        super().__init__(*args, **kwargs)
+        if valid_template_variables is not None:
+            self.fields["template_variable"].queryset = valid_template_variables
 
 
 ProjectTemplateVariableFormSet = forms.models.inlineformset_factory(

@@ -401,7 +401,9 @@ def edit_project(request, organization_slug, odk_project_pk):
     """Edit a Project."""
     form = ProjectForm(request.POST or None, instance=request.odk_project)
     variables_formset = ProjectTemplateVariableFormSet(
-        request.POST or None, instance=request.odk_project
+        request.POST or None,
+        instance=request.odk_project,
+        form_kwargs={"valid_template_variables": request.organization.template_variables.all()},
     )
     if request.method == "POST" and all([form.is_valid(), variables_formset.is_valid()]):
         form.save()

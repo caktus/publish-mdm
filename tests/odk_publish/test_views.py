@@ -632,8 +632,8 @@ class TestEditProject(ViewTestBase):
         return CentralServerFactory()
 
     @pytest.fixture
-    def template_variables(self):
-        return TemplateVariableFactory.create_batch(2)
+    def template_variables(self, project):
+        return TemplateVariableFactory.create_batch(2, organization=project.organization)
 
     @pytest.fixture
     def data(self, project, template_variables):
@@ -766,6 +766,34 @@ class TestEditProject(ViewTestBase):
             == expected_error
         )
         assert expected_error in response.content.decode()
+
+    def test_invalid_template_variable_choice(self, client, url, user, project, data):
+        """Ensure cannot select a template variable that is not linked to the project's
+        organization, both in the form and in the variables formset.
+        """
+        template_variable = TemplateVariableFactory()
+        data.update(
+            {
+                "template_variables": [template_variable.id],
+                "project_template_variables-0-template_variable": template_variable.id,
+            }
+        )
+        response = client.post(url, data=data)
+        self.check_invalid_form_or_formset(project, data, response)
+        # Ensure the expected form error message is displayed on the page
+        response_content = response.content.decode()
+        expected_error = (
+            f"Select a valid choice. {template_variable.id} is not one of the available choices."
+        )
+        assert response.context["form"].errors["template_variables"][0] == expected_error
+        assert expected_error in response_content
+        # Ensure the expected formset error message is displayed on the page
+        expected_error = "Select a valid choice. That choice is not one of the available choices."
+        assert (
+            response.context["variables_formset"].errors[0]["template_variable"][0]
+            == expected_error
+        )
+        assert expected_error in response_content
 
 
 class TestOrganizationHome(ViewTestBase):
