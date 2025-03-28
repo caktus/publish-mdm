@@ -1,21 +1,22 @@
+import datetime as dt
 import json
 import os
+
 import structlog
-
-from django.db.models import Q
-
+from django.db.models import Q, Subquery, OuterRef, F
+from django.utils import timezone
+from requests import Session
+from requests.adapters import HTTPAdapter
 from requests_ratelimiter import LimiterSession
 from urllib3.util.retry import Retry
-from requests.adapters import HTTPAdapter
 
+from apps.mdm.models import Device, DeviceSnapshot, DeviceSnapshotApp, Policy
 from apps.odk_publish.models import AppUser
-from apps.mdm.models import Policy, Device
-
 
 logger = structlog.getLogger(__name__)
 
 
-def get_tinymdm_session():
+def get_tinymdm_session() -> Session:
     """
     Creates a requests session suitable for use with the TinyMDM API. Should be
     shared across all requests during a to avoid hitting the rate limit.
@@ -42,7 +43,7 @@ def get_tinymdm_session():
     return session
 
 
-def update_existing_devices(policy, mdm_devices):
+def update_existing_devices(policy: Policy, mdm_devices: list[dict]):
     """
     Updates existing devices in our datatabase based on the full list
     of mdm_devices returned form the TinyMDM API.
@@ -75,7 +76,7 @@ def update_existing_devices(policy, mdm_devices):
     return our_devices
 
 
-def create_new_devices(policy, mdm_devices):
+def create_new_devices(policy: Policy, mdm_devices: list[dict]):
     """
     Creates new devices in our database based on the mdm_devices
     received from the API. This list must not contain devices that
@@ -96,7 +97,65 @@ def create_new_devices(policy, mdm_devices):
     return mdm_devices_to_create
 
 
-def pull_devices(session, policy):
+def create_device_snapshots(session: Session, policy: Policy, mdm_devices: list[dict]):
+    """ """
+    sync_time = timezone.now()
+
+    # Create snapshots for each device
+    logger.debug("Creating device snapshots", policy=policy, total_devices=len(mdm_devices))
+    snapshots: list[DeviceSnapshot] = []
+    for mdm_device in mdm_devices:
+        last_sync = dt.datetime.fromtimestamp(mdm_device["last_sync_timestamp"], tz=dt.UTC)
+        latitude, longitude = None, None
+        geolocation_positions = mdm_device.get("geolocation_positions", [])
+        if len(geolocation_positions) > 0:
+            latest_coordinates = geolocation_positions[-1]
+            latitude = latest_coordinates.get("latitude")
+            longitude = latest_coordinates.get("longitude")
+        snapshots.append(
+            DeviceSnapshot(
+                device_id=mdm_device["id"],
+                name=mdm_device["nickname"] or mdm_device["name"],
+                serial_number=mdm_device["serial_number"] or "",
+                manufacturer=mdm_device["manufacturer"],
+                os_version=mdm_device["os_version"],
+                battery_level=mdm_device["battery_level"],
+                enrollment_type=mdm_device["enrollment_type"],
+                last_sync=last_sync,
+                latitude=latitude,
+                longitude=longitude,
+                # Non-API fields
+                raw_mdm_device=mdm_device,
+                synced_at=sync_time,
+            )
+        )
+    snapshots = DeviceSnapshot.objects.bulk_create(snapshots)
+
+    # Create app snapshots for each device
+    logger.debug("Creating app snapshots", policy=policy)
+    app_snapshots: list[DeviceSnapshotApp] = []
+    for snapshot in snapshots:
+        url = f"https://www.tinymdm.net/api/v1/devices/{snapshot.device_id}/apps"
+        response = session.request("GET", url)
+        response.raise_for_status()
+        apps = response.json()["results"]
+        logger.debug("Creating app snapshots", app_count=len(apps), device_id=snapshot.device_id)
+        app_snapshots.extend(
+            [
+                DeviceSnapshotApp(
+                    device_snapshot=snapshot,
+                    package_name=app["package_name"],
+                    app_name=app["app_name"],
+                    version_code=app["version_code"],
+                    version_name=app["version_name"],
+                )
+                for app in apps
+            ]
+        )
+    DeviceSnapshotApp.objects.bulk_create(app_snapshots)
+
+
+def pull_devices(session: Session, policy: Policy):
     """
     Retrieves devices from TinyMDM and updates or creates the records in our
     database for those devices.
@@ -107,15 +166,39 @@ def pull_devices(session, policy):
     response = session.request("GET", url, params=querystring)
     response.raise_for_status()
     mdm_devices = response.json()["results"]
+    create_device_snapshots(session=session, policy=policy, mdm_devices=mdm_devices)
     our_devices = update_existing_devices(policy, mdm_devices)
     our_device_ids = {device.device_id for device in our_devices}
     mdm_devices_to_create = [
         mdm_device for mdm_device in mdm_devices if mdm_device["id"] not in our_device_ids
     ]
     create_new_devices(policy, mdm_devices_to_create)
+    # Link snapshots to devices
+    # Get all snapshots that don't have a device
+    qs = DeviceSnapshot.objects.filter(mdm_device_id=None).select_for_update()
+    # Get the ID for each snapshot's device_id
+    qs = qs.annotate(
+        existing_device_id=Subquery(
+            Device.objects.filter(device_id=OuterRef("device_id")).values("id")[:1]
+        )
+    )
+    # Update the device_id field with the existing device ID
+    num_updated = qs.filter(existing_device_id__isnull=False).update(
+        mdm_device_id=F("existing_device_id")
+    )
+    logger.debug("Set device_id on snapshots", num_updated=num_updated)
+    # Update the latest_snapshot_id field for all devices
+    Device.objects.annotate(
+        new_snapshot_id=Subquery(
+            DeviceSnapshot.objects.filter(mdm_device_id=OuterRef("id"))
+            .order_by("-synced_at")
+            .values("id")[:1]
+        )
+    ).update(latest_snapshot_id=F("new_snapshot_id"))
+    logger.debug("Set latest_snapshot_id on devices")
 
 
-def push_device_config(session, device: Device):
+def push_device_config(session: Session, device: Device):
     """
     Updates "custom_field_1" on the device's user record in TinyMDM
     with the ODK Collect configuration necessary to attach to the devices project.
@@ -158,7 +241,7 @@ def push_device_config(session, device: Device):
     response.raise_for_status()
 
 
-def sync_policy(session, policy):
+def sync_policy(session: Session, policy: Policy, push_config: bool = True):
     """
     Synchronizes the remote TinyMDM device list with our database,
     and updates the device (user) configuration in TinyMDM based on the
@@ -166,11 +249,12 @@ def sync_policy(session, policy):
     """
     logger.info("Syncing policy to TinyMDM devices", policy=policy)
     pull_devices(session, policy)
-    for device in policy.devices.exclude(app_user_name="").select_related("policy").all():
-        push_device_config(session, device)
+    if push_config:
+        for device in policy.devices.exclude(app_user_name="").select_related("policy").all():
+            push_device_config(session=session, device=device)
 
 
-def sync_policies():
+def sync_policies(push_config: bool = True):
     """
     Synchronizes all configured policies with TinyMDM and updates the applicable
     device configurations.
@@ -178,4 +262,4 @@ def sync_policies():
     logger.info("Syncing policies with TinyMDM")
     session = get_tinymdm_session()
     for policy in Policy.objects.all():
-        sync_policy(session, policy)
+        sync_policy(session=session, policy=policy, push_config=push_config)
