@@ -75,7 +75,9 @@ class TemplateVariable(AbstractBaseModel):
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["name"], name="unique_template_variable_name"),
+            models.UniqueConstraint(
+                fields=["name", "organization"], name="unique_template_variable_name"
+            ),
         ]
 
 
