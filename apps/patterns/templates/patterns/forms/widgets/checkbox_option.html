@@ -1,6 +1,7 @@
 <div class="flex items-center mb-2">
     {% if widget.wrap_label %}
-        <label {% if widget.attrs.id %}for="{{ widget.attrs.id }}"{% endif %}>
+        <label {% if widget.attrs.id %}for="{{ widget.attrs.id }}"{% endif %}
+               class="dark:text-white">
         {% endif %}
         <input type="{{ widget.type }}"
                name="{{ widget.name }}"
