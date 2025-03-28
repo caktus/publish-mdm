@@ -35,5 +35,6 @@ whitenoise
 pygments
 # Dagster
 dagster
-dagster-webserver
 dagster-k8s
+dagster-postgres
+dagster-webserver

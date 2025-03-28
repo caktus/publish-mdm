@@ -40,9 +40,9 @@ beautifulsoup4==4.13.3
     # via -r requirements/base/base.in
 billiard==4.2.1
     # via celery
-boto3==1.37.22
+boto3==1.37.23
     # via -r requirements/base/base.in
-botocore==1.37.22
+botocore==1.37.23
     # via
     #   boto3
     #   s3transfer
@@ -95,6 +95,7 @@ dagster==1.10.6
     #   -r requirements/base/base.in
     #   dagster-graphql
     #   dagster-k8s
+    #   dagster-postgres
     #   dagster-webserver
 dagster-graphql==1.10.6
     # via dagster-webserver
@@ -102,6 +103,8 @@ dagster-k8s==0.26.6
     # via -r requirements/base/base.in
 dagster-pipes==1.10.6
     # via dagster
+dagster-postgres==0.26.6
+    # via -r requirements/base/base.in
 dagster-shared==0.26.6
     # via dagster
 dagster-webserver==1.10.6
@@ -261,6 +264,8 @@ protobuf==5.29.4
     #   grpcio-health-checking
 psycopg==3.2.6
     # via -r requirements/base/base.in
+psycopg2-binary==2.9.10
+    # via dagster-postgres
 pyasn1==0.6.1
     # via
     #   pyasn1-modules
