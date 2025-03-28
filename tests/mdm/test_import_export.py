@@ -151,3 +151,33 @@ class TestDeviceResource:
         row_number, error_list = row_errors[0]
         assert row_number == 5
         assert isinstance(error_list[0].error, models.Policy.DoesNotExist)
+
+    @pytest.mark.parametrize("dry_run", [True, False])
+    def test_valid_import_dry_run(self, policy, devices, dataset, mocker, dry_run):
+        """Ensure we only push to the MDM when an import is confirmed and not
+        during the dry run (preview).
+        """
+        # Add one edited device to the import data
+        device = devices[0]
+        row = list(models.Device.objects.values_list(*dataset.headers).get(id=device.id))
+        row[-1] = device.device_id = f"edited-{row[-1]}"
+        dataset.append(row)
+
+        resource = import_export.DeviceResource()
+        mock_device_save = mocker.patch.object(models.Device, "save", wraps=device.save)
+        mock_get_tinymdm_session = mocker.patch("apps.mdm.tasks.get_tinymdm_session")
+        mock_push_device_config = mocker.patch("apps.mdm.tasks.push_device_config")
+
+        # Do the import
+        result = resource.import_data(dataset, dry_run=dry_run)
+        # Ensure there are no validation errors
+        assert len(result.valid_rows()) == 1
+        # Ensure Device.save is called and push_device_config() is only called
+        # if the import is not a dry run
+        mock_device_save.assert_called()
+        if dry_run:
+            mock_get_tinymdm_session.assert_not_called()
+            mock_push_device_config.assert_not_called()
+        else:
+            mock_get_tinymdm_session.assert_called()
+            mock_push_device_config.assert_called()

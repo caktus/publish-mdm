@@ -1,7 +1,11 @@
+import structlog
 from django.db import models
 from django.core.validators import RegexValidator
 
 from apps.odk_publish.models import Project
+
+
+logger = structlog.get_logger()
 
 
 class Policy(models.Model):
@@ -75,9 +79,18 @@ class Device(models.Model):
     def save(self, *args, **kwargs):
         from apps.mdm.tasks import get_tinymdm_session, push_device_config
 
+        push_to_mdm = kwargs.pop("push_to_mdm", True)
         super().save(*args, **kwargs)
-        if session := get_tinymdm_session():
-            push_device_config(session, self)
+        logger.info(
+            "Device saved",
+            device_id=self.device_id,
+            push_to_mdm=push_to_mdm,
+            app_user_name=self.app_user_name,
+        )
+
+        if push_to_mdm:
+            if session := get_tinymdm_session():
+                push_device_config(session, self)
 
     class Meta:
         constraints = [
