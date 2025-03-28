@@ -42,8 +42,8 @@ class TestAppUserImport:
     @pytest.fixture
     def project(self):
         project = ProjectFactory()
-        project.template_variables.create(name="var1")
-        project.template_variables.create(name="var2")
+        project.template_variables.create(name="var1", organization=project.organization)
+        project.template_variables.create(name="var2", organization=project.organization)
         return project
 
     def test_login_required(self, client, url):
@@ -58,7 +58,7 @@ class TestAppUserImport:
     def url(self, project):
         return reverse(
             "odk_publish:app-users-import",
-            kwargs={"odk_project_pk": project.pk},
+            kwargs={"organization_slug": project.organization.slug, "odk_project_pk": project.pk},
         )
 
     @pytest.fixture
@@ -136,7 +136,10 @@ class TestAppUserImport:
         assert response.status_code == 200
         assert AppUser.objects.count() == 2
         assert response.redirect_chain == [
-            (reverse("odk_publish:app-user-list", args=[project.id]), 302)
+            (
+                reverse("odk_publish:app-user-list", args=[project.organization.slug, project.id]),
+                302,
+            )
         ]
         assert (
             "Import finished successfully, with 2 new and 0 updated app users."

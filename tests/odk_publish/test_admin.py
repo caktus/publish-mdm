@@ -26,6 +26,7 @@ class TestChangeFormTemplate:
         return reverse(
             "odk_publish:edit-form-template",
             kwargs={
+                "organization_slug": form_template.project.organization.slug,
                 "odk_project_pk": form_template.project_id,
                 "form_template_id": form_template.id,
             },

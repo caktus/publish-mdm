@@ -39,7 +39,7 @@
                          data-popper-placement="bottom">
                         {% for project in request.odk_projects %}
                             {% if project != request.odk_project %}
-                                <a href="{% url 'odk_publish:form-template-list' project.pk %}"
+                                <a href="{% url 'odk_publish:form-template-list' project.organization.slug project.pk %}"
                                    class="flex items-center py-3 px-4 rounded hover:bg-gray-50 dark:hover:bg-gray-600">
                                     <div class="text-left">
                                         <div class="font-semibold leading-none text-gray-900 dark:text-white mb-0.5">{{ project.name }}</div>
@@ -53,10 +53,12 @@
             </div>
             <div class="flex justify-between items-center lg:order-2">
                 <ul class="hidden flex-col mt-0 mr-0 w-full text-sm font-medium text-gray-900 md:flex md:flex-row dark:text-white">
-                    <li>
-                        <a href="{% url 'odk_publish:server-sync' %}"
-                           class="btn btn-outline mr-4">Sync Project</a>
-                    </li>
+                    {% if request.organization %}
+                        <li>
+                            <a href="{% url 'odk_publish:server-sync' request.organization.slug %}"
+                               class="btn btn-outline mr-4">Sync Project</a>
+                        </li>
+                    {% endif %}
                     {% if request.user.is_superuser %}
                         <li>
                             <a href="{% url 'admin:index' %}"
@@ -117,9 +119,48 @@
                                     <a href="{% url 'socialaccount_connections' %}"
                                        class="block py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-400 dark:hover:text-white">Account settings</a>
                                 </li>
-                            </ul>
-                            <ul class="py-1 text-gray-500 dark:text-gray-400"
-                                aria-labelledby="dropdown">
+                                <li>
+                                    <button id="doubleDropdownButton"
+                                            data-dropdown-toggle="doubleDropdown"
+                                            data-dropdown-placement="left-start"
+                                            type="button"
+                                            class="flex items-center justify-between w-full py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white cursor-pointer">
+                                        Organizations
+                                    </button>
+                                    <div id="doubleDropdown"
+                                         class="hidden z-50 my-4 w-64 text-base list-none bg-white rounded divide-y divide-gray-100 shadow dark:bg-gray-700 dark:divide-gray-600">
+                                        {% if request.organizations %}
+                                            <ul class="py-1 text-gray-500 dark:text-gray-400"
+                                                aria-labelledby="doubleDropdownButton">
+                                                {% for organization in request.organizations %}
+                                                    <li>
+                                                        {% if organization == request.organization %}
+                                                            <div class="flex items-center justify-between w-full py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white font-bold cursor-default">
+                                                                {{ organization.name }}
+                                                                <svg class="w-[18px] h-[18px]"
+                                                                     aria-hidden="true"
+                                                                     xmlns="http://www.w3.org/2000/svg"
+                                                                     width="24"
+                                                                     height="24"
+                                                                     fill="none"
+                                                                     viewBox="0 0 24 24">
+                                                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 11.917 9.724 16.5 19 7.5" />
+                                                                </svg>
+                                                            </div>
+                                                        {% else %}
+                                                            <a href="{% url 'odk_publish:organization-home' organization.slug %}"
+                                                               class="block py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-400 dark:hover:text-white">{{ organization.name }}</a>
+                                                        {% endif %}
+                                                    </li>
+                                                {% endfor %}
+                                            </ul>
+                                        {% endif %}
+                                        <div class="py-1 text-gray-500 dark:text-gray-400">
+                                            <a href="{% url 'odk_publish:create-organization' %}"
+                                               class="block py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-400 dark:hover:text-white">Create an organization</a>
+                                        </div>
+                                    </div>
+                                </li>
                                 <li>
                                     <a href="{% url 'account_logout' %}"
                                        class="block py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">Sign out</a>

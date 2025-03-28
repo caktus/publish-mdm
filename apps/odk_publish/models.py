@@ -27,10 +27,21 @@ class AbstractBaseModel(models.Model):
         abstract = True
 
 
+class Organization(AbstractBaseModel):
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=255, unique=True)
+
+    def __str__(self):
+        return self.name
+
+
 class CentralServer(AbstractBaseModel):
     """A server running ODK Central."""
 
     base_url = models.URLField(max_length=1024)
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="central_servers"
+    )
 
     def __str__(self):
         parsed_url = urlparse(self.base_url)
@@ -55,6 +66,9 @@ class TemplateVariable(AbstractBaseModel):
         ],
     )
     transform = models.CharField(choices=template.VariableTransform.choices(), blank=True)
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="template_variables"
+    )
 
     def __str__(self):
         return self.name
@@ -81,6 +95,9 @@ class Project(AbstractBaseModel):
         verbose_name="App user template variables",
         help_text="Variables selected here will be set for each app user.",
         blank=True,
+    )
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="projects"
     )
 
     def __str__(self):

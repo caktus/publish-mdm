@@ -11,7 +11,7 @@ from apps.patterns.widgets import Select, FileInput, TextInput, InputWithAddon, 
 
 from .etl.odk.client import ODKPublishClient
 from .http import HttpRequest
-from .models import AppUser, AppUserTemplateVariable, FormTemplate
+from .models import AppUser, AppUserTemplateVariable, FormTemplate, Organization
 
 logger = structlog.getLogger(__name__)
 
@@ -269,3 +269,13 @@ AppUserTemplateVariableFormSet = forms.models.inlineformset_factory(
     AppUser, AppUserTemplateVariable, form=AppUserTemplateVariableForm, extra=0
 )
 AppUserTemplateVariableFormSet.deletion_widget = CheckboxInput
+
+
+class OrganizationForm(PlatformFormMixin, forms.ModelForm):
+    class Meta:
+        model = Organization
+        fields = ["name", "slug"]
+        widgets = {
+            "name": TextInput,
+            "slug": TextInput,
+        }

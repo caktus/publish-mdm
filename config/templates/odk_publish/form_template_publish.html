@@ -27,7 +27,7 @@
                         </div>
                         <div class="flex items-center space-x-4">
                             <button type="submit"
-                                    hx-post="{% url 'odk_publish:form-template-publish' request.odk_project.id form_template.id %}"
+                                    hx-post="{% url 'odk_publish:form-template-publish' request.organization.slug request.odk_project.id form_template.id %}"
                                     :disabled="$store.publishing"
                                     :class="{'btn-disabled': $store.publishing}"
                                     class="btn btn-outline btn-primary w-full">

@@ -18,6 +18,16 @@ class BaseMetaFactory(Generic[T], factory.base.FactoryMetaClass):
         return super().__call__(*args, **kwargs)
 
 
+class OrganizationFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Organization]
+):
+    class Meta:
+        model = models.Organization
+
+    name = factory.Faker("company")
+    slug = factory.Faker("slug")
+
+
 class CentralServerFactory(
     factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.CentralServer]
 ):
@@ -25,6 +35,7 @@ class CentralServerFactory(
         model = models.CentralServer
 
     base_url = factory.Faker("url")
+    organization = factory.SubFactory(OrganizationFactory)
 
 
 class TemplateVariableFactory(
@@ -34,6 +45,7 @@ class TemplateVariableFactory(
         model = models.TemplateVariable
 
     name = factory.Faker("word")
+    organization = factory.SubFactory(OrganizationFactory)
 
 
 class ProjectFactory(factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Project]):
@@ -43,6 +55,7 @@ class ProjectFactory(factory.django.DjangoModelFactory, metaclass=BaseMetaFactor
     central_id = factory.Sequence(lambda n: n)
     central_server = factory.SubFactory(CentralServerFactory)
     name = factory.Faker("word")
+    organization = factory.SubFactory(OrganizationFactory)
 
 
 class ProjectTemplateVariableFactory(

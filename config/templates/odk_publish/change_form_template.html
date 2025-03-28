@@ -31,7 +31,7 @@
                     </button>
                     <a type="button"
                        class="btn btn-outline"
-                       href="{% url 'odk_publish:form-template-list' request.odk_project.pk %}">Cancel</a>
+                       href="{% url 'odk_publish:form-template-list' request.organization.slug request.odk_project.pk %}">Cancel</a>
                 </div>
             </div>
         </form>

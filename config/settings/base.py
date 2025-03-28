@@ -86,6 +86,7 @@ MIDDLEWARE = [
     "django_htmx.middleware.HtmxMiddleware",
     "django_structlog.middlewares.RequestMiddleware",
     "allauth.account.middleware.AccountMiddleware",
+    "apps.odk_publish.middleware.OrganizationMiddleware",
     "apps.odk_publish.middleware.ODKProjectMiddleware",
 ]
 
@@ -173,8 +174,10 @@ SOCIALACCOUNT_PROVIDERS = {
         "AUTH_PARAMS": {
             "access_type": "offline",
         },
+        "FETCH_USERINFO": True,
     }
 }
+ACCOUNT_SIGNUP_REDIRECT_URL = "odk_publish:create-organization"
 
 # Google Auth
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")

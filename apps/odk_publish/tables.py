@@ -15,7 +15,7 @@ class FormTemplateTable(tables.Table):
     )
     title_base = tables.LinkColumn(
         "odk_publish:form-template-detail",
-        args=[tables.A("project_id"), tables.A("pk")],
+        args=[tables.A("project.organization.slug"), tables.A("project_id"), tables.A("pk")],
         attrs={"a": {"class": "text-primary-600 hover:underline"}},
     )
 

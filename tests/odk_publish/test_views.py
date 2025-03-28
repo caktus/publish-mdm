@@ -12,13 +12,14 @@ from tests.odk_publish.factories import (
     AppUserFactory,
     AppUserFormTemplateFactory,
     FormTemplateFactory,
+    OrganizationFactory,
     ProjectFactory,
     UserFactory,
 )
 from apps.odk_publish.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from apps.odk_publish.etl.odk.publish import ProjectAppUserAssignment
-from apps.odk_publish.forms import AppUserForm, AppUserTemplateVariableFormSet
-from apps.odk_publish.models import AppUser, FormTemplate
+from apps.odk_publish.forms import AppUserForm, AppUserTemplateVariableFormSet, OrganizationForm
+from apps.odk_publish.models import AppUser, FormTemplate, Organization
 
 
 @pytest.mark.django_db
@@ -54,7 +55,11 @@ class TestPublishTemplate(ViewTestBase):
     def url(self, project, form_template):
         return reverse(
             "odk_publish:form-template-publish",
-            kwargs={"odk_project_pk": project.pk, "form_template_id": form_template.pk},
+            kwargs={
+                "organization_slug": project.organization.slug,
+                "odk_project_pk": project.pk,
+                "form_template_id": form_template.pk,
+            },
         )
 
     def test_post(self, client, url, user, project, form_template):
@@ -86,7 +91,11 @@ class TestAppUserDetail(ViewTestBase):
     def url(self, app_user):
         return reverse(
             "odk_publish:app-user-detail",
-            kwargs={"odk_project_pk": app_user.project.pk, "app_user_pk": app_user.pk},
+            kwargs={
+                "organization_slug": app_user.project.organization.slug,
+                "odk_project_pk": app_user.project.pk,
+                "app_user_pk": app_user.pk,
+            },
         )
 
     def test_get(self, client, url, user, app_user):
@@ -120,7 +129,7 @@ class TestGenerateQRCodes(ViewTestBase):
     def url(self, project):
         return reverse(
             "odk_publish:app-users-generate-qr-codes",
-            kwargs={"odk_project_pk": project.pk},
+            kwargs={"organization_slug": project.organization.slug, "odk_project_pk": project.pk},
         )
 
     def test_get(self, client, url, user, project, app_users, mocker):
@@ -152,7 +161,10 @@ class TestGenerateQRCodes(ViewTestBase):
         response = client.get(url, follow=True)
         assert response.status_code == 200
         assert response.redirect_chain == [
-            (reverse("odk_publish:app-user-list", args=[project.id]), 302)
+            (
+                reverse("odk_publish:app-user-list", args=[project.organization.slug, project.id]),
+                302,
+            )
         ]
         # All app users should have their qr_code and qr_code_data fields set now
         assert project.app_users.filter(Q(qr_code="") | Q(qr_code_data__isnull=True)).count() == 0
@@ -166,6 +178,10 @@ class TestNonExistentProjectID:
         user.save()
         client.force_login(user=user)
         return user
+
+    @pytest.fixture
+    def project(self):
+        return ProjectFactory()
 
     @pytest.mark.parametrize(
         "url_name",
@@ -181,7 +197,7 @@ class TestNonExistentProjectID:
         """Ensure URLs that take a project ID as an argument return a 404 status code
         instead of a 500 for non-existent project IDs.
         """
-        url = reverse(f"odk_publish:{url_name}", args=[99])
+        url = reverse(f"odk_publish:{url_name}", args=[OrganizationFactory().slug, 99])
         response = client.get(url)
         assert response.status_code == 404
 
@@ -193,7 +209,7 @@ class TestAddFormTemplate(ViewTestBase):
     def url(self, project):
         return reverse(
             "odk_publish:add-form-template",
-            kwargs={"odk_project_pk": project.pk},
+            kwargs={"organization_slug": project.organization.slug, "odk_project_pk": project.pk},
         )
 
     def test_get(self, client, url, user):
@@ -225,7 +241,12 @@ class TestAddFormTemplate(ViewTestBase):
         assert form_template_values == data
         # Ensure the view redirects to the form templates list page
         assert response.redirect_chain == [
-            (reverse("odk_publish:form-template-list", args=[project.id]), 302)
+            (
+                reverse(
+                    "odk_publish:form-template-list", args=[project.organization.slug, project.id]
+                ),
+                302,
+            )
         ]
         # Ensure there is a success message
         assert (
@@ -245,6 +266,7 @@ class TestEditFormTemplate(ViewTestBase):
         return reverse(
             "odk_publish:edit-form-template",
             kwargs={
+                "organization_slug": form_template.project.organization.slug,
                 "odk_project_pk": form_template.project_id,
                 "form_template_id": form_template.id,
             },
@@ -280,7 +302,13 @@ class TestEditFormTemplate(ViewTestBase):
         assert form_template_values == data
         # Ensure the view redirects to the form templates list page
         assert response.redirect_chain == [
-            (reverse("odk_publish:form-template-list", args=[form_template.project_id]), 302)
+            (
+                reverse(
+                    "odk_publish:form-template-list",
+                    args=[form_template.project.organization.slug, form_template.project_id],
+                ),
+                302,
+            )
         ]
         # Ensure there is a success message
         assert (
@@ -294,14 +322,14 @@ class TestAddAppUser(ViewTestBase):
     def url(self, project):
         return reverse(
             "odk_publish:add-app-user",
-            kwargs={"odk_project_pk": project.pk},
+            kwargs={"organization_slug": project.organization.slug, "odk_project_pk": project.pk},
         )
 
     @pytest.fixture
     def template_variables(self, project):
         return [
-            project.template_variables.create(name="var1"),
-            project.template_variables.create(name="var2"),
+            project.template_variables.create(name="var1", organization=project.organization),
+            project.template_variables.create(name="var2", organization=project.organization),
         ]
 
     def test_get(self, client, url, user):
@@ -335,7 +363,10 @@ class TestAddAppUser(ViewTestBase):
         assert app_user.template_variables.count() == 0
         # Ensure the view redirects to the app users list page
         assert response.redirect_chain == [
-            (reverse("odk_publish:app-user-list", args=[project.id]), 302)
+            (
+                reverse("odk_publish:app-user-list", args=[project.organization.slug, project.id]),
+                302,
+            )
         ]
         # Ensure there is a success message
         assert f"Successfully added {app_user}." in response.content.decode()
@@ -360,7 +391,10 @@ class TestAddAppUser(ViewTestBase):
             assert var.value == f"{var.template_variable.name} value"
         # Ensure the view redirects to the app users list page
         assert response.redirect_chain == [
-            (reverse("odk_publish:app-user-list", args=[project.id]), 302)
+            (
+                reverse("odk_publish:app-user-list", args=[project.organization.slug, project.id]),
+                302,
+            )
         ]
         # Ensure there is a success message
         assert f"Successfully added {app_user}." in response.content.decode()
@@ -422,8 +456,8 @@ class TestEditAppUser(ViewTestBase):
     @pytest.fixture
     def template_variables(self, project):
         return [
-            project.template_variables.create(name="var1"),
-            project.template_variables.create(name="var2"),
+            project.template_variables.create(name="var1", organization=project.organization),
+            project.template_variables.create(name="var2", organization=project.organization),
         ]
 
     @pytest.fixture
@@ -439,7 +473,11 @@ class TestEditAppUser(ViewTestBase):
     def url(self, app_user):
         return reverse(
             "odk_publish:edit-app-user",
-            kwargs={"odk_project_pk": app_user.project_id, "app_user_id": app_user.id},
+            kwargs={
+                "organization_slug": app_user.project.organization.slug,
+                "odk_project_pk": app_user.project_id,
+                "app_user_id": app_user.id,
+            },
         )
 
     def test_get(self, client, url, user, app_user):
@@ -486,7 +524,13 @@ class TestEditAppUser(ViewTestBase):
             assert var.value == f"edited {var.template_variable.name} value"
         # Ensure the view redirects to the app users list page
         assert response.redirect_chain == [
-            (reverse("odk_publish:app-user-list", args=[app_user.project_id]), 302)
+            (
+                reverse(
+                    "odk_publish:app-user-list",
+                    args=[app_user.project.organization.slug, app_user.project_id],
+                ),
+                302,
+            )
         ]
         # Ensure there is a success message
         assert f"Successfully edited {app_user}." in response.content.decode()
@@ -510,7 +554,13 @@ class TestEditAppUser(ViewTestBase):
         assert app_user_template_var.template_variable == template_variables[1]
         # Ensure the view redirects to the app users list page
         assert response.redirect_chain == [
-            (reverse("odk_publish:app-user-list", args=[app_user.project_id]), 302)
+            (
+                reverse(
+                    "odk_publish:app-user-list",
+                    args=[app_user.project.organization.slug, app_user.project_id],
+                ),
+                302,
+            )
         ]
         # Ensure there is a success message
         assert f"Successfully edited {app_user}." in response.content.decode()
@@ -557,4 +607,67 @@ class TestEditAppUser(ViewTestBase):
         # Ensure the expected error message is displayed on the page
         expected_error = "This field is required."
         assert response.context["variables_formset"].errors[0]["value"][0] == expected_error
+        assert expected_error in response.content.decode()
+
+
+class TestOrganizationHome(ViewTestBase):
+    @pytest.fixture
+    def organization(self):
+        return OrganizationFactory()
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse(
+            "odk_publish:organization-home",
+            kwargs={
+                "organization_slug": organization.slug,
+            },
+        )
+
+
+class TestCreateOrganization(ViewTestBase):
+    @pytest.fixture
+    def url(self):
+        return reverse("odk_publish:create-organization")
+
+    def test_get(self, client, url, user):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), OrganizationForm)
+
+    def test_valid_form(self, client, url, user):
+        """Test a valid form."""
+        data = {"name": "New organization", "slug": "new-org"}
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        # Ensure the Organization has been created with the expected values
+        assert Organization.objects.count() == 1
+        organization = Organization.objects.get()
+        assert organization.name == data["name"]
+        assert organization.slug == data["slug"]
+        # Ensure the view redirects to Organization home page
+        assert response.redirect_chain == [
+            (
+                reverse(
+                    "odk_publish:organization-home",
+                    args=[organization.slug],
+                ),
+                302,
+            )
+        ]
+        # Ensure there is a success message
+        assert f"Successfully created {organization}." in response.content.decode()
+
+    def test_invalid_form(self, client, url, user):
+        """Test a valid form."""
+        data = {"name": "New organization", "slug": ""}
+        response = client.post(url, data=data)
+        assert response.status_code == 200
+        # No Organization created
+        assert Organization.objects.count() == 0
+        # The form is included in the context
+        assert isinstance(response.context.get("form"), OrganizationForm)
+        # Ensure the expected error message is displayed on the page
+        expected_error = "This field is required."
+        assert response.context["form"].errors["slug"][0] == expected_error
         assert expected_error in response.content.decode()
