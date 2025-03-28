@@ -1,8 +1,8 @@
 import dagster as dg
 
-from .assets.tailscale import tailscale_devices
-from .assets import tinymdm_devices
-from .resources.tailscale import TailscaleResource
+from dagster_publish_mdm.assets.tailscale import tailscale_devices
+from dagster_publish_mdm.assets import tinymdm_devices
+from dagster_publish_mdm.resources.tailscale import TailscaleResource
 
 all_assets = dg.load_assets_from_modules([tailscale_devices, tinymdm_devices])
 tailscale_schedule = dg.ScheduleDefinition(
