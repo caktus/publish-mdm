@@ -25,6 +25,8 @@ from .forms import (
     FormTemplateForm,
     AppUserForm,
     AppUserTemplateVariableFormSet,
+    ProjectForm,
+    ProjectTemplateVariableFormSet,
 )
 from .import_export import AppUserResource
 from .models import FormTemplateVersion, FormTemplate, AppUser
@@ -383,3 +385,29 @@ def change_app_user(request: HttpRequest, odk_project_pk, app_user_id=None):
         "app_user": app_user,
     }
     return render(request, "odk_publish/change_app_user.html", context)
+
+
+@login_required
+def edit_project(request, odk_project_pk):
+    """Edit a Project."""
+    form = ProjectForm(request.POST or None, instance=request.odk_project)
+    variables_formset = ProjectTemplateVariableFormSet(
+        request.POST or None, instance=request.odk_project
+    )
+    if request.method == "POST" and all([form.is_valid(), variables_formset.is_valid()]):
+        form.save()
+        variables_formset.save()
+        messages.success(
+            request,
+            f"Successfully edited {request.odk_project}.",
+        )
+        return redirect("odk_publish:form-template-list", request.odk_project.id)
+    context = {
+        "form": form,
+        "variables_formset": variables_formset,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("Edit project", "edit-project")],
+        ),
+    }
+    return render(request, "odk_publish/change_project.html", context)
