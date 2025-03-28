@@ -36,4 +36,4 @@ pygments
 # Dagster
 dagster
 dagster-webserver
-pandas
+dagster-k8s

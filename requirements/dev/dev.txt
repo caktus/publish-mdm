@@ -42,11 +42,11 @@ black==25.1.0
     # via -r requirements/dev/dev.in
 bleach==6.2.0
     # via nbconvert
-boto3==1.37.20
+boto3==1.37.22
     # via
     #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   moto
-botocore==1.37.20
+botocore==1.37.22
     # via
     #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
     #   boto3
@@ -469,7 +469,9 @@ webencodings==0.5.1
     #   bleach
     #   tinycss2
 websocket-client==1.8.0
-    # via jupyter-server
+    # via
+    #   -c /Users/copelco/projects/libya/odk-publish/requirements/base/base.txt
+    #   jupyter-server
 werkzeug==3.1.3
     # via moto
 xmltodict==0.14.2
