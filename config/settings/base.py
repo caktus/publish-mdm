@@ -174,7 +174,6 @@ SOCIALACCOUNT_PROVIDERS = {
         "AUTH_PARAMS": {
             "access_type": "offline",
         },
-        "FETCH_USERINFO": True,
     }
 }
 ACCOUNT_SIGNUP_REDIRECT_URL = "odk_publish:create-organization"
