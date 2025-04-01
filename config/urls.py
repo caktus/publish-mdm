@@ -27,6 +27,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("odk/", include("apps.odk_publish.urls", namespace="odk_publish")),
     path("ws/health/", websockets_server_health),
+    path("invitations/", include("invitations.urls", namespace="invitations")),
     path(r"", TemplateView.as_view(template_name="home.html"), name="home"),
 ]
 

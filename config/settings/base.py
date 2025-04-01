@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     "django_tables2",
     "import_export",
     "template_partials",
+    "invitations",
     # Local
     "apps.odk_publish",
     "apps.mdm",
@@ -177,6 +178,13 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 ACCOUNT_SIGNUP_REDIRECT_URL = "odk_publish:create-organization"
+# Allow signing up with or without an invite
+ACCOUNT_ADAPTER = "invitations.models.InvitationsAdapter"
+
+# django-invitations configuration:
+INVITATIONS_ADAPTER = ACCOUNT_ADAPTER
+INVITATIONS_SIGNUP_REDIRECT = "account_login"
+INVITATIONS_ACCEPT_INVITE_AFTER_SIGNUP = True
 
 # Google Auth
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
