@@ -49,9 +49,9 @@ def create_app_user_qrcode(
     language: str = "en",
 ) -> tuple[io.BytesIO, dict]:
     """Generate a QR code as a PNG for the given app user."""
-    
+
     admin_pw = str(admin_pw) if admin_pw else ""
-    
+
     # Build app user settings
     collect_settings = build_collect_settings(
         app_user=app_user,

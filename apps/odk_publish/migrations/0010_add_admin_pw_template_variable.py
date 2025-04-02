@@ -2,12 +2,13 @@
 
 from django.db import migrations
 
+
 def create_admin_pw_variable(apps, schema_editor):
     TemplateVariable = apps.get_model("odk_publish", "TemplateVariable")
     TemplateVariable.objects.get_or_create(name="admin_pw")
 
-class Migration(migrations.Migration):
 
+class Migration(migrations.Migration):
     dependencies = [
         ("odk_publish", "0009_formtemplate_template_url_user_and_more"),
     ]
@@ -15,4 +16,3 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RunPython(create_admin_pw_variable, reverse_code=migrations.RunPython.noop),
     ]
-
