@@ -1,6 +1,7 @@
 from typing import Generic, TypeVar
 
 import factory
+from django.utils.crypto import get_random_string
 
 from apps.odk_publish import models
 from tests.users.factories import UserFactory
@@ -136,3 +137,12 @@ class ProjectAttachmentFactory(factory.django.DjangoModelFactory):
     name = factory.Faker("word")
     project = factory.SubFactory(ProjectFactory)
     file = factory.django.FileField()
+
+
+class OrganizationInvitationFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.OrganizationInvitation
+
+    email = factory.Faker("email")
+    organization = factory.SubFactory(OrganizationFactory)
+    key = factory.Sequence(lambda _: get_random_string(64).lower())

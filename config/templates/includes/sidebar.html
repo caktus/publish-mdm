@@ -1,0 +1,100 @@
+{% if request.organization %}
+    <aside id="sidebar-team-switch"
+           class="fixed top-0 left-0 pt-14{% if request.odk_project %} md:pt-25{% endif %} z-40 w-64 h-screen transition-transform -translate-x-full md:translate-x-0 bg-white border-r border-gray-200 dark:bg-gray-800 dark:border-gray-700"
+           aria-label="Sidebar">
+        <div class="overflow-y-auto py-5 px-3 h-[calc(100%-50px)]">
+            <button id="dropdownCompanyNameButton"
+                    data-dropdown-toggle="dropdownCompanyName"
+                    class="flex justify-between items-center p-2 w-full rounded-lg dark:bg-gray-800 dark:hover:bg-gray-700 hover:bg-gray-50 dark:hover-bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700"
+                    type="button">
+                <span class="sr-only">Open user menu</span>
+                <div class="flex items-center">
+                    <div>
+                        <div class="font-semibold leading-none text-gray-900 dark:text-white mb-0.5">{{ request.organization }}</div>
+                    </div>
+                </div>
+                <svg class="w-5 h-5 text-gray-500 dark:text-gray-400"
+                     fill="currentColor"
+                     viewBox="0 0 20 20"
+                     xmlns="http://www.w3.org/2000/svg">
+                    <path fill-rule="evenodd" d="M10 3a1 1 0 01.707.293l3 3a1 1 0 01-1.414 1.414L10 5.414 7.707 7.707a1 1 0 01-1.414-1.414l3-3A1 1 0 0110 3zm-3.707 9.293a1 1 0 011.414 0L10 14.586l2.293-2.293a1 1 0 011.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd">
+                    </path>
+                </svg>
+            </button>
+            <!-- Dropdown menu -->
+            <div id="dropdownCompanyName"
+                 class="hidden z-10 w-60 bg-white rounded divide-y divide-gray-100 shadow dark:bg-gray-700 dark:divide-gray-600"
+                 data-popper-placement="bottom">
+                {% for organization in request.organizations %}
+                    {% if organization != request.organization %}
+                        <a href="{{ organization.get_absolute_url }}"
+                           class="flex items-center py-3 px-4 rounded hover:bg-gray-50 dark:hover:bg-gray-600">
+                            <div class="font-semibold leading-none text-gray-900 dark:text-white mb-0.5">{{ organization }}</div>
+                        </a>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            <ul class="mt-5 space-y-2">
+                <li>
+                    <a href="{{ request.organization.get_absolute_url }}"
+                       class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+                        <svg aria-hidden="true"
+                             class="w-6 h-6 text-gray-400 transition duration-75 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white"
+                             fill="currentColor"
+                             viewBox="0 0 20 20"
+                             xmlns="http://www.w3.org/2000/svg">
+                            <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z">
+                            </path>
+                        </svg>
+                        <span class="ml-3">Home</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'odk_publish:organization-users-list' request.organization.slug %}"
+                       class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+                        <svg aria-hidden="true"
+                             class="flex-shrink-0 w-6 h-6 text-gray-400 transition duration-75 group-hover:text-gray-900 dark:text-gray-400 dark:group-hover:text-white"
+                             fill="currentColor"
+                             viewBox="0 0 20 20"
+                             xmlns="http://www.w3.org/2000/svg">
+                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"></path>
+                            <path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd">
+                            </path>
+                        </svg>
+                        <span class="ml-3">Users</span>
+                    </a>
+                </li>
+            </ul>
+            <div class="pt-5 pl-2 mt-5 mb-4 text-sm text-gray-500 border-t border-gray-200 dark:text-gray-400 dark:border-gray-700">
+                <h3>Projects</h3>
+            </div>
+            <ul class="pl-2">
+                {% for project in request.odk_projects %}
+                    <li>
+                        <a href="{% url 'odk_publish:form-template-list' project.organization.slug project.pk %}"
+                           class="block p-2 text-base font-medium text-gray-900 rounded-lg dark:text-white group rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700">
+                            <div class="font-semibold leading-none text-gray-900 dark:text-white mb-0.5">{{ project.name }}</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">{{ project.central_server }}</div>
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="absolute bottom-0 left-0 justify-center px-4 w-full bg-white dark:bg-gray-800 z-20">
+            <div class="py-4 border-t border-gray-200 dark:border-gray-700">
+                <a href="{% url 'odk_publish:send-invite' request.organization.slug %}"
+                   class="flex items-center pl-2 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white group">
+                    <svg aria-hidden="true"
+                         class="flex-shrink-0 w-4 h-4 text-gray-500 transition duration-75 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white"
+                         fill="currentColor"
+                         viewBox="0 0 20 20"
+                         xmlns="http://www.w3.org/2000/svg">
+                        <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z">
+                        </path>
+                    </svg>
+                    <span class="ml-2">Invite team members</span>
+                </a>
+            </div>
+        </div>
+    </aside>
+{% endif %}

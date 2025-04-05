@@ -179,12 +179,17 @@ SOCIALACCOUNT_PROVIDERS = {
 }
 ACCOUNT_SIGNUP_REDIRECT_URL = "odk_publish:create-organization"
 # Allow signing up with or without an invite
-ACCOUNT_ADAPTER = "invitations.models.InvitationsAdapter"
+ACCOUNT_ADAPTER = "apps.odk_publish.invitations.InvitationsAdapter"
 
 # django-invitations configuration:
 INVITATIONS_ADAPTER = ACCOUNT_ADAPTER
 INVITATIONS_SIGNUP_REDIRECT = "account_login"
 INVITATIONS_ACCEPT_INVITE_AFTER_SIGNUP = True
+INVITATIONS_INVITATION_MODEL = "odk_publish.OrganizationInvitation"
+INVITATIONS_ADMIN_ADD_FORM = "apps.odk_publish.forms.OrganizationInvitationAdminAddForm"
+INVITATIONS_INVITE_FORM = "apps.odk_publish.forms.OrganizationInviteForm"
+INVITATIONS_CONFIRMATION_URL_NAME = "accept-invite"
+INVITATIONS_GONE_ON_ACCEPT_ERROR = False
 
 # Google Auth
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")

@@ -17,17 +17,21 @@ Including another URLconf
 
 from django.conf import settings
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
 from django.views.generic import TemplateView
 
-from apps.odk_publish.views import websockets_server_health
+from apps.odk_publish.views import websockets_server_health, AcceptOrganizationInvite
 
 urlpatterns = [
     path("accounts/", include("allauth.urls")),
     path("admin/", admin.site.urls),
     path("odk/", include("apps.odk_publish.urls", namespace="odk_publish")),
     path("ws/health/", websockets_server_health),
-    path("invitations/", include("invitations.urls", namespace="invitations")),
+    re_path(
+        r"^accept-invite/(?P<key>\w+)/?$",
+        AcceptOrganizationInvite.as_view(),
+        name="accept-invite",
+    ),
     path(r"", TemplateView.as_view(template_name="home.html"), name="home"),
 ]
 

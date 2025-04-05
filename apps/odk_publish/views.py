@@ -1,6 +1,6 @@
-import logging
 import json
 
+import structlog
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -10,6 +10,15 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.timezone import localdate
 from import_export.results import RowResult
 from import_export.tmp_storages import MediaStorage
+from invitations.adapters import get_invitations_adapter
+from invitations.app_settings import app_settings as invitations_settings
+from invitations.utils import get_invitation_model, get_invite_form
+from invitations.views import (
+    accept_invitation,
+    accept_invite_after_signup,
+    AcceptInvite,
+    SendInvite,
+)
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers.data import JsonLexer
@@ -35,7 +44,9 @@ from .nav import Breadcrumbs
 from .tables import FormTemplateTable
 
 
-logger = logging.getLogger(__name__)
+logger = structlog.getLogger(__name__)
+Invitation = get_invitation_model()
+InviteForm = get_invite_form()
 
 
 @login_required
@@ -426,9 +437,11 @@ def edit_project(request, organization_slug, odk_project_pk):
 
 @login_required
 def create_organization(request: HttpRequest):
+    """Create a new Organization."""
     form = OrganizationForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         organization = form.save()
+        organization.users.add(request.user)
         messages.success(request, f"Successfully created {organization}.")
         return redirect("odk_publish:organization-home", organization.slug)
     context = {
@@ -439,3 +452,101 @@ def create_organization(request: HttpRequest):
         ),
     }
     return render(request, "odk_publish/create_organization.html", context)
+
+
+@login_required
+def organization_users_list(request: HttpRequest, organization_slug):
+    """List all the users added to an Organization."""
+    if request.method == "POST":
+        # Remove a user from the Organization
+        user_id = request.POST.get("remove")
+        if (
+            user_id
+            and user_id.isdigit()
+            and (user := request.organization.users.filter(id=user_id).first())
+        ):
+            request.organization.users.remove(user)
+            if request.user == user:
+                # The currently logged in user is leaving the organization
+                messages.success(request, f"You have left {request.organization}.")
+                return redirect("home")
+            # Removing a different user
+            messages.success(
+                request,
+                f"You have removed {user.get_full_name()} ({user.email}) from {request.organization}.",
+            )
+            return redirect("odk_publish:organization-users-list", organization_slug)
+    context = {
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("Organization Users", "organization-users-list")],
+        ),
+    }
+    return render(request, "odk_publish/organization_users_list.html", context)
+
+
+class SendOrganizationInvite(SendInvite):
+    """Invite a user to an Organization via email."""
+
+    def get_form_kwargs(self):
+        # Add the current organization to the form kwargs. Will be used during form validation
+        return super().get_form_kwargs() | {"organization": self.request.organization}
+
+    def get_context_data(self, **kwargs):
+        # Add breadcrumbs to the context data
+        return super().get_context_data(**kwargs) | {
+            "breadcrumbs": Breadcrumbs.from_items(
+                request=self.request,
+                items=[("Send an invite", "send-invite")],
+            )
+        }
+
+    def form_valid(self, form):
+        # Create the OrganizationInvitation object and send out the email
+        email = form.cleaned_data["email"]
+        invitation = Invitation.create(
+            email=email, organization=self.request.organization, inviter=self.request.user
+        )
+        invitation.send_invitation(self.request)
+        messages.success(self.request, f"{email} has been invited.")
+        return redirect(invitation.organization.get_absolute_url())
+
+
+class AcceptOrganizationInvite(AcceptInvite):
+    """Accept an invitation to join an Organization."""
+
+    def post(self, *args, **kwargs):
+        response = super().post(*args, **kwargs)
+
+        if self.object and not (self.object.accepted or self.object.key_expired()):
+            if self.request.user.is_authenticated:
+                # Invite was for the currently logged in user. Mark it accepted
+                # and add the user to the organization
+                accept_invitation(
+                    invitation=self.object,
+                    request=self.request,
+                    signal_sender=self.__class__,
+                )
+                self.object.organization.users.add(self.request.user)
+                logger.info(
+                    "Added a user to an organization via invitation",
+                    user=self.request.user,
+                    invitation=self.object,
+                    organization=self.object.organization,
+                )
+                return redirect(self.object.organization.get_absolute_url())
+
+            # Add the invitation ID to the session so we can mark it accepted later
+            # once the user logins in or signs up
+            self.request.session["invitation_id"] = self.object.id
+
+        return response
+
+
+if invitations_settings.ACCEPT_INVITE_AFTER_SIGNUP:
+    # Disconnect the signal receiver that was connected within django-invitations.
+    # That signal receiver searches for the invitation by email only, which
+    # will not work correctly in our case since an email can have multiple
+    # invitations for different organizations.
+    signed_up_signal = get_invitations_adapter().get_user_signed_up_signal()
+    signed_up_signal.disconnect(accept_invite_after_signup)

@@ -40,13 +40,15 @@ class TestAppUserImport:
         return user
 
     @pytest.fixture
-    def project(self):
+    def project(self, user):
         project = ProjectFactory()
         project.template_variables.create(name="var1", organization=project.organization)
         project.template_variables.create(name="var2", organization=project.organization)
+        project.organization.users.add(user)
         return project
 
     def test_login_required(self, client, url):
+        client.logout()
         response = client.get(url)
         assert response.status_code == 302
 

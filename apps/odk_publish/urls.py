@@ -87,4 +87,14 @@ urlpatterns = [
         name="edit-app-user",
     ),
     path("create-organization/", views.create_organization, name="create-organization"),
+    path(
+        "o/<slug:organization_slug>/send-invite/",
+        views.SendOrganizationInvite.as_view(),
+        name="send-invite",
+    ),
+    path(
+        "o/<slug:organization_slug>/users/",
+        views.organization_users_list,
+        name="organization-users-list",
+    ),
 ]

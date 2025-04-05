@@ -1,54 +1,26 @@
-<header class="flex flex-col antialiased">
+<header class="flex flex-col antialiased fixed top-0 z-50 w-full">
     <nav class="bg-gray-50 px-4 lg:px-6 py-2.5 dark:bg-gray-900 order-1">
         <div class="flex justify-between items-center">
             <div class="flex justify-start items-center">
                 <a href="{% url 'home' %}" class="flex mr-6">
                     <span class="self-center text-2xl font-semibold whitespace-nowrap dark:text-white">ODK Publish</span>
                 </a>
-                {% if request.user.is_authenticated %}
-                    <button id="dropdownUserNameButton"
-                            data-dropdown-toggle="dropdownUserName"
-                            class="flex justify-between items-center p-2 rounded-lg lg:min-w-80 cursor-pointer ring-2 ring-primary-200 dark:bg-gray-900 dark:hover:bg-gray-800 hover:bg-gray-50 dark:hover-bg-gray-700 focus:outline-none focus:ring-4 focus:ring-primary-200 dark:focus:ring-gray-700"
-                            type="button">
-                        <span class="sr-only">Open ODK project menu</span>
-                        <div class="flex items-center">
-                            <div class="text-left">
-                                <div class="font-semibold leading-none text-gray-900 dark:text-white mb-0.5">
-                                    {{ request.odk_project.name | default:"Select ODK Publish project..." }}
-                                </div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400">
-                                    {% if request.odk_project %}
-                                        {{ request.odk_project.central_server }}
-                                    {% else %}
-                                        -
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                        <svg class="w-3 h-3 text-gray-500 dark:text-gray-400 ml-2"
+                {% if request.organization %}
+                    <button data-drawer-target="sidebar-team-switch"
+                            data-drawer-toggle="sidebar-team-switch"
+                            aria-controls="sidebar-team-switch"
+                            type="button"
+                            class="inline-flex items-center p-2 text-sm text-gray-500 rounded-lg md:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600">
+                        <span class="sr-only">Open sidebar</span>
+                        <svg class="w-6 h-6"
                              aria-hidden="true"
-                             xmlns="http://www.w3.org/2000/svg"
-                             fill="none"
-                             viewBox="0 0 10 16">
-                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5 5 1 1 5m0 6 4 4 4-4" />
+                             fill="currentColor"
+                             viewBox="0 0 20 20"
+                             xmlns="http://www.w3.org/2000/svg">
+                            <path clip-rule="evenodd" fill-rule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z">
+                            </path>
                         </svg>
                     </button>
-                    <!-- Dropdown menu -->
-                    <div id="dropdownUserName"
-                         class="hidden z-10 w-60 bg-white lg:min-w-80 rounded divide-y divide-gray-100 shadow dark:bg-gray-700 dark:divide-gray-600"
-                         data-popper-placement="bottom">
-                        {% for project in request.odk_projects %}
-                            {% if project != request.odk_project %}
-                                <a href="{% url 'odk_publish:form-template-list' project.organization.slug project.pk %}"
-                                   class="flex items-center py-3 px-4 rounded hover:bg-gray-50 dark:hover:bg-gray-600">
-                                    <div class="text-left">
-                                        <div class="font-semibold leading-none text-gray-900 dark:text-white mb-0.5">{{ project.name }}</div>
-                                        <div class="text-xs text-gray-500 dark:text-gray-400">{{ project.central_server }}</div>
-                                    </div>
-                                </a>
-                            {% endif %}
-                        {% endfor %}
-                    </div>
                 {% endif %}
             </div>
             <div class="flex justify-between items-center lg:order-2">
@@ -126,46 +98,8 @@
                                        class="block py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-400 dark:hover:text-white">Account settings</a>
                                 </li>
                                 <li>
-                                    <button id="doubleDropdownButton"
-                                            data-dropdown-toggle="doubleDropdown"
-                                            data-dropdown-placement="left-start"
-                                            type="button"
-                                            class="flex items-center justify-between w-full py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white cursor-pointer">
-                                        Organizations
-                                    </button>
-                                    <div id="doubleDropdown"
-                                         class="hidden z-50 my-4 w-64 text-base list-none bg-white rounded divide-y divide-gray-100 shadow dark:bg-gray-700 dark:divide-gray-600">
-                                        {% if request.organizations %}
-                                            <ul class="py-1 text-gray-500 dark:text-gray-400"
-                                                aria-labelledby="doubleDropdownButton">
-                                                {% for organization in request.organizations %}
-                                                    <li>
-                                                        {% if organization == request.organization %}
-                                                            <div class="flex items-center justify-between w-full py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white font-bold cursor-default">
-                                                                {{ organization.name }}
-                                                                <svg class="w-[18px] h-[18px]"
-                                                                     aria-hidden="true"
-                                                                     xmlns="http://www.w3.org/2000/svg"
-                                                                     width="24"
-                                                                     height="24"
-                                                                     fill="none"
-                                                                     viewBox="0 0 24 24">
-                                                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 11.917 9.724 16.5 19 7.5" />
-                                                                </svg>
-                                                            </div>
-                                                        {% else %}
-                                                            <a href="{% url 'odk_publish:organization-home' organization.slug %}"
-                                                               class="block py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-400 dark:hover:text-white">{{ organization.name }}</a>
-                                                        {% endif %}
-                                                    </li>
-                                                {% endfor %}
-                                            </ul>
-                                        {% endif %}
-                                        <div class="py-1 text-gray-500 dark:text-gray-400">
-                                            <a href="{% url 'odk_publish:create-organization' %}"
-                                               class="block py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-400 dark:hover:text-white">Create an organization</a>
-                                        </div>
-                                    </div>
+                                    <a href="{% url 'odk_publish:create-organization' %}"
+                                       class="block py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-400 dark:hover:text-white">Create a new organization</a>
                                 </li>
                                 <li>
                                     <a href="{% url 'account_logout' %}"

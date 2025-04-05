@@ -5,6 +5,8 @@ from django.http import QueryDict
 from django.urls import reverse_lazy
 from import_export import forms as import_export_forms
 from import_export.tmp_storages import MediaStorage
+from invitations.adapters import get_invitations_adapter
+from invitations.exceptions import AlreadyAccepted, AlreadyInvited
 
 from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import (
@@ -23,6 +25,7 @@ from .models import (
     AppUserTemplateVariable,
     FormTemplate,
     Organization,
+    OrganizationInvitation,
     Project,
     ProjectTemplateVariable,
 )
@@ -337,3 +340,69 @@ class OrganizationForm(PlatformFormMixin, forms.ModelForm):
             "name": TextInput,
             "slug": TextInput,
         }
+
+
+class CleanOrganizationInvitationMixin:
+    """Similar to django-invitation's CleanEmailMixin, but checks for invitations
+    to the same organization.
+    """
+
+    def validate_invitation(self, email, organization):
+        if OrganizationInvitation.objects.all_valid().filter(
+            email__iexact=email, organization=organization, accepted=False
+        ):
+            raise AlreadyInvited
+        elif OrganizationInvitation.objects.filter(
+            email__iexact=email, organization=organization, accepted=True
+        ):
+            raise AlreadyAccepted
+        else:
+            return True
+
+    def clean(self):
+        email = self.cleaned_data["email"]
+        email = get_invitations_adapter().clean_email(email)
+        if hasattr(self, "organization"):
+            organization = self.organization
+        else:
+            organization = self.cleaned_data["organization"]
+
+        errors = {
+            "already_invited": f"This e-mail address has already been invited to {organization}.",
+            "already_accepted": f"This e-mail address has already accepted an invite to {organization}.",
+        }
+        try:
+            self.validate_invitation(email, organization)
+        except AlreadyInvited:
+            raise forms.ValidationError({"email": errors["already_invited"]})
+        except AlreadyAccepted:
+            raise forms.ValidationError({"email": errors["already_accepted"]})
+        return self.cleaned_data
+
+
+class OrganizationInviteForm(PlatformFormMixin, CleanOrganizationInvitationMixin, forms.Form):
+    email = forms.EmailField(widget=TextInput)
+
+    def __init__(self, *args, **kwargs):
+        self.organization = kwargs.pop("organization")
+        super().__init__(*args, **kwargs)
+
+
+class OrganizationInvitationAdminAddForm(CleanOrganizationInvitationMixin, forms.ModelForm):
+    """Similar to django-invitation's InvitationAdminAddForm but includes the organization field."""
+
+    class Meta:
+        model = OrganizationInvitation
+        fields = ("email", "organization", "inviter")
+
+    def save(self, *args, **kwargs):
+        cleaned_data = super().clean()
+        email = cleaned_data.get("email")
+        organization = cleaned_data.get("organization")
+        params = {"email": email, "organization": organization}
+        if cleaned_data.get("inviter"):
+            params["inviter"] = cleaned_data.get("inviter")
+        instance = OrganizationInvitation.create(**params)
+        instance.send_invitation(self.request)
+        super().save(*args, **kwargs)
+        return instance

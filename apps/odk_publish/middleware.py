@@ -4,7 +4,6 @@ from django.http import HttpRequest
 from django.urls import ResolverMatch
 from django.shortcuts import get_object_or_404
 
-from .models import Organization, Project
 from .nav import Breadcrumbs
 
 logger = structlog.getLogger(__name__)
@@ -30,9 +29,12 @@ class ODKProjectMiddleware:
         # Set common context for all views
         request.odk_project = None
         request.odk_project_tabs = []
-        request.odk_projects = Project.objects.select_related()
+        request.odk_projects = None
         if not getattr(request, "organization", None):
-            request.organization = Organization.objects.order_by("created_at").first()
+            if request.user.is_authenticated:
+                request.organization = request.user.get_organizations().first()
+            else:
+                request.organization = None
         if request.organization:
             request.odk_projects = request.organization.projects.select_related()
         # Automatically lookup the current project
@@ -73,13 +75,17 @@ class OrganizationMiddleware:
         return self.get_response(request)
 
     def process_view(self, request: HttpRequest, view_func, view_args, view_kwargs):
-        request.organizations = Organization.objects.order_by("created_at")
+        if request.user.is_authenticated:
+            request.organizations = request.user.get_organizations()
+        else:
+            request.organizations = None
         request.organization = None
         # Automatically lookup the current project
         resolver_match: ResolverMatch = request.resolver_match
         if (
             "odk_publish" in resolver_match.namespaces
             and "organization_slug" in resolver_match.captured_kwargs
+            and request.organizations is not None
         ):
             organization_slug = resolver_match.captured_kwargs["organization_slug"]
             organization = get_object_or_404(request.organizations, slug=organization_slug)

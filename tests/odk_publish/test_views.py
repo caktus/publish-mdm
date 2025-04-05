@@ -4,6 +4,7 @@ import pytest
 from django.urls import reverse
 from django.conf import settings
 from django.db.models import Q
+from django.utils.timezone import now
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers.data import JsonLexer
@@ -13,6 +14,7 @@ from tests.odk_publish.factories import (
     AppUserFormTemplateFactory,
     FormTemplateFactory,
     OrganizationFactory,
+    OrganizationInvitationFactory,
     ProjectFactory,
     UserFactory,
     CentralServerFactory,
@@ -24,10 +26,11 @@ from apps.odk_publish.forms import (
     AppUserForm,
     AppUserTemplateVariableFormSet,
     OrganizationForm,
+    OrganizationInviteForm,
     ProjectForm,
     ProjectTemplateVariableFormSet,
 )
-from apps.odk_publish.models import AppUser, FormTemplate, Organization
+from apps.odk_publish.models import AppUser, FormTemplate, Organization, OrganizationInvitation
 
 
 @pytest.mark.django_db
@@ -40,10 +43,13 @@ class ViewTestBase:
         return user
 
     @pytest.fixture
-    def project(self):
-        return ProjectFactory(central_server__base_url="https://central")
+    def project(self, user):
+        project = ProjectFactory(central_server__base_url="https://central")
+        project.organization.users.add(user)
+        return project
 
     def test_login_required(self, client, url):
+        client.logout()
         response = client.get(url)
         assert response.status_code == 302
 
@@ -201,7 +207,9 @@ class TestNonExistentProjectID:
         """Ensure URLs that take a project ID as an argument return a 404 status code
         instead of a 500 for non-existent project IDs.
         """
-        url = reverse(f"odk_publish:{url_name}", args=[OrganizationFactory().slug, 99])
+        organization = OrganizationFactory()
+        organization.users.add(user)
+        url = reverse(f"odk_publish:{url_name}", args=[organization.slug, 99])
         response = client.get(url)
         assert response.status_code == 404
 
@@ -798,8 +806,10 @@ class TestEditProject(ViewTestBase):
 
 class TestOrganizationHome(ViewTestBase):
     @pytest.fixture
-    def organization(self):
-        return OrganizationFactory()
+    def organization(self, user):
+        organization = OrganizationFactory()
+        organization.users.add(user)
+        return organization
 
     @pytest.fixture
     def url(self, organization):
@@ -857,3 +867,223 @@ class TestCreateOrganization(ViewTestBase):
         expected_error = "This field is required."
         assert response.context["form"].errors["slug"][0] == expected_error
         assert expected_error in response.content.decode()
+
+
+class TestOrganizationUsersList(ViewTestBase):
+    @pytest.fixture
+    def organization(self, user):
+        organization = OrganizationFactory()
+        organization.users.add(user)
+        return organization
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse(
+            "odk_publish:organization-users-list",
+            kwargs={
+                "organization_slug": organization.slug,
+            },
+        )
+
+    def test_remove_self_from_organization(self, client, url, user, organization):
+        data = {
+            "remove": user.id,
+        }
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        # Ensure the user is removed from the organization
+        assert organization.users.count() == 0
+        # Ensure the view redirects to the home page
+        assert response.redirect_chain == [(reverse("home"), 302)]
+        # Ensure there is a success message
+        assert f"You have left {organization}." in response.content.decode()
+
+    def test_remove_another_user_from_organization(self, client, url, user, organization):
+        other_user = UserFactory()
+        organization.users.add(other_user)
+        data = {
+            "remove": other_user.id,
+        }
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        # Ensure the user is removed from the organization
+        assert organization.users.count() == 1
+        # Ensure the view redirects back to the users list page
+        assert response.redirect_chain == [
+            (
+                reverse("odk_publish:organization-users-list", args=[organization.slug]),
+                302,
+            )
+        ]
+        # Ensure there is a success message
+        assert (
+            f"You have removed {other_user.get_full_name()} ({other_user.email}) from {organization}."
+            in response.content.decode()
+        )
+
+    def test_invalid_user_id(self, client, url, user, organization):
+        other_user = UserFactory()
+        data = {
+            "remove": other_user.id,
+        }
+        response = client.post(url, data=data)
+        assert response.status_code == 200
+        # Ensure the user is removed from the organization
+        assert organization.users.count() == 1
+
+
+class TestSendOrganizationInvite(ViewTestBase):
+    @pytest.fixture
+    def organization(self, user):
+        organization = OrganizationFactory()
+        organization.users.add(user)
+        return organization
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse(
+            "odk_publish:send-invite",
+            kwargs={
+                "organization_slug": organization.slug,
+            },
+        )
+
+    def test_get(self, client, url, user):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), OrganizationInviteForm)
+
+    def valid_form(self, client, url, user, organization, data, mailoutbox):
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        # Ensure the expected OrganizationInvitation is created in the DB
+        qs = organization.organizationinvitation_set.filter(email=data["email"])
+        assert qs.count() == 1
+        invitation = qs.get()
+        assert invitation.inviter == user
+        assert not invitation.accepted
+        assert invitation.sent is not None
+        assert not invitation.key_expired()
+        # Ensure an invitation email was sent
+        assert len(mailoutbox) == 1
+        assert mailoutbox[0].to == [data["email"]]
+        # Ensure the user is redirected to the organization home page
+        assert response.redirect_chain == [
+            (
+                reverse("odk_publish:organization-home", args=[organization.slug]),
+                302,
+            )
+        ]
+
+    def invalid_form(self, client, url, user, organization, data, expected_error, mailoutbox):
+        response = client.post(url, data=data)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), OrganizationInviteForm)
+        # Ensure the expected error message is displayed on the page
+        assert response.context["form"].errors["email"][0] == expected_error
+        assert expected_error in response.content.decode()
+        assert len(mailoutbox) == 0
+
+    def test_valid_form(self, client, url, user, organization, mailoutbox):
+        data = {
+            "email": "test@test.com",
+        }
+        self.valid_form(client, url, user, organization, data, mailoutbox)
+
+    def test_same_email_different_organization(self, client, url, user, organization, mailoutbox):
+        invitation = OrganizationInvitationFactory()
+        data = {
+            "email": invitation.email,
+        }
+        self.valid_form(client, url, user, organization, data, mailoutbox)
+        assert OrganizationInvitation.objects.count() == 2
+
+    def test_same_email_same_organization(self, client, url, user, organization, mailoutbox):
+        invitation = OrganizationInvitationFactory(organization=organization)
+        data = {
+            "email": invitation.email,
+        }
+        self.invalid_form(
+            client,
+            url,
+            user,
+            organization,
+            data,
+            f"This e-mail address has already been invited to {organization}.",
+            mailoutbox,
+        )
+        assert OrganizationInvitation.objects.count() == 1
+
+    def test_same_email_same_organization_already_accepted(
+        self, client, url, user, organization, mailoutbox
+    ):
+        invitation = OrganizationInvitationFactory(organization=organization, accepted=True)
+        data = {
+            "email": invitation.email,
+        }
+        self.invalid_form(
+            client,
+            url,
+            user,
+            organization,
+            data,
+            f"This e-mail address has already accepted an invite to {organization}.",
+            mailoutbox,
+        )
+        assert OrganizationInvitation.objects.count() == 1
+
+
+@pytest.mark.django_db
+class TestAcceptOrganizationInvite:
+    @pytest.fixture
+    def invitation(self):
+        return OrganizationInvitationFactory(sent=now())
+
+    @pytest.fixture
+    def url(self, invitation):
+        return reverse(
+            "accept-invite",
+            kwargs={
+                "key": invitation.key,
+            },
+        )
+
+    def test_get(self, client, url, invitation):
+        response = client.get(url, follow=True)
+        assert response.status_code == 200
+        assert response.redirect_chain == [(reverse("account_login"), 302)]
+        invitation.refresh_from_db()
+        assert not invitation.accepted
+        assert client.session.get("invitation_id") == invitation.id
+
+    def test_logged_in_user(self, client, url, invitation):
+        user = UserFactory()
+        user.save()
+        client.force_login(user=user)
+        response = client.get(url, follow=True)
+        assert response.status_code == 200
+        assert response.redirect_chain == [
+            (
+                reverse("odk_publish:organization-home", args=[invitation.organization.slug]),
+                302,
+            )
+        ]
+        invitation.refresh_from_db()
+        assert invitation.accepted
+        assert invitation.organization.users.filter(id=user.id).exists()
+        assert "invitation_id" not in client.session
+
+    def test_already_accepted(self, client, url, invitation):
+        invitation.accepted = True
+        invitation.save()
+        response = client.get(url, follow=True)
+        assert response.status_code == 200
+        assert response.redirect_chain == [(reverse("account_login"), 302)]
+        assert "invitation_id" not in client.session
+
+    def test_expired_invitation(self, client, url, invitation, mocker):
+        mocker.patch.object(OrganizationInvitation, "key_expired", return_value=True)
+        response = client.get(url, follow=True)
+        assert response.status_code == 200
+        assert response.redirect_chain == [(reverse("account_login"), 302)]
+        assert "invitation_id" not in client.session
