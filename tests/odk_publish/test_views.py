@@ -886,6 +886,7 @@ class TestOrganizationUsersList(ViewTestBase):
         )
 
     def test_remove_self_from_organization(self, client, url, user, organization):
+        """Test a user removing themself from the organization."""
         data = {
             "remove": user.id,
         }
@@ -899,6 +900,7 @@ class TestOrganizationUsersList(ViewTestBase):
         assert f"You have left {organization}." in response.content.decode()
 
     def test_remove_another_user_from_organization(self, client, url, user, organization):
+        """Test removing another user from the organization."""
         other_user = UserFactory()
         organization.users.add(other_user)
         data = {
@@ -922,13 +924,16 @@ class TestOrganizationUsersList(ViewTestBase):
         )
 
     def test_invalid_user_id(self, client, url, user, organization):
+        """Test attempting to remove a user that is not part of the organization.
+        Should be ignored without an error.
+        """
         other_user = UserFactory()
         data = {
             "remove": other_user.id,
         }
         response = client.post(url, data=data)
         assert response.status_code == 200
-        # Ensure the user is removed from the organization
+        # Organization users should be unchanged
         assert organization.users.count() == 1
 
 
@@ -985,12 +990,16 @@ class TestSendOrganizationInvite(ViewTestBase):
         assert len(mailoutbox) == 0
 
     def test_valid_form(self, client, url, user, organization, mailoutbox):
+        """Test sending a valid organization invite."""
         data = {
             "email": "test@test.com",
         }
         self.valid_form(client, url, user, organization, data, mailoutbox)
 
     def test_same_email_different_organization(self, client, url, user, organization, mailoutbox):
+        """Test sending an invitation to an email that has already been
+        invited to another organization. This should be allowed.
+        """
         invitation = OrganizationInvitationFactory()
         data = {
             "email": invitation.email,
@@ -999,6 +1008,9 @@ class TestSendOrganizationInvite(ViewTestBase):
         assert OrganizationInvitation.objects.count() == 2
 
     def test_same_email_same_organization(self, client, url, user, organization, mailoutbox):
+        """Test attempting to send an invitation to an email that has already been
+        invited to the organization. This should not be allowed.
+        """
         invitation = OrganizationInvitationFactory(organization=organization)
         data = {
             "email": invitation.email,
@@ -1017,6 +1029,9 @@ class TestSendOrganizationInvite(ViewTestBase):
     def test_same_email_same_organization_already_accepted(
         self, client, url, user, organization, mailoutbox
     ):
+        """Test attempting to send an invitation to an email that has already accepted
+        an invitation to the organization. This should not be allowed.
+        """
         invitation = OrganizationInvitationFactory(organization=organization, accepted=True)
         data = {
             "email": invitation.email,
@@ -1041,49 +1056,88 @@ class TestAcceptOrganizationInvite:
 
     @pytest.fixture
     def url(self, invitation):
-        return reverse(
-            "accept-invite",
-            kwargs={
-                "key": invitation.key,
-            },
-        )
+        return reverse("accept-invite", kwargs={"key": invitation.key})
+
+    @pytest.fixture
+    def logged_in_user(self, request, client):
+        if getattr(request, "param", True):
+            user = UserFactory()
+            user.save()
+            client.force_login(user=user)
+            return user
 
     def test_get(self, client, url, invitation):
+        """Ensure visiting a valid invite URL redirects to the login page if a user
+        is not logged in. The invitation should not be accepted at this stage, it
+        should be accepted after the user signs up / logs in (in
+        InvitationsAdapter.post_login()).
+        """
         response = client.get(url, follow=True)
         assert response.status_code == 200
         assert response.redirect_chain == [(reverse("account_login"), 302)]
         invitation.refresh_from_db()
+        # Invitation not yet accepted
         assert not invitation.accepted
+        # Invitation ID stored in session for marking accepted later
         assert client.session.get("invitation_id") == invitation.id
 
-    def test_logged_in_user(self, client, url, invitation):
-        user = UserFactory()
-        user.save()
-        client.force_login(user=user)
+    def test_logged_in_user(self, client, logged_in_user, url, invitation):
+        """Ensure visiting a valid invite URL when already logged in immediately
+        accepts the invitation and adds the user to the organization.
+        """
         response = client.get(url, follow=True)
         assert response.status_code == 200
+        invitation.refresh_from_db()
+        # Invitation accepted
+        assert invitation.accepted
+        # User added to the organization
+        assert invitation.organization.users.filter(id=logged_in_user.id).exists()
+        # Redirected to the organization homepage
         assert response.redirect_chain == [
             (
                 reverse("odk_publish:organization-home", args=[invitation.organization.slug]),
                 302,
             )
         ]
-        invitation.refresh_from_db()
-        assert invitation.accepted
-        assert invitation.organization.users.filter(id=user.id).exists()
         assert "invitation_id" not in client.session
+        assert (
+            f"Invitation to - {invitation.email} - has been accepted" in response.content.decode()
+        )
 
-    def test_already_accepted(self, client, url, invitation):
+    def check_invalid_invitation(self, client, url, logged_in_user, expected_error_message):
+        response = client.get(url, follow=True)
+        assert response.status_code == 200
+        expected_redirect_chain = [(reverse("account_login"), 302)]
+        if logged_in_user:
+            expected_redirect_chain.append((reverse("home"), 302))
+        assert response.redirect_chain == expected_redirect_chain
+        assert "invitation_id" not in client.session
+        assert expected_error_message in response.content.decode()
+
+    @pytest.mark.parametrize("logged_in_user", [False, True], indirect=True)
+    def test_already_accepted(self, client, logged_in_user, url, invitation):
+        """If the invitation has already been accepted, redirect with an error message."""
         invitation.accepted = True
         invitation.save()
-        response = client.get(url, follow=True)
-        assert response.status_code == 200
-        assert response.redirect_chain == [(reverse("account_login"), 302)]
-        assert "invitation_id" not in client.session
+        self.check_invalid_invitation(
+            client,
+            url,
+            logged_in_user,
+            f"The invitation for {invitation.email} was already accepted.",
+        )
 
-    def test_expired_invitation(self, client, url, invitation, mocker):
+    @pytest.mark.parametrize("logged_in_user", [False, True], indirect=True)
+    def test_expired_invitation(self, client, logged_in_user, url, invitation, mocker):
+        """If the invitation has expired, redirect with an error message."""
         mocker.patch.object(OrganizationInvitation, "key_expired", return_value=True)
-        response = client.get(url, follow=True)
-        assert response.status_code == 200
-        assert response.redirect_chain == [(reverse("account_login"), 302)]
-        assert "invitation_id" not in client.session
+        self.check_invalid_invitation(
+            client, url, logged_in_user, f"The invitation for {invitation.email} has expired."
+        )
+
+    @pytest.mark.parametrize("logged_in_user", [False, True], indirect=True)
+    def test_invalid_key(self, client, logged_in_user):
+        """If the invitation key is invalid, redirect with an error message."""
+        url = reverse("accept-invite", kwargs={"key": "invalidkey"})
+        self.check_invalid_invitation(
+            client, url, logged_in_user, "An invalid invitation key was submitted."
+        )
