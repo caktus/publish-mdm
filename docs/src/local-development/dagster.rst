@@ -37,7 +37,6 @@ development server:
     export TAILSCALE_API_KEY=
     export TAILSCALE_TAILNET=
 
-
 To run the Dagster development server locally, just run the following command:
 
 .. code-block:: bash
@@ -45,5 +44,5 @@ To run the Dagster development server locally, just run the following command:
     dagster dev
 
 This command starts the Dagster web server, which provides a user interface for
-monitoring and managing your pipelines. You can access the web server at
+monitoring and managing the pipelines. You can access the web server at
 http://localhost:3000 in your web browser.
