@@ -34,3 +34,8 @@ segno
 sentry-sdk
 whitenoise
 pygments
+# Dagster
+dagster
+dagster-k8s
+dagster-postgres
+dagster-webserver
