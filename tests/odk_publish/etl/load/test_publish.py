@@ -25,7 +25,7 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture(scope="function")
-def s3_storage(request, settings):
+def s3_storage(request, settings, monkeypatch):
     """If `request.param` is True, override the default storage backend to use S3
     and mock all S3 interactions.
     """
@@ -34,6 +34,10 @@ def s3_storage(request, settings):
         settings.AWS_ACCESS_KEY_ID = "testing"
         settings.AWS_SECRET_ACCESS_KEY = "testing"
         settings.AWS_STORAGE_BUCKET_NAME = "testing"
+        settings.AWS_S3_ENDPOINT_URL = None
+        settings.AWS_S3_USE_SSL = True
+
+        monkeypatch.delenv("AWS_ENDPOINT_URL", raising=False)
 
         with mock_aws():
             # Create the S3 bucket
