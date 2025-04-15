@@ -4,8 +4,15 @@ from django.db import migrations
 
 
 def create_admin_pw_variable(apps, schema_editor):
+    Project = apps.get_model("odk_publish", "Project")
     TemplateVariable = apps.get_model("odk_publish", "TemplateVariable")
-    TemplateVariable.objects.get_or_create(name="admin_pw")
+
+    for project in Project.objects.all():
+        TemplateVariable.objects.get_or_create(
+            name="admin_pw",
+            project=project,
+            defaults={"value": ""},
+        )
 
 
 class Migration(migrations.Migration):

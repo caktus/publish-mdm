@@ -12,7 +12,6 @@ from pydantic import BaseModel, field_validator
 from storages.base import BaseStorage
 
 from apps.users.models import User
-from apps.odk_publish.import_export import AppUserResource
 
 from ..models import (
     AppUser,
@@ -145,7 +144,12 @@ def generate_and_save_app_user_collect_qrcodes(project: Project):
         for app_user in app_users:
             logger.info("Generating QR code", app_user=app_user.name)
 
-            admin_pw = AppUserResource.get_template_variable_value("admin_pw", app_user=app_user)
+            template_vars = app_user.get_template_variables()
+            admin_pw = next((var.value for var in template_vars if var.name == "admin_pw"), "")
+            logger.debug(
+                "Using admin_pw for %s: %s", app_user.name, "*****" if admin_pw else "(blank)"
+            )
+
             image, app_user.qr_code_data = create_app_user_qrcode(
                 app_user=central_app_users[app_user.name],
                 admin_pw=admin_pw,
