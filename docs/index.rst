@@ -24,6 +24,7 @@ interface for publishing form versions.
    src/docker-compose
    src/tutorial
    src/local-development/index
+   src/helm-chart
    src/contributing
 
 Contributors:
