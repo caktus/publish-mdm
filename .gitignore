@@ -31,3 +31,4 @@ __pycache__/
 .pyodk_config.toml
 ~*.xlsx
 docs/_build/
+.tmp_dagster*
