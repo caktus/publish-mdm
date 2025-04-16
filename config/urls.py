@@ -25,7 +25,7 @@ from apps.odk_publish.views import websockets_server_health, AcceptOrganizationI
 urlpatterns = [
     path("accounts/", include("allauth.urls")),
     path("admin/", admin.site.urls),
-    path("odk/", include("apps.odk_publish.urls", namespace="odk_publish")),
+    path("", include("apps.odk_publish.urls", namespace="odk_publish")),
     path("ws/health/", websockets_server_health),
     re_path(
         r"^accept-invite/(?P<key>\w+)/?$",
