@@ -466,6 +466,10 @@ def organization_users_list(request: HttpRequest, organization_slug):
             and (user := request.organization.users.filter(id=user_id).first())
         ):
             request.organization.users.remove(user)
+            # Delete accepted invitations to the current organization
+            request.organization.organizationinvitation_set.filter(
+                email__iexact=user.email, accepted=True
+            ).delete()
             if request.user == user:
                 # The currently logged in user is leaving the organization
                 messages.success(request, f"You have left {request.organization}.")

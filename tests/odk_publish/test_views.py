@@ -903,6 +903,14 @@ class TestOrganizationUsersList(ViewTestBase):
         """Test removing another user from the organization."""
         other_user = UserFactory()
         organization.users.add(other_user)
+        # Create an accepted invitation with the user's email to the organization
+        OrganizationInvitationFactory(
+            email=other_user.email.upper(), accepted=True, organization=organization
+        )
+        # Create invitations to other organizations
+        other_orgs_invitations = OrganizationInvitationFactory.create_batch(
+            2, email=other_user.email
+        )
         data = {
             "remove": other_user.id,
         }
@@ -910,6 +918,14 @@ class TestOrganizationUsersList(ViewTestBase):
         assert response.status_code == 200
         # Ensure the user is removed from the organization
         assert organization.users.count() == 1
+        # Ensure any accepted invitation for the user's email to the organization is deleted
+        assert not organization.organizationinvitation_set.filter(
+            email__iexact=other_user.email
+        ).exists()
+        # Invitations to other organizations should still exist
+        assert set(OrganizationInvitation.objects.filter(email__iexact=other_user.email)) == set(
+            other_orgs_invitations
+        )
         # Ensure the view redirects back to the users list page
         assert response.redirect_chain == [
             (
@@ -1046,6 +1062,26 @@ class TestSendOrganizationInvite(ViewTestBase):
             mailoutbox,
         )
         assert OrganizationInvitation.objects.count() == 1
+
+    def test_user_already_in_organization(self, client, url, user, organization, mailoutbox):
+        """Test attempting to send an invitation to a user that is already in
+        the organization.
+        """
+        organization_user = UserFactory()
+        organization.users.add(organization_user)
+        data = {
+            "email": organization_user.email,
+        }
+        self.invalid_form(
+            client,
+            url,
+            user,
+            organization,
+            data,
+            f"A user with this e-mail address has already joined {organization}.",
+            mailoutbox,
+        )
+        assert not OrganizationInvitation.objects.exists()
 
 
 @pytest.mark.django_db

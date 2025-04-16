@@ -6,7 +6,7 @@ from django.urls import reverse_lazy
 from import_export import forms as import_export_forms
 from import_export.tmp_storages import MediaStorage
 from invitations.adapters import get_invitations_adapter
-from invitations.exceptions import AlreadyAccepted, AlreadyInvited
+from invitations.exceptions import AlreadyAccepted, AlreadyInvited, UserRegisteredEmail
 
 from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import (
@@ -356,6 +356,8 @@ class CleanOrganizationInvitationMixin:
             email__iexact=email, organization=organization, accepted=True
         ):
             raise AlreadyAccepted
+        elif organization.users.filter(email__iexact=email):
+            raise UserRegisteredEmail
         else:
             return True
 
@@ -370,6 +372,7 @@ class CleanOrganizationInvitationMixin:
         errors = {
             "already_invited": f"This e-mail address has already been invited to {organization}.",
             "already_accepted": f"This e-mail address has already accepted an invite to {organization}.",
+            "email_in_use": f"A user with this e-mail address has already joined {organization}.",
         }
         try:
             self.validate_invitation(email, organization)
@@ -377,6 +380,8 @@ class CleanOrganizationInvitationMixin:
             raise forms.ValidationError({"email": errors["already_invited"]})
         except AlreadyAccepted:
             raise forms.ValidationError({"email": errors["already_accepted"]})
+        except UserRegisteredEmail:
+            raise forms.ValidationError({"email": errors["email_in_use"]})
         return self.cleaned_data
 
 
