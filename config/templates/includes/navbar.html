@@ -1,9 +1,24 @@
 <header class="flex flex-col antialiased fixed top-0 z-50 w-full">
-    <nav class="bg-gray-50 px-4 lg:px-6 py-2.5 dark:bg-gray-900 order-1">
+    <nav class="bg-gray-50 px-4 lg:px-6 py-2.5 dark:bg-gray-900 order-1 border-b border-gray-200">
         <div class="flex justify-between items-center">
             <div class="flex justify-start items-center">
                 <a href="{% url 'home' %}" class="flex mr-6">
-                    <span class="self-center text-2xl font-semibold whitespace-nowrap dark:text-white">ODK Publish</span>
+                    <div title="Publish MDM"
+                         class="mr-3 shadow-md flex items-center p-2 rounded-full ring-2 ring-primary-300 stroke-primary-700 fill-primary-400 stroke-[1.5] border-primary-400 bg-gradient-to-r from-primary-100 via-primary-200 to-primary-200">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                             class="w-6 h-6"
+                             viewBox="0 0 24 24"
+                             stroke-linecap="round"
+                             stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                    </div>
+                    <span class="self-center text-2xl font-semibold whitespace-nowrap dark:text-white text-primary">
+                        Publish MDM
+                        <small class="ms-2 font-semibold text-gray-500 dark:text-gray-400">
+                            {% if request.organization %}{{ request.organization.name }}{% endif %}
+                        </small>
+                    </span>
                 </a>
                 {% if request.organization %}
                     <button data-drawer-target="sidebar-team-switch"
@@ -25,18 +40,6 @@
             </div>
             <div class="flex justify-between items-center lg:order-2">
                 <ul class="hidden flex-col mt-0 mr-0 w-full text-sm font-medium text-gray-900 md:flex md:flex-row dark:text-white">
-                    {% if request.organization %}
-                        <li>
-                            <a href="{% url 'odk_publish:server-sync' request.organization.slug %}"
-                               class="btn btn-outline mr-4">Sync Project</a>
-                        </li>
-                    {% endif %}
-                    {% if request.odk_project %}
-                        <li>
-                            <a href="{% url 'odk_publish:edit-project' request.organization.slug request.odk_project.pk %}"
-                               class="btn btn-outline mr-4">Edit Project</a>
-                        </li>
-                    {% endif %}
                     {% if request.user.is_superuser %}
                         <li>
                             <a href="{% url 'admin:index' %}"
@@ -98,8 +101,38 @@
                                        class="block py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-400 dark:hover:text-white">Account settings</a>
                                 </li>
                                 <li>
-                                    <a href="{% url 'odk_publish:create-organization' %}"
-                                       class="block py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-400 dark:hover:text-white">Create a new organization</a>
+                                    <button id="orgDropdownButton"
+                                            data-dropdown-toggle="orgDropdown"
+                                            data-dropdown-placement="right-start"
+                                            type="button"
+                                            class="flex text-sm items-center justify-between w-full px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white">
+                                        Switch organization
+                                        <svg class="w-2.5 h-2.5 ms-3 rtl:rotate-180"
+                                             aria-hidden="true"
+                                             xmlns="http://www.w3.org/2000/svg"
+                                             fill="none"
+                                             viewBox="0 0 6 10">
+                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 9 4-4-4-4" />
+                                        </svg>
+                                    </button>
+                                    <div id="orgDropdown"
+                                         class="z-10 hidden bg-white divide-y divide-gray-100 rounded-lg shadow-sm w-44 dark:bg-gray-700 dark:divide-gray-600">
+                                        <ul class="py-2 text-sm text-gray-700 dark:text-gray-200"
+                                            aria-labelledby="orgDropdownButton">
+                                            {% for organization in request.organizations %}
+                                                {% if organization != request.organization %}
+                                                    <li>
+                                                        <a href="{{ organization.get_absolute_url }}"
+                                                           class="block py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-400 dark:hover:text-white">{{ organization }}</a>
+                                                    </li>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </ul>
+                                        <div class="py-2">
+                                            <a href="{% url 'odk_publish:create-organization' %}"
+                                               class="block py-2 px-4 text-sm hover:bg-gray-100 dark:hover:bg-gray-600 dark:text-gray-400 dark:hover:text-white">Create a new organization...</a>
+                                        </div>
+                                    </div>
                                 </li>
                                 <li>
                                     <a href="{% url 'account_logout' %}"
@@ -127,7 +160,7 @@
             </div>
         </div>
     </nav>
-    {% if request.odk_project %}
+    {% if request.odk_project and False %}
         <nav id="toggleMobileMenu"
              class="hidden order-3 bg-gray-50 dark:border-b shadow-sm dark:bg-gray-900 md:block dark:border-gray-800 md:order-2">
             <div class="px-0 lg:px-6">
