@@ -3,6 +3,7 @@ import structlog
 from django.conf import settings
 from django.contrib import admin
 from django import forms
+from invitations.admin import InvitationAdmin
 
 from .models import (
     CentralServer,
@@ -16,6 +17,7 @@ from .models import (
     ProjectAttachment,
     ProjectTemplateVariable,
     Organization,
+    OrganizationInvitation,
 )
 
 
@@ -148,3 +150,11 @@ class OrganizationAdmin(admin.ModelAdmin):
     search_fields = ("name", "slug")
     ordering = ("name",)
     filter_horizontal = ("users",)
+
+
+admin.site.unregister(OrganizationInvitation)
+
+
+@admin.register(OrganizationInvitation)
+class OrganizationInvitationAdmin(InvitationAdmin):
+    list_display = ("email", "organization", "sent", "accepted")
