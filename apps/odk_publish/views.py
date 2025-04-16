@@ -497,7 +497,10 @@ class SendOrganizationInvite(SendInvite):
         return super().get_context_data(**kwargs) | {
             "breadcrumbs": Breadcrumbs.from_items(
                 request=self.request,
-                items=[("Send an invite", "send-invite")],
+                items=[
+                    ("Organization Users", "organization-users-list"),
+                    ("Send an invite", "send-invite"),
+                ],
             )
         }
 

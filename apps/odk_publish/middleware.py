@@ -80,7 +80,7 @@ class OrganizationMiddleware:
         else:
             request.organizations = None
         request.organization = None
-        # Automatically lookup the current project
+        # Automatically lookup the current organization
         resolver_match: ResolverMatch = request.resolver_match
         if (
             "odk_publish" in resolver_match.namespaces
