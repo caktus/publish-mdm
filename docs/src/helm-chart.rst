@@ -4,9 +4,39 @@ Deploying the ODK Publish Helm Chart
 This guide will walk you through deploying the ODK Publish Helm Chart on a Kubernetes cluster.
 
 
-1. Create a Kubernetes cluster
+1. Create a Kubernetes Cluster
 ------------------------------
-...
+
+You can create a Kubernetes cluster on your preferred platform. In this guide we will use Amazon EKS.
+
+Prerequisites:
+
+- AWS CLI installed and configured.
+- ``eksctl`` installed.
+- AWS IAM user or role with necessary permissions.
+
+**Note:** You can test your IAM user by running an AWS command, such as ``aws s3 ls``.
+
+You may test the cluster creation by running the command below, which will output all the cluster specifications::
+
+    eksctl create cluster --name=publish-mdm --region=us-east-1 --dry-run
+
+To actually create the cluster::
+
+    eksctl create cluster --name=publish-mdm --region=us-east-1 --node-type=t3a.medium --nodes=2
+
+
+You’ll know the creation process finished successfully when the command line prompt returns and you see a message along the lines of::
+
+    2025-04-15 11:19:29 [✔]  created 1 managed nodegroup(s) in cluster "publish-mdm"
+    2025-04-15 11:19:30 [ℹ]  kubectl command should work with "/Users/ronardluna/.kube/config", try 'kubectl get nodes'
+    2025-04-15 11:19:30 [✔]  EKS cluster "publish-mdm" in "us-east-1" region is ready
+
+**Note:** It’s good always to specify the node type, otherwise AWS will default to massive nodes.
+
+Your new cluster should be “Active” in EKS. You can add it to you Kubernetes config with::
+
+    aws eks --region us-east-1 update-kubeconfig --name publish-mdm
 
 
 2. Install Dependencies
@@ -16,10 +46,10 @@ You’ll install the following dependencies using `Helm <https://helm.sh/docs/in
 
 - `Nginx Ingress Controller <https://github.com/kubernetes/ingress-nginx>`_
 - `Cert Manager <https://cert-manager.io/>`_
-- PostgreSQL (optional).
+- `PostgreSQL <https://github.com/bitnami/charts/tree/main/bitnami/postgresql>`_ (optional).
 
-2.1. Installing the Kubernetes Nginx Ingress Controller
-+++++++++++++++++++++++++++++++++++++++++++++++++++++++
+2.1. Installing the Nginx Ingress Controller
+++++++++++++++++++++++++++++++++++++++++++++
 
 First add its repository to Helm::
 
@@ -90,10 +120,41 @@ Apply the configuration::
 .. note::
 
     You can skip this step if your PostgreSQL database will not be hosted in your Kubernetes cluster
-    (e.g. if you've set up your PostgreSQL database in another server or you're using a managed service like Amazon RDS or DigitalOcean Managed Database).
+    (e.g. if you've set up your PostgreSQL database in another server or you're using a
+    managed service like Amazon RDS or DigitalOcean Managed Database).
 
-...
+To host the PostgreSQL database within your cluster, you can install the
+`PostgreSQL Helm Chart from Bitnami <https://github.com/bitnami/charts/tree/main/bitnami/postgresql>`_.
 
+First, create a namespace for it::
+
+    kubectl create namespace odk-publish-db
+
+Add the Bitnami repository::
+
+    helm repo add bitnami https://charts.bitnami.com/bitnami
+    helm repo update
+
+Then install the Helm chart within the namespace you created. We will install version 15.5.38 as it's
+the last version that supports PostgreSQL 16 and the ODK Publish Docker container currently does not work well
+with PostgreSQL 17. You can update the ``auth.*`` values below as necessary,
+and set any `other parameters <https://github.com/bitnami/charts/tree/main/bitnami/postgresql#parameters>`_ you may need::
+
+    helm install odk-publish-db bitnami/postgresql --version 15.5.38 \
+        --namespace odk-publish-db \
+        --set auth.database=odk_publish \
+        --set auth.password=A3Or4uW2vIPoZfJF \
+        --set auth.username=odk_publish \
+        --set auth.postgresPassword=9eCFAO8Tte3eyLBq
+
+**Note:** On some platforms, you may need to set the ``global.defaultStorageClass`` value to
+specify the StorageClass to be used for Persistent Volumes. To see the available
+storage classes in your cluster, run ``kubectl get storageclass``.
+
+The output of the ``helm install`` command will include the domain name for accessing PostgreSQL
+from within the cluster. (e.g. ``odk-publish-db-postgresql.odk-publish-db.svc.cluster.local``). You will
+use this domain name -- along with the ``auth.username``, ``auth.password``, and ``auth.database``
+values from above -- to create the ``DATABASE_URL`` environment variable in the next section.
 
 3. Installing the ODK Publish Helm Chart
 ----------------------------------------
@@ -148,8 +209,6 @@ Below is a sample ``chart_values.yaml`` file that will create only one deploymen
         annotations:
           cert-manager.io/cluster-issuer: letsencrypt-prod
           kubernetes.io/ingress.class: nginx
-          nginx.ingress.kubernetes.io/proxy-body-size: 100m
-          nginx.org/mergeable-ingress-type: master
         className: nginx
         enabled: true
         hosts:
@@ -170,4 +229,4 @@ Confirm if all the necessary resources have been created successfully::
 
     kubectl get all -n odk-publish
 
-That's it! Your ODK Publish instance should now be available at ``https://your_domain_name``
+That's it! The ODK Publish web application should now be available at ``https://your_domain_name``
