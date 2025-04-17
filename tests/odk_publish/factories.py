@@ -1,6 +1,7 @@
 from typing import Generic, TypeVar
 
 import factory
+from django.utils.crypto import get_random_string
 
 from apps.odk_publish import models
 from tests.users.factories import UserFactory
@@ -18,6 +19,16 @@ class BaseMetaFactory(Generic[T], factory.base.FactoryMetaClass):
         return super().__call__(*args, **kwargs)
 
 
+class OrganizationFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Organization]
+):
+    class Meta:
+        model = models.Organization
+
+    name = factory.Faker("company")
+    slug = factory.Faker("slug")
+
+
 class CentralServerFactory(
     factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.CentralServer]
 ):
@@ -25,6 +36,7 @@ class CentralServerFactory(
         model = models.CentralServer
 
     base_url = factory.Faker("url")
+    organization = factory.SubFactory(OrganizationFactory)
 
 
 class TemplateVariableFactory(
@@ -34,6 +46,7 @@ class TemplateVariableFactory(
         model = models.TemplateVariable
 
     name = factory.Faker("word")
+    organization = factory.SubFactory(OrganizationFactory)
 
 
 class ProjectFactory(factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Project]):
@@ -43,6 +56,7 @@ class ProjectFactory(factory.django.DjangoModelFactory, metaclass=BaseMetaFactor
     central_id = factory.Sequence(lambda n: n)
     central_server = factory.SubFactory(CentralServerFactory)
     name = factory.Faker("word")
+    organization = factory.SubFactory(OrganizationFactory)
 
 
 class ProjectTemplateVariableFactory(
@@ -123,3 +137,12 @@ class ProjectAttachmentFactory(factory.django.DjangoModelFactory):
     name = factory.Faker("word")
     project = factory.SubFactory(ProjectFactory)
     file = factory.django.FileField()
+
+
+class OrganizationInvitationFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = models.OrganizationInvitation
+
+    email = factory.Faker("email")
+    organization = factory.SubFactory(OrganizationFactory)
+    key = factory.Sequence(lambda _: get_random_string(64).lower())

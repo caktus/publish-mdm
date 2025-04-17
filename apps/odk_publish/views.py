@@ -1,6 +1,6 @@
-import logging
 import json
 
+import structlog
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -10,6 +10,15 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.timezone import localdate
 from import_export.results import RowResult
 from import_export.tmp_storages import MediaStorage
+from invitations.adapters import get_invitations_adapter
+from invitations.app_settings import app_settings as invitations_settings
+from invitations.utils import get_invitation_model, get_invite_form
+from invitations.views import (
+    accept_invitation,
+    accept_invite_after_signup,
+    AcceptInvite,
+    SendInvite,
+)
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers.data import JsonLexer
@@ -27,6 +36,7 @@ from .forms import (
     AppUserTemplateVariableFormSet,
     ProjectForm,
     ProjectTemplateVariableFormSet,
+    OrganizationForm,
 )
 from .import_export import AppUserResource
 from .models import FormTemplateVersion, FormTemplate, AppUser
@@ -34,19 +44,23 @@ from .nav import Breadcrumbs
 from .tables import FormTemplateTable
 
 
-logger = logging.getLogger(__name__)
+logger = structlog.getLogger(__name__)
+Invitation = get_invitation_model()
+InviteForm = get_invite_form()
 
 
 @login_required
 @transaction.atomic
-def server_sync(request: HttpRequest):
+def server_sync(request: HttpRequest, organization_slug):
     form = ProjectSyncForm(request=request, data=request.POST or None)
     if request.method == "POST" and form.is_valid():
         project = sync_central_project(
-            base_url=form.cleaned_data["server"], project_id=form.cleaned_data["project"]
+            base_url=form.cleaned_data["server"],
+            project_id=form.cleaned_data["project"],
+            organization=request.organization,
         )
         messages.add_message(request, messages.SUCCESS, "Project synced.")
-        return redirect("odk_publish:form-template-list", odk_project_pk=project.id)
+        return redirect("odk_publish:form-template-list", organization_slug, project.id)
     context = {
         "form": form,
         "breadcrumbs": Breadcrumbs.from_items(
@@ -64,7 +78,7 @@ def server_sync_projects(request: HttpRequest):
 
 
 @login_required
-def app_user_list(request: HttpRequest, odk_project_pk):
+def app_user_list(request: HttpRequest, organization_slug, odk_project_pk):
     app_users = request.odk_project.app_users.prefetch_related("app_user_forms__form_template")
     context = {
         "app_users": app_users,
@@ -77,13 +91,13 @@ def app_user_list(request: HttpRequest, odk_project_pk):
 
 
 @login_required
-def app_user_generate_qr_codes(request: HttpRequest, odk_project_pk):
+def app_user_generate_qr_codes(request: HttpRequest, organization_slug, odk_project_pk):
     generate_and_save_app_user_collect_qrcodes(project=request.odk_project)
-    return redirect("odk_publish:app-user-list", odk_project_pk=odk_project_pk)
+    return redirect("odk_publish:app-user-list", organization_slug, odk_project_pk)
 
 
 @login_required
-def form_template_list(request: HttpRequest, odk_project_pk):
+def form_template_list(request: HttpRequest, organization_slug, odk_project_pk):
     form_templates = request.odk_project.form_templates.annotate(
         app_user_count=models.Count("app_user_forms"),
     ).prefetch_related(
@@ -106,7 +120,9 @@ def form_template_list(request: HttpRequest, odk_project_pk):
 
 
 @login_required
-def form_template_detail(request: HttpRequest, odk_project_pk: int, form_template_id: int):
+def form_template_detail(
+    request: HttpRequest, organization_slug, odk_project_pk: int, form_template_id: int
+):
     form_template: FormTemplate = get_object_or_404(
         request.odk_project.form_templates.annotate(
             app_user_count=models.Count("app_user_forms"),
@@ -136,7 +152,9 @@ def form_template_detail(request: HttpRequest, odk_project_pk: int, form_templat
 
 
 @login_required
-def form_template_publish(request: HttpRequest, odk_project_pk: int, form_template_id: int):
+def form_template_publish(
+    request: HttpRequest, organization_slug, odk_project_pk: int, form_template_id: int
+):
     """Publish a FormTemplate to ODK Central."""
     form_template: FormTemplate = get_object_or_404(
         request.odk_project.form_templates, pk=form_template_id
@@ -168,7 +186,7 @@ def form_template_publish(request: HttpRequest, odk_project_pk: int, form_templa
 
 
 @login_required
-def app_user_export(request, odk_project_pk):
+def app_user_export(request, organization_slug, odk_project_pk):
     """Exports AppUsers to a CSV or Excel file.
 
     For each user in the current project, there will be "id", "name", and "central_id"
@@ -199,7 +217,7 @@ def app_user_export(request, odk_project_pk):
 
 
 @login_required
-def app_user_import(request, odk_project_pk):
+def app_user_import(request, organization_slug, odk_project_pk):
     """Imports AppUsers from a CSV or Excel file.
 
     The file is expected to have the same columns as a file exported using the
@@ -235,7 +253,7 @@ def app_user_import(request, odk_project_pk):
                     f"Import finished successfully, with {result.totals[RowResult.IMPORT_TYPE_NEW]} "
                     f"new and {result.totals[RowResult.IMPORT_TYPE_UPDATE]} updated app users.",
                 )
-                return redirect("odk_publish:app-user-list", odk_project_pk=odk_project_pk)
+                return redirect("odk_publish:app-user-list", organization_slug, odk_project_pk)
             # Save the import file data in a temporary file and show the confirm page
             import_format = form.cleaned_data["format"]
             tmp_storage = MediaStorage(
@@ -278,7 +296,7 @@ def websockets_server_health(request):
 
 
 @login_required
-def app_user_detail(request: HttpRequest, odk_project_pk, app_user_pk):
+def app_user_detail(request: HttpRequest, organization_slug, odk_project_pk, app_user_pk):
     """Detail page for an AppUser."""
     app_user = get_object_or_404(request.odk_project.app_users, pk=app_user_pk)
     if app_user.qr_code_data:
@@ -307,7 +325,9 @@ def app_user_detail(request: HttpRequest, odk_project_pk, app_user_pk):
 
 
 @login_required
-def change_form_template(request: HttpRequest, odk_project_pk, form_template_id=None):
+def change_form_template(
+    request: HttpRequest, organization_slug, odk_project_pk, form_template_id=None
+):
     """Add or edit a FormTemplate."""
     if form_template_id:
         # Editing a FormTemplate
@@ -322,7 +342,7 @@ def change_form_template(request: HttpRequest, odk_project_pk, form_template_id=
             request,
             f"Successfully {'edit' if form_template_id else 'add'}ed {form_template.title_base}.",
         )
-        return redirect("odk_publish:form-template-list", odk_project_pk)
+        return redirect("odk_publish:form-template-list", organization_slug, odk_project_pk)
     if form_template_id:
         crumbs = [
             (form_template.title_base, "form-template-detail", [form_template_id]),
@@ -350,7 +370,7 @@ def change_form_template(request: HttpRequest, odk_project_pk, form_template_id=
 
 
 @login_required
-def change_app_user(request: HttpRequest, odk_project_pk, app_user_id=None):
+def change_app_user(request: HttpRequest, organization_slug, odk_project_pk, app_user_id=None):
     """Add or edit an AppUser."""
     if app_user_id:
         # Editing an AppUser
@@ -367,7 +387,7 @@ def change_app_user(request: HttpRequest, odk_project_pk, app_user_id=None):
             request,
             f"Successfully {'edit' if app_user_id else 'add'}ed {app_user}.",
         )
-        return redirect("odk_publish:app-user-list", odk_project_pk)
+        return redirect("odk_publish:app-user-list", organization_slug, odk_project_pk)
     if app_user_id:
         crumbs = [
             (app_user.name, "app-user-detail", [app_user.pk]),
@@ -388,11 +408,13 @@ def change_app_user(request: HttpRequest, odk_project_pk, app_user_id=None):
 
 
 @login_required
-def edit_project(request, odk_project_pk):
+def edit_project(request, organization_slug, odk_project_pk):
     """Edit a Project."""
     form = ProjectForm(request.POST or None, instance=request.odk_project)
     variables_formset = ProjectTemplateVariableFormSet(
-        request.POST or None, instance=request.odk_project
+        request.POST or None,
+        instance=request.odk_project,
+        form_kwargs={"valid_template_variables": request.organization.template_variables.all()},
     )
     if request.method == "POST" and all([form.is_valid(), variables_formset.is_valid()]):
         form.save()
@@ -401,7 +423,7 @@ def edit_project(request, odk_project_pk):
             request,
             f"Successfully edited {request.odk_project}.",
         )
-        return redirect("odk_publish:form-template-list", request.odk_project.id)
+        return redirect("odk_publish:form-template-list", organization_slug, odk_project_pk)
     context = {
         "form": form,
         "variables_formset": variables_formset,
@@ -411,3 +433,127 @@ def edit_project(request, odk_project_pk):
         ),
     }
     return render(request, "odk_publish/change_project.html", context)
+
+
+@login_required
+def create_organization(request: HttpRequest):
+    """Create a new Organization."""
+    form = OrganizationForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        organization = form.save()
+        organization.users.add(request.user)
+        messages.success(request, f"Successfully created {organization}.")
+        return redirect("odk_publish:organization-home", organization.slug)
+    context = {
+        "form": form,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("Create an organization", "create-organization")],
+        ),
+    }
+    return render(request, "odk_publish/create_organization.html", context)
+
+
+@login_required
+def organization_users_list(request: HttpRequest, organization_slug):
+    """List all the users added to an Organization."""
+    if request.method == "POST":
+        # Remove a user from the Organization
+        user_id = request.POST.get("remove")
+        if (
+            user_id
+            and user_id.isdigit()
+            and (user := request.organization.users.filter(id=user_id).first())
+        ):
+            request.organization.users.remove(user)
+            # Delete accepted invitations to the current organization
+            request.organization.organizationinvitation_set.filter(
+                email__iexact=user.email, accepted=True
+            ).delete()
+            if request.user == user:
+                # The currently logged in user is leaving the organization
+                messages.success(request, f"You have left {request.organization}.")
+                return redirect("home")
+            # Removing a different user
+            messages.success(
+                request,
+                f"You have removed {user.get_full_name()} ({user.email}) from {request.organization}.",
+            )
+            return redirect("odk_publish:organization-users-list", organization_slug)
+    context = {
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("Organization Users", "organization-users-list")],
+        ),
+    }
+    return render(request, "odk_publish/organization_users_list.html", context)
+
+
+class SendOrganizationInvite(SendInvite):
+    """Invite a user to an Organization via email."""
+
+    def get_form_kwargs(self):
+        # Add the current organization to the form kwargs. Will be used during form validation
+        return super().get_form_kwargs() | {"organization": self.request.organization}
+
+    def get_context_data(self, **kwargs):
+        # Add breadcrumbs to the context data
+        return super().get_context_data(**kwargs) | {
+            "breadcrumbs": Breadcrumbs.from_items(
+                request=self.request,
+                items=[
+                    ("Organization Users", "organization-users-list"),
+                    ("Send an invite", "send-invite"),
+                ],
+            )
+        }
+
+    def form_valid(self, form):
+        # Create the OrganizationInvitation object and send out the email
+        email = form.cleaned_data["email"]
+        invitation = Invitation.create(
+            email=email, organization=self.request.organization, inviter=self.request.user
+        )
+        invitation.send_invitation(self.request)
+        messages.success(self.request, f"{email} has been invited.")
+        return redirect(invitation.organization.get_absolute_url())
+
+
+class AcceptOrganizationInvite(AcceptInvite):
+    """Accept an invitation to join an Organization."""
+
+    def post(self, *args, **kwargs):
+        response = super().post(*args, **kwargs)
+
+        if self.object and not (self.object.accepted or self.object.key_expired()):
+            if self.request.user.is_authenticated:
+                # Invite was for the currently logged in user. Mark it accepted
+                # and add the user to the organization
+                accept_invitation(
+                    invitation=self.object,
+                    request=self.request,
+                    signal_sender=self.__class__,
+                )
+                self.object.organization.users.add(self.request.user)
+                logger.info(
+                    "Added a user to an organization via invitation",
+                    user=self.request.user,
+                    invitation=self.object,
+                    organization=self.object.organization,
+                )
+                return redirect(self.object.organization.get_absolute_url())
+
+            # Add the invitation ID to the session so we can mark it accepted later
+            # once the user logins in or signs up
+            self.request.session["invitation_id"] = self.object.id
+
+        return response
+
+
+if invitations_settings.ACCEPT_INVITE_AFTER_SIGNUP:
+    # Disconnect the signal receiver that was connected within django-invitations.
+    # That signal receiver searches for the invitation by email only, which
+    # will not work correctly in our case since an email can have multiple
+    # invitations for different organizations.
+    signed_up_signal = get_invitations_adapter().get_user_signed_up_signal()
+    signed_up_signal.disconnect(accept_invite_after_signup)

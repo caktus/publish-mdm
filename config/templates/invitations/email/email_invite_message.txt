@@ -1,0 +1,12 @@
+{% load i18n %}
+{% autoescape off %}
+{% blocktrans %}
+
+Hello,
+
+You have been invited to join {{ organization_name }}. If you'd like to join, please go to {{ invite_url }}
+
+This invitation expires in {{ expiry_days }} days.
+
+{% endblocktrans %}
+{% endautoescape %}

@@ -33,19 +33,19 @@
                 <ul class="p-2 text-left text-sm font-medium text-gray-500 dark:text-gray-400"
                     aria-labelledby="actionsDropdownButton">
                     <li>
-                        <a href="{% url 'odk_publish:app-users-generate-qr-codes' request.odk_project.pk %}"
+                        <a href="{% url 'odk_publish:app-users-generate-qr-codes' request.organization.slug request.odk_project.pk %}"
                            class="group inline-flex w-full items-center rounded-md px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-600 dark:hover:text-white">Regenerate QR Codes</a>
                     </li>
                     <li>
-                        <a href="{% url 'odk_publish:app-users-export' request.odk_project.pk %}"
+                        <a href="{% url 'odk_publish:app-users-export' request.organization.slug request.odk_project.pk %}"
                            class="group inline-flex w-full items-center rounded-md px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-600 dark:hover:text-white">Export</a>
                     </li>
                     <li>
-                        <a href="{% url 'odk_publish:app-users-import' request.odk_project.pk %}"
+                        <a href="{% url 'odk_publish:app-users-import' request.organization.slug request.odk_project.pk %}"
                            class="group inline-flex w-full items-center rounded-md px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-600 dark:hover:text-white">Import</a>
                     </li>
                     <li>
-                        <a href="{% url 'odk_publish:add-app-user' request.odk_project.pk %}"
+                        <a href="{% url 'odk_publish:add-app-user' request.organization.slug request.odk_project.pk %}"
                            class="group inline-flex w-full items-center rounded-md px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-600 dark:hover:text-white">Add app user</a>
                     </li>
                 </ul>
@@ -65,7 +65,7 @@
                     {% endif %}
                 </div>
                 <div class="pt-6">
-                    <a href="{% url 'odk_publish:app-user-detail' app_user.project_id app_user.pk %}"
+                    <a href="{% url 'odk_publish:app-user-detail' request.organization.slug app_user.project_id app_user.pk %}"
                        class="text-lg font-semibold leading-tight text-gray-900 hover:underline dark:text-white">{{ app_user }}</a>
                     <p class="mb-3 font-normal text-gray-700 dark:text-gray-400">
                         Forms:

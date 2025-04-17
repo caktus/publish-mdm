@@ -18,6 +18,7 @@ from ..models import (
     CentralServer,
     FormTemplate,
     FormTemplateVersion,
+    Organization,
     Project,
 )
 from .odk.client import ODKPublishClient
@@ -154,20 +155,25 @@ def generate_and_save_app_user_collect_qrcodes(project: Project):
             )
 
 
-def sync_central_project(base_url: str, project_id: int) -> Project:
+def sync_central_project(base_url: str, project_id: int, organization: Organization) -> Project:
     """Sync a project from ODK Central to the local database."""
     config = ODKPublishClient.get_config(base_url=base_url)
     with ODKPublishClient(base_url=config.base_url, project_id=project_id) as client:
         # CentralServer
-        server, created = CentralServer.objects.get_or_create(base_url=base_url)
+        server, created = CentralServer.objects.get_or_create(
+            base_url=base_url, organization=organization
+        )
         logger.debug(
-            f"{'Created' if created else 'Retrieved'} CentralServer", base_url=server.base_url
+            f"{'Created' if created else 'Retrieved'} CentralServer",
+            base_url=server.base_url,
+            organization=organization,
         )
         # Project
         central_project = client.projects.get()
         project, created = Project.objects.get_or_create(
             central_id=central_project.id,
             central_server=server,
+            organization=organization,
             defaults={"name": central_project.name},
         )
         logger.info(
@@ -175,6 +181,7 @@ def sync_central_project(base_url: str, project_id: int) -> Project:
             id=project.id,
             central_id=project.central_id,
             project_name=project.name,
+            organization=organization,
         )
         # AppUser
         central_app_users = client.odk_publish.get_app_users()

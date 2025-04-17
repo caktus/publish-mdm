@@ -25,24 +25,25 @@
         {% block extra-css %}
         {% endblock extra-css %}
     </head>
-    <body class="bg-white dark:bg-gray-900">
+    <body class="bg-white dark:bg-gray-900 antialiased">
         {% include "includes/navbar.html" %}
-        {% block extra-nav %}
-        {% endblock extra-nav %}
-        <div class="{% if request.path == '/' %} mt-8 {% elif request.path != '/accounts/login/' %} w-full top-[25px] {% endif %} mb-20">
-            <section class="antialiased py-8 md:py-12">
-                <div class="mx-auto max-w-screen-xl px-4 2xl:px-0">
-                    {% include "includes/breadcrumbs.html" %}
-                    <h2 class="mt-3 mb-5 text-xl font-semibold text-gray-900 dark:text-white sm:text-2xl">
-                        {% block page_header %}
-                            {{ breadcrumbs.crumbs|last }}
-                        {% endblock page_header %}
-                    </h2>
-                    {% include "includes/messages.html" %}
-                    {% block content %}
-                    {% endblock content %}
-                </div>
-            </section>
+        <div class="flex overflow-hidden pt-[62px] dark:bg-gray-900">
+            {% include "includes/sidebar.html" %}
+            <div class="lg:ms-64 relative h-full w-full dark:bg-gray-900">
+                <main class="py-8 px-8">
+                    <div class="max-w-7xl">
+                        {% include "includes/breadcrumbs.html" %}
+                        <h2 class="mt-3 mb-5 text-xl font-semibold text-gray-900 dark:text-white sm:text-2xl">
+                            {% block page_header %}
+                                {{ breadcrumbs.crumbs|last }}
+                            {% endblock page_header %}
+                        </h2>
+                        {% include "includes/messages.html" %}
+                        {% block content %}
+                        {% endblock content %}
+                    </div>
+                </main>
+            </div>
         </div>
         <script>
             document.body.addEventListener('htmx:configRequest', (event) => {
@@ -110,6 +111,36 @@
                     }
                 }
 
+            });
+
+            // Collapse sidebar nav
+            var hideSideNavButtonEl = document.getElementById('show-secondary-sidenav-button');
+            var showSideNavButtonEl = document.getElementById('hide-secondary-sidenav-button');
+            var sidenavEl = document.getElementById('secondary-sidenav');
+
+            // learn more about the Drawer object: https://flowbite.com/docs/components/drawer/#javascript-behaviour
+            var sideNav = new Drawer(sidenavEl, {
+                backdrop: false,
+                bodyScrolling: true,
+                onHide: function() {
+                    showSideNavButtonEl.classList.remove('hidden');
+                    hideSideNavButtonEl.classList.add('hidden');
+                },
+                onShow: function() {
+                    showSideNavButtonEl.classList.add('hidden');
+                    hideSideNavButtonEl.classList.remove('hidden');
+                }
+            });
+
+            // show by default
+            sideNav.show();
+
+            hideSideNavButtonEl.addEventListener('click', function() {
+                sideNav.hide();
+            });
+
+            showSideNavButtonEl.addEventListener('click', function() {
+                sideNav.show();
             });
         </script>
         {% django_htmx_script %}

@@ -5,6 +5,8 @@ from django.http import QueryDict
 from django.urls import reverse_lazy
 from import_export import forms as import_export_forms
 from import_export.tmp_storages import MediaStorage
+from invitations.adapters import get_invitations_adapter
+from invitations.exceptions import AlreadyAccepted, AlreadyInvited, UserRegisteredEmail
 
 from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import (
@@ -18,7 +20,15 @@ from apps.patterns.widgets import (
 
 from .etl.odk.client import ODKPublishClient
 from .http import HttpRequest
-from .models import AppUser, AppUserTemplateVariable, FormTemplate, Project, ProjectTemplateVariable
+from .models import (
+    AppUser,
+    AppUserTemplateVariable,
+    FormTemplate,
+    Organization,
+    OrganizationInvitation,
+    Project,
+    ProjectTemplateVariable,
+)
 
 logger = structlog.getLogger(__name__)
 
@@ -290,6 +300,13 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
             "template_variables": CheckboxSelectMultiple,
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Limit template variables to those linked to the project's organization
+        self.fields[
+            "template_variables"
+        ].queryset = self.instance.organization.template_variables.all()
+
 
 class ProjectTemplateVariableForm(PlatformFormMixin, forms.ModelForm):
     """A form for adding or editing a ProjectTemplateVariable."""
@@ -302,8 +319,95 @@ class ProjectTemplateVariableForm(PlatformFormMixin, forms.ModelForm):
             "value": TextInput,
         }
 
+    def __init__(self, *args, **kwargs):
+        valid_template_variables = kwargs.pop("valid_template_variables", None)
+        super().__init__(*args, **kwargs)
+        if valid_template_variables is not None:
+            self.fields["template_variable"].queryset = valid_template_variables
+
 
 ProjectTemplateVariableFormSet = forms.models.inlineformset_factory(
     Project, ProjectTemplateVariable, form=ProjectTemplateVariableForm, extra=0
 )
 ProjectTemplateVariableFormSet.deletion_widget = CheckboxInput
+
+
+class OrganizationForm(PlatformFormMixin, forms.ModelForm):
+    class Meta:
+        model = Organization
+        fields = ["name", "slug"]
+        widgets = {
+            "name": TextInput,
+            "slug": TextInput,
+        }
+
+
+class CleanOrganizationInvitationMixin:
+    """Similar to django-invitation's CleanEmailMixin, but checks for invitations
+    to the same organization.
+    """
+
+    def validate_invitation(self, email, organization):
+        if OrganizationInvitation.objects.all_valid().filter(
+            email__iexact=email, organization=organization, accepted=False
+        ):
+            raise AlreadyInvited
+        elif OrganizationInvitation.objects.filter(
+            email__iexact=email, organization=organization, accepted=True
+        ):
+            raise AlreadyAccepted
+        elif organization.users.filter(email__iexact=email):
+            raise UserRegisteredEmail
+        else:
+            return True
+
+    def clean(self):
+        email = self.cleaned_data["email"]
+        email = get_invitations_adapter().clean_email(email)
+        if hasattr(self, "organization"):
+            organization = self.organization
+        else:
+            organization = self.cleaned_data["organization"]
+
+        errors = {
+            "already_invited": f"This e-mail address has already been invited to {organization}.",
+            "already_accepted": f"This e-mail address has already accepted an invite to {organization}.",
+            "email_in_use": f"A user with this e-mail address has already joined {organization}.",
+        }
+        try:
+            self.validate_invitation(email, organization)
+        except AlreadyInvited:
+            raise forms.ValidationError({"email": errors["already_invited"]})
+        except AlreadyAccepted:
+            raise forms.ValidationError({"email": errors["already_accepted"]})
+        except UserRegisteredEmail:
+            raise forms.ValidationError({"email": errors["email_in_use"]})
+        return self.cleaned_data
+
+
+class OrganizationInviteForm(PlatformFormMixin, CleanOrganizationInvitationMixin, forms.Form):
+    email = forms.EmailField(widget=TextInput)
+
+    def __init__(self, *args, **kwargs):
+        self.organization = kwargs.pop("organization")
+        super().__init__(*args, **kwargs)
+
+
+class OrganizationInvitationAdminAddForm(CleanOrganizationInvitationMixin, forms.ModelForm):
+    """Similar to django-invitation's InvitationAdminAddForm but includes the organization field."""
+
+    class Meta:
+        model = OrganizationInvitation
+        fields = ("email", "organization", "inviter")
+
+    def save(self, *args, **kwargs):
+        cleaned_data = super().clean()
+        email = cleaned_data.get("email")
+        organization = cleaned_data.get("organization")
+        params = {"email": email, "organization": organization}
+        if cleaned_data.get("inviter"):
+            params["inviter"] = cleaned_data.get("inviter")
+        instance = OrganizationInvitation.create(**params)
+        instance.send_invitation(self.request)
+        super().save(*args, **kwargs)
+        return instance

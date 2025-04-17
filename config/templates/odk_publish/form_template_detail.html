@@ -18,7 +18,7 @@
                     </svg>
                     Edit Template Spreadsheet
                 </a>
-                <a href="{% url 'odk_publish:form-template-publish' request.odk_project.id form_template.id %}"
+                <a href="{% url 'odk_publish:form-template-publish' request.organization.slug request.odk_project.id form_template.id %}"
                    class="btn btn-outline btn-primary ml-4">
                     <svg class="inline-flex items-center w-4.5 h-4.5 mr-1.5 -ml-1 -mt-0.5 text-gray-800 dark:text-white"
                          aria-hidden="true"
@@ -31,7 +31,7 @@
                     </svg>
                     Publish
                 </a>
-                <a href="{% url 'odk_publish:edit-form-template' request.odk_project.id form_template.id %}"
+                <a href="{% url 'odk_publish:edit-form-template' request.organization.slug request.odk_project.id form_template.id %}"
                    class="btn btn-outline ml-4">Edit Form Template</a>
             </div>
         </div>

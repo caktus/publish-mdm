@@ -11,6 +11,7 @@ django-email-bandit @ git+https://github.com/caktus/django-email-bandit@8d84bb55
 django-filter
 django-htmx
 django-import-export[xls, xlsx]
+django-invitations
 django-storages
 django-structlog[celery]
 django-tables2

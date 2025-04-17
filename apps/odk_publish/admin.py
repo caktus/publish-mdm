@@ -3,6 +3,7 @@ import structlog
 from django.conf import settings
 from django.contrib import admin
 from django import forms
+from invitations.admin import InvitationAdmin
 
 from .models import (
     CentralServer,
@@ -15,6 +16,8 @@ from .models import (
     TemplateVariable,
     ProjectAttachment,
     ProjectTemplateVariable,
+    Organization,
+    OrganizationInvitation,
 )
 
 
@@ -23,14 +26,14 @@ logger = structlog.getLogger(__name__)
 
 @admin.register(CentralServer)
 class CentralServerAdmin(admin.ModelAdmin):
-    list_display = ("base_url", "created_at", "modified_at")
+    list_display = ("base_url", "created_at", "modified_at", "organization")
     search_fields = ("base_url",)
     ordering = ("base_url",)
 
 
 @admin.register(TemplateVariable)
 class TemplateVariableAdmin(admin.ModelAdmin):
-    list_display = ("name", "transform")
+    list_display = ("name", "transform", "organization")
     search_fields = ("name",)
     ordering = ("name",)
 
@@ -51,7 +54,7 @@ class ProjectTemplateVariableInline(admin.TabularInline):
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ("name", "central_id", "central_server")
+    list_display = ("name", "central_id", "central_server", "organization")
     search_fields = ("name", "central_id")
     list_filter = ("central_server",)
     filter_horizontal = ("template_variables",)
@@ -139,3 +142,19 @@ class AppUserFormVersionAdmin(admin.ModelAdmin):
     list_display = ("id", "app_user_form_template", "form_template_version", "modified_at")
     list_filter = ("modified_at",)
     ordering = ("-form_template_version__version",)
+
+
+@admin.register(Organization)
+class OrganizationAdmin(admin.ModelAdmin):
+    list_display = ("name", "slug", "created_at", "modified_at")
+    search_fields = ("name", "slug")
+    ordering = ("name",)
+    filter_horizontal = ("users",)
+
+
+admin.site.unregister(OrganizationInvitation)
+
+
+@admin.register(OrganizationInvitation)
+class OrganizationInvitationAdmin(InvitationAdmin):
+    list_display = ("email", "organization", "sent", "accepted")

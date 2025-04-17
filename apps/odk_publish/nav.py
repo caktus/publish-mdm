@@ -27,7 +27,9 @@ class Breadcrumbs(BaseModel):
 
     @classmethod
     def from_items(cls, request: HttpRequest, items: list[tuple[str, str, Optional[list[str]]]]):
-        base_args = [request.odk_project.pk] if request.odk_project else []
+        base_args = [request.organization.slug] if request.organization else []
+        if request.odk_project:
+            base_args.append(request.odk_project.pk)
         crumbs = []
         for item in items:
             # Optionally add URL args to the base_args if provided

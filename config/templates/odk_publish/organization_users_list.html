@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+    <p class="mb-4 dark:text-gray-400">A list of all users who have access to this organization.</p>
+    <a href="{% url 'odk_publish:send-invite' request.organization.slug %}"
+       class="btn btn-outline">Invite a user</a>
+    <div class="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {% for user in request.organization.users.all %}
+            <form method="post"
+                  class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                {% csrf_token %}
+                <div class="flex items-center justify-between">
+                    <div class="flex-shrink">
+                        <p class="text-sm font-semibold text-gray-900 truncate dark:text-white">{{ user.get_full_name }}</p>
+                        <p class="text-sm text-gray-500 truncate dark:text-gray-400">{{ user.email }}</p>
+                    </div>
+                    <button title="Remove from this organization"
+                            class="btn btn-outline hover:text-red-700"
+                            name="remove"
+                            value="{{ user.id }}">
+                        {% if user == request.user %}
+                            Leave
+                        {% else %}
+                            Remove
+                        {% endif %}
+                    </button>
+                </div>
+            </form>
+        {% endfor %}
+    </div>
+{% endblock content %}
