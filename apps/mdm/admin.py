@@ -39,7 +39,9 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
             for row in result.invalid_rows:
                 for field, errors in row.error_dict.items():
                     for error in errors:
-                        messages.error(request, f"Row {row.number}, Column '{field}': {error}")
+                        messages.error(
+                            request, mark_safe(f"Row {row.number}, Column '{field}': {error}")
+                        )
             if result.has_errors():
                 # Save successful rows, since all DB changes will have been rolled back
                 # by DeviceResource.import_data()
