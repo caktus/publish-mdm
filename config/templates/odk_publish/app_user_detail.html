@@ -12,7 +12,7 @@
 {% endblock extra-css %}
 {% block content %}
     <div class="mb-4">
-        <a href="{% url 'odk_publish:edit-app-user' request.odk_project.id app_user.id %}"
+        <a href="{% url 'odk_publish:edit-app-user' request.organization.slug request.odk_project.id app_user.id %}"
            class="btn btn-outline">Edit App User</a>
     </div>
     <h3 class="font-semibold text-xl text-gray-900 dark:text-white mb-2">QR Code Data</h3>

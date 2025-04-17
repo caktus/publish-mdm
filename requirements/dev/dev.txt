@@ -42,11 +42,11 @@ black==25.1.0
     # via -r requirements/dev/dev.in
 bleach==6.2.0
     # via nbconvert
-boto3==1.37.15
+boto3==1.37.34
     # via
     #   -c requirements/dev/../base/base.txt
     #   moto
-botocore==1.37.15
+botocore==1.37.34
     # via
     #   -c requirements/dev/../base/base.txt
     #   boto3
@@ -78,7 +78,7 @@ colorama==0.4.6
     # via djlint
 comm==0.2.2
     # via ipykernel
-coverage==7.7.0
+coverage==7.8.0
     # via pytest-cov
 cryptography==44.0.2
     # via
@@ -86,7 +86,7 @@ cryptography==44.0.2
     #   moto
 cssbeautifier==1.15.4
     # via djlint
-debugpy==1.8.13
+debugpy==1.8.14
     # via ipykernel
 decorator==5.2.1
     # via ipython
@@ -102,7 +102,7 @@ django==5.1.5
     #   django-watchfiles
 django-browser-reload==1.18.0
     # via -r requirements/dev/dev.in
-django-debug-toolbar==5.0.1
+django-debug-toolbar==5.1.0
     # via -r requirements/dev/dev.in
 django-types==0.20.0
     # via -r requirements/dev/dev.in
@@ -118,17 +118,21 @@ executing==2.2.0
     # via stack-data
 factory-boy==3.3.3
     # via -r requirements/dev/dev.in
-faker==37.0.2
+faker==37.1.0
     # via factory-boy
 fastjsonschema==2.21.1
     # via nbformat
 filelock==3.18.0
-    # via virtualenv
+    # via
+    #   -c requirements/dev/../base/base.txt
+    #   virtualenv
 fqdn==1.5.1
     # via jsonschema
 h11==0.14.0
-    # via httpcore
-httpcore==1.0.7
+    # via
+    #   -c requirements/dev/../base/base.txt
+    #   httpcore
+httpcore==1.0.8
     # via httpx
 httpx==0.28.1
     # via jupyterlab
@@ -141,11 +145,11 @@ idna==3.10
     #   httpx
     #   jsonschema
     #   requests
-iniconfig==2.0.0
+iniconfig==2.1.0
     # via pytest
 ipykernel==6.29.5
     # via jupyterlab
-ipython==9.0.2
+ipython==9.1.0
     # via ipykernel
 ipython-pygments-lexers==1.1.1
     # via ipython
@@ -155,6 +159,7 @@ jedi==0.19.2
     # via ipython
 jinja2==3.1.6
     # via
+    #   -c requirements/dev/../base/base.txt
     #   jupyter-server
     #   jupyterlab
     #   jupyterlab-server
@@ -169,7 +174,7 @@ jsbeautifier==1.15.4
     # via
     #   cssbeautifier
     #   djlint
-json5==0.10.0
+json5==0.12.0
     # via
     #   djlint
     #   jupyterlab-server
@@ -208,7 +213,7 @@ jupyter-server==2.15.0
     #   notebook-shim
 jupyter-server-terminals==0.5.3
     # via jupyter-server
-jupyterlab==4.3.6
+jupyterlab==4.4.0
     # via -r requirements/dev/dev.in
 jupyterlab-pygments==0.3.0
     # via nbconvert
@@ -216,6 +221,7 @@ jupyterlab-server==2.27.3
     # via jupyterlab
 markupsafe==3.0.2
     # via
+    #   -c requirements/dev/../base/base.txt
     #   jinja2
     #   nbconvert
     #   werkzeug
@@ -225,7 +231,7 @@ matplotlib-inline==0.1.7
     #   ipython
 mistune==3.1.3
     # via nbconvert
-moto==5.1.1
+moto==5.1.3
     # via -r requirements/dev/dev.in
 mypy-extensions==1.0.0
     # via black
@@ -267,7 +273,7 @@ pathspec==0.12.1
     #   djlint
 pexpect==4.9.0
     # via ipython
-platformdirs==4.3.6
+platformdirs==4.3.7
     # via
     #   black
     #   jupyter-core
@@ -308,9 +314,9 @@ pytest==8.3.5
     #   pytest-cov
     #   pytest-django
     #   pytest-mock
-pytest-cov==6.0.0
+pytest-cov==6.1.1
     # via -r requirements/dev/dev.in
-pytest-django==4.10.0
+pytest-django==4.11.1
     # via -r requirements/dev/dev.in
 pytest-mock==3.14.0
     # via -r requirements/dev/dev.in
@@ -325,12 +331,13 @@ python-json-logger==3.3.0
     # via jupyter-events
 pyyaml==6.0.2
     # via
+    #   -c requirements/dev/../base/base.txt
     #   djlint
     #   jupyter-events
     #   moto
     #   pre-commit
     #   responses
-pyzmq==26.3.0
+pyzmq==26.4.0
     # via
     #   ipykernel
     #   jupyter-client
@@ -361,7 +368,7 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
-rpds-py==0.23.1
+rpds-py==0.24.0
     # via
     #   jsonschema
     #   referencing
@@ -407,7 +414,9 @@ tornado==6.4.2
     #   jupyterlab
     #   terminado
 tqdm==4.67.1
-    # via djlint
+    # via
+    #   -c requirements/dev/../base/base.txt
+    #   djlint
 traitlets==5.14.3
     # via
     #   comm
@@ -426,27 +435,29 @@ types-psycopg2==2.9.21.20250318
     # via django-types
 types-python-dateutil==2.9.0.20241206
     # via arrow
-typing-extensions==4.12.2
+typing-extensions==4.13.2
     # via
     #   -c requirements/dev/../base/base.txt
     #   beautifulsoup4
     #   referencing
-tzdata==2025.1
+tzdata==2025.2
     # via
     #   -c requirements/dev/../base/base.txt
     #   faker
 uri-template==1.3.0
     # via jsonschema
-urllib3==2.3.0
+urllib3==2.4.0
     # via
     #   -c requirements/dev/../base/base.txt
     #   botocore
     #   requests
     #   responses
-virtualenv==20.29.3
+virtualenv==20.30.0
     # via pre-commit
-watchfiles==1.0.4
-    # via django-watchfiles
+watchfiles==1.0.5
+    # via
+    #   -c requirements/dev/../base/base.txt
+    #   django-watchfiles
 wcwidth==0.2.13
     # via
     #   -c requirements/dev/../base/base.txt
@@ -458,7 +469,9 @@ webencodings==0.5.1
     #   bleach
     #   tinycss2
 websocket-client==1.8.0
-    # via jupyter-server
+    # via
+    #   -c requirements/dev/../base/base.txt
+    #   jupyter-server
 werkzeug==3.1.3
     # via moto
 xmltodict==0.14.2

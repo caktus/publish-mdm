@@ -107,7 +107,7 @@
             </button>
             <a type="button"
                class="btn btn-outline"
-               href="{% url 'odk_publish:app-user-list' request.odk_project.pk %}">Cancel</a>
+               href="{% url 'odk_publish:app-user-list' request.organization.slug request.odk_project.pk %}">Cancel</a>
         </div>
     </form>
     <script>

@@ -5,25 +5,38 @@ from apps.odk_publish import models, import_export
 from apps.odk_publish.etl.load import update_app_users_central_id
 from apps.odk_publish.etl.odk.publish import ProjectAppUserAssignment
 
+from tests.odk_publish.factories import (
+    AppUserFactory,
+    CentralServerFactory,
+    OrganizationFactory,
+    ProjectFactory,
+    TemplateVariableFactory,
+)
+
 
 @pytest.mark.django_db
 class TestAppUserResource:
     @pytest.fixture
-    def template_variables(self):
+    def organization(self):
+        return OrganizationFactory()
+
+    @pytest.fixture
+    def template_variables(self, organization):
         return [
-            models.TemplateVariable.objects.create(name=i)
+            TemplateVariableFactory(name=i, organization=organization)
             for i in ("center_id", "center_label", "public_key", "manager_password")
         ]
 
     @pytest.fixture
-    def project(self, template_variables):
-        central_server = models.CentralServer.objects.create(
-            base_url="https://odk-central.caktustest.net/"
+    def project(self, template_variables, organization):
+        central_server = CentralServerFactory(
+            organization=organization,
         )
-        project = models.Project.objects.create(
+        project = ProjectFactory(
             name="Caktus Test",
             central_id=1,
             central_server=central_server,
+            organization=organization,
         )
         project.template_variables.set(template_variables)
         project.form_templates.create(form_id_base="template1")
@@ -31,12 +44,13 @@ class TestAppUserResource:
         return project
 
     @pytest.fixture
-    def other_project(self, template_variables):
-        myodkcloud = models.CentralServer.objects.create(base_url="https://myodkcloud.com/")
-        project = models.Project.objects.create(
+    def other_project(self, template_variables, organization):
+        myodkcloud = CentralServerFactory(organization=organization)
+        project = ProjectFactory(
             name="Other Project",
             central_id=5,
             central_server=myodkcloud,
+            organization=organization,
         )
         project.template_variables.set(template_variables)
         project.form_templates.create(form_id_base="template3")
@@ -45,7 +59,7 @@ class TestAppUserResource:
 
     @pytest.fixture
     def app_user(self, project):
-        app_user = models.AppUser.objects.create(
+        app_user = AppUserFactory(
             name="12345",
             project=project,
             central_id=1,

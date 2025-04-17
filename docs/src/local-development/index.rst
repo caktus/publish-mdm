@@ -11,3 +11,4 @@ Publish, and optionally ODK Central.
 
    odk-central
    setup
+   dagster

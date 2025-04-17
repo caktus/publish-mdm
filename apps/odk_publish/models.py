@@ -1,13 +1,23 @@
+import datetime
 from functools import cached_property
 from urllib.parse import urlparse
 
 import structlog
 from django.conf import settings
+from django.contrib.sites.shortcuts import get_current_site
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models import F, Value
 from django.db.models.functions import NullIf
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.crypto import get_random_string
+from django.utils.translation import gettext_lazy as _
+from invitations.adapters import get_invitations_adapter
+from invitations.app_settings import app_settings as invitations_settings
+from invitations.base_invitation import AbstractBaseInvitation
+from invitations.signals import invite_url_sent
 
 from apps.users.models import User
 
@@ -27,10 +37,25 @@ class AbstractBaseModel(models.Model):
         abstract = True
 
 
+class Organization(AbstractBaseModel):
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=255, unique=True)
+    users = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="organizations")
+
+    def __str__(self):
+        return self.name
+
+    def get_absolute_url(self):
+        return reverse("odk_publish:organization-home", args=[self.slug])
+
+
 class CentralServer(AbstractBaseModel):
     """A server running ODK Central."""
 
     base_url = models.URLField(max_length=1024)
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="central_servers"
+    )
 
     def __str__(self):
         parsed_url = urlparse(self.base_url)
@@ -55,13 +80,18 @@ class TemplateVariable(AbstractBaseModel):
         ],
     )
     transform = models.CharField(choices=template.VariableTransform.choices(), blank=True)
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="template_variables"
+    )
 
     def __str__(self):
         return self.name
 
     class Meta:
         constraints = [
-            models.UniqueConstraint(fields=["name"], name="unique_template_variable_name"),
+            models.UniqueConstraint(
+                fields=["name", "organization"], name="unique_template_variable_name"
+            ),
         ]
 
 
@@ -81,6 +111,9 @@ class Project(AbstractBaseModel):
         verbose_name="App user template variables",
         help_text="Variables selected here will be set for each app user.",
         blank=True,
+    )
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="projects"
     )
 
     def __str__(self):
@@ -417,3 +450,67 @@ class ProjectAttachment(AbstractBaseModel):
 
     def __str__(self):
         return f"{self.name}: {self.file.name}"
+
+
+class OrganizationInvitation(AbstractBaseInvitation):
+    """Similar to django-invitation's builtin Invitation model, but adds a FK
+    to Organization and removes the unique constraint on the email field.
+    """
+
+    email = models.EmailField(
+        verbose_name=_("e-mail address"),
+        max_length=invitations_settings.EMAIL_MAX_LENGTH,
+    )
+    created = models.DateTimeField(verbose_name=_("created"), default=timezone.now)
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE)
+
+    @classmethod
+    def create(cls, email, inviter=None, **kwargs):
+        """Identical to django-invitation's Invitation model."""
+        key = get_random_string(64).lower()
+        instance = cls._default_manager.create(email=email, key=key, inviter=inviter, **kwargs)
+        return instance
+
+    def key_expired(self):
+        """Identical to django-invitation's Invitation model."""
+        expiration_date = self.sent + datetime.timedelta(
+            days=invitations_settings.INVITATION_EXPIRY,
+        )
+        return expiration_date <= timezone.now()
+
+    def send_invitation(self, request, **kwargs):
+        """Identical to django-invitation's Invitation model except for the
+        new context variables indicated below.
+        """
+        current_site = get_current_site(request)
+        invite_url = reverse(invitations_settings.CONFIRMATION_URL_NAME, args=[self.key])
+        invite_url = request.build_absolute_uri(invite_url)
+        ctx = kwargs
+        ctx.update(
+            {
+                "invite_url": invite_url,
+                "site_name": current_site.name,
+                "email": self.email,
+                "key": self.key,
+                "inviter": self.inviter,
+                # New context variables below
+                "organization_name": self.organization.name,
+                "expiry_days": invitations_settings.INVITATION_EXPIRY,
+            },
+        )
+
+        email_template = "invitations/email/email_invite"
+
+        get_invitations_adapter().send_mail(email_template, self.email, ctx)
+        self.sent = timezone.now()
+        self.save()
+
+        invite_url_sent.send(
+            sender=self.__class__,
+            instance=self,
+            invite_url_sent=invite_url,
+            inviter=self.inviter,
+        )
+
+    def __str__(self):
+        return f"Invite: {self.email}"
