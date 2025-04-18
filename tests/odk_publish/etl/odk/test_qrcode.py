@@ -31,20 +31,32 @@ class TestCollectSettings:
         assert collect_settings["general"]["app_language"] == "en"
         assert collect_settings["project"]["name"] == "Project: 10000 (en)"
 
-    def test_create_app_user_qrcode(self, app_user):
-        """Test that the generated QR code includes the correct settings, including admin_pw."""
-        kwargs = {
-            "app_user": app_user,
-            "base_url": "https://central",
-            "project_id": 1,
-            "project_name_prefix": "Project",
-            "language": "en",
-            "admin_pw": "secure-password",
-        }
 
-        qr_code, collect_settings = create_app_user_qrcode(**kwargs)
+def test_create_app_user_qrcode(self, app_user):
+    """Test that the generated QR code includes the correct settings, including admin_pw."""
+    kwargs = {
+        "app_user": app_user,
+        "base_url": "https://central",
+        "project_id": 1,
+        "project_name_prefix": "Project",
+        "language": "en",
+        "admin_pw": "secure-password",
+    }
 
-        assert qr_code.getvalue()[:4] == b"\x89PNG"  # ✅ Ensure it's a PNG
-        assert collect_settings == build_collect_settings(**kwargs)  # ✅ Compare settings
+    qr_code, collect_settings = create_app_user_qrcode(**kwargs)
 
-        assert collect_settings["admin_pw"] == "secure-password"
+    # ✅ Ensure it's a PNG
+    assert qr_code.getvalue()[:4] == b"\x89PNG"
+
+    # ✅ Explicitly reconstruct expected settings
+    expected_settings = build_collect_settings(
+        app_user=app_user,
+        base_url="https://central",
+        project_id=1,
+        project_name_prefix="Project",
+        language="en",
+        admin_pw="secure-password",
+    )
+
+    assert collect_settings == expected_settings
+    assert collect_settings["admin_pw"]["admin_pw"] == "secure-password"
