@@ -27,7 +27,7 @@ def build_collect_settings(
     collect_settings = DEFAULT_COLLECT_SETTINGS.copy()
 
     if admin_pw:
-        collect_settings.setdefault("admin_pw", {})["adnmin_pw"] = str(admin_pw)
+        collect_settings.setdefault("admin_pw", {})["admin_pw"] = str(admin_pw)
 
     # Customize settings
     url = f"{base_url.rstrip("/")}/key/{app_user.token}/projects/{project_id}"
