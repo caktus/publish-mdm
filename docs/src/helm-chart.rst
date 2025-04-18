@@ -38,6 +38,11 @@ Your new cluster should be “Active” in EKS. You can add it to you Kubernetes
 
     aws eks --region us-east-1 update-kubeconfig --name publish-mdm
 
+From EKS 1.23 onwards, a `Container Storage Interface (CSI) driver <https://kubernetes.io/blog/2019/01/15/container-storage-interface-ga/>`_
+is needed to get your PersistentVolumeClaims served by a PersistentVolume
+(`see here for more info <https://stackoverflow.com/questions/75758115/persistentvolumeclaim-is-stuck-waiting-for-a-volume-to-be-created-either-by-ex>`_).
+If you need to use a PersitentVolume you’ll need to add the Amazon VPC CNI add-on.
+`Colin Copeland’s post <https://www.caktusgroup.com/blog/2023/05/03/update-amazon-eks-cluster-kubernetes-version-123/>`_ can help you add it to your cluster.
 
 2. Install Dependencies
 -----------------------
