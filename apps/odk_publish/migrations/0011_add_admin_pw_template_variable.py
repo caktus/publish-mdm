@@ -17,7 +17,7 @@ def create_admin_pw_variable(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("odk_publish", "0009_formtemplate_template_url_user_and_more"),
+        ("odk_publish", "0010_organization_organizationinvitation_and_more"),
     ]
 
     operations = [
