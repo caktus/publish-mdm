@@ -418,6 +418,9 @@ def edit_project(request, organization_slug, odk_project_pk):
     )
     if request.method == "POST" and all([form.is_valid(), variables_formset.is_valid()]):
         form.save()
+        # Regenerate app user QR codes if the app_language has changed
+        if "app_language" in form.changed_data:
+            generate_and_save_app_user_collect_qrcodes(request.odk_project)
         variables_formset.save()
         messages.success(
             request,

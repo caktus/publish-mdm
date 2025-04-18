@@ -5,12 +5,13 @@ from django.conf import settings
 from tests.odk_publish.factories import (
     FormTemplateFactory,
     OrganizationFactory,
+    ProjectFactory,
     UserFactory,
 )
 
 
 @pytest.mark.django_db
-class TestChangeFormTemplate:
+class BaseTestAdmin:
     @pytest.fixture
     def user(self, client):
         user = UserFactory(is_staff=True, is_superuser=True)
@@ -18,6 +19,9 @@ class TestChangeFormTemplate:
         client.force_login(user=user)
         return user
 
+
+@pytest.mark.django_db
+class TestChangeFormTemplate(BaseTestAdmin):
     @pytest.fixture
     def form_template(self):
         return FormTemplateFactory()
@@ -53,14 +57,7 @@ class TestChangeFormTemplate:
 
 
 @pytest.mark.django_db
-class TestOrganizationInvitationAdminAdd:
-    @pytest.fixture
-    def user(self, client):
-        user = UserFactory(is_staff=True, is_superuser=True)
-        user.save()
-        client.force_login(user=user)
-        return user
-
+class TestOrganizationInvitationAdminAdd(BaseTestAdmin):
     @pytest.fixture
     def url(self):
         return reverse("admin:odk_publish_organizationinvitation_add")
@@ -99,3 +96,42 @@ class TestOrganizationInvitationAdminAdd:
             "inviter": user.id,
         }
         self.valid_form(client, url, organization, data, mailoutbox)
+
+
+class TestProjectAdmin(BaseTestAdmin):
+    def test_app_language_change(self, client, user, mocker):
+        """Ensure when a Project's app_language is changed, the QR codes for its
+        app users are regenerated.
+        """
+        project = project = ProjectFactory(
+            app_language="en", central_server__base_url="https://central"
+        )
+        url = reverse("admin:odk_publish_project_change", args=[project.pk])
+        mock_generate_qr_codes = mocker.patch(
+            "apps.odk_publish.admin.generate_and_save_app_user_collect_qrcodes"
+        )
+        data = {
+            "app_language": project.app_language,
+            "name": project.name,
+            "central_id": project.central_id,
+            "central_server": project.central_server_id,
+            "organization": project.organization_id,
+        }
+        for inline_prefix in ("attachments", "project_template_variables"):
+            data.update(
+                {
+                    f"{inline_prefix}-TOTAL_FORMS": 0,
+                    f"{inline_prefix}-INITIAL_FORMS": 0,
+                    f"{inline_prefix}-MIN_NUM_FORMS": 0,
+                    f"{inline_prefix}-MAX_NUM_FORMS": 1000,
+                }
+            )
+
+        client.post(url, data)
+        # The app_language has not changed, so QR codes should not be regenerated
+        mock_generate_qr_codes.assert_not_called()
+
+        data["app_language"] = "ar"
+        client.post(url, data)
+        # The app_language has changed, so QR codes should be regenerated
+        mock_generate_qr_codes.assert_called_once()

@@ -669,7 +669,7 @@ class TestEditProject(ViewTestBase):
         }
 
     def test_valid_form_and_valid_formset(
-        self, client, url, user, project, data, template_variables, other_central_server
+        self, client, url, user, project, data, template_variables, other_central_server, mocker
     ):
         """Ensures the Project is updated when a valid form and valid variables formset are submitted."""
         data.update(
@@ -678,6 +678,9 @@ class TestEditProject(ViewTestBase):
                 "template_variables": [i.id for i in template_variables],
                 "app_language": "ar",
             }
+        )
+        mock_generate_qr_codes = mocker.patch(
+            "apps.odk_publish.views.generate_and_save_app_user_collect_qrcodes"
         )
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
@@ -701,6 +704,8 @@ class TestEditProject(ViewTestBase):
         ]
         # Ensure there is a success message
         assert f"Successfully edited {project}." in response.content.decode()
+        # Since the app_language has been changed, QR codes should be regenerated
+        mock_generate_qr_codes.assert_called_once()
 
     def test_valid_form_and_valid_formset_deleting_variable(
         self, client, url, user, project, data, template_variables, other_central_server
