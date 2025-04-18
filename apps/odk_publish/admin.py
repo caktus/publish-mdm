@@ -54,7 +54,7 @@ class ProjectTemplateVariableInline(admin.TabularInline):
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ("name", "central_id", "central_server", "organization")
+    list_display = ("name", "central_id", "central_server", "organization", "app_language")
     search_fields = ("name", "central_id")
     list_filter = ("central_server",)
     filter_horizontal = ("template_variables",)

@@ -293,11 +293,12 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = Project
-        fields = ["name", "central_server", "template_variables"]
+        fields = ["name", "central_server", "template_variables", "app_language"]
         widgets = {
             "name": TextInput,
             "central_server": Select,
             "template_variables": CheckboxSelectMultiple,
+            "app_language": Select(attrs={"class": "!w-30"}),
         }
 
     def __init__(self, *args, **kwargs):

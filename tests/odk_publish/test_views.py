@@ -676,6 +676,7 @@ class TestEditProject(ViewTestBase):
             {
                 "central_server": other_central_server.id,
                 "template_variables": [i.id for i in template_variables],
+                "app_language": "ar",
             }
         )
         response = client.post(url, data=data, follow=True)
@@ -683,6 +684,7 @@ class TestEditProject(ViewTestBase):
         project.refresh_from_db()
         assert project.name == "New name"
         assert project.central_server == other_central_server
+        assert project.app_language == "ar"
         assert set(project.template_variables.all()) == set(template_variables)
         # Ensure the existing ProjectTemplateVariable was changed and a new one was added
         assert project.project_template_variables.count() == 2
