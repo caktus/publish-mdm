@@ -189,6 +189,16 @@ class Project(AbstractBaseModel):
     def __str__(self):
         return f"{self.name} ({self.central_id})"
 
+    def get_admin_pw(self):
+        """Get the value of the project-level admin_pw template variable.
+        Will return None if the template variable does not exist.
+        """
+        return (
+            self.project_template_variables.filter(template_variable__name="admin_pw")
+            .values_list("value", flat=True)
+            .first()
+        )
+
 
 class ProjectTemplateVariable(AbstractBaseModel):
     """A template variable value for a project."""
