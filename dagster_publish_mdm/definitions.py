@@ -13,7 +13,7 @@ tailscale_schedule = dg.ScheduleDefinition(
 )
 tinymdm_schedule = dg.ScheduleDefinition(
     name="tinymdm_schedule",
-    target=dg.AssetSelection.groups("tinymdm_devices"),
+    target=dg.AssetSelection.groups("tinymdm_assets"),
     cron_schedule="*/30 * * * *",
     default_status=dg.DefaultScheduleStatus.RUNNING,
 )
