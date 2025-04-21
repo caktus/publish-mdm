@@ -98,6 +98,8 @@ class TemplateVariable(AbstractBaseModel):
 class Project(AbstractBaseModel):
     """A project in ODK Central."""
 
+    # APP_LANGUAGE_CHOICES should be updated only based on the supported
+    # values for the "app_language " setting: https://docs.getodk.org/collect-import-export/
     APP_LANGUAGE_CHOICES = list(
         zip(
             *[
