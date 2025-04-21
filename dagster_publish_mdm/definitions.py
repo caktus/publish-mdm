@@ -11,8 +11,8 @@ tailscale_schedule = dg.ScheduleDefinition(
     cron_schedule="*/30 * * * *",
     default_status=dg.DefaultScheduleStatus.RUNNING,
 )
-tailscale_schedule = dg.ScheduleDefinition(
-    name="tailscale_schedule",
+tinymdm_schedule = dg.ScheduleDefinition(
+    name="tinymdm_schedule",
     target=dg.AssetSelection.groups("tinymdm_devices"),
     cron_schedule="*/30 * * * *",
     default_status=dg.DefaultScheduleStatus.RUNNING,
@@ -26,5 +26,5 @@ defs = dg.Definitions(
             tailnet=dg.EnvVar("TAILSCALE_TAILNET"),
         ),
     },
-    schedules=[tailscale_schedule],
+    schedules=[tailscale_schedule, tinymdm_schedule],
 )

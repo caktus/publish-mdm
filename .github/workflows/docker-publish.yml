@@ -2,7 +2,7 @@ name: Docker
 
 on:
   push:
-    branches: [main, 4435-dagster]
+    branches: [main, 4435-dagster-fix]
     # Publish semver tags as releases.
     tags: ["v*.*.*"]
 
