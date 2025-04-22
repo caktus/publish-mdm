@@ -29,6 +29,8 @@ class FirmwareSnapshotForm(forms.ModelForm):
                 # TODO: Remove this when the app posts serial_number and device_identifier
                 data["serial_number"] = data["device_id"]
         super().__init__(data, *args, **kwargs)
+        # serial_number is required to save and look up related devices
+        self.fields["serial_number"].required = True
 
     def clean(self):
         cleaned_data = super().clean()

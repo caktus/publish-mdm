@@ -56,3 +56,15 @@ class TestFirmwareSnapshotForm:
         form.is_valid()
         instance = form.save()
         assert instance.device is None
+
+    @pytest.mark.django_db
+    def test_empty_get_doesnt_save(self, rf):
+        request = rf.get("/api/firmware/")
+        form = FirmwareSnapshotForm(request=request)
+        assert form.is_valid() is False
+
+    @pytest.mark.django_db
+    def test_empty_post_doesnt_save(self, rf):
+        request = rf.post("/api/firmware/")
+        form = FirmwareSnapshotForm(request=request)
+        assert form.is_valid() is False
