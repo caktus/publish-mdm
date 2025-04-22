@@ -43,7 +43,7 @@ class UserFactory(factory.django.DjangoModelFactory):
         """Create a social account for the user."""
         if not create:
             return
-        SocialTokenFactory(account__user=self, account__uid=fake.random_number())
+        SocialTokenFactory(account__user=self, account__uid=fake.unique.pyint())
 
 
 class SocialAccountFactory(factory.django.DjangoModelFactory):
