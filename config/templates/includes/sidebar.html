@@ -64,6 +64,21 @@
                         <span class="ml-3">Sync Project</span>
                     </a>
                 </li>
+                <li>
+                    <a href="{% url 'odk_publish:organization-template-variables' request.organization.slug %}"
+                       class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
+                        <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
+                             aria-hidden="true"
+                             xmlns="http://www.w3.org/2000/svg"
+                             width="24"
+                             height="24"
+                             fill="none"
+                             viewBox="0 0 24 24">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 4h3a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3m0 3h6m-3 5h3m-6 0h.01M12 16h3m-6 0h.01M10 3v4h4V3h-4Z" />
+                        </svg>
+                        <span class="ml-3">Template Variables</span>
+                    </a>
+                </li>
             </ul>
             <div class="pt-5 pl-2 mt-5 mb-4 text-sm font-bold text-gray-500 border-t border-gray-200 dark:text-gray-400 dark:border-gray-700">
                 <h3>Project</h3>

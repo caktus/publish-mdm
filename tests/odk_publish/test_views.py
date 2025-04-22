@@ -22,6 +22,7 @@ from tests.odk_publish.factories import (
 )
 from apps.odk_publish.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from apps.odk_publish.etl.odk.publish import ProjectAppUserAssignment
+from apps.odk_publish.etl.template import VariableTransform
 from apps.odk_publish.forms import (
     AppUserForm,
     AppUserTemplateVariableFormSet,
@@ -29,6 +30,7 @@ from apps.odk_publish.forms import (
     OrganizationInviteForm,
     ProjectForm,
     ProjectTemplateVariableFormSet,
+    TemplateVariableFormSet,
 )
 from apps.odk_publish.models import AppUser, FormTemplate, Organization, OrganizationInvitation
 
@@ -43,10 +45,14 @@ class ViewTestBase:
         return user
 
     @pytest.fixture
-    def project(self, user):
-        project = ProjectFactory(central_server__base_url="https://central")
-        project.organization.users.add(user)
-        return project
+    def organization(self, user):
+        organization = OrganizationFactory()
+        organization.users.add(user)
+        return organization
+
+    @pytest.fixture
+    def project(self, organization):
+        return ProjectFactory(central_server__base_url="https://central", organization=organization)
 
     def test_login_required(self, client, url):
         client.logout()
@@ -1177,3 +1183,105 @@ class TestAcceptOrganizationInvite:
         self.check_invalid_invitation(
             client, url, logged_in_user, "An invalid invitation key was submitted."
         )
+
+
+class TestOrganizationTemplateVariables(ViewTestBase):
+    """Tests the page for editing an organization's template variables."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse(
+            "odk_publish:organization-template-variables",
+            kwargs={"organization_slug": organization.slug},
+        )
+
+    @pytest.fixture
+    def template_variables(self, organization):
+        return [
+            organization.template_variables.create(
+                name="var1", transform=VariableTransform.SHA256_DIGEST
+            ),
+            organization.template_variables.create(name="var2"),
+        ]
+
+    def test_get(self, client, url, user, organization, template_variables):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("formset"), TemplateVariableFormSet)
+        assert response.context["formset"].instance == organization
+        assert len(response.context["formset"].forms) == len(template_variables)
+
+    @pytest.fixture
+    def data(self, template_variables):
+        """Form data that would edit the first template variable, delete the other
+        template variable, and add one new template variable.
+        """
+        template_variables_count = len(template_variables)
+        data = {
+            "template_variables-TOTAL_FORMS": template_variables_count + 1,
+            "template_variables-INITIAL_FORMS": template_variables_count,
+            "template_variables-MIN_NUM_FORMS": 0,
+            "template_variables-MAX_NUM_FORMS": 1000,
+            # The new template variable
+            f"template_variables-{template_variables_count}-name": "new_var",
+            f"template_variables-{template_variables_count}-transform": VariableTransform.SHA256_DIGEST.value,
+        }
+        for index, var in enumerate(template_variables):
+            data.update(
+                {
+                    f"template_variables-{index}-id": var.id,
+                    f"template_variables-{index}-organization": var.organization_id,
+                    f"template_variables-{index}-name": var.name,
+                    f"template_variables-{index}-transform": var.transform,
+                }
+            )
+            if index:
+                # Delete the template variable
+                data[f"template_variables-{index}-DELETE"] = "on"
+            else:
+                # Edit the template variable
+                data.update(
+                    {
+                        f"template_variables-{index}-name": "var1_edited",
+                        f"template_variables-{index}-transform": "",
+                    }
+                )
+        return data
+
+    def test_valid_formset(self, client, url, user, organization, data, template_variables):
+        """Test submitting valid data for the formset."""
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        # Ensure one template variable has been edited, one deleted, and a new one added
+        assert organization.template_variables.count() == 2
+        updated_var = organization.template_variables.get(pk=template_variables[0].pk)
+        assert updated_var.name == "var1_edited"
+        assert updated_var.transform == ""
+        new_var = organization.template_variables.exclude(pk=template_variables[0].pk).get()
+        assert new_var.name == "new_var"
+        assert new_var.transform == VariableTransform.SHA256_DIGEST.value
+        # Ensure the view redirects back to the template variables page
+        assert response.redirect_chain == [(url, 302)]
+        # Ensure there is a success message
+        assert (
+            f"Successfully edited template variables for {organization}."
+            in response.content.decode()
+        )
+
+    def test_invalid_formset(self, client, url, user, organization, data, template_variables):
+        """Test submitting invalid data for the formset."""
+        template_variables_count = len(template_variables)
+        # Invalid name for the new template variable
+        data[f"template_variables-{template_variables_count}-name"] = "12345"
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        # The template variables should be unchanged
+        assert organization.template_variables.count() == template_variables_count
+        for var in template_variables:
+            assert (var.name, var.transform) == organization.template_variables.values_list(
+                "name", "transform"
+            ).get(pk=var.pk)
+        # Ensure the expected error message is displayed on the page
+        expected_error = "Name must start with a letter or underscore and contain no spaces."
+        assert response.context["formset"].forms[-1].errors["name"][0] == expected_error
+        assert expected_error in response.content.decode()

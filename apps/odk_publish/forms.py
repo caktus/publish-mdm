@@ -28,6 +28,7 @@ from .models import (
     OrganizationInvitation,
     Project,
     ProjectTemplateVariable,
+    TemplateVariable,
 )
 
 logger = structlog.getLogger(__name__)
@@ -411,3 +412,21 @@ class OrganizationInvitationAdminAddForm(CleanOrganizationInvitationMixin, forms
         instance.send_invitation(self.request)
         super().save(*args, **kwargs)
         return instance
+
+
+class TemplateVariableForm(PlatformFormMixin, forms.ModelForm):
+    """A form for adding or editing a TemplateVariable."""
+
+    class Meta:
+        model = TemplateVariable
+        fields = ["name", "transform"]
+        widgets = {
+            "name": TextInput,
+            "transform": Select,
+        }
+
+
+TemplateVariableFormSet = forms.models.inlineformset_factory(
+    Organization, TemplateVariable, form=TemplateVariableForm, extra=0
+)
+TemplateVariableFormSet.deletion_widget = CheckboxInput
