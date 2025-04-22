@@ -235,3 +235,8 @@ class FirmwareSnapshot(models.Model):
 
     def __str__(self):
         return f"{self.device_id} ({self.version}) firmware snapshot"
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["synced_at"]),
+        ]
