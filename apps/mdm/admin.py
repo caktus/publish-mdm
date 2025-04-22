@@ -102,8 +102,9 @@ class DeviceSnapshotAdmin(admin.ModelAdmin):
 @admin.register(FirmwareSnapshot)
 class FirmwareSnapshotAdmin(admin.ModelAdmin):
     list_display = ("id", "device", "serial_number", "version", "synced_at")
-    search_fields = ("serial_number", "version")
-    list_filter = ("synced_at",)
+    search_fields = ("serial_number", "version", "device__serial_number", "device__name")
+    list_filter = ("synced_at", "version")
+    list_select_related = ("device",)
     date_hierarchy = "synced_at"
     ordering = ("-synced_at",)
     readonly_fields = (
