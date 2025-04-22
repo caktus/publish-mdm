@@ -1,4 +1,3 @@
-import json
 import pytest
 from apps.mdm.forms import FirmwareSnapshotForm
 from tests.mdm.factories import DeviceFactory

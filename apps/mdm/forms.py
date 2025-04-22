@@ -1,10 +1,7 @@
-from graphql_relay import version_info_js
 import structlog
 from django import forms
 from .models import FirmwareSnapshot
 from apps.mdm.models import Device
-import json
-from json.decoder import JSONDecodeError
 
 
 logger = structlog.get_logger()
