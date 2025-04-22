@@ -1,16 +1,25 @@
+import json
 import structlog
 
 from django.http import HttpResponse
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
 
 from .forms import FirmwareSnapshotForm
 
 logger = structlog.get_logger()
 
 
-@require_http_methods(["GET", "POST"])
+@csrf_exempt
+@require_POST
 def firmware_snapshot_view(request):
-    form = FirmwareSnapshotForm(request=request)
+    if not request.body:
+        return HttpResponse(status=400)
+    try:
+        json_data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return HttpResponse(status=400)
+    form = FirmwareSnapshotForm(json_data=json_data)
 
     if form.is_valid():
         form.save()

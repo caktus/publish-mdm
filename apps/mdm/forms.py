@@ -1,7 +1,10 @@
+from graphql_relay import version_info_js
 import structlog
 from django import forms
 from .models import FirmwareSnapshot
 from apps.mdm.models import Device
+import json
+from json.decoder import JSONDecodeError
 
 
 logger = structlog.get_logger()
@@ -12,36 +15,29 @@ class FirmwareSnapshotForm(forms.ModelForm):
         model = FirmwareSnapshot
         fields = ["serial_number", "device_identifier", "version", "raw_data"]
 
-    def __init__(self, request, *args, **kwargs):
-        """
-        Sample URL: GET /api/firmware/?version=unknown&alternatives=W6_V1.0_20241217,15,AP3A.240905.015.A2&device_id=CHANGEME&work_type=immediate&app_version=1.0.1%20(2)
-        """  # noqa: E501
-        data = None
-        if request.method == "GET":
-            data = request.GET.copy()
-        elif request.method == "POST":
-            data = request.POST.copy()
-        if data:
-            # include _all_ GET or POSTed data in the raw_data field
-            data["raw_data"] = data.copy()
-            if "serial_number" not in data:
-                # Convert the device_id to serial_number
-                # TODO: Remove this when the app posts serial_number and device_identifier
-                data["serial_number"] = data["device_id"]
-        super().__init__(data, *args, **kwargs)
+    def __init__(self, json_data, *args, **kwargs):
+        form_data = {"raw_data": json_data}
+        if "serialNumber" in json_data:
+            form_data["serial_number"] = json_data["serialNumber"]
+
+        elif "deviceIdentifier" in json_data:
+            form_data["serial_number"] = json_data["deviceIdentifier"]
+        super().__init__(form_data, *args, **kwargs)
         # serial_number is required to save and look up related devices
         self.fields["serial_number"].required = True
+        self.fields["raw_data"].required = True
 
     def clean(self):
         cleaned_data = super().clean()
-        version = cleaned_data.get("version")
-        if version == "unknown":
-            alternatives = cleaned_data["raw_data"].get("alternatives", "").split(",")
-            if alternatives:
-                # If alternatives are provided, set the version to the first alternative
-                cleaned_data["version"] = alternatives[0]
-            else:
-                logger.error("Neither version nor alternatives provided.", data=cleaned_data)
+        build_info = (
+            cleaned_data.get("raw_data", {}).get("buildInfo", {}).get("buildPropContent", {})
+        )
+        if version := build_info.get("[ro.product.version]"):
+            if "[" in version:
+                version = version.strip("[]")
+            cleaned_data["version"] = version
+        elif versions := build_info.get("versionInfo", {}.get("alternatives", [])):
+            cleaned_data["version"] = versions[0]
 
     def save(self, *args, **kwargs):
         # Get the device identifier from the form data
