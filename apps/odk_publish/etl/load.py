@@ -143,16 +143,9 @@ def generate_and_save_app_user_collect_qrcodes(project: Project):
         logger.info("Got central app users", central_app_users=len(central_app_users))
         for app_user in app_users:
             logger.info("Generating QR code", app_user=app_user.name)
-
-            template_vars = app_user.get_template_variables()
-            admin_pw = next((var.value for var in template_vars if var.name == "admin_pw"), "")
-            logger.debug(
-                "Using admin_pw for %s: %s", app_user.name, "*****" if admin_pw else "(blank)"
-            )
-
             image, app_user.qr_code_data = create_app_user_qrcode(
                 app_user=central_app_users[app_user.name],
-                admin_pw=admin_pw,
+                admin_pw=app_user.get_any_template_variable("admin_pw"),
                 base_url=client.session.base_url,
                 project_id=project.central_id,
                 project_name_prefix=project.name,

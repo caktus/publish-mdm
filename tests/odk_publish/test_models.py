@@ -138,6 +138,25 @@ class TestAppUser:
 
         assert app_user.get_template_variables() == expected
 
+    def test_get_any_template_variable(self):
+        """get_any_template_variable() returns the correct value or an empty string."""
+        app_user = AppUserFactory()
+        app_var = AppUserTemplateVariableFactory(app_user=app_user)
+        proj_var = ProjectTemplateVariableFactory(project=app_user.project)
+        assert app_user.get_any_template_variable(app_var.template_variable.name) == app_var.value
+        assert app_user.get_any_template_variable(proj_var.template_variable.name) == proj_var.value
+        app_var_override = AppUserTemplateVariableFactory(
+            app_user=app_user, template_variable=proj_var.template_variable
+        )
+        # Clear the cached property to force a new query
+        del app_user.all_template_variables_dict
+        assert (
+            app_user.get_any_template_variable(proj_var.template_variable.name)
+            == app_var_override.value
+        )
+        # Non-existent variable name should return an empty string
+        assert app_user.get_any_template_variable("non-existent-variable-name") == ""
+
     @pytest.mark.parametrize(
         "name",
         [
