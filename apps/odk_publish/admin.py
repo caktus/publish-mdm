@@ -5,6 +5,7 @@ from django.contrib import admin
 from django import forms
 from invitations.admin import InvitationAdmin
 
+from .etl.load import generate_and_save_app_user_collect_qrcodes
 from .models import (
     CentralServer,
     Project,
@@ -54,11 +55,34 @@ class ProjectTemplateVariableInline(admin.TabularInline):
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ("name", "central_id", "central_server", "organization")
+    list_display = ("name", "central_id", "central_server", "organization", "app_language")
     search_fields = ("name", "central_id")
     list_filter = ("central_server",)
     filter_horizontal = ("template_variables",)
     inlines = (ProjectAttachmentInline, ProjectTemplateVariableInline)
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        # Regenerate app user QR codes if any field that impacts them has changed
+        qr_code_fields = ("app_language", "central_id", "name")
+        if change and any(field in form.changed_data for field in qr_code_fields):
+            generate_and_save_app_user_collect_qrcodes(obj)
+
+    def save_formset(self, request, form, formset, change):
+        """Overriden to regenerate app user QR codes if the project's admin_pw
+        template variable has changed.
+        """
+        is_template_variables_formset = formset.model == ProjectTemplateVariable
+        if change and is_template_variables_formset:
+            admin_pw = form.instance.get_admin_pw()
+        super().save_formset(request, form, formset, change)
+        if (
+            change
+            and is_template_variables_formset
+            and formset.has_changed()
+            and admin_pw != form.instance.get_admin_pw()
+        ):
+            generate_and_save_app_user_collect_qrcodes(form.instance)
 
 
 class FormTemplateForm(forms.ModelForm):

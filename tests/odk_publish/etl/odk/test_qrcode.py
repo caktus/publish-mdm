@@ -1,7 +1,11 @@
 import pytest
+from django.conf import settings
 
 from apps.odk_publish.etl.odk.publish import ProjectAppUserAssignment
 from apps.odk_publish.etl.odk.qrcode import build_collect_settings, create_app_user_qrcode
+from apps.odk_publish.etl.load import generate_and_save_app_user_collect_qrcodes
+
+from tests.odk_publish.factories import AppUserFactory, ProjectFactory
 
 
 class TestCollectSettings:
@@ -46,3 +50,31 @@ class TestCollectSettings:
 
         assert qr_code.getvalue()[:4] == b"\x89PNG"
         assert collect_settings == build_collect_settings(**kwargs)
+
+    @pytest.mark.django_db
+    @pytest.mark.parametrize("app_language", ["", "ar"])
+    def test_generate_and_save_app_user_collect_qrcodes(self, app_user, mocker, app_language):
+        """When generate_and_save_app_user_collect_qrcodes() is called, it should call
+        create_app_user_qrcode with the language arg set to the project's app_language,
+        or settings.DEFAULT_APP_LANGUAGE if a app_language is not set on the project.
+        """
+        project = ProjectFactory(
+            app_language=app_language, central_server__base_url="https://central"
+        )
+        AppUserFactory(name=app_user.displayName, project=project)
+        mocker.patch(
+            "apps.odk_publish.etl.odk.publish.PublishService.get_app_users",
+            return_value={app_user.displayName: app_user},
+        )
+        mock_create_app_user_qrcode = mocker.patch(
+            "apps.odk_publish.etl.load.create_app_user_qrcode", wraps=create_app_user_qrcode
+        )
+
+        generate_and_save_app_user_collect_qrcodes(project)
+
+        mock_create_app_user_qrcode.assert_called_once()
+        mock_call_language = mock_create_app_user_qrcode.mock_calls[0].kwargs["language"]
+        if app_language:
+            assert mock_call_language == app_language
+        else:
+            assert mock_call_language == settings.DEFAULT_APP_LANGUAGE
