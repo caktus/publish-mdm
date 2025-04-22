@@ -417,8 +417,15 @@ def edit_project(request, organization_slug, odk_project_pk):
         form_kwargs={"valid_template_variables": request.organization.template_variables.all()},
     )
     if request.method == "POST" and all([form.is_valid(), variables_formset.is_valid()]):
+        admin_pw = request.odk_project.get_admin_pw()
         form.save()
         variables_formset.save()
+        # Regenerate app user QR codes if any field that impacts them has changed
+        qr_code_fields = ("app_language", "name")
+        if any(field in form.changed_data for field in qr_code_fields) or (
+            variables_formset.has_changed() and admin_pw != request.odk_project.get_admin_pw()
+        ):
+            generate_and_save_app_user_collect_qrcodes(request.odk_project)
         messages.success(
             request,
             f"Successfully edited {request.odk_project}.",

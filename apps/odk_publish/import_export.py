@@ -58,17 +58,17 @@ class AppUserTemplateVariableField(fields.Field):
         """
         # Get the validated AppUserTemplateVariable. It will be None if the value
         # is blank in the import file, in which case we need to delete the variable.
-        # We'll also update template_variables_dict so that the preview page can show
-        # the changes made to template variables, and unchanged rows can be skipped
-        # when saving changes in the DB
+        # We'll also update app_user_template_variables_dict so that the preview page
+        # can show the changes made to template variables, and unchanged rows can be
+        # skipped when saving changes in the DB
         cleaned = self.clean(row, **kwargs)
         if cleaned is None:
-            if self.column_name in instance.template_variables_dict:
+            if self.column_name in instance.app_user_template_variables_dict:
                 instance._template_variables_to_delete.append(self.column_name)
-                del instance.template_variables_dict[self.column_name]
+                del instance.app_user_template_variables_dict[self.column_name]
         else:
             instance._template_variables_to_save.append(cleaned)
-            instance.template_variables_dict[self.column_name] = cleaned.value
+            instance.app_user_template_variables_dict[self.column_name] = cleaned.value
 
     def get_value(self, instance):
         # Get the value of the template variable using the dehydrate method
@@ -160,7 +160,9 @@ class AppUserResource(resources.ModelResource):
                 # The `dehydrate_method` will be called with an AppUser instance as
                 # the only argument to get the value for the AppUserTemplateVariable
                 # column during export
-                dehydrate_method=partial(self.get_template_variable_value, template_variable.name),
+                dehydrate_method=partial(
+                    self.get_app_user_template_variable_value, template_variable.name
+                ),
                 widget=AppUserTemplateVariableWidget(template_variable),
             )
 
@@ -193,11 +195,11 @@ class AppUserResource(resources.ModelResource):
         return instance
 
     @staticmethod
-    def get_template_variable_value(variable_name, app_user):
+    def get_app_user_template_variable_value(variable_name, app_user):
         """Used to set the `dehydrate_method` argument when instantiating a
         AppUserTemplateVariableField.
         """
-        return app_user.template_variables_dict.get(variable_name)
+        return app_user.app_user_template_variables_dict.get(variable_name)
 
     def import_instance(self, instance, row, **kwargs):
         """Called for each AppUser during import."""

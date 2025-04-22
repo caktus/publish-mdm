@@ -98,6 +98,75 @@ class TemplateVariable(AbstractBaseModel):
 class Project(AbstractBaseModel):
     """A project in ODK Central."""
 
+    # APP_LANGUAGE_CHOICES should be updated only based on the supported
+    # values for the "app_language " setting: https://docs.getodk.org/collect-import-export/
+    APP_LANGUAGE_CHOICES = list(
+        zip(
+            *[
+                [
+                    "af",
+                    "am",
+                    "ar",
+                    "bg",
+                    "bn",
+                    "ca",
+                    "cs",
+                    "da",
+                    "de",
+                    "en",
+                    "es",
+                    "et",
+                    "fa",
+                    "fi",
+                    "fr",
+                    "hi",
+                    "in",
+                    "it",
+                    "ja",
+                    "ka",
+                    "km",
+                    "ln",
+                    "lo_LA",
+                    "lt",
+                    "mg",
+                    "ml",
+                    "mr",
+                    "ms",
+                    "my",
+                    "ne_NP",
+                    "nl",
+                    "no",
+                    "pl",
+                    "ps",
+                    "pt",
+                    "ro",
+                    "ru",
+                    "rw",
+                    "si",
+                    "sl",
+                    "so",
+                    "sq",
+                    "sr",
+                    "sv_SE",
+                    "sw",
+                    "sw_KE",
+                    "te",
+                    "th_TH",
+                    "ti",
+                    "tl",
+                    "tr",
+                    "uk",
+                    "ur",
+                    "ur_PK",
+                    "vi",
+                    "zh",
+                    "zu",
+                ]
+            ]
+            * 2
+        )
+    )
+
     name = models.CharField(max_length=255)
     central_id = models.PositiveIntegerField(
         verbose_name="project ID", help_text="The ID of this project in ODK Central."
@@ -115,9 +184,20 @@ class Project(AbstractBaseModel):
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name="projects"
     )
+    app_language = models.CharField(max_length=6, choices=APP_LANGUAGE_CHOICES, blank=True)
 
     def __str__(self):
         return f"{self.name} ({self.central_id})"
+
+    def get_admin_pw(self):
+        """Get the value of the project-level admin_pw template variable.
+        Will return None if the template variable does not exist.
+        """
+        return (
+            self.project_template_variables.filter(template_variable__name="admin_pw")
+            .values_list("value", flat=True)
+            .first()
+        )
 
 
 class ProjectTemplateVariable(AbstractBaseModel):
@@ -346,7 +426,7 @@ class AppUser(AbstractBaseModel):
         return set()
 
     @cached_property
-    def template_variables_dict(self):
+    def app_user_template_variables_dict(self) -> dict[str, str]:
         """Get a dict of the user's template variable values, with the TemplateVariable
         name as the key. Used during import/export of AppUsers to minimize DB queries.
         This assumes the template variables are prefetched.
@@ -358,6 +438,22 @@ class AppUser(AbstractBaseModel):
                 i.template_variable.name: i.value for i in self.app_user_template_variables.all()
             }
         return {}
+
+    @cached_property
+    def all_template_variables_dict(self) -> dict[str, str]:
+        """Get a dict of the user's template variable values, including project-level variables,
+        with the TemplateVariable name as the key.
+        """
+        # Prevent `ValueError('AppUser' instance needs to have a primary key
+        # value before this relationship can be used)`
+        return {var.name: var.value for var in self.get_template_variables()}
+
+    def get_any_template_variable(self, name: str) -> str | None:
+        """
+        Get the project- or app-level template variable value with this name for this app user,
+        or any empty string.
+        """
+        return self.all_template_variables_dict.get(name, "")
 
 
 class AppUserFormTemplate(AbstractBaseModel):

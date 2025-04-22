@@ -2,15 +2,19 @@ import pytest
 from django.urls import reverse
 from django.conf import settings
 
+from apps.odk_publish.models import Project
 from tests.odk_publish.factories import (
+    CentralServerFactory,
     FormTemplateFactory,
     OrganizationFactory,
+    ProjectFactory,
     UserFactory,
+    TemplateVariableFactory,
 )
 
 
 @pytest.mark.django_db
-class TestChangeFormTemplate:
+class BaseTestAdmin:
     @pytest.fixture
     def user(self, client):
         user = UserFactory(is_staff=True, is_superuser=True)
@@ -18,6 +22,9 @@ class TestChangeFormTemplate:
         client.force_login(user=user)
         return user
 
+
+@pytest.mark.django_db
+class TestChangeFormTemplate(BaseTestAdmin):
     @pytest.fixture
     def form_template(self):
         return FormTemplateFactory()
@@ -53,14 +60,7 @@ class TestChangeFormTemplate:
 
 
 @pytest.mark.django_db
-class TestOrganizationInvitationAdminAdd:
-    @pytest.fixture
-    def user(self, client):
-        user = UserFactory(is_staff=True, is_superuser=True)
-        user.save()
-        client.force_login(user=user)
-        return user
-
+class TestOrganizationInvitationAdminAdd(BaseTestAdmin):
     @pytest.fixture
     def url(self):
         return reverse("admin:odk_publish_organizationinvitation_add")
@@ -99,3 +99,94 @@ class TestOrganizationInvitationAdminAdd:
             "inviter": user.id,
         }
         self.valid_form(client, url, organization, data, mailoutbox)
+
+
+class TestProjectAdmin(BaseTestAdmin):
+    @pytest.mark.parametrize(
+        "changed_field",
+        (
+            None,
+            "name",
+            "central_id",
+            "central_server",
+            "organization",
+            "app_language",
+            "template_variables",
+            "admin_pw",
+        ),
+    )
+    def test_regenerating_qr_codes(self, client, user, mocker, changed_field):
+        """Ensures app user QR codes are regenerated when form fields that impact
+        them are changed.
+        """
+        project = project = ProjectFactory(
+            app_language="en", central_server__base_url="https://central"
+        )
+        url = reverse("admin:odk_publish_project_change", args=[project.pk])
+        mock_generate_qr_codes = mocker.patch(
+            "apps.odk_publish.admin.generate_and_save_app_user_collect_qrcodes"
+        )
+        data = {
+            "name": project.name,
+            "central_id": project.central_id,
+            "central_server": project.central_server_id,
+            "organization": project.organization_id,
+            "app_language": project.app_language,
+            "template_variables": [],
+        }
+        for inline_prefix in ("attachments", "project_template_variables"):
+            data.update(
+                {
+                    f"{inline_prefix}-TOTAL_FORMS": 0,
+                    f"{inline_prefix}-INITIAL_FORMS": 0,
+                    f"{inline_prefix}-MIN_NUM_FORMS": 0,
+                    f"{inline_prefix}-MAX_NUM_FORMS": 1000,
+                }
+            )
+
+        new_values = {
+            "app_language": "ar",
+            "central_id": project.central_id + 1,
+            "name": project.name + " edited",
+            "central_server": CentralServerFactory(organization=project.organization).id,
+            "organization": OrganizationFactory().id,
+            "template_variables": [
+                i.id
+                for i in TemplateVariableFactory.create_batch(2, organization=project.organization)
+            ],
+        }
+        # QR codes should be regenerated if any of these fields are changed
+        should_regenerate = ("app_language", "central_id", "name", "admin_pw")
+
+        if changed_field == "admin_pw":
+            admin_pw_var = TemplateVariableFactory.create(
+                name="admin_pw", organization=project.organization
+            )
+            data.update(
+                {
+                    "project_template_variables-TOTAL_FORMS": 1,
+                    "project_template_variables-0-template_variable": admin_pw_var.id,
+                    "project_template_variables-0-value": "password",
+                }
+            )
+        elif changed_field:
+            data[changed_field] = new_values[changed_field]
+
+        client.post(url, data)
+
+        if changed_field in should_regenerate:
+            mock_generate_qr_codes.assert_called_once()
+        else:
+            mock_generate_qr_codes.assert_not_called()
+
+        # Ensure the change was actually made in the database
+        if changed_field == "admin_pw":
+            assert project.get_admin_pw() == "password"
+        elif changed_field:
+            new_db_value = Project.objects.values_list(changed_field, flat=True).filter(
+                pk=project.pk
+            )
+            if changed_field == "template_variables":
+                assert set(new_db_value) == set(new_values[changed_field])
+            else:
+                assert new_db_value.get() == new_values[changed_field]
