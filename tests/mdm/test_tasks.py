@@ -223,6 +223,14 @@ class TestTasks:
             "devices": [device.device_id],
         }
 
+    def test_push_device_config_new_device(self, policy, set_tinymdm_env_vars):
+        """Ensures calling push_device_config() with a Device whose `raw_mdm_device` field
+        is not set does not raise a TypeError."""
+        device = DeviceFactory.build(policy=policy, raw_mdm_device=None)
+        device.save(push_to_mdm=False)
+        session = tasks.get_tinymdm_session()
+        tasks.push_device_config(session, device)
+
     def test_sync_policy(self, policy, devices, mocker, set_tinymdm_env_vars):
         """Ensure calling sync_policy() calls pull_devices() for the specified policy
         and push_device_config() for the policy's devices whose app_user_name field is set.
