@@ -1,7 +1,7 @@
 Quickstart with Docker
 ======================
 
-This guide will walk you through setting up ODK Publish locally using Docker
+This guide will walk you through setting up Publish MDM locally using Docker
 Compose.
 
 
@@ -17,7 +17,7 @@ Prerequisites
 Google OAuth Client ID
 ~~~~~~~~~~~~~~~~~~~~~~
 
-ODK Publish accesses spreadsheets on behalf of an end user, so you will need to
+Publish MDM accesses spreadsheets on behalf of an end user, so you will need to
 create a Google OAuth client ID to authenticate users. To create a new OAuth
 client ID, follow the steps below:
 
@@ -53,8 +53,8 @@ Setup
 
 .. code-block:: bash
 
-   mkdir odk-publish
-   cd odk-publish
+   mkdir publish-mdm
+   cd publish-mdm
 
 
 2. Create a new file named ``docker-compose.yml`` and paste the following
@@ -64,7 +64,7 @@ Setup
 
   services:
     app:
-      image: ghcr.io/caktus/odk-publish:main
+      image: ghcr.io/caktus/publish-mdm:main
       command: daphne config.asgi:application -b 0.0.0.0 -p 8000
       env_file:
         - .env
@@ -76,7 +76,7 @@ Setup
     db:
       image: postgres:15-alpine
       environment:
-        POSTGRES_DB: odk_publish
+        POSTGRES_DB: publish_mdm
         POSTGRES_HOST_AUTH_METHOD: trust
       ports:
         - 5432
@@ -91,7 +91,7 @@ Setup
 .. code-block:: shell
 
   DJANGO_SETTINGS_MODULE="config.settings.deploy"
-  DATABASE_URL="postgresql://postgres@db/odk_publish"
+  DATABASE_URL="postgresql://postgres@db/publish_mdm"
   DJANGO_SECRET_KEY="django-insecure-CHANGEME"
   SESSION_COOKIE_SECURE="False"
   DJANGO_SECURE_SSL_REDIRECT="False"
@@ -132,7 +132,7 @@ To build the development image locally, run the following command:
 
 .. code-block:: bash
 
-   docker build -t odk-publish:latest --target deploy -f Dockerfile .
+   docker build -t publish-mdm:latest --target deploy -f Dockerfile .
 
-This will build the image with the tag ``odk-publish:latest``, which you can use
+This will build the image with the tag ``publish-mdm:latest``, which you can use
 in your ``docker-compose.yml`` file.
