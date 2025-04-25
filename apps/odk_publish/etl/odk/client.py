@@ -43,7 +43,8 @@ class ODKPublishClient(Client):
             config_path.write_text(CONFIG_TOML)
         # Create stub cache file if it doesn't exist, so that pyodk doesn't complain
         cache_path = Path("/tmp/.pyodk_cache.toml")
-        if not cache_path.exists():
+        new_cache_file = not cache_path.exists()
+        if new_cache_file:
             cache_path.write_text('token = ""')
         # Create a session with the given authentication details and supply the
         # session to the super class, so it doesn't try and create one itself
@@ -71,6 +72,24 @@ class ODKPublishClient(Client):
         # additional functionality for interacting with ODK Central
         self.odk_publish: PublishService = PublishService(client=self)
         logger.debug("Initialized ODK Publish client", project_id=project_id, base_url=base_url)
+        # If we created a stub cache file, set a valid token in the file to prevent
+        # error messages later about the token being invalid
+        if new_cache_file:
+            logger.debug("Setting the token in the new cache file", cache_path=cache_path)
+            try:
+                token = session.auth.service.get_new_token(
+                    session.auth.username, session.auth.password
+                )
+                config.write_cache(key="token", value=token, cache_path=cache_path)
+            except Exception:
+                # pyodk will create the new token anyway on the first API request,
+                # just that it will log a message with ERROR level, which will end
+                # up in Sentry if Sentry is configured
+                logger.debug(
+                    "Error setting the token in the new cache file",
+                    cache_path=cache_path,
+                    exc_info=True,
+                )
 
     def __enter__(self) -> "ODKPublishClient":
         return super().__enter__()  # type: ignore
