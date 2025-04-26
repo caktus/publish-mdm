@@ -22,7 +22,8 @@ defs = dg.Definitions(
     assets=all_assets,
     resources={
         "tailscale": TailscaleResource(
-            api_key=dg.EnvVar("TAILSCALE_API_KEY"),
+            client_id=dg.EnvVar("TAILSCALE_OAUTH_CLIENT_ID"),
+            client_secret=dg.EnvVar("TAILSCALE_OAUTH_CLIENT_SECRET"),
             tailnet=dg.EnvVar("TAILSCALE_TAILNET"),
         ),
     },
