@@ -137,7 +137,9 @@ class TestPublishFormTemplate:
         )
         publish_form_template(event=event, user=user, send_message=self.send_message)
         mock_get_users.assert_called_once()
-        mock_get_version.assert_called_once_with(xml_form_id_base=form_template.form_id_base)
+        mock_get_version.assert_called_once_with(
+            xml_form_id_base=form_template.form_id_base, form_template=form_template
+        )
         mock_create_or_update_form.assert_called_once()
         for call in mock_create_or_update_form.mock_calls:
             call.kwargs["xml_form_id"] = user_form1.xml_form_id
