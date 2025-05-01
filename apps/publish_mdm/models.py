@@ -250,7 +250,7 @@ class FormTemplate(AbstractBaseModel):
         help_text=(
             "The URL of the Google Sheet template. A new version of this sheet will be "
             "downloaded for each form publish event."
-        )
+        ),
     )
     template_url_user = models.ForeignKey(
         settings.AUTH_USER_MODEL, blank=True, null=True, on_delete=models.CASCADE
