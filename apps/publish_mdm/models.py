@@ -52,7 +52,7 @@ class Organization(AbstractBaseModel):
 class CentralServer(AbstractBaseModel):
     """A server running ODK Central."""
 
-    base_url = models.URLField(max_length=1024)
+    base_url = models.URLField(max_length=1024, assume_scheme="https")
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name="central_servers"
     )
@@ -251,6 +251,7 @@ class FormTemplate(AbstractBaseModel):
             "The URL of the Google Sheet template. A new version of this sheet will be "
             "downloaded for each form publish event."
         ),
+        assume_scheme = "https"
     )
     template_url_user = models.ForeignKey(
         settings.AUTH_USER_MODEL, blank=True, null=True, on_delete=models.CASCADE
