@@ -6,7 +6,7 @@ from import_export.admin import ImportExportMixin
 from import_export.forms import ExportForm
 
 from .import_export import DeviceResource
-from .models import Policy, Device, DeviceSnapshot, DeviceSnapshotApp
+from .models import Policy, Device, DeviceSnapshot, DeviceSnapshotApp, FirmwareSnapshot
 
 
 @admin.register(Policy)
@@ -96,4 +96,22 @@ class DeviceSnapshotAdmin(admin.ModelAdmin):
         "longitude",
         "raw_mdm_device",
         "synced_at",
+    )
+
+
+@admin.register(FirmwareSnapshot)
+class FirmwareSnapshotAdmin(admin.ModelAdmin):
+    list_display = ("id", "device", "serial_number", "version", "synced_at")
+    search_fields = ("serial_number", "version", "device__serial_number", "device__name")
+    list_filter = ("synced_at", "version")
+    list_select_related = ("device",)
+    date_hierarchy = "synced_at"
+    ordering = ("-synced_at",)
+    readonly_fields = (
+        "device",
+        "version",
+        "device_identifier",
+        "serial_number",
+        "synced_at",
+        "raw_data",
     )

@@ -20,12 +20,13 @@ from django.contrib import admin
 from django.urls import include, path, re_path
 from django.views.generic import TemplateView
 
-from apps.odk_publish.views import websockets_server_health, AcceptOrganizationInvite
+from apps.publish_mdm.views import websockets_server_health, AcceptOrganizationInvite
 
 urlpatterns = [
     path("accounts/", include("allauth.urls")),
     path("admin/", admin.site.urls),
-    path("", include("apps.odk_publish.urls", namespace="odk_publish")),
+    path("", include("apps.publish_mdm.urls", namespace="publish_mdm")),
+    path("mdm/", include("apps.mdm.urls", namespace="mdm")),
     path("ws/health/", websockets_server_health),
     re_path(
         r"^accept-invite/(?P<key>\w+)/?$",
