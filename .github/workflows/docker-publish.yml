@@ -33,7 +33,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY_WITH_PATH }}/odk-publish
+          images: ${{ env.REGISTRY_WITH_PATH }}/publish-mdm
           # Generate Docker tags based on the following events/attributes
           tags: |
             type=ref,event=branch

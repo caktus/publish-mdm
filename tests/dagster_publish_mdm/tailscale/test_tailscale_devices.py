@@ -43,7 +43,11 @@ def devices() -> dict:
 
 def test_tailscale_device_snapshot(requests_mock, devices):
     """Test asset accesses the Tailscale API and returns the devices JSON."""
-    tailscale = TailscaleResource(api_key="key", tailnet="tailnet")
+    tailscale = TailscaleResource(client_id="key", client_secret="secret", tailnet="tailnet")
+    requests_mock.post(
+        "https://api.tailscale.com/api/v2/oauth/token",
+        json={"access_token": "dummy", "expires_in": 3600, "token_type": "Bearer"},
+    )
     requests_mock.get(
         f"https://api.tailscale.com/api/v2/tailnet/{tailscale.tailnet}/devices",
         json=devices,
