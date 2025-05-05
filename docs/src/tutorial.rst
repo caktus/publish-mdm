@@ -12,7 +12,7 @@ Create or access an existing ODK Central instance. You can use `ODK Cloud`_, a
 :doc:`local Docker-based instance <local-development/odk-central>`, or your own
 deployment.
 
-1. Create an admin user for ODK Publish to use. This user will be used to
+1. Create an admin user for Publish MDM to use. This user will be used to
    publish forms to ODK Central.
 
 2. Create a project for the forms you will be publishing.
@@ -20,13 +20,13 @@ deployment.
 .. _ODK Cloud: https://getodk.org/#pricing
 
 
-2. Setup ODK Publish
+2. Setup Publish MDM
 --------------------
 
 Follow the :doc:`Quickstart with Docker <docker-compose>` or :doc:`Local
-Development <local-development/index>` guide to run ODK Publish locally.
+Development <local-development/index>` guide to run Publish MDM locally.
 
-1. Configure ODK Publish environment variables. You will need to set the
+1. Configure Publish MDM environment variables. You will need to set the
    following environment variables:
 
    - ``GOOGLE_CLIENT_ID`` and ``GOOGLE_CLIENT_SECRET``: These are the OAuth
@@ -46,29 +46,29 @@ Development <local-development/index>` guide to run ODK Publish locally.
      Additionally, you may need to add ``central-dev.localhost`` to your
      ``/etc/hosts`` so Python can resolve the lookback address.
 
-2. Start the ODK Publish server, login with your Google account, and make
+2. Start the Publish MDM server, login with your Google account, and make
    yourself an admin.
 
 3. Sync your ODK Central project by visiting
    http://localhost:8000/odk/servers/sync/.
 
 
-3. Setup project in ODK Publish
+3. Setup project in Publish MDM
 -------------------------------
 
-Now that you have ODK Central and ODK Publish set up, you can add form templates
-to ODK Publish.
+Now that you have ODK Central and Publish MDM set up, you can add form templates
+to Publish MDM.
 
 1. **Define variables:** If your forms use template variables, you will need to `add template
    variables`_ and then associate them with the `project in the admin`_.
 
 2. **Add forms:** Use `Add a form template`_ in the Django admin to add each project form to
-   ODK Publish. You will need to provide the form's title, form ID base, and the
+   Publish MDM. You will need to provide the form's title, form ID base, and the
    form's Google Sheet URL.
 
 3. **Create app users with variables:** `Export App Users`_  and fill in app
    user details, variable values, and assign them to forms. Then `Import App
-   Users`_  using the exported file to create or update app users in ODK Publish.
+   Users`_  using the exported file to create or update app users in Publish MDM.
 
 4. **Generate ODK Collect QR codes:** Generate QR codes by clicking
    Actions->Regenerate QR Codes on the `App Users`_ page.
@@ -76,9 +76,9 @@ to ODK Publish.
 5. **Publish forms:** Publish the forms to ODK Central by clicking Publish on a
    form detail page.
 
-.. _Add a form template: http://localhost:8000/admin/odk_publish/formtemplate/add/
-.. _Add template variables: http://localhost:8000/admin/odk_publish/templatevariable/add/
-.. _project in the admin: http://localhost:8000/admin/odk_publish/project/
+.. _Add a form template: http://localhost:8000/admin/publish_mdm/formtemplate/add/
+.. _Add template variables: http://localhost:8000/admin/publish_mdm/templatevariable/add/
+.. _project in the admin: http://localhost:8000/admin/publish_mdm/project/
 .. _Export App Users: http://localhost:8000/odk/1/app-users/export/
 .. _Import App Users: http://localhost:8000/odk/1/app-users/import/
 .. _App Users: http://localhost:8000/odk/1/app-users/

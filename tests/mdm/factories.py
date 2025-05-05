@@ -2,7 +2,7 @@ import factory
 import faker
 
 from apps.mdm.models import Device, Policy
-from tests.odk_publish.factories import ProjectFactory
+from tests.publish_mdm.factories import ProjectFactory
 
 fake = faker.Faker()
 

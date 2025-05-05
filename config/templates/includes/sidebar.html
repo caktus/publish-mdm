@@ -20,7 +20,7 @@
         <div class="overflow-y-auto py-5 px-3 h-full bg-gray-50 border-r border-gray-200 dark:bg-gray-800 dark:border-gray-700">
             <ul class="space-y-2 dark:border-gray-700">
                 <li>
-                    <a href="{% url 'odk_publish:organization-users-list' request.organization.slug %}"
+                    <a href="{% url 'publish_mdm:organization-users-list' request.organization.slug %}"
                        class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
                         <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
                              aria-hidden="true"
@@ -35,7 +35,7 @@
                     </a>
                 </li>
                 <li>
-                    <a href="{% url 'odk_publish:organization-users-list' request.organization.slug %}"
+                    <a href="{% url 'publish_mdm:organization-users-list' request.organization.slug %}"
                        class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
                         <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
                              aria-hidden="true"
@@ -50,7 +50,7 @@
                     </a>
                 </li>
                 <li>
-                    <a href="{% url 'odk_publish:server-sync' request.organization.slug %}"
+                    <a href="{% url 'publish_mdm:server-sync' request.organization.slug %}"
                        class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
                         <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
                              aria-hidden="true"
@@ -101,7 +101,7 @@
                  data-popper-placement="bottom">
                 {% for project in request.odk_projects %}
                     {% if project != request.odk_project %}
-                        <a href="{% url 'odk_publish:form-template-list' request.organization.slug project.pk %}"
+                        <a href="{% url 'publish_mdm:form-template-list' request.organization.slug project.pk %}"
                            class="flex items-center py-3 px-4 rounded hover:bg-gray-50 dark:hover:bg-gray-600">
                             <div class="text-left">
                                 <div class="font-semibold leading-none text-gray-900 dark:text-white mb-0.5">{{ project.name }}</div>
@@ -114,7 +114,7 @@
             {% if request.odk_project %}
                 <ul class="pb-4 pl-2 mt-2 mb-4 space-y-2 border-dotted border-b border-gray-200 dark:border-gray-700">
                     <li>
-                        <a href="{% url 'odk_publish:edit-project' request.organization.slug request.odk_project.pk %}"
+                        <a href="{% url 'publish_mdm:edit-project' request.organization.slug request.odk_project.pk %}"
                            class="flex items-center text-sm text-gray-500 hover:text-primary-700 dark:text-gray-400 dark:hover:text-white group">
                             <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 dark:text-gray-400 group-hover:text-primary-700 dark:group-hover:text-white"
                                  aria-hidden="true"
@@ -156,7 +156,7 @@
                         <ul id="dropdown-pages" class="visible py-2 space-y-2">
                             {% for form_template in request.odk_project.form_templates.all %}
                                 <li>
-                                    <a href="{% url 'odk_publish:form-template-detail' request.organization.slug request.odk_project.pk form_template.id %}"
+                                    <a href="{% url 'publish_mdm:form-template-detail' request.organization.slug request.odk_project.pk form_template.id %}"
                                        class="flex items-center p-2 pl-11 w-full text-base font-normal text-gray-900 rounded-lg hover:text-primary-700 group hover:bg-gray-100 dark:text-white dark:hover:bg-gray-700">
                                         {{ form_template.title_base }}
                                     </a>
@@ -165,7 +165,7 @@
                         </ul>
                     </li>
                     <li>
-                        <a href="{% url 'odk_publish:app-user-list' request.organization.slug request.odk_project.pk %}"
+                        <a href="{% url 'publish_mdm:app-user-list' request.organization.slug request.odk_project.pk %}"
                            class="flex items-center p-2 text-base font-normal text-gray-900 hover:text-primary-700 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
                             <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
                                  aria-hidden="true"

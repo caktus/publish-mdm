@@ -6,7 +6,7 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "ODK Publish"
+project = "Publish MDM"
 copyright = "2025, Caktus Group"
 author = "Caktus Group"
 release = "2025"
@@ -32,5 +32,5 @@ html_static_path = ["_static"]
 
 html_theme_options = {
     "accent_color": "grass",
-    "github_url": "https://github.com/caktus/odk-publish",
+    "github_url": "https://github.com/caktus/publish-mdm",
 }

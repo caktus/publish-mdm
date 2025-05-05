@@ -4,8 +4,8 @@ import faker
 from requests.sessions import Session
 
 from apps.mdm import tasks
-from apps.odk_publish.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
-from tests.odk_publish.factories import AppUserFactory
+from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
+from tests.publish_mdm.factories import AppUserFactory
 
 from .factories import DeviceFactory, PolicyFactory
 

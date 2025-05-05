@@ -11,7 +11,7 @@ from requests_ratelimiter import LimiterSession
 from urllib3.util.retry import Retry
 
 from apps.mdm.models import Device, DeviceSnapshot, DeviceSnapshotApp, Policy
-from apps.odk_publish.models import AppUser
+from apps.publish_mdm.models import AppUser
 
 logger = structlog.getLogger(__name__)
 
