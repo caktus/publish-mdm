@@ -1,4 +1,4 @@
-Developing ODK Publish
+Developing Publish MDM
 ======================
 
 Follow the steps below to set up a local development environment for ODK

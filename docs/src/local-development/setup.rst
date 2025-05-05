@@ -1,7 +1,7 @@
-ODK Publish
+Publish MDM
 ===========
 
-This guide will walk you through setting up ODK Publish locally with a Postgres database
+This guide will walk you through setting up Publish MDM locally with a Postgres database
 running on your development machine (or another host accessible from your machine). If you'd
 rather use Docker, see :doc:`/src/docker-compose`.
 
@@ -23,7 +23,7 @@ rather use Docker, see :doc:`/src/docker-compose`.
     export PGHOST=localhost
     export PGPORT=5432
     export PGUSER=$USER
-    export PGDATABASE=odk_publish
+    export PGDATABASE=publish_mdm
     export DATABASE_URL=postgresql://$PGUSER@$PGHOST:$PGPORT/$PGDATABASE
 
     # google oauth for django-allauth

@@ -11,7 +11,7 @@ class User(AbstractUser):
         return SocialToken.objects.filter(account__user=self, account__provider="google").first()
 
     def get_organizations(self):
-        from apps.odk_publish.models import Organization
+        from apps.publish_mdm.models import Organization
 
         if self.is_superuser:
             return Organization.objects.order_by("created_at")
