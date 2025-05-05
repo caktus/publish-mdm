@@ -351,7 +351,7 @@ class TestFormTemplateDetail(ViewTestBase):
     @pytest.fixture
     def url(self, form_template):
         return reverse(
-            "odk_publish:form-template-detail",
+            "publish_mdm:form-template-detail",
             kwargs={
                 "organization_slug": form_template.project.organization.slug,
                 "odk_project_pk": form_template.project_id,
