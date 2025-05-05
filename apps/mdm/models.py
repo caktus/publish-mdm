@@ -1,7 +1,11 @@
+import structlog
 from django.db import models
 from django.core.validators import RegexValidator
 
-from apps.odk_publish.models import Project
+from apps.publish_mdm.models import Project
+
+
+logger = structlog.get_logger()
 
 
 class Policy(models.Model):
@@ -68,7 +72,7 @@ class Device(models.Model):
                 "underscores, hyphens, and not more than one colon.",
             )
         ],
-        help_text="Name of the app user (in the ODK Publish app) to assign to this device, if any.",
+        help_text="Name of the app user (in the Publish MDM app) to assign to this device, if any.",
         blank=True,
     )
     latest_snapshot = models.OneToOneField(
@@ -83,9 +87,18 @@ class Device(models.Model):
     def save(self, *args, **kwargs):
         from apps.mdm.tasks import get_tinymdm_session, push_device_config
 
+        push_to_mdm = kwargs.pop("push_to_mdm", True)
         super().save(*args, **kwargs)
-        if session := get_tinymdm_session():
-            push_device_config(session, self)
+        logger.info(
+            "Device saved",
+            device_id=self.device_id,
+            push_to_mdm=push_to_mdm,
+            app_user_name=self.app_user_name,
+        )
+
+        if push_to_mdm:
+            if session := get_tinymdm_session():
+                push_device_config(session, self)
 
     class Meta:
         constraints = [
@@ -186,3 +199,44 @@ class DeviceSnapshotApp(models.Model):
 
     def __str__(self):
         return f"{self.app_name} ({self.package_name}) snapshot"
+
+
+class FirmwareSnapshot(models.Model):
+    """
+    A firmware installed on a device enrolled in the MDM.
+    """
+
+    device_identifier = models.CharField(
+        verbose_name="Device Identifier",
+        max_length=255,
+        help_text="The ID of the device set via the MDM.",
+        blank=True,
+    )
+    serial_number = models.CharField(
+        max_length=255, help_text="The serial number of the device.", blank=True
+    )
+    version = models.CharField(max_length=255, help_text="Firmware version", blank=True)
+    synced_at = models.DateTimeField(
+        help_text="When the device snapshot was synced.", auto_now_add=True
+    )
+    raw_data = models.JSONField(
+        verbose_name="Raw Device Data",
+        help_text="The full data sent by the device to Publish MDM.",
+        null=True,
+        blank=True,
+    )
+    device = models.ForeignKey(
+        Device,
+        on_delete=models.SET_NULL,
+        related_name="firmware_snapshots",
+        null=True,
+        blank=True,
+    )
+
+    def __str__(self):
+        return f"{self.device_id} ({self.version}) firmware snapshot"
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["synced_at"]),
+        ]

@@ -63,8 +63,10 @@ INSTALLED_APPS = [
     "django_tables2",
     "import_export",
     "template_partials",
+    "invitations",
+    "django_rename_app",
     # Local
-    "apps.odk_publish",
+    "apps.publish_mdm",
     "apps.mdm",
     "apps.patterns",
     "apps.tailscale",
@@ -86,7 +88,8 @@ MIDDLEWARE = [
     "django_htmx.middleware.HtmxMiddleware",
     "django_structlog.middlewares.RequestMiddleware",
     "allauth.account.middleware.AccountMiddleware",
-    "apps.odk_publish.middleware.ODKProjectMiddleware",
+    "apps.publish_mdm.middleware.OrganizationMiddleware",
+    "apps.publish_mdm.middleware.ODKProjectMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -124,7 +127,7 @@ if CONN_MAX_AGE is not None:
 CONN_HEALTH_CHECKS = os.getenv("DATABASE_CONN_HEALTH_CHECKS", "True") == "True"
 DATABASES = {
     "default": dj_database_url.config(
-        default="postgresql://postgres@localhost:9061/odk_publish",
+        default="postgresql://postgres@localhost:9061/publish_mdm",
         conn_max_age=CONN_MAX_AGE,
         ssl_require=os.getenv("DATABASE_SSL_REQUIRE", "False") == "True",
     ),
@@ -175,6 +178,19 @@ SOCIALACCOUNT_PROVIDERS = {
         },
     }
 }
+ACCOUNT_SIGNUP_REDIRECT_URL = "publish_mdm:create-organization"
+# Allow signing up with or without an invite
+ACCOUNT_ADAPTER = "apps.publish_mdm.invitations.InvitationsAdapter"
+
+# django-invitations configuration:
+INVITATIONS_ADAPTER = ACCOUNT_ADAPTER
+INVITATIONS_SIGNUP_REDIRECT = "account_login"
+INVITATIONS_ACCEPT_INVITE_AFTER_SIGNUP = True
+INVITATIONS_INVITATION_MODEL = "publish_mdm.OrganizationInvitation"
+INVITATIONS_ADMIN_ADD_FORM = "apps.publish_mdm.forms.OrganizationInvitationAdminAddForm"
+INVITATIONS_INVITE_FORM = "apps.publish_mdm.forms.OrganizationInviteForm"
+INVITATIONS_CONFIRMATION_URL_NAME = "accept-invite"
+INVITATIONS_GONE_ON_ACCEPT_ERROR = False
 
 # Google Auth
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
@@ -318,7 +334,7 @@ structlog.configure(
 # EMAIL
 # ------------------------------------------------------------------------------
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
-EMAIL_SUBJECT_PREFIX = "[odk-publish %s] " % ENVIRONMENT.title()
+EMAIL_SUBJECT_PREFIX = "[publish-mdm %s] " % ENVIRONMENT.title()
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@caktusgroup.com")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
@@ -387,3 +403,7 @@ ODK_CENTRAL_PASSWORD = os.getenv("ODK_CENTRAL_PASSWORD")
 
 # django-import-export
 IMPORT_EXPORT_FORMATS = [base_formats.CSV, XLSX]
+
+# The default language for generating App User QR codes. Can be overriden for
+# a Project using the app_language field.
+DEFAULT_APP_LANGUAGE = "en"

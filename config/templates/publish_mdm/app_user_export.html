@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+    <p class="mb-4 dark:text-gray-400">Export App Users to bulk edit user attributes and project template variables.</p>
+    <div class="mb-4 grid gap-4 sm:grid-cols-2 md:mb-8 lg:grid-cols-3 xl:grid-cols-4">
+        {{ form.media }}
+        <form method="post" class="max-w-2xl">
+            {% csrf_token %}
+            <div class="grid gap-4 sm:grid-cols-1 sm:gap-6">
+                <div id="id_format_container">
+                    {{ form.format.label_tag }}
+                    {{ form.format }}
+                    {{ form.format.errors }}
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button type="submit" class="btn btn-outline btn-primary">Export app users</button>
+                    <a type="button"
+                       class="btn btn-outline"
+                       href="{% url 'publish_mdm:app-user-list' request.organization.slug request.odk_project.pk %}">Cancel</a>
+                </div>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

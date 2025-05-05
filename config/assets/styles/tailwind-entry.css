@@ -19,6 +19,7 @@
   --color-green-100: oklch(97.86% 0.0129 185.1); /* #EFFBF9 */
   --color-yellow: oklch(83.42% 0.117 87.43);
   --color-orange: oklch(78.06% 0.1269 57.86);
+  --color-orange-300: oklch(0.84 0.0919 59.63);
   --color-red: oklch(67.83% 0.1559 35.18);
   --color-red-700: oklch(48.16% 0.1526 34.7); /* #A23216 */
   --color-error: var(--color-red-700);

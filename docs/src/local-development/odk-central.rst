@@ -2,7 +2,7 @@ ODK Central
 ===========
 
 This guide will walk you through setting up ODK Central locally using Docker
-Compose for development purposes with ODK Publish. This is not intended for
+Compose for development purposes with Publish MDM. This is not intended for
 production use. For production deployments, see the official `Installing ODK
 Central <https://docs.getodk.org/central-install/>`_ guide.
 
@@ -21,7 +21,7 @@ Prerequisites
 -------------
 
 - `Docker <https://docs.docker.com/get-docker/>`_ and `Docker Compose <https://docs.docker.com/compose/install/>`_
-- `PostgreSQL <https://www.postgresql.org/download/>`_ (to use a shared database cluster with ODK Publish)
+- `PostgreSQL <https://www.postgresql.org/download/>`_ (to use a shared database cluster with Publish MDM)
 - `ngrok <https://ngrok.com/download>`_ or `Tailscale <https://tailscale.com/download>`_ (for tunneling connections from ODK Collect to your ODK Central instance)
 
 
@@ -101,5 +101,5 @@ Setup
 4. Access the ODK Central web interface at https://<your-tunnel-fqdn>
    and log in with the admin user you created.
 
-5. Finally, when you configure ODK Publish, set the ``ODK_CENTRAL_CREDENTIALS``
+5. Finally, when you configure Publish MDM, set the ``ODK_CENTRAL_CREDENTIALS``
    environment variable to use ``base_url=https://<your-tunnel-fqdn>``.

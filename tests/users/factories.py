@@ -1,7 +1,11 @@
 import factory
+import faker
+
 from allauth.socialaccount.models import SocialAccount, SocialToken
 
 from apps.users.models import User
+
+fake = faker.Faker()
 
 
 class UserFactory(factory.django.DjangoModelFactory):
@@ -15,6 +19,7 @@ class UserFactory(factory.django.DjangoModelFactory):
     is_active = True
     first_name = factory.Faker("first_name")
     last_name = factory.Faker("last_name")
+    username = factory.Sequence(lambda _: fake.unique.user_name())
 
     @factory.post_generation
     def password(self, create, extracted, **kwargs):
@@ -38,7 +43,7 @@ class UserFactory(factory.django.DjangoModelFactory):
         """Create a social account for the user."""
         if not create:
             return
-        SocialTokenFactory(account__user=self)
+        SocialTokenFactory(account__user=self, account__uid=fake.random_number())
 
 
 class SocialAccountFactory(factory.django.DjangoModelFactory):
