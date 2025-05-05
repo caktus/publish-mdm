@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ("odk_publish", "0007_alter_appuser_name"),
+        ("publish_mdm", "0007_alter_appuser_name"),
     ]
 
     operations = [
@@ -37,7 +37,7 @@ class Migration(migrations.Migration):
                         help_text="The project that this policy belongs to.",
                         on_delete=django.db.models.deletion.CASCADE,
                         related_name="policies",
-                        to="odk_publish.project",
+                        to="publish_mdm.project",
                     ),
                 ),
             ],
@@ -90,7 +90,7 @@ class Migration(migrations.Migration):
                     models.CharField(
                         blank=True,
                         db_collation="case_insensitive",
-                        help_text="Name of the app user (in the ODK Publish app) to assign to this device, if any.",
+                        help_text="Name of the app user (in the Publish MDM app) to assign to this device, if any.",
                         max_length=255,
                         validators=[
                             django.core.validators.RegexValidator(
