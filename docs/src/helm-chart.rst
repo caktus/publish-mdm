@@ -1,7 +1,7 @@
-Deploying the ODK Publish Helm Chart
+Deploying the Publish MDM Helm Chart
 ====================================
 
-This guide will walk you through deploying the ODK Publish Helm Chart on a Kubernetes cluster.
+This guide will walk you through deploying the Publish MDM Helm Chart on a Kubernetes cluster.
 
 
 1. Create a Kubernetes Cluster
@@ -133,7 +133,7 @@ To host the PostgreSQL database within your cluster, you can install the
 
 First, create a namespace for it::
 
-    kubectl create namespace odk-publish-db
+    kubectl create namespace publish-mdm-db
 
 Add the Bitnami repository::
 
@@ -141,15 +141,15 @@ Add the Bitnami repository::
     helm repo update
 
 Then install the Helm chart within the namespace you created. We will install version 15.5.38 as it's
-the last version that supports PostgreSQL 16 and the ODK Publish Docker container currently does not work well
+the last version that supports PostgreSQL 16 and the Publish MDM Docker container currently does not work well
 with PostgreSQL 17. You can update the ``auth.*`` values below as necessary,
 and set any `other parameters <https://github.com/bitnami/charts/tree/main/bitnami/postgresql#parameters>`_ you may need::
 
-    helm install odk-publish-db bitnami/postgresql --version 15.5.38 \
-        --namespace odk-publish-db \
-        --set auth.database=odk_publish \
+    helm install publish-mdm-db bitnami/postgresql --version 15.5.38 \
+        --namespace publish-mdm-db \
+        --set auth.database=publish_mdm \
         --set auth.password=A3Or4uW2vIPoZfJF \
-        --set auth.username=odk_publish \
+        --set auth.username=publish_mdm \
         --set auth.postgresPassword=9eCFAO8Tte3eyLBq
 
 **Note:** On some platforms, you may need to set the ``global.defaultStorageClass`` value to
@@ -157,18 +157,18 @@ specify the StorageClass to be used for Persistent Volumes. To see the available
 storage classes in your cluster, run ``kubectl get storageclass``.
 
 The output of the ``helm install`` command will include the domain name for accessing PostgreSQL
-from within the cluster. (e.g. ``odk-publish-db-postgresql.odk-publish-db.svc.cluster.local``). You will
+from within the cluster. (e.g. ``publish-mdm-db-postgresql.publish-mdm-db.svc.cluster.local``). You will
 use this domain name -- along with the ``auth.username``, ``auth.password``, and ``auth.database``
 values from above -- to create the ``DATABASE_URL`` environment variable in the next section.
 
-3. Installing the ODK Publish Helm Chart
+3. Installing the Publish MDM Helm Chart
 ----------------------------------------
 
-Now you'll install ODK Publish using its `Helm chart <https://github.com/caktus/helm-charts/tree/main/charts/odk-publish>`_.
+Now you'll install Publish MDM using its `Helm chart <https://github.com/caktus/helm-charts/tree/main/charts/publish-mdm>`_.
 
 First, create a namespace for it::
 
-    kubectl create namespace odk-publish
+    kubectl create namespace publish-mdm
 
 Then add the `Caktus repository <https://caktus.github.io/helm-charts>`_ to Helm::
 
@@ -176,10 +176,10 @@ Then add the `Caktus repository <https://caktus.github.io/helm-charts>`_ to Helm
     helm repo update
 
 Create a file named ``chart_values.yaml`` with your values for the Helm chart.
-All the possible values are documented in the `README file for the Helm chart <https://github.com/caktus/helm-charts/blob/main/charts/odk-publish/README.md#configuration>`_.
+All the possible values are documented in the `README file for the Helm chart <https://github.com/caktus/helm-charts/blob/main/charts/publish-mdm/README.md#configuration>`_.
 Below is a sample ``chart_values.yaml`` file that will create only one deployment for both WSGI and ASGI. Replace ``your_domain_name`` and update ``environmentVariables`` appropriately::
 
-    odk-publish:
+    publish-mdm:
       publishDomain: your_domain_name
       image:
         tag: main
@@ -189,7 +189,7 @@ Below is a sample ``chart_values.yaml`` file that will create only one deploymen
         AWS_ACCESS_KEY_ID: XXXXXXXXX
         AWS_SECRET_ACCESS_KEY: XXXXXXXXX
         AWS_STORAGE_BUCKET_NAME: XXXXXXXXX
-        DATABASE_URL: postgresql://postgres:postgres@172.17.0.1:9062/odk_publish
+        DATABASE_URL: postgresql://postgres:postgres@172.17.0.1:9062/publish_mdm
         DEFAULT_FILE_STORAGE: config.storages.MediaBoto3Storage
         DEFAULT_FROM_EMAIL: XXXXXXXXX
         DJANGO_MANAGEPY_MIGRATE: 'on'
@@ -224,14 +224,14 @@ Below is a sample ``chart_values.yaml`` file that will create only one deploymen
         tls:
         - hosts:
           - your_domain_name
-          secretName: odk-publish-tls
+          secretName: publish-mdm-tls
 
-Finally, install ODK Publish into the namespace you created earlier, using the values from the ``chart_values.yaml`` file to override the Helm chart's default values::
+Finally, install Publish MDM into the namespace you created earlier, using the values from the ``chart_values.yaml`` file to override the Helm chart's default values::
 
-    helm install odk-publish caktus/odk-publish -f chart_values.yaml --namespace odk-publish
+    helm install publish-mdm caktus/publish-mdm -f chart_values.yaml --namespace publish-mdm
 
 Confirm if all the necessary resources have been created successfully::
 
-    kubectl get all -n odk-publish
+    kubectl get all -n publish-mdm
 
-That's it! The ODK Publish web application should now be available at ``https://your_domain_name``
+That's it! The Publish MDM web application should now be available at ``https://your_domain_name``
