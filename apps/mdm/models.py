@@ -2,7 +2,7 @@ import structlog
 from django.db import models
 from django.core.validators import RegexValidator
 
-from apps.odk_publish.models import Project
+from apps.publish_mdm.models import Project
 
 
 logger = structlog.get_logger()
@@ -72,7 +72,7 @@ class Device(models.Model):
                 "underscores, hyphens, and not more than one colon.",
             )
         ],
-        help_text="Name of the app user (in the ODK Publish app) to assign to this device, if any.",
+        help_text="Name of the app user (in the Publish MDM app) to assign to this device, if any.",
         blank=True,
     )
     latest_snapshot = models.OneToOneField(
