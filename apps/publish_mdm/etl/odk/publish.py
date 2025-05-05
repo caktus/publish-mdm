@@ -103,18 +103,28 @@ class PublishService(bases.Service):
         logger.info("Found form templates", form_templates=list(form_templates.keys()))
         return form_templates
 
-    def get_unique_version_by_form_id(self, xml_form_id_base: str, project_id: int | None = None):
+    def get_unique_version_by_form_id(
+        self, xml_form_id_base: str, project_id: int | None = None, form_template=None
+    ):
         """
         Generates a new, unique version for the form whose xmlFormId starts with
         the given xml_form_id_base.
         """
         today = dt.datetime.today().strftime("%Y-%m-%d")
         central_forms = self.get_forms(project_id=project_id)
-        versions = [
+        versions = {
             int(form.version.split("v")[1])
             for form in central_forms.values()
             if form.xmlFormId.startswith(xml_form_id_base) and form.version.startswith(today)
-        ]
+        }
+        if form_template:
+            # Also check the versions currently in the database for this form template
+            versions |= {
+                int(version.split("v")[1])
+                for version in form_template.versions.filter(version__startswith=today).values_list(
+                    "version", flat=True
+                )
+            }
         new_version = max(versions) + 1 if versions else 1
         full_version = f"{today}-v{new_version}"
         logger.debug(

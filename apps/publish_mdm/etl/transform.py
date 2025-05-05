@@ -29,7 +29,10 @@ def render_template_for_app_user(
 
     # Fill in the survey template variables
     variables = app_user.get_template_variables()
-    set_survey_template_variables(sheet=workbook["survey"], variables=variables)
+
+    # FILTER OUT system variables like 'admin_pw'
+    form_variables = [var for var in variables if var.name not in {"admin_pw"}]
+    set_survey_template_variables(sheet=workbook["survey"], variables=form_variables)
 
     # Detect static attachments in the survey sheet
     set_survey_attachments(sheet=workbook["survey"], attachments=attachments)

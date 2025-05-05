@@ -40,3 +40,5 @@ dagster
 dagster-k8s
 dagster-postgres
 dagster-webserver
+oauthlib
+requests_oauthlib

@@ -9,6 +9,7 @@ from pyodk.errors import PyODKError
 
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment, Form
 from apps.publish_mdm.etl.odk.client import PublishMDMClient
+from tests.publish_mdm.factories import FormTemplateFactory, FormTemplateVersionFactory
 
 
 @pytest.fixture
@@ -367,3 +368,19 @@ class TestPublishServiceFormVersions:
             xml_form_id_base="myform"
         )
         assert next_version == expected
+
+    @pytest.mark.django_db
+    def test_get_next_form_version_with_db_check(self, forms, mocker, odk_client: PublishMDMClient):
+        """Ensure the get_unique_version_by_form_id method does not return a version
+        that exists in the DB if it's called with the form_template arg.
+        """
+        today = dt.datetime.today().strftime("%Y-%m-%d")
+        forms["myform_10000"].version = f"{today}-v1"
+        form_template = FormTemplateFactory(form_id_base="myform", project__central_id=1)
+        FormTemplateVersionFactory(form_template=form_template, version=f"{today}-v2")
+        mocker.patch.object(odk_client.publish_mdm, "get_forms", return_value=forms)
+        next_version = odk_client.publish_mdm.get_unique_version_by_form_id(
+            xml_form_id_base="myform",
+            form_template=form_template,
+        )
+        assert not form_template.versions.filter(version=next_version).exists()
