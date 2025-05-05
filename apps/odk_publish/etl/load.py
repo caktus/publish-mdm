@@ -62,7 +62,8 @@ def publish_form_template(event: PublishTemplateEvent, user: User, send_message:
         project_id=form_template.project.central_id,
     )
     version = client.odk_publish.get_unique_version_by_form_id(
-        xml_form_id_base=form_template.form_id_base
+        xml_form_id_base=form_template.form_id_base,
+        form_template=form_template,
     )
     send_message(f"Generated version: {version}")
     # Download the template from Google Sheets
