@@ -97,4 +97,9 @@ urlpatterns = [
         views.organization_users_list,
         name="organization-users-list",
     ),
+    path(
+        "o/<slug:organization_slug>/template-variables/",
+        views.organization_template_variables,
+        name="organization-template-variables",
+    ),
 ]
