@@ -15,7 +15,7 @@ class PlatformErrorList(ErrorList):
     template_name = "patterns/forms/errors.html"
 
 
-class PlatformFormMixin(object):
+class PlatformFormMixin:
     """
     Form Mixin class to auto-style labels, errors, and inputs following the
     established standards.

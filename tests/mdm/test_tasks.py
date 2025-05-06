@@ -181,7 +181,7 @@ class TestTasks:
                 assert snapshot.longitude == geolocation_positions[-1]["longitude"]
 
             # Ensure the apps have been saved with the expected data
-            assert set(tuple(i.values()) for i in apps[device["id"]]) == set(
+            assert {tuple(i.values()) for i in apps[device["id"]]} == set(
                 snapshot.apps.values_list(
                     "package_name", "app_name", "version_code", "version_name"
                 )
