@@ -37,6 +37,7 @@ from .forms import (
     ProjectForm,
     ProjectTemplateVariableFormSet,
     OrganizationForm,
+    TemplateVariableFormSet,
 )
 from .import_export import AppUserResource
 from .models import FormTemplateVersion, FormTemplate, AppUser
@@ -564,3 +565,24 @@ if invitations_settings.ACCEPT_INVITE_AFTER_SIGNUP:
     # invitations for different organizations.
     signed_up_signal = get_invitations_adapter().get_user_signed_up_signal()
     signed_up_signal.disconnect(accept_invite_after_signup)
+
+
+@login_required
+def organization_template_variables(request, organization_slug):
+    """Create, edit, or delete an organization's template variables."""
+    formset = TemplateVariableFormSet(request.POST or None, instance=request.organization)
+    if request.method == "POST" and formset.is_valid():
+        formset.save()
+        messages.success(
+            request,
+            f"Successfully edited template variables for {request.organization}.",
+        )
+        return redirect(request.path)
+    context = {
+        "formset": formset,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("Template Variables", "organization-template-variables")],
+        ),
+    }
+    return render(request, "publish_mdm/organization_template_variables.html", context)
