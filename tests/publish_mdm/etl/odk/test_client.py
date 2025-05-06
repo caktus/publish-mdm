@@ -24,6 +24,24 @@ class TestNewClient:
         PublishMDMClient(base_url="https://central")
         assert stub_config_path.exists()
 
+    @pytest.fixture
+    def fake_token(self):
+        stub_cache_path = Path("/tmp/.pyodk_cache.toml")
+        if stub_cache_path.exists():
+            old_contents = stub_cache_path.read_text()
+            yield "fake token"
+            stub_cache_path.write_text(old_contents)
+        else:
+            yield "fake token"
+
+    def test_stub_cache_created(self, requests_mock, fake_token):
+        stub_cache_path = Path("/tmp/.pyodk_cache.toml")
+        stub_cache_path.unlink(missing_ok=True)
+        requests_mock.post("https://central/v1/sessions", json={"token": fake_token})
+        PublishMDMClient(base_url="https://central")
+        assert stub_cache_path.exists()
+        assert stub_cache_path.read_text() == f'token = "{fake_token}"\n'
+
     def test_check_unset_client_project_id(self):
         assert PublishMDMClient(base_url="https://central").project_id is None
 
