@@ -79,6 +79,21 @@
                         <span class="ml-3">Template Variables</span>
                     </a>
                 </li>
+                <li>
+                    <a href="{% url 'publish_mdm:add-project' request.organization.slug %}"
+                       class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
+                        <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
+                             aria-hidden="true"
+                             xmlns="http://www.w3.org/2000/svg"
+                             width="24"
+                             height="24"
+                             fill="none"
+                             viewBox="0 0 24 24">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9V4a1 1 0 0 0-1-1H8.914a1 1 0 0 0-.707.293L4.293 7.207A1 1 0 0 0 4 7.914V20a1 1 0 0 0 1 1h4M9 3v4a1 1 0 0 1-1 1H4m11 6v4m-2-2h4m3 0a5 5 0 1 1-10 0 5 5 0 0 1 10 0Z" />
+                        </svg>
+                        <span class="ml-3">Add Project</span>
+                    </a>
+                </li>
             </ul>
             <div class="pt-5 pl-2 mt-5 mb-4 text-sm font-bold text-gray-500 border-t border-gray-200 dark:text-gray-400 dark:border-gray-700">
                 <h3>Project</h3>
