@@ -697,9 +697,9 @@ class TestAddProject(ViewTestBase):
         assert project.app_language == "ar"
         assert set(project.template_variables.all()) == set(template_variables)
         # Ensure ProjectTemplateVariables are created
-        assert set(project.project_template_variables.values_list("id", "value")) == {
-            (var.id, f"{var.name} value") for var in template_variables
-        }
+        assert set(
+            project.project_template_variables.values_list("template_variable", "value")
+        ) == {(var.id, f"{var.name} value") for var in template_variables}
         # Ensure the view redirects to the form templates list page
         assert response.redirect_chain == [
             (
