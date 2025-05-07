@@ -443,7 +443,7 @@ def change_project(request, organization_slug, odk_project_pk=None):
                 generate_and_save_app_user_collect_qrcodes(request.odk_project)
         else:
             form.save(commit=False)
-            # Create the project in ODK Central
+            # Create the project in ODK Central then save it in the database
             try:
                 project.central_id = create_project(project.central_server.base_url, project.name)
             except RequestException as e:
