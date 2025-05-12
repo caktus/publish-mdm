@@ -1,5 +1,7 @@
 volumes:
   dev_pgdata:
+  infisical_pgdata:
+  redis_data:
 
 services:
   db:
@@ -11,3 +13,46 @@ services:
       - "9062:5432"
     volumes:
       - dev_pgdata:/var/lib/postgresql/data
+
+  infisical-backend:
+    container_name: infisical-backend
+    restart: unless-stopped
+    depends_on:
+      infisical-db:
+        condition: service_healthy
+      infisical-redis:
+        condition: service_started
+    image: infisical/infisical:latest-postgres
+    pull_policy: always
+    env_file: .infisical.env
+    ports:
+      - 8888:8080
+    environment:
+      - NODE_ENV=production
+
+  infisical-redis:
+    image: redis
+    container_name: infisical-dev-redis
+    env_file: .infisical.env
+    restart: always
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    ports:
+      - 6380:6379
+    volumes:
+      - redis_data:/data
+
+  infisical-db:
+    container_name: infisical-db
+    image: postgres:14-alpine
+    restart: always
+    env_file: .infisical.env
+    volumes:
+      - infisical_pgdata:/var/lib/postgresql/data
+    ports:
+      - "9063:5432"
+    healthcheck:
+      test: "pg_isready --username=$${POSTGRES_USER} && psql --username=$${POSTGRES_USER} --list"
+      interval: 5s
+      timeout: 10s
+      retries: 10
