@@ -15,7 +15,6 @@ services:
       - dev_pgdata:/var/lib/postgresql/data
 
   infisical:
-    container_name: infisical
     restart: unless-stopped
     depends_on:
       infisical-db:
@@ -32,7 +31,6 @@ services:
 
   infisical-redis:
     image: redis
-    container_name: infisical-redis
     env_file: .infisical.env
     restart: always
     environment:
@@ -43,7 +41,6 @@ services:
       - infisical_redis_data:/data
 
   infisical-db:
-    container_name: infisical-db
     image: postgres:14-alpine
     restart: always
     env_file: .infisical.env
