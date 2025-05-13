@@ -1,7 +1,7 @@
 volumes:
   dev_pgdata:
   infisical_pgdata:
-  redis_data:
+  infisical_redis_data:
 
 services:
   db:
@@ -14,8 +14,8 @@ services:
     volumes:
       - dev_pgdata:/var/lib/postgresql/data
 
-  infisical-backend:
-    container_name: infisical-backend
+  infisical:
+    container_name: infisical
     restart: unless-stopped
     depends_on:
       infisical-db:
@@ -32,7 +32,7 @@ services:
 
   infisical-redis:
     image: redis
-    container_name: infisical-dev-redis
+    container_name: infisical-redis
     env_file: .infisical.env
     restart: always
     environment:
@@ -40,7 +40,7 @@ services:
     ports:
       - 6380:6379
     volumes:
-      - redis_data:/data
+      - infisical_redis_data:/data
 
   infisical-db:
     container_name: infisical-db
