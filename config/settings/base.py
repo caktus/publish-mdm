@@ -407,3 +407,8 @@ IMPORT_EXPORT_FORMATS = [base_formats.CSV, XLSX]
 # The default language for generating App User QR codes. Can be overriden for
 # a Project using the app_language field.
 DEFAULT_APP_LANGUAGE = "en"
+
+# Infisical settings
+INFISICAL_HOST = os.getenv("INFISICAL_HOST")
+INFISICAL_TOKEN = os.getenv("INFISICAL_TOKEN")
+INFISICAL_PROJECT_ID = os.getenv("INFISICAL_PROJECT_ID")
