@@ -49,6 +49,9 @@ and save the "Project number" for the next step. We need this to use the Google 
 Setup
 -----
 
+A ``docker-compose.yaml`` file exists in the codebase that sets up a PostgreSQL
+database and `Infisical <https://infisical.com/>`_, which is used for secrets management.
+
 1. Create a new directory for the project and navigate to it:
 
 .. code-block:: bash
@@ -62,6 +65,9 @@ Setup
 
 .. code-block:: yaml
 
+  include:
+    - ../docker-compose.yaml
+
   services:
     app:
       image: ghcr.io/caktus/publish-mdm:main
@@ -73,20 +79,11 @@ Setup
       depends_on:
         - db
 
-    db:
-      image: postgres:15-alpine
-      environment:
-        POSTGRES_DB: publish_mdm
-        POSTGRES_HOST_AUTH_METHOD: trust
-      ports:
-        - 5432
-      volumes:
-        - dev_pgdata:/var/lib/postgresql/data
-
   volumes:
     dev_pgdata:
 
-3. Create a new file named ``.env`` and paste the following content:
+3. Create a new file named ``.env`` and paste the following content.
+If you do not have values for the ``INFISICAL_*`` variables yet, you will update them later (in step 6 below).
 
 .. code-block:: shell
 
@@ -106,6 +103,11 @@ Setup
   # odk central
   ODK_CENTRAL_CREDENTIALS="base_url=https://myserver.com;username=user1;password=pass1"
 
+  # Infisical
+  INFISICAL_HOST=http://localhost:8888
+  INFISICAL_TOKEN="your-infisical-access-token"
+  INFISICAL_PROJECT_ID="your-infisical-project-id"
+
 4. Run the following command to start the application and login:
 
 .. code-block:: bash
@@ -120,6 +122,9 @@ Visit http://localhost:8000 in your browser and log in with your Google account.
 
    docker compose exec app python manage.py shell -c "from apps.users.models import User; User.objects.all().update(is_staff=True, is_superuser=True)"
 
+6. Infisical should be running at http://localhost:8888.
+:ref:`Set up a project and an access token <infisical:setup>`, update the ``INFISICAL_*``
+variables in the ``.env`` file, then re-run step 4.
 
 Local development
 -----------------

@@ -46,6 +46,8 @@ Development <local-development/index>` guide to run Publish MDM locally.
      Additionally, you may need to add ``central-dev.localhost`` to your
      ``/etc/hosts`` so Python can resolve the lookback address.
 
+   - ``INFISICAL_HOST``, ``INFISICAL_TOKEN``, and ``INFISICAL_PROJECT_ID``: See :doc:`infisical`.
+
 2. Start the Publish MDM server, login with your Google account, and make
    yourself an admin.
 
