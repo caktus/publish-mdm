@@ -12,7 +12,13 @@ class TestInfisicalKMS:
     """Test the Infisical KMS integration for encrypting and decrypting secrets."""
 
     @pytest.fixture
-    def key_json(self, settings):
+    def set_infisical_settings(self, settings):
+        settings.INFISICAL_HOST = "http://test"
+        settings.INFISICAL_TOKEN = "token"
+        settings.INFISICAL_PROJECT_ID = "projectid"
+
+    @pytest.fixture
+    def key_json(self, set_infisical_settings, settings):
         # Mock JSON response for successfully getting or creating a key in Infisical
         return {
             "key": {
@@ -30,7 +36,7 @@ class TestInfisicalKMS:
             }
         }
 
-    def test_missing_settings(self, settings):
+    def test_missing_settings(self, set_infisical_settings, settings):
         """Ensure an ImproperlyConfigured exception is raised when getting the API
         client if any of the INFISICAL_* settings is missing.
         """
@@ -47,7 +53,7 @@ class TestInfisicalKMS:
         ):
             kms_api.client
 
-    def test_get_key(self, requests_mock, settings, key_json):
+    def test_get_key(self, requests_mock, set_infisical_settings, settings, key_json):
         """Ensure calling get_key() with a valid key name returns a KmsKey object."""
         kms_api = InfisicalKMS()
         requests_mock.get(
@@ -58,7 +64,9 @@ class TestInfisicalKMS:
         assert isinstance(key, KmsKey)
         assert key.id == key_json["key"]["id"]
 
-    def test_get_notexistent_key_but_can_create(self, requests_mock, settings, key_json):
+    def test_get_notexistent_key_but_can_create(
+        self, requests_mock, set_infisical_settings, settings, key_json
+    ):
         """Ensure calling get_key() with a key name that does not exist but with
         can_create=True creates the key in Infisical and returns the KmsKey object.
         """
@@ -73,7 +81,9 @@ class TestInfisicalKMS:
         assert key.id == key_json["key"]["id"]
         assert create_key_request.called_once
 
-    def test_get_notexistent_key_and_cant_create(self, requests_mock, settings, key_json):
+    def test_get_notexistent_key_and_cant_create(
+        self, requests_mock, set_infisical_settings, settings, key_json
+    ):
         """Ensure calling get_key() with a key name that does not exist and with
         can_create=False does not attempt to create the key in Infisical.
         """
@@ -87,7 +97,7 @@ class TestInfisicalKMS:
             kms_api.get_key("testkey", can_create=False)
         assert create_key_request.call_count == 0
 
-    def test_encrypt(self, requests_mock, settings, key_json):
+    def test_encrypt(self, requests_mock, set_infisical_settings, settings, key_json):
         """Test encrypting."""
         kms_api = InfisicalKMS()
         requests_mock.get(
@@ -99,7 +109,7 @@ class TestInfisicalKMS:
         result = kms_api.encrypt("testkey", "encrypt me")
         assert result == encrypt_json["ciphertext"]
 
-    def test_decrypt(self, requests_mock, settings, key_json):
+    def test_decrypt(self, requests_mock, set_infisical_settings, settings, key_json):
         """Test Decrypting."""
         kms_api = InfisicalKMS()
         requests_mock.get(
