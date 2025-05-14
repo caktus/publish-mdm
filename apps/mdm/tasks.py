@@ -11,7 +11,7 @@ from requests_ratelimiter import LimiterSession
 from urllib3.util.retry import Retry
 
 from apps.mdm.models import Device, DeviceSnapshot, DeviceSnapshotApp, Policy
-from apps.odk_publish.models import AppUser
+from apps.publish_mdm.models import AppUser
 
 logger = structlog.getLogger(__name__)
 
@@ -205,6 +205,9 @@ def push_device_config(session: Session, device: Device):
 
     https://www.tinymdm.net/mobile-device-management/api/#put-/users/-id-
     """
+    if not device.raw_mdm_device:
+        logger.debug("New device. Cannot sync", device=device)
+        return
     logger.debug("Syncing device", device=device)
     if (device.app_user_name) and (
         app_user := AppUser.objects.filter(

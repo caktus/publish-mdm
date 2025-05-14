@@ -4,8 +4,8 @@ import faker
 from requests.sessions import Session
 
 from apps.mdm import tasks
-from apps.odk_publish.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
-from tests.odk_publish.factories import AppUserFactory
+from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
+from tests.publish_mdm.factories import AppUserFactory
 
 from .factories import DeviceFactory, PolicyFactory
 
@@ -222,6 +222,14 @@ class TestTasks:
             "title": "HNEC Collect Project Update",
             "devices": [device.device_id],
         }
+
+    def test_push_device_config_new_device(self, policy, set_tinymdm_env_vars):
+        """Ensures calling push_device_config() with a Device whose `raw_mdm_device` field
+        is not set does not raise a TypeError."""
+        device = DeviceFactory.build(policy=policy, raw_mdm_device=None)
+        device.save(push_to_mdm=False)
+        session = tasks.get_tinymdm_session()
+        tasks.push_device_config(session, device)
 
     def test_sync_policy(self, policy, devices, mocker, set_tinymdm_env_vars):
         """Ensure calling sync_policy() calls pull_devices() for the specified policy
