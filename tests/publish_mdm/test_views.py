@@ -10,6 +10,7 @@ from django.utils.formats import date_format
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers.data import JsonLexer
+from requests.exceptions import HTTPError
 
 from tests.publish_mdm.factories import (
     AppUserFactory,
@@ -25,6 +26,7 @@ from tests.publish_mdm.factories import (
 )
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
+from apps.publish_mdm.etl.template import VariableTransform
 from apps.publish_mdm.forms import (
     AppUserForm,
     AppUserTemplateVariableFormSet,
@@ -32,6 +34,7 @@ from apps.publish_mdm.forms import (
     OrganizationInviteForm,
     ProjectForm,
     ProjectTemplateVariableFormSet,
+    TemplateVariableFormSet,
 )
 from apps.publish_mdm.models import (
     AppUser,
@@ -52,10 +55,14 @@ class ViewTestBase:
         return user
 
     @pytest.fixture
-    def project(self, user):
-        project = ProjectFactory(central_server__base_url="https://central")
-        project.organization.users.add(user)
-        return project
+    def organization(self, user):
+        organization = OrganizationFactory()
+        organization.users.add(user)
+        return organization
+
+    @pytest.fixture
+    def project(self, organization):
+        return ProjectFactory(central_server__base_url="https://central", organization=organization)
 
     def test_login_required(self, client, url):
         client.logout()
@@ -671,6 +678,159 @@ class TestEditAppUser(ViewTestBase):
         expected_error = "This field is required."
         assert response.context["variables_formset"].errors[0]["value"][0] == expected_error
         assert expected_error in response.content.decode()
+
+
+class TestAddProject(ViewTestBase):
+    @pytest.fixture
+    def url(self, organization):
+        return reverse(
+            "publish_mdm:add-project",
+            kwargs={"organization_slug": organization.slug},
+        )
+
+    def test_get(self, client, url, user):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context["form"], ProjectForm)
+        assert response.context["form"].instance.pk is None
+        assert isinstance(response.context["variables_formset"], ProjectTemplateVariableFormSet)
+        assert response.context["variables_formset"].instance.pk is None
+
+    @pytest.fixture
+    def central_server(self, organization):
+        return CentralServerFactory(organization=organization)
+
+    @pytest.fixture
+    def template_variables(self, organization):
+        return TemplateVariableFactory.create_batch(2, organization=organization)
+
+    @pytest.fixture
+    def data(self, central_server, template_variables):
+        """Valid POST data for creating a Project with ProjectTemplateVariables."""
+        data = {
+            "name": "New name",
+            "central_server": central_server.pk,
+            "template_variables": [i.id for i in template_variables],
+            "app_language": "ar",
+            "project_template_variables-TOTAL_FORMS": 2,
+            "project_template_variables-INITIAL_FORMS": 0,
+            "project_template_variables-MIN_NUM_FORMS": 0,
+            "project_template_variables-MAX_NUM_FORMS": 1000,
+        }
+        for index, var in enumerate(template_variables):
+            data.update(
+                {
+                    f"project_template_variables-{index}-template_variable": var.id,
+                    f"project_template_variables-{index}-value": f"{var.name} value",
+                }
+            )
+        return data
+
+    def test_valid_form_and_valid_formset(
+        self, client, url, user, data, organization, template_variables, central_server, mocker
+    ):
+        """Ensures the Project is created when a valid form and valid variables formset are submitted."""
+        mocker.patch("apps.publish_mdm.views.create_project", return_value=10)
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        # Ensure the Project is created with the expected values
+        project = Project.objects.get()
+        assert project.name == "New name"
+        assert project.central_id == 10
+        assert project.organization == organization
+        assert project.central_server == central_server
+        assert project.app_language == "ar"
+        assert set(project.template_variables.all()) == set(template_variables)
+        # Ensure ProjectTemplateVariables are created
+        assert set(
+            project.project_template_variables.values_list("template_variable", "value")
+        ) == {(var.id, f"{var.name} value") for var in template_variables}
+        # Ensure the view redirects to the form templates list page
+        assert response.redirect_chain == [
+            (
+                reverse(
+                    "publish_mdm:form-template-list", args=[project.organization.slug, project.id]
+                ),
+                302,
+            )
+        ]
+        # Ensure there is a success message
+        assert f"Successfully added {project}." in response.content.decode()
+
+    def test_valid_form_and_formset_but_odk_create_project_error(
+        self, client, url, user, data, mocker
+    ):
+        """Ensures a Project is not created in the database if there is an error
+        creating the project in ODK Central, and an error message is displayed to
+        the user.
+        """
+        exception = HTTPError("ODK API request error")
+        mocker.patch("apps.publish_mdm.views.create_project", side_effect=exception)
+        response = client.post(url, data=data)
+        assert not Project.objects.exists()
+        # Ensure the expected error message is displayed on the page
+        expected_error = (
+            "The following error occurred when creating the project in "
+            "ODK Central. The project has not been saved."
+            f'<code class="block text-xs mt-2">{exception}</code>'
+        )
+        assert expected_error in response.content.decode()
+
+    def test_invalid_form(self, client, url, user, data):
+        """Ensures form errors are displayed to the user."""
+        data.update(
+            {
+                "name": "",
+                "central_server": "",
+            }
+        )
+        response = client.post(url, data=data)
+        assert not Project.objects.exists()
+        assert response.context["form"].errors == {
+            "name": ["This field is required."],
+            "central_server": ["This field is required."],
+        }
+
+    def test_valid_form_and_invalid_formset(self, client, url, user, data):
+        """Test a form with a valid name and invalid template variables formset."""
+        data["project_template_variables-0-template_variable"] = ""
+        response = client.post(url, data=data)
+        assert not Project.objects.exists()
+        # Ensure the expected error message is displayed on the page
+        expected_error = "This field is required."
+        assert (
+            response.context["variables_formset"].errors[0]["template_variable"][0]
+            == expected_error
+        )
+        assert expected_error in response.content.decode()
+
+    def test_invalid_template_variable_choice(self, client, url, user, data):
+        """Ensure cannot select a template variable that is not linked to the project's
+        organization, both in the form and in the variables formset.
+        """
+        template_variable = TemplateVariableFactory()
+        data.update(
+            {
+                "template_variables": [template_variable.id],
+                "project_template_variables-0-template_variable": template_variable.id,
+            }
+        )
+        response = client.post(url, data=data)
+        assert not Project.objects.exists()
+        # Ensure the expected form error message is displayed on the page
+        response_content = response.content.decode()
+        expected_error = (
+            f"Select a valid choice. {template_variable.id} is not one of the available choices."
+        )
+        assert response.context["form"].errors["template_variables"][0] == expected_error
+        assert expected_error in response_content
+        # Ensure the expected formset error message is displayed on the page
+        expected_error = "Select a valid choice. That choice is not one of the available choices."
+        assert (
+            response.context["variables_formset"].errors[0]["template_variable"][0]
+            == expected_error
+        )
+        assert expected_error in response_content
 
 
 class TestEditProject(ViewTestBase):
@@ -1302,3 +1462,105 @@ class TestAcceptOrganizationInvite:
         self.check_invalid_invitation(
             client, url, logged_in_user, "An invalid invitation key was submitted."
         )
+
+
+class TestOrganizationTemplateVariables(ViewTestBase):
+    """Tests the page for editing an organization's template variables."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse(
+            "publish_mdm:organization-template-variables",
+            kwargs={"organization_slug": organization.slug},
+        )
+
+    @pytest.fixture
+    def template_variables(self, organization):
+        return [
+            organization.template_variables.create(
+                name="var1", transform=VariableTransform.SHA256_DIGEST
+            ),
+            organization.template_variables.create(name="var2"),
+        ]
+
+    def test_get(self, client, url, user, organization, template_variables):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("formset"), TemplateVariableFormSet)
+        assert response.context["formset"].instance == organization
+        assert len(response.context["formset"].forms) == len(template_variables)
+
+    @pytest.fixture
+    def data(self, template_variables):
+        """Form data that would edit the first template variable, delete the other
+        template variable, and add one new template variable.
+        """
+        template_variables_count = len(template_variables)
+        data = {
+            "template_variables-TOTAL_FORMS": template_variables_count + 1,
+            "template_variables-INITIAL_FORMS": template_variables_count,
+            "template_variables-MIN_NUM_FORMS": 0,
+            "template_variables-MAX_NUM_FORMS": 1000,
+            # The new template variable
+            f"template_variables-{template_variables_count}-name": "new_var",
+            f"template_variables-{template_variables_count}-transform": VariableTransform.SHA256_DIGEST.value,
+        }
+        for index, var in enumerate(template_variables):
+            data.update(
+                {
+                    f"template_variables-{index}-id": var.id,
+                    f"template_variables-{index}-organization": var.organization_id,
+                    f"template_variables-{index}-name": var.name,
+                    f"template_variables-{index}-transform": var.transform,
+                }
+            )
+            if index:
+                # Delete the template variable
+                data[f"template_variables-{index}-DELETE"] = "on"
+            else:
+                # Edit the template variable
+                data.update(
+                    {
+                        f"template_variables-{index}-name": "var1_edited",
+                        f"template_variables-{index}-transform": "",
+                    }
+                )
+        return data
+
+    def test_valid_formset(self, client, url, user, organization, data, template_variables):
+        """Test submitting valid data for the formset."""
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        # Ensure one template variable has been edited, one deleted, and a new one added
+        assert organization.template_variables.count() == 2
+        updated_var = organization.template_variables.get(pk=template_variables[0].pk)
+        assert updated_var.name == "var1_edited"
+        assert updated_var.transform == ""
+        new_var = organization.template_variables.exclude(pk=template_variables[0].pk).get()
+        assert new_var.name == "new_var"
+        assert new_var.transform == VariableTransform.SHA256_DIGEST.value
+        # Ensure the view redirects back to the template variables page
+        assert response.redirect_chain == [(url, 302)]
+        # Ensure there is a success message
+        assert (
+            f"Successfully edited template variables for {organization}."
+            in response.content.decode()
+        )
+
+    def test_invalid_formset(self, client, url, user, organization, data, template_variables):
+        """Test submitting invalid data for the formset."""
+        template_variables_count = len(template_variables)
+        # Invalid name for the new template variable
+        data[f"template_variables-{template_variables_count}-name"] = "12345"
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        # The template variables should be unchanged
+        assert organization.template_variables.count() == template_variables_count
+        for var in template_variables:
+            assert (var.name, var.transform) == organization.template_variables.values_list(
+                "name", "transform"
+            ).get(pk=var.pk)
+        # Ensure the expected error message is displayed on the page
+        expected_error = "Name must start with a letter or underscore and contain no spaces."
+        assert response.context["formset"].forms[-1].errors["name"][0] == expected_error
+        assert expected_error in response.content.decode()

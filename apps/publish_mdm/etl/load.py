@@ -250,3 +250,19 @@ def attachment_paths_for_upload(attachments: dict[str, SimpleUploadedFile]):
                 path.write_bytes(file.read())
                 paths.append(path)
             yield paths
+
+
+def create_project(base_url, project_name):
+    """Create a project in ODK Central using the API and return its ID."""
+    logger.debug("Creating a project in ODK Central", base_url=base_url, project_name=project_name)
+    with PublishMDMClient(base_url=base_url) as client:
+        api_response = client.post("projects", json={"name": project_name})
+        if api_response.status_code == 200:
+            logger.debug(
+                "Created a project in ODK Central",
+                base_url=base_url,
+                project_name=project_name,
+                api_response=api_response.content,
+            )
+            return api_response.json()["id"]
+        api_response.raise_for_status()
