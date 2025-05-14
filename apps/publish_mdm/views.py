@@ -7,6 +7,7 @@ from django.contrib.auth.decorators import login_required
 from django.db import models, transaction
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.html import mark_safe
 from django.utils.timezone import localdate
 from import_export.results import RowResult
 from import_export.tmp_storages import MediaStorage
@@ -22,8 +23,14 @@ from invitations.views import (
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers.data import JsonLexer
+from pyodk.errors import PyODKError
+from requests.exceptions import RequestException
 
-from .etl.load import generate_and_save_app_user_collect_qrcodes, sync_central_project
+from .etl.load import (
+    create_project,
+    generate_and_save_app_user_collect_qrcodes,
+    sync_central_project,
+)
 
 from .forms import (
     ProjectSyncForm,
@@ -37,11 +44,12 @@ from .forms import (
     ProjectForm,
     ProjectTemplateVariableFormSet,
     OrganizationForm,
+    TemplateVariableFormSet,
 )
 from .import_export import AppUserResource
-from .models import FormTemplateVersion, FormTemplate, AppUser
+from .models import FormTemplateVersion, FormTemplate, AppUser, Project
 from .nav import Breadcrumbs
-from .tables import FormTemplateTable
+from .tables import FormTemplateTable, FormTemplateVersionTable
 
 
 logger = structlog.getLogger(__name__)
@@ -135,6 +143,9 @@ def form_template_detail(
         ),
         pk=form_template_id,
     )
+    versions_table = FormTemplateVersionTable(
+        data=form_template.latest_version, request=request, show_footer=False
+    )
     context = {
         "form_template": form_template,
         "form_template_app_users": form_template.app_user_forms.values_list(
@@ -147,6 +158,7 @@ def form_template_detail(
                 (form_template.title_base, "form-template-detail", [form_template.pk]),
             ],
         ),
+        "versions_table": versions_table,
     }
     return render(request, "publish_mdm/form_template_detail.html", context)
 
@@ -408,35 +420,58 @@ def change_app_user(request: HttpRequest, organization_slug, odk_project_pk, app
 
 
 @login_required
-def edit_project(request, organization_slug, odk_project_pk):
-    """Edit a Project."""
-    form = ProjectForm(request.POST or None, instance=request.odk_project)
+def change_project(request, organization_slug, odk_project_pk=None):
+    """Add or edit a Project."""
+    if request.odk_project:
+        action = "edit"
+        project = request.odk_project
+    else:
+        action = "add"
+        project = Project(organization=request.organization)
+    form = ProjectForm(request.POST or None, instance=project)
     variables_formset = ProjectTemplateVariableFormSet(
         request.POST or None,
-        instance=request.odk_project,
+        instance=project,
         form_kwargs={"valid_template_variables": request.organization.template_variables.all()},
     )
     if request.method == "POST" and all([form.is_valid(), variables_formset.is_valid()]):
-        admin_pw = request.odk_project.get_admin_pw()
-        form.save()
-        variables_formset.save()
-        # Regenerate app user QR codes if any field that impacts them has changed
-        qr_code_fields = ("app_language", "name")
-        if any(field in form.changed_data for field in qr_code_fields) or (
-            variables_formset.has_changed() and admin_pw != request.odk_project.get_admin_pw()
-        ):
-            generate_and_save_app_user_collect_qrcodes(request.odk_project)
-        messages.success(
-            request,
-            f"Successfully edited {request.odk_project}.",
-        )
-        return redirect("publish_mdm:form-template-list", organization_slug, odk_project_pk)
+        save_error = None
+        if request.odk_project:
+            admin_pw = request.odk_project.get_admin_pw()
+            form.save()
+            variables_formset.save()
+            # Regenerate app user QR codes if any field that impacts them has changed
+            qr_code_fields = ("app_language", "name")
+            if any(field in form.changed_data for field in qr_code_fields) or (
+                variables_formset.has_changed() and admin_pw != request.odk_project.get_admin_pw()
+            ):
+                generate_and_save_app_user_collect_qrcodes(request.odk_project)
+        else:
+            form.save(commit=False)
+            # Create the project in ODK Central then save it in the database
+            try:
+                project.central_id = create_project(project.central_server.base_url, project.name)
+            except (RequestException, PyODKError) as e:
+                save_error = mark_safe(
+                    "The following error occurred when creating the project in "
+                    "ODK Central. The project has not been saved."
+                    f'<code class="block text-xs mt-2">{e}</code>'
+                )
+            else:
+                project.save()
+                form.save_m2m()
+                variables_formset.save()
+        if save_error:
+            messages.error(request, save_error)
+        else:
+            messages.success(request, f"Successfully {action}ed {project}.")
+            return redirect("publish_mdm:form-template-list", organization_slug, project.pk)
     context = {
         "form": form,
         "variables_formset": variables_formset,
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
-            items=[("Edit project", "edit-project")],
+            items=[(f"{action.title()} project", f"{action}-project")],
         ),
     }
     return render(request, "publish_mdm/change_project.html", context)
@@ -564,3 +599,24 @@ if invitations_settings.ACCEPT_INVITE_AFTER_SIGNUP:
     # invitations for different organizations.
     signed_up_signal = get_invitations_adapter().get_user_signed_up_signal()
     signed_up_signal.disconnect(accept_invite_after_signup)
+
+
+@login_required
+def organization_template_variables(request, organization_slug):
+    """Create, edit, or delete an organization's template variables."""
+    formset = TemplateVariableFormSet(request.POST or None, instance=request.organization)
+    if request.method == "POST" and formset.is_valid():
+        formset.save()
+        messages.success(
+            request,
+            f"Successfully edited template variables for {request.organization}.",
+        )
+        return redirect(request.path)
+    context = {
+        "formset": formset,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("Template Variables", "organization-template-variables")],
+        ),
+    }
+    return render(request, "publish_mdm/organization_template_variables.html", context)

@@ -23,8 +23,13 @@ urlpatterns = [
     ),
     path(
         "o/<slug:organization_slug>/<int:odk_project_pk>/edit/",
-        views.edit_project,
+        views.change_project,
         name="edit-project",
+    ),
+    path(
+        "o/<slug:organization_slug>/add-project/",
+        views.change_project,
+        name="add-project",
     ),
     path(
         "o/<slug:organization_slug>/<int:odk_project_pk>/app-users/",
@@ -96,5 +101,10 @@ urlpatterns = [
         "o/<slug:organization_slug>/users/",
         views.organization_users_list,
         name="organization-users-list",
+    ),
+    path(
+        "o/<slug:organization_slug>/template-variables/",
+        views.organization_template_variables,
+        name="organization-template-variables",
     ),
 ]
