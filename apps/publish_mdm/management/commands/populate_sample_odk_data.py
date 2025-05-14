@@ -4,6 +4,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.contrib.auth import get_user_model
 
 import apps.publish_mdm.models as publish_mdm
 
@@ -28,6 +29,7 @@ class Command(BaseCommand):
                 file.unlink()
         logger.info("Creating Organization...")
         organization = publish_mdm.Organization.objects.create(name="Caktus Group", slug="caktus")
+        organization.users.set(get_user_model().objects.all())
         logger.info("Creating CentralServers...")
         central_server = publish_mdm.CentralServer.objects.create(
             base_url="https://odk-central.caktustest.net/",
