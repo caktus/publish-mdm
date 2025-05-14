@@ -64,7 +64,6 @@ INSTALLED_APPS = [
     "import_export",
     "template_partials",
     "invitations",
-    "django_rename_app",
     # Local
     "apps.publish_mdm",
     "apps.mdm",

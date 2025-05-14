@@ -40,9 +40,9 @@ beautifulsoup4==4.13.4
     # via -r requirements/base/base.in
 billiard==4.2.1
     # via celery
-boto3==1.38.15
+boto3==1.38.16
     # via -r requirements/base/base.in
-botocore==1.38.15
+botocore==1.38.16
     # via
     #   boto3
     #   s3transfer
@@ -126,7 +126,6 @@ django==5.2.1
     #   django-htmx
     #   django-import-export
     #   django-invitations
-    #   django-rename-app
     #   django-storages
     #   django-structlog
     #   django-tables2
@@ -148,8 +147,6 @@ django-invitations==2.1.0
     # via -r requirements/base/base.in
 django-ipware==7.0.1
     # via django-structlog
-django-rename-app==0.1.7
-    # via -r requirements/base/base.in
 django-storages==1.14.6
     # via -r requirements/base/base.in
 django-structlog==9.1.1
@@ -191,6 +188,8 @@ graphql-core==3.2.4
     #   graphql-relay
 graphql-relay==3.2.0
     # via graphene
+greenlet==3.2.2
+    # via sqlalchemy
 grpcio==1.71.0
     # via
     #   dagster
