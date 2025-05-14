@@ -55,7 +55,6 @@ See :doc:`the tutorial </src/tutorial>` for more details on the Google and ODK C
 .. code-block:: bash
 
     python manage.py migrate
-    python manage.py populate_sample_odk_data
 
 5. Run the development server.
 
@@ -65,3 +64,9 @@ See :doc:`the tutorial </src/tutorial>` for more details on the Google and ODK C
     npm run dev
     # in another terminal
     python manage.py runserver
+
+6. Set up sample data. Log in with Google first so that your user is added to the sample Organization that will be created.
+
+.. code-block:: bash
+
+    python manage.py populate_sample_odk_data
