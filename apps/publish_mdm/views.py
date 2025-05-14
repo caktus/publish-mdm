@@ -23,6 +23,7 @@ from invitations.views import (
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers.data import JsonLexer
+from pyodk.errors import PyODKError
 from requests.exceptions import RequestException
 
 from .etl.load import (
@@ -446,7 +447,7 @@ def change_project(request, organization_slug, odk_project_pk=None):
             # Create the project in ODK Central then save it in the database
             try:
                 project.central_id = create_project(project.central_server.base_url, project.name)
-            except RequestException as e:
+            except (RequestException, PyODKError) as e:
                 save_error = mark_safe(
                     "The following error occurred when creating the project in "
                     "ODK Central. The project has not been saved."
