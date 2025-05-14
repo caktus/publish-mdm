@@ -12,7 +12,6 @@ django-filter
 django-htmx
 django-import-export[xls, xlsx]
 django-invitations
-django-rename-app
 django-storages
 django-structlog[celery]
 django-tables2
