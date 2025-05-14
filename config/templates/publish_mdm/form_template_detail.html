@@ -34,6 +34,8 @@
                 <a href="{% url 'publish_mdm:edit-form-template' request.organization.slug request.odk_project.id form_template.id %}"
                    class="btn btn-outline ml-4">Edit Form Template</a>
             </div>
+            <h3 class="font-semibold text-xl text-gray-900 dark:text-white mb-2 mt-6">Version History</h3>
+            {% include "patterns/tables/table-partial.html" with table=versions_table %}
         </div>
         <!-- Column -->
         <dl>

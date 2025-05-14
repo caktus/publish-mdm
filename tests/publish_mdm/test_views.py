@@ -1,10 +1,12 @@
 import json
 
 import pytest
+from django_tables2 import Table
 from django.urls import reverse
 from django.conf import settings
 from django.db.models import Q
-from django.utils.timezone import now
+from django.utils.timezone import now, localtime
+from django.utils.formats import date_format
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers.data import JsonLexer
@@ -14,6 +16,7 @@ from tests.publish_mdm.factories import (
     AppUserFactory,
     AppUserFormTemplateFactory,
     FormTemplateFactory,
+    FormTemplateVersionFactory,
     OrganizationFactory,
     OrganizationInvitationFactory,
     ProjectFactory,
@@ -340,6 +343,48 @@ class TestEditFormTemplate(ViewTestBase):
             f"Successfully edited {form_template_values['title_base']}."
             in response.content.decode()
         )
+
+
+class TestFormTemplateDetail(ViewTestBase):
+    """Test the form template detail page."""
+
+    @pytest.fixture
+    def form_template(self, project):
+        form_template = FormTemplateFactory(project=project)
+        # Create 5 versions for the template
+        FormTemplateVersionFactory.create_batch(5, form_template=form_template)
+        return form_template
+
+    @pytest.fixture
+    def url(self, form_template):
+        return reverse(
+            "publish_mdm:form-template-detail",
+            kwargs={
+                "organization_slug": form_template.project.organization.slug,
+                "odk_project_pk": form_template.project_id,
+                "form_template_id": form_template.id,
+            },
+        )
+
+    def test_get(self, client, url, user, form_template):
+        response = client.get(url)
+        assert response.status_code == 200
+        # Ensure the versions table is included in the context and it has the
+        # expected data
+        versions_table = response.context.get("versions_table")
+        assert isinstance(versions_table, Table)
+        rows = response.context["versions_table"].as_values()
+        assert next(rows) == ["Version number", "Date published", "Published by"]
+        assert list(rows) == [
+            [
+                i.version,
+                date_format(localtime(i.modified_at), settings.SHORT_DATE_FORMAT),
+                i.user.get_full_name(),
+            ]
+            for i in form_template.versions.order_by("-modified_at")
+        ]
+        # Ensure the table is rendered in the page
+        assert versions_table.as_html(response.wsgi_request) in response.content.decode()
 
 
 class TestAddAppUser(ViewTestBase):

@@ -49,7 +49,7 @@ from .forms import (
 from .import_export import AppUserResource
 from .models import FormTemplateVersion, FormTemplate, AppUser, Project
 from .nav import Breadcrumbs
-from .tables import FormTemplateTable
+from .tables import FormTemplateTable, FormTemplateVersionTable
 
 
 logger = structlog.getLogger(__name__)
@@ -143,6 +143,9 @@ def form_template_detail(
         ),
         pk=form_template_id,
     )
+    versions_table = FormTemplateVersionTable(
+        data=form_template.latest_version, request=request, show_footer=False
+    )
     context = {
         "form_template": form_template,
         "form_template_app_users": form_template.app_user_forms.values_list(
@@ -155,6 +158,7 @@ def form_template_detail(
                 (form_template.title_base, "form-template-detail", [form_template.pk]),
             ],
         ),
+        "versions_table": versions_table,
     }
     return render(request, "publish_mdm/form_template_detail.html", context)
 
