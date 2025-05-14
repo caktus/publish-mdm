@@ -20,7 +20,7 @@ from invitations.base_invitation import AbstractBaseInvitation
 from invitations.signals import invite_url_sent
 
 from apps.users.models import User
-from apps.patterns.fields import EncryptedCharField, EncryptedEmailField
+from apps.patterns.fields import EncryptedEmailField, EncryptedPasswordField
 
 from .etl import template
 from .etl.google import download_user_google_sheet
@@ -58,7 +58,7 @@ class CentralServer(AbstractBaseModel):
         Organization, on_delete=models.CASCADE, related_name="central_servers"
     )
     username = EncryptedEmailField(null=True)
-    password = EncryptedCharField(null=True)
+    password = EncryptedPasswordField(null=True)
 
     def __str__(self):
         parsed_url = urlparse(self.base_url)

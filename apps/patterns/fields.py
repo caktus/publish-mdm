@@ -1,4 +1,5 @@
 from django.db import models
+from django.forms.widgets import PasswordInput
 
 from .infisical import kms_api
 
@@ -33,6 +34,14 @@ class EncryptedMixin(object):
 
 class EncryptedCharField(EncryptedMixin, models.CharField):
     pass
+
+
+class EncryptedPasswordField(EncryptedMixin, models.CharField):
+    """Similar to EncryptedCharField but its default form widget is PasswordInput."""
+
+    def formfield(self, **kwargs):
+        kwargs["widget"] = PasswordInput
+        return super().formfield(**kwargs)
 
 
 class EncryptedEmailField(EncryptedMixin, models.EmailField):

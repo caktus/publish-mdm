@@ -2,6 +2,8 @@ import pytest
 from django.db.utils import IntegrityError
 
 from django.core.exceptions import ValidationError
+from django.db import connection
+from django.forms.widgets import PasswordInput
 
 from .factories import (
     CentralServerFactory,
@@ -14,13 +16,53 @@ from .factories import (
     AppUserFactory,
     AppUserTemplateVariableFactory,
 )
+from apps.patterns.infisical import InfisicalKMS
+from apps.patterns.fields import EncryptedEmailField, EncryptedPasswordField
 from apps.publish_mdm.etl import template
+from apps.publish_mdm.models import CentralServer
 
 
+@pytest.mark.django_db
 class TestCentralServer:
     def test_str(self):
         server = CentralServerFactory.build(base_url="https://live.mycentralserver.com/")
         assert str(server) == "live.mycentralserver.com"
+
+    @pytest.mark.parametrize("field", ["username", "password"])
+    def test_username_and_password_encryption(self, mocker, field):
+        """Test encryption and decryption of username and password fields."""
+        # Ensure it's using the custom Encrypted* field
+        db_field = CentralServer._meta.get_field(field)
+        if field == "username":
+            assert isinstance(db_field, EncryptedEmailField)
+        else:
+            assert isinstance(db_field, EncryptedPasswordField)
+            # The form widget should be a PasswordInput with render_value=False
+            # (will not render the password for existing CentralServers)
+            form_field = db_field.formfield()
+            assert isinstance(form_field.widget, PasswordInput)
+            assert not form_field.widget.render_value
+
+        plaintext_value = f"plaintext {field}"
+        encrypted_value = f"encrypted {field}"
+
+        # Test encryption when saving in the database
+        mock_encrypt = mocker.patch.object(InfisicalKMS, "encrypt", return_value=encrypted_value)
+        server = CentralServerFactory(**{field: plaintext_value})
+        mock_encrypt.assert_called_once()
+        mock_encrypt.assert_called_with("centralserver", plaintext_value)
+
+        # Ensure the value stored in the database is the encrypted value
+        with connection.cursor() as cursor:
+            cursor.execute(f"SELECT {field} from {server._meta.db_table} where id = {server.id}")
+            assert cursor.fetchone() == (encrypted_value,)
+
+        # Test decryption when getting from the database
+        mock_decrypt = mocker.patch.object(InfisicalKMS, "decrypt", return_value=plaintext_value)
+        server = CentralServer.objects.get(id=server.id)
+        mock_decrypt.assert_called_once()
+        mock_decrypt.assert_called_with("centralserver", encrypted_value)
+        assert getattr(server, field) == plaintext_value
 
 
 class TestTemplateVariable:
