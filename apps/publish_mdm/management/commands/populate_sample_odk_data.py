@@ -28,11 +28,11 @@ class Command(BaseCommand):
                 logger.info("Removing file", file=file.name)
                 file.unlink()
         logger.info("Creating Organization...")
-        organization = publish_mdm.Organization.objects.create(name="Caktus Group", slug="caktus")
+        organization = publish_mdm.Organization.objects.create(name="Test Org", slug="test")
         organization.users.set(get_user_model().objects.all())
         logger.info("Creating CentralServers...")
         central_server = publish_mdm.CentralServer.objects.create(
-            base_url="https://odk-central.caktustest.net/",
+            base_url="https://odk-central.example.com/",
             organization=organization,
         )
         myodkcloud = publish_mdm.CentralServer.objects.create(
@@ -40,7 +40,7 @@ class Command(BaseCommand):
         )
         logger.info("Creating Projects...")
         project = publish_mdm.Project.objects.create(
-            name="Caktus Test",
+            name="Test Project",
             central_id=1,
             central_server=central_server,
             organization=organization,
