@@ -64,7 +64,6 @@ INSTALLED_APPS = [
     "import_export",
     "template_partials",
     "invitations",
-    "django_rename_app",
     # Local
     "apps.publish_mdm",
     "apps.mdm",
@@ -407,6 +406,9 @@ IMPORT_EXPORT_FORMATS = [base_formats.CSV, XLSX]
 # The default language for generating App User QR codes. Can be overriden for
 # a Project using the app_language field.
 DEFAULT_APP_LANGUAGE = "en"
+
+# To address Django deprecation warning for URLField
+FORMS_URLFIELD_ASSUME_HTTPS = True
 
 # Infisical settings
 INFISICAL_HOST = os.getenv("INFISICAL_HOST")

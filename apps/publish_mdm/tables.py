@@ -1,6 +1,6 @@
 import django_tables2 as tables
 
-from .models import FormTemplate
+from .models import FormTemplate, FormTemplateVersion
 
 
 class FormTemplateTable(tables.Table):
@@ -15,13 +15,28 @@ class FormTemplateTable(tables.Table):
     )
     title_base = tables.LinkColumn(
         "publish_mdm:form-template-detail",
-        args=[tables.A("project.organization.slug"), tables.A("project_id"), tables.A("pk")],
+        args=[tables.A("project__organization__slug"), tables.A("project_id"), tables.A("pk")],
         attrs={"a": {"class": "text-primary-600 hover:underline"}},
     )
 
     class Meta:
         model = FormTemplate
         fields = ["title_base", "form_id_base"]
+        template_name = "patterns/tables/table.html"
+        attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
+        orderable = False
+
+
+class FormTemplateVersionTable(tables.Table):
+    """A table for displaying the version history for a form template."""
+
+    version = tables.Column(verbose_name="Version number")
+    modified_at = tables.DateColumn(verbose_name="Date published")
+    published_by = tables.Column(accessor="user__get_full_name")
+
+    class Meta:
+        model = FormTemplateVersion
+        fields = ["version", "modified_at"]
         template_name = "patterns/tables/table.html"
         attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
         orderable = False
