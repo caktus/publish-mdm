@@ -33,6 +33,7 @@ from apps.publish_mdm.forms import (
     OrganizationForm,
     OrganizationInviteForm,
     ProjectForm,
+    ProjectSyncForm,
     ProjectTemplateVariableFormSet,
     TemplateVariableFormSet,
 )
@@ -1569,3 +1570,68 @@ class TestOrganizationTemplateVariables(ViewTestBase):
         expected_error = "Name must start with a letter or underscore and contain no spaces."
         assert response.context["formset"].forms[-1].errors["name"][0] == expected_error
         assert expected_error in response.content.decode()
+
+
+class TestProjectSync(ViewTestBase):
+    """Test the server_sync view."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse(
+            "publish_mdm:server-sync",
+            kwargs={"organization_slug": organization.slug},
+        )
+
+    def test_get(self, client, url, user):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), ProjectSyncForm)
+
+    def test_valid_form(self, client, url, user, organization, project, mocker, requests_mock):
+        """Ensure submitting a valid form calls sync_central_project()."""
+        server = CentralServerFactory(organization=organization)
+        # Valid form data
+        data = {
+            "server": server.id,
+            "project": 1,
+        }
+        # Mock ODK API request to get projects, called in ProjectSyncForm.set_project_choices()
+        json_response = [
+            {
+                "id": 1,
+                "name": "Default Project",
+                "description": "Description",
+                "createdAt": "2025-04-18T23:19:14.802Z",
+            },
+        ]
+        requests_mock.get(f"{server.base_url}/v1/projects", json=json_response)
+        # Mock sync_central_project()
+        mock_sync = mocker.patch(
+            "apps.publish_mdm.views.sync_central_project", return_value=project
+        )
+        response = client.post(url, data=data, follow=True)
+
+        assert response.status_code == 200
+        mock_sync.assert_called_once()
+        assert "Project synced." in response.content.decode()
+        assert response.redirect_chain == [
+            (reverse("publish_mdm:form-template-list", args=[organization.slug, project.id]), 302)
+        ]
+
+
+class TestProjectSyncProjectsPartial(ViewTestBase):
+    """Test the server_sync_projects view."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse(
+            "publish_mdm:server-sync-projects",
+            kwargs={"organization_slug": organization.slug},
+        )
+
+    def test_get(self, client, url, user):
+        response = client.get(url)
+        assert response.status_code == 200
+        # The view uses django-template-partials to render only the project field
+        assert "form" not in response.context
+        assert response.context["widget"]["name"] == "project"

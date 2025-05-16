@@ -17,7 +17,7 @@ urlpatterns = [
         name="server-sync",
     ),
     path(
-        "servers/sync/projects/",
+        "o/<slug:organization_slug>/servers/sync/projects/",
         views.server_sync_projects,
         name="server-sync-projects",
     ),

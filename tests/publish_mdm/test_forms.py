@@ -208,7 +208,7 @@ class TestCentralServerForm:
             ],
         }
 
-    def test_credentials_validation_via_request_error(self, organization, requests_mock):
+    def test_credentials_validation_api_request_error(self, organization, requests_mock):
         """Ensure an error message is raised in case of a request error during the
         API request for validating of the base_url and credentials.
         """

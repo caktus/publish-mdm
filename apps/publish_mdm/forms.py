@@ -53,7 +53,6 @@ class ProjectSyncForm(PlatformFormMixin, forms.Form):
         widget=Select(
             attrs={
                 "hx-trigger": "change",
-                "hx-get": reverse_lazy("publish_mdm:server-sync-projects"),
                 "hx-target": "#id_project_container",
                 "hx-swap": "innerHTML",
                 "hx-indicator": ".loading",
@@ -75,6 +74,9 @@ class ProjectSyncForm(PlatformFormMixin, forms.Form):
             request.organization.central_servers.filter(
                 username__isnull=False, password__isnull=False
             )
+        )
+        self.fields["server"].widget.attrs["hx-get"] = reverse_lazy(
+            "publish_mdm:server-sync-projects", args=[request.organization.slug]
         )
         # Set `project` field choices when a server is provided either via a
         # POST or HTMX request

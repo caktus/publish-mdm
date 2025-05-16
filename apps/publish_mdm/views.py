@@ -79,7 +79,7 @@ def server_sync(request: HttpRequest, organization_slug):
 
 
 @login_required
-def server_sync_projects(request: HttpRequest):
+def server_sync_projects(request: HttpRequest, organization_slug):
     form = ProjectSyncForm(request=request, data=request.GET or None)
     return render(request, "publish_mdm/project_sync.html#project-select-partial", {"form": form})
 
