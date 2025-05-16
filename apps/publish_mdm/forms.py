@@ -1,3 +1,6 @@
+from pathlib import Path
+
+import requests
 import structlog
 from django import forms
 from django.conf import settings
@@ -23,6 +26,7 @@ from .http import HttpRequest
 from .models import (
     AppUser,
     AppUserTemplateVariable,
+    CentralServer,
     FormTemplate,
     Organization,
     OrganizationInvitation,
@@ -41,7 +45,9 @@ class ProjectSyncForm(PlatformFormMixin, forms.Form):
     render logic for the project field during an HTMX request.
     """
 
-    server = forms.ChoiceField(
+    server = forms.ModelChoiceField(
+        # The queryset will be updated based on the current organization in __init__()
+        queryset=None,
         # When a server is selected, the project field below is populated with
         # the available projects for that server using HMTX.
         widget=Select(
@@ -53,6 +59,7 @@ class ProjectSyncForm(PlatformFormMixin, forms.Form):
                 "hx-indicator": ".loading",
             }
         ),
+        empty_label="Select an ODK Central server...",
     )
     project = forms.ChoiceField(widget=Select(attrs={"disabled": "disabled"}))
 
@@ -62,20 +69,25 @@ class ProjectSyncForm(PlatformFormMixin, forms.Form):
         # field is required" errors
         data = data if not request.htmx else None
         super().__init__(data, *args, **kwargs)
-        # The server field is populated with the available ODK Central servers
-        # (from an environment variable) when the form is rendered. Loaded here to
-        # avoid fetching during the project initialization sequence.
-        self.fields["server"].choices = [("", "Select an ODK Central server...")] + [
-            (config.base_url, config.base_url) for config in PublishMDMClient.get_configs().values()
-        ]
+        # The server field is populated with the CentralServers linked to the current
+        # Organization whose username and password fields are set
+        self.fields["server"].queryset = central_servers = (
+            request.organization.central_servers.filter(
+                username__isnull=False, password__isnull=False
+            )
+        )
         # Set `project` field choices when a server is provided either via a
         # POST or HTMX request
-        if server := htmx_data.get("server") or self.data.get("server"):
-            self.set_project_choices(base_url=server)
+        if (
+            (server_id := htmx_data.get("server") or self.data.get("server"))
+            and server_id.isdigit()
+            and (central_server := central_servers.filter(id=server_id).first())
+        ):
+            self.set_project_choices(central_server)
             self.fields["project"].widget.attrs.pop("disabled", None)
 
-    def set_project_choices(self, base_url: str):
-        with PublishMDMClient(base_url=base_url) as client:
+    def set_project_choices(self, central_server: CentralServer):
+        with PublishMDMClient(central_server=central_server) as client:
             self.fields["project"].choices = [
                 (project.id, project.name) for project in client.projects.list()
             ]
@@ -431,3 +443,53 @@ TemplateVariableFormSet = forms.models.inlineformset_factory(
     Organization, TemplateVariable, form=TemplateVariableForm, extra=0
 )
 TemplateVariableFormSet.deletion_widget = CheckboxInput
+
+
+class CentralServerForm(forms.ModelForm):
+    """A form for adding or editing a CentralServer."""
+
+    class Meta:
+        model = CentralServer
+        fields = "__all__"
+        widgets = {
+            "password": forms.widgets.PasswordInput,
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.id and self.instance.password is not None:
+            self.fields[
+                "password"
+            ].help_text = "You will be required to re-enter the password to save any changes."
+
+    def clean(self):
+        if not self.errors:
+            # Strip trailing "/" from base_url
+            self.cleaned_data["base_url"] = self.cleaned_data["base_url"].rstrip("/")
+            # Validate the base URL and credentials by checking if we can log in
+            # https://docs.getodk.org/central-api-authentication/#logging-in
+            try:
+                response = requests.post(
+                    self.cleaned_data["base_url"] + "/v1/sessions",
+                    json={
+                        "email": self.cleaned_data["username"],
+                        "password": self.cleaned_data["password"],
+                    },
+                    timeout=10,
+                )
+            except requests.RequestException:
+                success = False
+            else:
+                success = response.status_code == 200
+            if not success:
+                raise forms.ValidationError(
+                    "The base URL and/or login credentials appear to be incorrect. Please try again."
+                )
+        return self.cleaned_data
+
+    def save(self, commit=True):
+        if self.instance.id:
+            # Delete the pyodk cache file if it exists, else pyodk will continue
+            # using the cached auth token until it expires (24h after it was created)
+            Path(f"/tmp/.pyodk_cache_{self.instance.id}.toml").unlink(missing_ok=True)
+        return super().save(commit)

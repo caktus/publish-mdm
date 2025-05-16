@@ -4,12 +4,6 @@ from apps.infisical.api import InfisicalKMS
 
 
 @pytest.fixture(autouse=True)
-def disable_client_auth(mocker):
-    # Never attempt to authenticate with ODK Central
-    mocker.patch("pyodk._utils.session.Auth.login")
-
-
-@pytest.fixture(autouse=True)
 def disable_infisical_encryption(mocker):
     # Never attempt to encrypt/decrypt with Infisical
     def side_effect(key_name, value):

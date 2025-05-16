@@ -5,7 +5,7 @@ from django.core.exceptions import ImproperlyConfigured
 from infisical_sdk.api_types import KmsKey
 from infisical_sdk.infisical_requests import APIError
 
-from apps.patterns.infisical import InfisicalKMS
+from apps.infisical.api import InfisicalKMS
 
 
 class TestInfisicalKMS:

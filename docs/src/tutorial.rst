@@ -38,20 +38,20 @@ Development <local-development/index>` guide to run Publish MDM locally.
      To get the API key, `create it in your Google Cloud dashboard <https://developers.google.com/drive/picker/guides/overview#setup>`_.
      The ``GOOGLE_APP_ID`` is the "Project number" in the `Google Cloud dashboard <https://console.cloud.google.com/home/dashboard>`_.
 
-   - ``ODK_CENTRAL_CREDENTIALS``: The ODK Central server and credentials of the admin user
-     you created above.
-
-     If you're using the local Docker-based instance, you can set this to
-     ``base_url=http://central-dev.localhost:9100;username=user1;password=pass1``.
-     Additionally, you may need to add ``central-dev.localhost`` to your
-     ``/etc/hosts`` so Python can resolve the lookback address.
-
    - ``INFISICAL_HOST``, ``INFISICAL_TOKEN``, and ``INFISICAL_PROJECT_ID``: See :doc:`infisical`.
 
 2. Start the Publish MDM server, login with your Google account, and make
    yourself an admin.
 
-3. Sync your ODK Central project by visiting
+3. Create a Central Server using your ODK Central server's base URL and credentials.
+You can do this in Admin (``/admin/publish_mdm/centralserver/``) or on the frontend.
+
+If you're using the local Docker-based ODK Central instance, you can set the base
+URL to ``http://central-dev.localhost:9100``.
+Additionally, you may need to add ``central-dev.localhost`` to your
+``/etc/hosts`` so Python can resolve the lookback address.
+
+4. Sync your ODK Central project by visiting
    http://localhost:8000/odk/servers/sync/.
 
 

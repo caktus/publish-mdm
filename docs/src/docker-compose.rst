@@ -100,9 +100,6 @@ If you do not have values for the ``INFISICAL_*`` variables yet, you will update
   GOOGLE_API_KEY="your-api-key-from-above"
   GOOGLE_APP_ID="your-app-id-from-above"
 
-  # odk central
-  ODK_CENTRAL_CREDENTIALS="base_url=https://myserver.com;username=user1;password=pass1"
-
   # Infisical
   INFISICAL_HOST=http://localhost:8888
   INFISICAL_TOKEN="your-infisical-access-token"

@@ -6,6 +6,7 @@ from django import forms
 from invitations.admin import InvitationAdmin
 
 from .etl.load import generate_and_save_app_user_collect_qrcodes
+from .forms import CentralServerForm
 from .models import (
     CentralServer,
     Project,
@@ -30,6 +31,7 @@ class CentralServerAdmin(admin.ModelAdmin):
     list_display = ("base_url", "created_at", "modified_at", "organization", "username")
     search_fields = ("base_url",)
     ordering = ("base_url",)
+    form = CentralServerForm
 
 
 @admin.register(TemplateVariable)

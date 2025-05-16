@@ -37,6 +37,8 @@ class CentralServerFactory(
 
     base_url = factory.Faker("url")
     organization = factory.SubFactory(OrganizationFactory)
+    username = factory.Faker("email")
+    password = "password"
 
 
 class TemplateVariableFactory(

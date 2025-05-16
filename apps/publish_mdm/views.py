@@ -63,9 +63,8 @@ def server_sync(request: HttpRequest, organization_slug):
     form = ProjectSyncForm(request=request, data=request.POST or None)
     if request.method == "POST" and form.is_valid():
         project = sync_central_project(
-            base_url=form.cleaned_data["server"],
+            server=form.cleaned_data["server"],
             project_id=form.cleaned_data["project"],
-            organization=request.organization,
         )
         messages.add_message(request, messages.SUCCESS, "Project synced.")
         return redirect("publish_mdm:form-template-list", organization_slug, project.id)
@@ -450,7 +449,7 @@ def change_project(request, organization_slug, odk_project_pk=None):
             form.save(commit=False)
             # Create the project in ODK Central then save it in the database
             try:
-                project.central_id = create_project(project.central_server.base_url, project.name)
+                project.central_id = create_project(project.central_server, project.name)
             except (RequestException, PyODKError) as e:
                 save_error = mark_safe(
                     "The following error occurred when creating the project in "
