@@ -62,7 +62,12 @@ class ViewTestBase:
 
     @pytest.fixture
     def project(self, organization):
-        return ProjectFactory(central_server__base_url="https://central", organization=organization)
+        return ProjectFactory(
+            central_server=CentralServerFactory(
+                base_url="https://central", organization=organization
+            ),
+            organization=organization,
+        )
 
     def test_login_required(self, client, url):
         client.logout()
@@ -847,8 +852,8 @@ class TestEditProject(ViewTestBase):
         assert response.context["form"].instance == project
 
     @pytest.fixture
-    def other_central_server(self):
-        return CentralServerFactory()
+    def other_central_server(self, organization):
+        return CentralServerFactory(organization=organization)
 
     @pytest.fixture
     def template_variables(self, project):

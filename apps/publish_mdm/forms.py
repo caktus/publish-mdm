@@ -316,10 +316,11 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Limit template variables to those linked to the project's organization
+        # Limit template variables and central servers to those linked to the project's organization
         self.fields[
             "template_variables"
         ].queryset = self.instance.organization.template_variables.all()
+        self.fields["central_server"].queryset = self.instance.organization.central_servers.all()
 
 
 class ProjectTemplateVariableForm(PlatformFormMixin, forms.ModelForm):
