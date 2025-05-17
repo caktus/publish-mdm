@@ -19,7 +19,6 @@ from ..models import (
     CentralServer,
     FormTemplate,
     FormTemplateVersion,
-    Organization,
     Project,
 )
 from .odk.client import PublishMDMClient
@@ -58,7 +57,7 @@ def publish_form_template(event: PublishTemplateEvent, user: User, send_message:
     send_message(f"Publishing next version of {repr(form_template)}")
     # Get the next version by querying ODK Central
     client = PublishMDMClient(
-        base_url=form_template.project.central_server.base_url,
+        central_server=form_template.project.central_server,
         project_id=form_template.project.central_id,
     )
     version = client.publish_mdm.get_unique_version_by_form_id(
@@ -137,7 +136,7 @@ def generate_and_save_app_user_collect_qrcodes(project: Project):
     app_users: QuerySet[AppUser] = project.app_users.all()
     logger.info("Generating QR codes", project=project.name, app_users=len(app_users))
     with PublishMDMClient(
-        base_url=project.central_server.base_url, project_id=project.central_id
+        central_server=project.central_server, project_id=project.central_id
     ) as client:
         central_app_users = client.publish_mdm.get_or_create_app_users(
             display_names=[app_user.name for app_user in app_users],
@@ -159,25 +158,21 @@ def generate_and_save_app_user_collect_qrcodes(project: Project):
             )
 
 
-def sync_central_project(base_url: str, project_id: int, organization: Organization) -> Project:
+def sync_central_project(server: CentralServer, project_id: int) -> Project:
     """Sync a project from ODK Central to the local database."""
-    config = PublishMDMClient.get_config(base_url=base_url)
-    with PublishMDMClient(base_url=config.base_url, project_id=project_id) as client:
-        # CentralServer
-        server, created = CentralServer.objects.get_or_create(
-            base_url=base_url, organization=organization
-        )
+    with PublishMDMClient(central_server=server, project_id=project_id) as client:
         logger.debug(
-            f"{'Created' if created else 'Retrieved'} CentralServer",
+            "Syncing Project",
+            project_id=project_id,
             base_url=server.base_url,
-            organization=organization,
+            organization=server.organization,
         )
         # Project
         central_project = client.projects.get()
         project, created = Project.objects.get_or_create(
             central_id=central_project.id,
             central_server=server,
-            organization=organization,
+            organization=server.organization,
             defaults={"name": central_project.name},
         )
         logger.info(
@@ -185,7 +180,7 @@ def sync_central_project(base_url: str, project_id: int, organization: Organizat
             id=project.id,
             central_id=project.central_id,
             project_name=project.name,
-            organization=organization,
+            organization=server.organization,
         )
         # AppUser
         central_app_users = client.publish_mdm.get_app_users()
@@ -252,15 +247,19 @@ def attachment_paths_for_upload(attachments: dict[str, SimpleUploadedFile]):
             yield paths
 
 
-def create_project(base_url, project_name):
+def create_project(central_server, project_name):
     """Create a project in ODK Central using the API and return its ID."""
-    logger.debug("Creating a project in ODK Central", base_url=base_url, project_name=project_name)
-    with PublishMDMClient(base_url=base_url) as client:
+    logger.debug(
+        "Creating a project in ODK Central",
+        base_url=central_server.base_url,
+        project_name=project_name,
+    )
+    with PublishMDMClient(central_server=central_server) as client:
         api_response = client.post("projects", json={"name": project_name})
         if api_response.status_code == 200:
             logger.debug(
                 "Created a project in ODK Central",
-                base_url=base_url,
+                base_url=central_server.base_url,
                 project_name=project_name,
                 api_response=api_response.content,
             )

@@ -32,9 +32,6 @@ rather use Docker, see :doc:`/src/docker-compose`.
     export GOOGLE_API_KEY=
     export GOOGLE_APP_ID=
 
-    # odk central
-    export ODK_CENTRAL_CREDENTIALS="base_url=https://myserver.com;username=user1;password=pass1"
-
 Update the environment variables as needed for your local setup. You may need to
 add a ``PGPASSWORD`` variable if your database expects a password. If the database
 does not exist yet, create it with the ``createdb`` `command <https://www.postgresql.org/docs/current/app-createdb.html>`_.
