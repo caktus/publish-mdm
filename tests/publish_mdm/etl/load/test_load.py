@@ -62,6 +62,16 @@ class TestProjectSync:
                 "deletedAt": None,
                 "token": "token2",
             },
+            {
+                "projectId": 1,
+                "id": 3,
+                "type": "field_key",
+                "displayName": "30000",
+                "createdAt": "2024-07-08T21:43:16.249Z",
+                "updatedAt": None,
+                "deletedAt": "2025-04-18T23:42:11.406Z",
+                "token": "token2",
+            },
         ]
         requests_mock.get(f"{server.base_url}/v1/projects/1/app-users", json=users_json)
         # Mock the ODK Central API request for getting forms
@@ -116,7 +126,7 @@ class TestProjectSync:
         # AppUsers
         assert project.app_users.count() == 2
         assert set(project.app_users.values_list("central_id", "name")) == {
-            (user["id"], user["displayName"]) for user in users_json
+            (user["id"], user["displayName"]) for user in users_json if not user["deletedAt"]
         }
         # FormTemplates
         assert project.form_templates.count() == 2
