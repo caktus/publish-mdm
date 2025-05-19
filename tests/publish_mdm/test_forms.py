@@ -1,10 +1,16 @@
 from pathlib import Path
 
 import pytest
+from django.forms.widgets import PasswordInput
 from django.urls import reverse
 from requests.exceptions import ConnectionError
 
-from apps.publish_mdm.forms import CentralServerForm, ProjectSyncForm, PublishTemplateForm
+from apps.publish_mdm.forms import (
+    CentralServerForm,
+    CentralServerFrontendForm,
+    ProjectSyncForm,
+    PublishTemplateForm,
+)
 from apps.publish_mdm.http import HttpRequest
 from tests.publish_mdm.factories import (
     FormTemplateFactory,
@@ -253,3 +259,22 @@ class TestCentralServerForm:
         assert form.is_valid()
         assert form.save()
         assert not cache_file.exists()
+
+    @pytest.mark.parametrize("form_class", [CentralServerForm, CentralServerFrontendForm])
+    def test_password_input(self, organization, form_class):
+        """Ensure the correct widget is used for the password field."""
+        form = form_class()
+        field = form.fields["password"]
+        assert isinstance(field.widget, PasswordInput)
+        assert not field.widget.render_value
+        assert not field.help_text
+
+        server = CentralServerFactory(organization=organization)
+        form = form_class(instance=server)
+        field = form.fields["password"]
+        assert isinstance(field.widget, PasswordInput)
+        assert not field.widget.render_value
+        # Help text when editing a server
+        assert (
+            field.help_text == "You will be required to re-enter the password to save any changes."
+        )

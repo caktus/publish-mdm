@@ -15,8 +15,10 @@ from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import (
     CheckboxInput,
     CheckboxSelectMultiple,
+    EmailInput,
     FileInput,
     InputWithAddon,
+    PasswordInput,
     Select,
     TextInput,
 )
@@ -496,3 +498,15 @@ class CentralServerForm(forms.ModelForm):
             # using the cached auth token until it expires (24h after it was created)
             Path(f"/tmp/.pyodk_cache_{self.instance.id}.toml").unlink(missing_ok=True)
         return super().save(commit)
+
+
+class CentralServerFrontendForm(PlatformFormMixin, CentralServerForm):
+    """A form for adding or editing a CentralServer on the frontend."""
+
+    class Meta(CentralServerForm.Meta):
+        fields = ["base_url", "username", "password"]
+        widgets = {
+            "base_url": TextInput,
+            "username": EmailInput,
+            "password": PasswordInput,
+        }

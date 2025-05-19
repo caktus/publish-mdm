@@ -1,6 +1,6 @@
 import django_tables2 as tables
 
-from .models import FormTemplate, FormTemplateVersion
+from .models import CentralServer, FormTemplate, FormTemplateVersion
 
 
 class FormTemplateTable(tables.Table):
@@ -37,6 +37,23 @@ class FormTemplateVersionTable(tables.Table):
     class Meta:
         model = FormTemplateVersion
         fields = ["version", "modified_at"]
+        template_name = "patterns/tables/table.html"
+        attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
+        orderable = False
+
+
+class CentralServerTable(tables.Table):
+    """A table for listing CentralServers."""
+
+    base_url = tables.LinkColumn(
+        "publish_mdm:edit-central-server",
+        args=[tables.A("organization__slug"), tables.A("pk")],
+        attrs={"a": {"class": "text-primary-600 hover:underline"}},
+    )
+
+    class Meta:
+        model = CentralServer
+        fields = ["base_url", "created_at", "username"]
         template_name = "patterns/tables/table.html"
         attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
         orderable = False

@@ -53,7 +53,7 @@ class Organization(AbstractBaseModel):
 class CentralServer(AbstractBaseModel):
     """A server running ODK Central."""
 
-    base_url = models.URLField(max_length=1024)
+    base_url = models.URLField(max_length=1024, verbose_name="base URL")
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name="central_servers"
     )

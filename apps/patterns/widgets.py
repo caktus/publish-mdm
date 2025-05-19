@@ -18,6 +18,14 @@ class TextInput(widgets.TextInput):
     template_name = "patterns/forms/widgets/input.html"
 
 
+class EmailInput(widgets.EmailInput):
+    template_name = "patterns/forms/widgets/input.html"
+
+
+class PasswordInput(widgets.PasswordInput):
+    template_name = "patterns/forms/widgets/input.html"
+
+
 class InputWithAddon(widgets.TextInput):
     """An input with a button appended to its right end."""
 

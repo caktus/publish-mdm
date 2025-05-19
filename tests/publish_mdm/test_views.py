@@ -30,6 +30,7 @@ from apps.publish_mdm.etl.template import VariableTransform
 from apps.publish_mdm.forms import (
     AppUserForm,
     AppUserTemplateVariableFormSet,
+    CentralServerFrontendForm,
     OrganizationForm,
     OrganizationInviteForm,
     ProjectForm,
@@ -1635,3 +1636,171 @@ class TestProjectSyncProjectsPartial(ViewTestBase):
         # The view uses django-template-partials to render only the project field
         assert "form" not in response.context
         assert response.context["widget"]["name"] == "project"
+
+
+class TestCentralServerList(ViewTestBase):
+    """Test the CentralServers list page."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("publish_mdm:central-servers-list", args=[organization.slug])
+
+    def test_get(self, client, url, user, organization):
+        """Ensure the page lists all the servers in the current organization."""
+        # Create some servers in the current org
+        CentralServerFactory.create_batch(3, organization=organization)
+        # Create some servers in another org
+        CentralServerFactory.create_batch(2, organization=OrganizationFactory())
+
+        response = client.get(url)
+
+        assert response.status_code == 200
+        # Ensure the table of servers is included in the context and it has the
+        # expected data
+        table = response.context.get("table")
+        assert isinstance(table, Table)
+        rows = response.context["table"].as_values()
+        assert next(rows) == ["Base URL", "Created at", "Username"]
+        assert list(rows) == [
+            [
+                i.base_url,
+                date_format(localtime(i.created_at), settings.SHORT_DATETIME_FORMAT),
+                i.username,
+            ]
+            for i in organization.central_servers.order_by("-created_at")
+        ]
+        # Ensure the table is rendered in the page
+        assert table.as_html(response.wsgi_request) in response.content.decode()
+
+
+class TestAddCentralServer(ViewTestBase):
+    """Test the page for adding a new CentralServer."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("publish_mdm:add-central-server", args=[organization.slug])
+
+    def test_get(self, client, url, user):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), CentralServerFrontendForm)
+
+    def test_valid_form(self, client, url, user, organization, requests_mock):
+        """Ensure submitting a valid form saves a new CentralServer with the
+        expected data.
+        """
+        data = {
+            "base_url": "https://central.example.com",
+            "username": "test@email.com",
+            "password": "password",
+        }
+        # Mock the ODK Central API request for validating the base URL and credentials
+        requests_mock.post(
+            f'{data["base_url"]}/v1/sessions',
+            json={
+                "createdAt": "2018-04-18T03:04:51.695Z",
+                "expiresAt": "2018-04-19T03:04:51.695Z",
+                "token": "token",
+            },
+        )
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        server = organization.central_servers.get()
+        assert {f: getattr(server, f) for f in data} == data
+        assert f"Successfully added {server}." in response.content.decode()
+        assert response.redirect_chain == [
+            (reverse("publish_mdm:central-servers-list", args=[organization.slug]), 302)
+        ]
+
+    def test_invalid_form(self, client, url, user, organization):
+        """Ensure submitting an invalid form does not save a CentralServer and
+        error messages are displayed to the user.
+        """
+        data = {
+            "base_url": "invalid_url",
+            "username": "invalid_email",
+            "password": "",
+        }
+        response = client.post(url, data=data)
+        assert response.status_code == 200
+        assert not organization.central_servers.exists()
+        assert isinstance(response.context.get("form"), CentralServerFrontendForm)
+        response_content = response.content.decode()
+        expected_errors = {
+            "base_url": "Enter a valid URL.",
+            "username": "Enter a valid email address.",
+            "password": "This field is required.",
+        }
+        for field_name, expected_error in expected_errors.items():
+            assert response.context["form"].errors[field_name] == [expected_error]
+            assert expected_error in response_content
+
+
+class TestEditCentralServer(ViewTestBase):
+    """Test the page for editing a CentralServer."""
+
+    @pytest.fixture
+    def server(self, organization):
+        return CentralServerFactory(organization=organization)
+
+    @pytest.fixture
+    def url(self, server):
+        return reverse(
+            "publish_mdm:edit-central-server", args=[server.organization.slug, server.id]
+        )
+
+    def test_get(self, client, url, user):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), CentralServerFrontendForm)
+
+    def test_valid_form(self, client, url, user, organization, server, requests_mock):
+        """Ensure submitting a valid form updates the CentralServer with the
+        expected data.
+        """
+        data = {
+            "base_url": "https://central.example.com",
+            "username": "test@email.com",
+            "password": "password",
+        }
+        # Mock the ODK Central API request for validating the base URL and credentials
+        requests_mock.post(
+            f'{data["base_url"]}/v1/sessions',
+            json={
+                "createdAt": "2018-04-18T03:04:51.695Z",
+                "expiresAt": "2018-04-19T03:04:51.695Z",
+                "token": "token",
+            },
+        )
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        server.refresh_from_db()
+        assert {f: getattr(server, f) for f in data} == data
+        assert f"Successfully edited {server}." in response.content.decode()
+        assert response.redirect_chain == [
+            (reverse("publish_mdm:central-servers-list", args=[organization.slug]), 302)
+        ]
+
+    def test_invalid_form(self, client, url, user, organization, server):
+        """Ensure submitting an invalid form does not update the CentralServer and
+        error messages are displayed to the user.
+        """
+        data = {
+            "base_url": "invalid_url",
+            "username": "invalid_email",
+            "password": "",
+        }
+        db_data_before = organization.central_servers.values().get(pk=server.pk)
+        response = client.post(url, data=data)
+        assert response.status_code == 200
+        assert organization.central_servers.values().get(pk=server.pk) == db_data_before
+        assert isinstance(response.context.get("form"), CentralServerFrontendForm)
+        response_content = response.content.decode()
+        expected_errors = {
+            "base_url": "Enter a valid URL.",
+            "username": "Enter a valid email address.",
+            "password": "This field is required.",
+        }
+        for field_name, expected_error in expected_errors.items():
+            assert response.context["form"].errors[field_name] == [expected_error]
+            assert expected_error in response_content

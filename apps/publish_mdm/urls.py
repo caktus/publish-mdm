@@ -107,4 +107,19 @@ urlpatterns = [
         views.organization_template_variables,
         name="organization-template-variables",
     ),
+    path(
+        "o/<slug:organization_slug>/central-servers/",
+        views.central_servers_list,
+        name="central-servers-list",
+    ),
+    path(
+        "o/<slug:organization_slug>/central-servers/<int:central_server_id>/",
+        views.change_central_server,
+        name="edit-central-server",
+    ),
+    path(
+        "o/<slug:organization_slug>/central-servers/add/",
+        views.change_central_server,
+        name="add-central-server",
+    ),
 ]

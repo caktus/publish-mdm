@@ -45,11 +45,12 @@ from .forms import (
     ProjectTemplateVariableFormSet,
     OrganizationForm,
     TemplateVariableFormSet,
+    CentralServerFrontendForm,
 )
 from .import_export import AppUserResource
-from .models import FormTemplateVersion, FormTemplate, AppUser, Project
+from .models import FormTemplateVersion, FormTemplate, AppUser, Project, CentralServer
 from .nav import Breadcrumbs
-from .tables import FormTemplateTable, FormTemplateVersionTable
+from .tables import CentralServerTable, FormTemplateTable, FormTemplateVersionTable
 
 
 logger = structlog.getLogger(__name__)
@@ -619,3 +620,48 @@ def organization_template_variables(request, organization_slug):
         ),
     }
     return render(request, "publish_mdm/organization_template_variables.html", context)
+
+
+@login_required
+def central_servers_list(request: HttpRequest, organization_slug):
+    """List CentralServers linked to the current organization."""
+    central_servers = request.organization.central_servers.order_by("-created_at")
+    table = CentralServerTable(data=central_servers, request=request, show_footer=False)
+    context = {
+        "table": table,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("Central Servers", "central-servers-list")],
+        ),
+    }
+    return render(request, "publish_mdm/central_servers_list.html", context)
+
+
+@login_required
+def change_central_server(request: HttpRequest, organization_slug, central_server_id=None):
+    """Add or edit a CentralServer."""
+    if central_server_id:
+        # Editing a CentralServer
+        action = "edit"
+        server = get_object_or_404(request.organization.central_servers, pk=central_server_id)
+    else:
+        # Adding a new CentralServer
+        action = "add"
+        server = CentralServer(organization=request.organization)
+    form = CentralServerFrontendForm(request.POST or None, instance=server)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, f"Successfully {action}ed {server}.")
+        return redirect("publish_mdm:central-servers-list", organization_slug)
+    context = {
+        "form": form,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[
+                ("Central Servers", "central-servers-list"),
+                (f"{action.title()} Central Server", f"{action}-central-server"),
+            ],
+        ),
+        "server": server,
+    }
+    return render(request, "publish_mdm/change_central_server.html", context)
