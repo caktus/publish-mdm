@@ -463,6 +463,10 @@ class CentralServerForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.instance.id and self.instance.password is not None:
+            # PasswordInput widget with render_value=False (the default) does not
+            # render the current value for security purposes. Add some help text
+            # to indicate that a password exists even if the input is empty, and
+            # the user has to re-enter it for the form to be valid.
             self.fields[
                 "password"
             ].help_text = "You will be required to re-enter the password to save any changes."
@@ -483,6 +487,7 @@ class CentralServerForm(forms.ModelForm):
                     timeout=10,
                 )
             except requests.RequestException:
+                # Probably an invalid base_url
                 success = False
             else:
                 success = response.status_code == 200
