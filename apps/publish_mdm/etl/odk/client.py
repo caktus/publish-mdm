@@ -56,6 +56,19 @@ class PublishMDMClient(Client):
             password=server_config.password.get_secret_value(),
             cache_path=str(cache_path),
         )
+        # No retries for POST requests
+        for prefix, adapter in session.adapters.items():
+            if (
+                adapter.max_retries.allowed_methods
+                and "POST" in adapter.max_retries.allowed_methods
+            ):
+                adapter.max_retries.allowed_methods = frozenset(
+                    adapter.max_retries.allowed_methods
+                ) - {"POST"}
+                logger.debug(
+                    f"Updated the {prefix} adapter to disable retries for POST requests",
+                    allowed_methods=adapter.max_retries.allowed_methods,
+                )
         super().__init__(config_path=str(config_path), session=session, project_id=project_id)
         # Update the stub config with the environment-provided authentication
         # details
