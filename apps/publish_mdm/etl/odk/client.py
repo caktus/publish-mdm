@@ -3,8 +3,10 @@ from pathlib import Path
 
 import structlog
 from pydantic import BaseModel, SecretStr, field_validator
+from pyodk._endpoints.auth import AuthService
 from pyodk._utils import config
 from pyodk.client import Client, Session
+from pyodk.errors import PyODKError
 
 from .publish import PublishService
 
@@ -30,6 +32,37 @@ class CentralConfig(BaseModel):
     @classmethod
     def always_strip_trailing_slash(cls, value: str) -> str:
         return value.rstrip("/")
+
+
+class PublishMDMAuthService(AuthService):
+    def verify_token(self, token: str) -> str:
+        """
+        Check with Central that a token is valid.
+
+        We are overriding this method only to change the logging level of the
+        'token verification request failed' message from ERROR to DEBUG, so that
+        the message does not get logged in Sentry when Sentry is configured.
+
+        :param token: The token to check.
+        :return:
+        """
+        response = self.session.get(
+            url="users/current",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {token}",
+            },
+        )
+        if response.status_code == 200:
+            return token
+        else:
+            msg = (
+                f"The token verification request failed."
+                f" Status: {response.status_code}, content: {response.content}"
+            )
+            err = PyODKError(msg)
+            logger.debug(err, exc_info=True)
+            raise err
 
 
 class PublishMDMClient(Client):
@@ -71,25 +104,10 @@ class PublishMDMClient(Client):
         # Create a Publish MDM service for this client, which provides
         # additional functionality for interacting with ODK Central
         self.publish_mdm: PublishService = PublishService(client=self)
+        # Set the auth service to a PublishMDMAuthService, which uses DEBUG level
+        # instead of ERROR level for "token verification request failed" log messages
+        self.session.auth.service = PublishMDMAuthService(session=session, cache_path=cache_path)
         logger.debug("Initialized Publish MDM client", project_id=project_id, base_url=base_url)
-        # If we created a stub cache file, set a valid token in the file to prevent
-        # error messages later about the token being invalid
-        if new_cache_file:
-            logger.debug("Setting the token in the new cache file", cache_path=cache_path)
-            try:
-                token = session.auth.service.get_new_token(
-                    session.auth.username, session.auth.password
-                )
-                config.write_cache(key="token", value=token, cache_path=cache_path)
-            except Exception:
-                # pyodk will create the new token anyway on the first API request,
-                # just that it will log a message with ERROR level, which will end
-                # up in Sentry if Sentry is configured
-                logger.debug(
-                    "Error setting the token in the new cache file",
-                    cache_path=cache_path,
-                    exc_info=True,
-                )
 
     def __enter__(self) -> "PublishMDMClient":
         return super().__enter__()  # type: ignore
