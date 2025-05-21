@@ -1,6 +1,7 @@
 import django_tables2 as tables
 
 from .models import FormTemplate, FormTemplateVersion
+from apps.mdm.models import Device
 
 
 class FormTemplateTable(tables.Table):
@@ -40,3 +41,24 @@ class FormTemplateVersionTable(tables.Table):
         template_name = "patterns/tables/table.html"
         attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
         orderable = False
+
+
+class DeviceTable(tables.Table):
+    """A table for listing MDM Devices."""
+
+    last_seen_mdm = tables.DateTimeColumn(
+        accessor="latest_snapshot__last_sync", verbose_name="Last seen (MDM)"
+    )
+    last_seen_vpn = tables.DateTimeColumn(verbose_name="Last seen (VPN)")
+
+    class Meta:
+        model = Device
+        fields = [
+            "serial_number",
+            "app_user_name",
+            "firmware_version",
+            "last_seen_mdm",
+            "last_seen_vpn",
+        ]
+        template_name = "patterns/tables/table.html"
+        attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}

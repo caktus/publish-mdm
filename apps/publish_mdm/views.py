@@ -5,10 +5,13 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import models, transaction
+from django.db.models import OuterRef, Q, Subquery, Value
+from django.db.models.functions import Lower, NullIf
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.html import mark_safe
 from django.utils.timezone import localdate
+from django_tables2.config import RequestConfig
 from import_export.results import RowResult
 from import_export.tmp_storages import MediaStorage
 from invitations.adapters import get_invitations_adapter
@@ -49,7 +52,9 @@ from .forms import (
 from .import_export import AppUserResource
 from .models import FormTemplateVersion, FormTemplate, AppUser, Project
 from .nav import Breadcrumbs
-from .tables import FormTemplateTable, FormTemplateVersionTable
+from .tables import DeviceTable, FormTemplateTable, FormTemplateVersionTable
+from apps.mdm.models import Device, FirmwareSnapshot
+from apps.tailscale.models import Device as TailscaleDevice
 
 
 logger = structlog.getLogger(__name__)
@@ -620,3 +625,42 @@ def organization_template_variables(request, organization_slug):
         ),
     }
     return render(request, "publish_mdm/organization_template_variables.html", context)
+
+
+@login_required
+def devices_list(request: HttpRequest, organization_slug, odk_project_pk):
+    """List all MDM devices linked to the current Project."""
+    devices = Device.objects.filter(policy__project=request.odk_project).annotate(
+        # The version from the latest firmware snapshot, if available
+        firmware_version=Subquery(
+            FirmwareSnapshot.objects.filter(device=OuterRef("id"))
+            .values("version")
+            .order_by("-synced_at")[:1]
+        ),
+        # The last_seen from the most recent Tailscale Device (by last_seen)
+        # whose name contains either:
+        # (a) the lowercase serial number of the MDM device, or
+        # (b) the lowercase device id of the MDM device
+        last_seen_vpn=Subquery(
+            TailscaleDevice.objects.filter(
+                Q(name__contains=Lower(NullIf(OuterRef("serial_number"), Value(""))))
+                | Q(name__contains=Lower(NullIf(OuterRef("device_id"), Value(""))))
+            )
+            .values("last_seen")
+            .order_by("-last_seen")[:1]
+        ),
+    )
+    table = DeviceTable(data=devices, show_footer=False)
+    RequestConfig(request, paginate=False).configure(table)
+    context = {
+        "table": table,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("Devices", "devices-list")],
+        ),
+    }
+    if request.htmx:
+        template = "patterns/tables/table-partial.html"
+    else:
+        template = "publish_mdm/devices_list.html"
+    return render(request, template, context)

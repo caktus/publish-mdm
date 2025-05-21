@@ -107,4 +107,9 @@ urlpatterns = [
         views.organization_template_variables,
         name="organization-template-variables",
     ),
+    path(
+        "o/<slug:organization_slug>/<int:odk_project_pk>/devices/",
+        views.devices_list,
+        name="devices-list",
+    ),
 ]

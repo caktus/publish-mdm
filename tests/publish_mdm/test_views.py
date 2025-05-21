@@ -1,5 +1,6 @@
 import json
 
+import faker
 import pytest
 from django_tables2 import Table
 from django.urls import reverse
@@ -43,6 +44,10 @@ from apps.publish_mdm.models import (
     OrganizationInvitation,
     Project,
 )
+from tests.mdm.factories import DeviceFactory, PolicyFactory
+from tests.tailscale.factories import DeviceFactory as TailscaleDeviceFactory
+
+fake = faker.Faker()
 
 
 @pytest.mark.django_db
@@ -1564,3 +1569,97 @@ class TestOrganizationTemplateVariables(ViewTestBase):
         expected_error = "Name must start with a letter or underscore and contain no spaces."
         assert response.context["formset"].forms[-1].errors["name"][0] == expected_error
         assert expected_error in response.content.decode()
+
+
+class TestDevicesList(ViewTestBase):
+    """Tests the page that lists the MDM devices linked to a Project."""
+
+    @pytest.fixture
+    def url(self, project, organization):
+        return reverse("publish_mdm:devices-list", args=[organization.slug, project.id])
+
+    def test_get(self, client, url, user, project, organization):
+        # Set up some devices in 2 policies linked to the current project
+        project_devices = []
+        for policy in PolicyFactory.create_batch(2, project=project):
+            # Some devices with values for serial_number and app_user_name
+            for device in DeviceFactory.build_batch(5, policy=policy):
+                # serial_number and device_id with mixed cases to test matching
+                # to Tailscale devices
+                device.serial_number = fake.pystr()
+                device.device_id = fake.unique.pystr()
+                device.save()
+                project_devices.append(device)
+            # Some devices with blank serial_number
+            project_devices += DeviceFactory.create_batch(3, serial_number="", policy=policy)
+            # Some devices with blank app_user_name
+            project_devices += DeviceFactory.create_batch(2, app_user_name="", policy=policy)
+
+        # Create matching Tailscale devices for some MDM devices
+        ts_devices = []
+        for device in fake.random_sample(project_devices, 10):
+            if fake.boolean() and device.serial_number:
+                # matches by serial number
+                matcher = device.serial_number.lower()
+            else:
+                # matches by device id
+                matcher = device.device_id.lower()
+            ts_devices += TailscaleDeviceFactory.create_batch(
+                3, name=f"{fake.word()}-{matcher}.tail123.ts.net"
+            )
+
+        # Some devices in another project. Should not be included in the list
+        DeviceFactory.create_batch(3, policy__project=ProjectFactory(organization=organization))
+
+        def get_last_seen_vpn(device):
+            # The last_seen from the most recent Tailscale Device (by last_seen)
+            # whose name contains either:
+            # (a) the lowercase serial number of the MDM device, or
+            # (b) the lowercase device id of the MDM device
+            matching = [
+                ts_device.last_seen
+                for ts_device in ts_devices
+                if (
+                    (device.serial_number and device.serial_number.lower() in ts_device.name)
+                    or (device.device_id and device.device_id.lower() in ts_device.name)
+                )
+            ]
+            if matching:
+                last_seen = sorted(matching)[-1]
+                # Format the same way the DateTimeColumn does
+                return date_format(localtime(last_seen), settings.SHORT_DATETIME_FORMAT)
+            return table.default
+
+        response = client.get(url)
+
+        assert response.status_code == 200
+        # Ensure the devices table is included in the context and it has the
+        # expected data
+        table = response.context.get("table")
+        assert isinstance(table, Table)
+        rows = response.context["table"].as_values()
+        assert next(rows) == [
+            "Serial number",
+            "App user name",
+            "Firmware version",
+            "Last seen (MDM)",
+            "Last seen (VPN)",
+        ]
+        rows = {tuple(i) for i in rows}
+        # TODO: Test values in "Firmware version" and "Last seen (MDM)" columns
+        assert rows == {
+            (
+                i.serial_number or None,
+                i.app_user_name or None,
+                None,
+                table.default,
+                get_last_seen_vpn(i),
+            )
+            for i in project_devices
+        }
+        # All columns are sortable
+        assert table.orderable
+        # Not paginated
+        assert not hasattr(table, "paginator")
+        # Ensure the table is rendered in the page
+        assert table.as_html(response.wsgi_request) in response.content.decode()

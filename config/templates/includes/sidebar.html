@@ -35,21 +35,6 @@
                     </a>
                 </li>
                 <li>
-                    <a href="{% url 'publish_mdm:organization-users-list' request.organization.slug %}"
-                       class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
-                        <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
-                             aria-hidden="true"
-                             xmlns="http://www.w3.org/2000/svg"
-                             width="24"
-                             height="24"
-                             fill="none"
-                             viewBox="0 0 24 24">
-                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 18h2M5.875 3h12.25c.483 0 .875.448.875 1v16c0 .552-.392 1-.875 1H5.875C5.392 21 5 20.552 5 20V4c0-.552.392-1 .875-1Z" />
-                        </svg>
-                        <span class="ml-3">MDM Devices</span>
-                    </a>
-                </li>
-                <li>
                     <a href="{% url 'publish_mdm:server-sync' request.organization.slug %}"
                        class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
                         <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
@@ -207,6 +192,21 @@
                                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 6H5m2 3H5m2 3H5m2 3H5m2 3H5m11-1a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2M7 3h11a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm8 7a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z" />
                             </svg>
                             <span class="ml-3">App Users</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{% url 'publish_mdm:devices-list' request.organization.slug request.odk_project.pk %}"
+                           class="flex items-center p-2 text-base font-normal text-gray-900 hover:text-primary-700 rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 group">
+                            <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
+                                 aria-hidden="true"
+                                 xmlns="http://www.w3.org/2000/svg"
+                                 width="24"
+                                 height="24"
+                                 fill="none"
+                                 viewBox="0 0 24 24">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 18h2M5.875 3h12.25c.483 0 .875.448.875 1v16c0 .552-.392 1-.875 1H5.875C5.392 21 5 20.552 5 20V4c0-.552.392-1 .875-1Z" />
+                            </svg>
+                            <span class="ml-3">Devices</span>
                         </a>
                     </li>
                 </ul>
