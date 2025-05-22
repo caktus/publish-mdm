@@ -6,22 +6,28 @@ from import_export.admin import ImportExportMixin
 from import_export.forms import ExportForm
 
 from .import_export import DeviceResource
-from .models import Policy, Device, DeviceSnapshot, DeviceSnapshotApp, FirmwareSnapshot
+from .models import Policy, Device, DeviceSnapshot, DeviceSnapshotApp, FirmwareSnapshot, Fleet
 
 
 @admin.register(Policy)
 class PolicyAdmin(admin.ModelAdmin):
-    list_display = ("name", "policy_id", "project")
-    search_fields = ("name", "policy_id", "project__name")
-    list_filter = ("project",)
+    list_display = ("name", "policy_id")
+    search_fields = ("name", "policy_id")
+
+
+@admin.register(Fleet)
+class FleetAdmin(admin.ModelAdmin):
+    list_display = ("name", "organization", "policy", "project")
+    search_fields = ("name", "organization__name", "policy__name", "project__name")
+    list_filter = ("organization", "policy", "project")
 
 
 @admin.register(Device)
 class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
-    list_display = ("name", "serial_number", "app_user_name", "policy")
-    search_fields = ("serial_number", "app_user_name", "policy__name", "serial_number")
+    list_display = ("name", "serial_number", "app_user_name", "fleet")
+    search_fields = ("serial_number", "app_user_name", "fleet__name", "serial_number")
     readonly_fields = ("name", "device_id", "raw_mdm_device", "latest_snapshot")
-    list_filter = ("policy", "app_user_name")
+    list_filter = ("fleet", "app_user_name")
     export_form_class = ExportForm
     resource_classes = [DeviceResource]
 
