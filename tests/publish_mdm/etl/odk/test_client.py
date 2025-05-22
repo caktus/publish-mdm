@@ -42,6 +42,12 @@ class TestNewClient:
         assert client.publish_mdm.project_users.default_project_id == 1
         assert client.publish_mdm.form_assignments.default_project_id == 1
 
+    def test_no_post_retries(self, requests_mock):
+        """Ensures retries are not allowed for POST requests."""
+        client = PublishMDMClient(base_url="https://central")
+        for adapter in client.session.adapters.values():
+            assert "POST" not in adapter.max_retries.allowed_methods
+
 
 class TestPublishMDMAuthService:
     @pytest.fixture(autouse=True)
