@@ -1660,12 +1660,11 @@ class TestCentralServerList(ViewTestBase):
         table = response.context.get("table")
         assert isinstance(table, Table)
         rows = response.context["table"].as_values()
-        assert next(rows) == ["Base URL", "Created at", "Username"]
+        assert next(rows) == ["Base URL", "Created at"]
         assert list(rows) == [
             [
                 i.base_url,
                 date_format(localtime(i.created_at), settings.SHORT_DATETIME_FORMAT),
-                i.username,
             ]
             for i in organization.central_servers.order_by("-created_at")
         ]

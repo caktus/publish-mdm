@@ -53,7 +53,7 @@ class CentralServerTable(tables.Table):
 
     class Meta:
         model = CentralServer
-        fields = ["base_url", "created_at", "username"]
+        fields = ["base_url", "created_at"]
         template_name = "patterns/tables/table.html"
         attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
         orderable = False
