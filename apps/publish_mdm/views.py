@@ -630,25 +630,29 @@ def organization_template_variables(request, organization_slug):
 @login_required
 def devices_list(request: HttpRequest, organization_slug, odk_project_pk):
     """List all MDM devices linked to the current Project."""
-    devices = Device.objects.filter(policy__project=request.odk_project).annotate(
-        # The version from the latest firmware snapshot, if available
-        firmware_version=Subquery(
-            FirmwareSnapshot.objects.filter(device=OuterRef("id"))
-            .values("version")
-            .order_by("-synced_at")[:1]
-        ),
-        # The last_seen from the most recent Tailscale Device (by last_seen)
-        # whose name contains either:
-        # (a) the lowercase serial number of the MDM device, or
-        # (b) the lowercase device id of the MDM device
-        last_seen_vpn=Subquery(
-            TailscaleDevice.objects.filter(
-                Q(name__contains=Lower(NullIf(OuterRef("serial_number"), Value(""))))
-                | Q(name__contains=Lower(NullIf(OuterRef("device_id"), Value(""))))
-            )
-            .values("last_seen")
-            .order_by("-last_seen")[:1]
-        ),
+    devices = (
+        Device.objects.filter(policy__project=request.odk_project)
+        .annotate(
+            # The version from the latest firmware snapshot, if available
+            firmware_version=Subquery(
+                FirmwareSnapshot.objects.filter(device=OuterRef("id"))
+                .values("version")
+                .order_by("-synced_at")[:1]
+            ),
+            # The last_seen from the most recent Tailscale Device (by last_seen)
+            # whose name contains either:
+            # (a) the lowercase serial number of the MDM device, or
+            # (b) the lowercase device id of the MDM device
+            last_seen_vpn=Subquery(
+                TailscaleDevice.objects.filter(
+                    Q(name__contains=Lower(NullIf(OuterRef("serial_number"), Value(""))))
+                    | Q(name__contains=Lower(NullIf(OuterRef("device_id"), Value(""))))
+                )
+                .values("last_seen")
+                .order_by("-last_seen")[:1]
+            ),
+        )
+        .select_related("latest_snapshot")
     )
     table = DeviceTable(data=devices, show_footer=False)
     RequestConfig(request, paginate=False).configure(table)

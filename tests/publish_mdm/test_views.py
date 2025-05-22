@@ -44,7 +44,12 @@ from apps.publish_mdm.models import (
     OrganizationInvitation,
     Project,
 )
-from tests.mdm.factories import DeviceFactory, PolicyFactory
+from tests.mdm.factories import (
+    DeviceFactory,
+    DeviceSnapshotFactory,
+    FirmwareSnapshotFactory,
+    PolicyFactory,
+)
 from tests.tailscale.factories import DeviceFactory as TailscaleDeviceFactory
 
 fake = faker.Faker()
@@ -1578,6 +1583,11 @@ class TestDevicesList(ViewTestBase):
     def url(self, project, organization):
         return reverse("publish_mdm:devices-list", args=[organization.slug, project.id])
 
+    @staticmethod
+    def format_datetime(datetime):
+        """Format a datetime object the same way the django-tables2 DateTimeColumn does."""
+        return date_format(localtime(datetime), settings.SHORT_DATETIME_FORMAT)
+
     def test_get(self, client, url, user, project, organization):
         # Set up some devices in 2 policies linked to the current project
         project_devices = []
@@ -1608,6 +1618,21 @@ class TestDevicesList(ViewTestBase):
                 3, name=f"{fake.word()}-{matcher}.tail123.ts.net"
             )
 
+        # Create a device snapshot for some devices
+        for device in fake.random_sample(project_devices, 10):
+            device.latest_snapshot = DeviceSnapshotFactory(mdm_device=device)
+            device.save()
+
+        # Create firmware snapshots for some devices. firmware_versions will hold
+        # the version from the latest snapshot by synced_at
+        firmware_versions = {}
+        for device in fake.random_sample(project_devices, 10):
+            versions = {
+                i.synced_at: i.version
+                for i in FirmwareSnapshotFactory.create_batch(3, device=device)
+            }
+            firmware_versions[device.id] = versions[sorted(versions)[-1]]
+
         # Some devices in another project. Should not be included in the list
         DeviceFactory.create_batch(3, policy__project=ProjectFactory(organization=organization))
 
@@ -1626,8 +1651,7 @@ class TestDevicesList(ViewTestBase):
             ]
             if matching:
                 last_seen = sorted(matching)[-1]
-                # Format the same way the DateTimeColumn does
-                return date_format(localtime(last_seen), settings.SHORT_DATETIME_FORMAT)
+                return self.format_datetime(last_seen)
             return table.default
 
         response = client.get(url)
@@ -1646,13 +1670,16 @@ class TestDevicesList(ViewTestBase):
             "Last seen (VPN)",
         ]
         rows = {tuple(i) for i in rows}
-        # TODO: Test values in "Firmware version" and "Last seen (MDM)" columns
         assert rows == {
             (
                 i.serial_number or None,
                 i.app_user_name or None,
-                None,
-                table.default,
+                firmware_versions.get(i.id),
+                (
+                    self.format_datetime(i.latest_snapshot.last_sync)
+                    if i.latest_snapshot
+                    else table.default
+                ),
                 get_last_seen_vpn(i),
             )
             for i in project_devices
