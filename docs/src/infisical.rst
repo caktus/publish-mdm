@@ -68,7 +68,7 @@ the token that will be displayed. You will use it to set the ``INFISICAL_TOKEN``
    :alt: Create a token
    :align: center
 
-Lastly, add the Identity to the Project you created earlier:
+Lastly, add the Identity to the Project you created earlier with the "Developer" role:
 
 .. figure:: ../_static/add_identity_to_infisical_project.png
    :alt: Add Identity to Project
