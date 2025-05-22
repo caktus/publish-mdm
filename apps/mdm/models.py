@@ -2,7 +2,7 @@ import structlog
 from django.db import models
 from django.core.validators import RegexValidator
 
-from apps.publish_mdm.models import Project
+from apps.publish_mdm.models import Organization, Project
 
 
 logger = structlog.get_logger()
@@ -14,12 +14,6 @@ class Policy(models.Model):
     name = models.CharField(max_length=255, help_text="The name of the policy.")
     policy_id = models.CharField(
         verbose_name="Policy ID", max_length=255, help_text="The ID of the policy in the MDM."
-    )
-    project = models.ForeignKey(
-        Project,
-        on_delete=models.CASCADE,
-        help_text="The project that this policy belongs to.",
-        related_name="policies",
     )
 
     def save(self, *args, **kwargs):
@@ -36,21 +30,63 @@ class Policy(models.Model):
         return f"{self.name} ({self.policy_id})"
 
 
-class Device(models.Model):
-    """A device that is enrolled in the MDM."""
+class Fleet(models.Model):
+    """A fleet of devices that corresponds to a single group in the MDM."""
 
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        help_text="The organization that this fleet belongs to.",
+        related_name="fleets",
+    )
+
+    name = models.CharField(max_length=255)
+    mdm_group_id = models.CharField(
+        verbose_name="MDM Group ID",
+        max_length=32,
+        help_text="The ID of the group in the MDM.",
+        unique=True,
+    )
     policy = models.ForeignKey(
         Policy,
         on_delete=models.CASCADE,
-        help_text="The policy that the device is assigned to.",
+        help_text="The MDM policy to assign for this fleet of devices.",
+        related_name="fleets",
+    )
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        help_text="The project to deploy to this fleet of devices.",
+        related_name="fleets",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["organization", "name"], name="unique_org_and_name"),
+        ]
+
+    def __str__(self):
+        return self.name
+
+
+class Device(models.Model):
+    """A device that is enrolled in the MDM."""
+
+    fleet = models.ForeignKey(
+        "Fleet",
+        on_delete=models.CASCADE,
+        help_text="The fleet that the device is assigned to.",
         related_name="devices",
     )
     device_id = models.CharField(
         verbose_name="Device ID",
-        max_length=255,
+        max_length=32,
         help_text="The ID of the device in the MDM.",
         unique=True,
         blank=True,
+        null=True,
     )
     serial_number = models.CharField(max_length=255, help_text="The serial number of the device.")
     name = models.CharField(
@@ -99,13 +135,6 @@ class Device(models.Model):
         if push_to_mdm:
             if session := get_tinymdm_session():
                 push_device_config(session, self)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["policy", "device_id"], name="unique_policy_and_device_id"
-            ),
-        ]
 
     def __str__(self):
         return f"{self.name} ({self.device_id})"
