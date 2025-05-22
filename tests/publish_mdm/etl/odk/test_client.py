@@ -24,23 +24,12 @@ class TestNewClient:
         PublishMDMClient(base_url="https://central")
         assert stub_config_path.exists()
 
-    @pytest.fixture
-    def fake_token(self):
-        stub_cache_path = Path("/tmp/.pyodk_cache.toml")
-        if stub_cache_path.exists():
-            old_contents = stub_cache_path.read_text()
-            yield "fake token"
-            stub_cache_path.write_text(old_contents)
-        else:
-            yield "fake token"
-
-    def test_stub_cache_created(self, requests_mock, fake_token):
+    def test_stub_cache_created(self):
         stub_cache_path = Path("/tmp/.pyodk_cache.toml")
         stub_cache_path.unlink(missing_ok=True)
-        requests_mock.post("https://central/v1/sessions", json={"token": fake_token})
         PublishMDMClient(base_url="https://central")
         assert stub_cache_path.exists()
-        assert stub_cache_path.read_text() == f'token = "{fake_token}"\n'
+        assert stub_cache_path.read_text() == 'token = ""'
 
     def test_check_unset_client_project_id(self):
         assert PublishMDMClient(base_url="https://central").project_id is None
@@ -52,6 +41,65 @@ class TestNewClient:
         assert client.forms.default_project_id == 1
         assert client.publish_mdm.project_users.default_project_id == 1
         assert client.publish_mdm.form_assignments.default_project_id == 1
+
+
+class TestPublishMDMAuthService:
+    @pytest.fixture(autouse=True)
+    def disable_client_auth(self, monkeypatch):
+        # Override the auto-used fixture from tests/publish_mdm/conftest.py to
+        # enable ODK Central authentication API requests
+        monkeypatch.setenv(
+            "ODK_CENTRAL_CREDENTIALS",
+            "base_url=https://central;username=username;password=password",
+        )
+
+    def test_token_verification_failure(self, requests_mock, caplog):
+        # Mock token verification failure
+        mock_token_verification = requests_mock.get(
+            "https://central/v1/users/current",
+            status_code=401,
+            json={
+                "message": "Could not authenticate with the provided credentials.",
+                "code": 401.2,
+            },
+        )
+        # Mock getting a new token, done automatically after token verification fails
+        mock_get_token = requests_mock.post("https://central/v1/sessions", json={"token": "token"})
+
+        client = PublishMDMClient(base_url="https://central", project_id=1)
+
+        # Do any API request, which automatically should try to verify the currently
+        # cached access token
+        requests_mock.get("https://central/v1/projects/1/app-users", json=[])
+        client.publish_mdm.get_app_users()
+
+        assert mock_token_verification.called_once
+        assert mock_get_token.called_once
+        # Ensure the 'token verification request failed' message is logged with DEBUG level
+        for record in caplog.records:
+            if "The token verification request failed" in record.message:
+                assert record.levelname == "DEBUG"
+                break
+        else:
+            pytest.fail("No 'token verification request failed' message was logged.")
+
+    def test_token_verification_success(self, requests_mock, caplog):
+        # Mock token verification success
+        mock_token_verification = requests_mock.get(
+            "https://central/v1/users/current", status_code=200
+        )
+        # Mock getting a new token, which should not happen if current token is valid
+        mock_get_token = requests_mock.post("https://central/v1/sessions", json={"token": "token"})
+
+        client = PublishMDMClient(base_url="https://central", project_id=1)
+
+        # Do any API request, which automatically should try to verify the currently
+        # cached access token
+        requests_mock.get("https://central/v1/projects/1/app-users", json=[])
+        client.publish_mdm.get_app_users()
+
+        assert mock_token_verification.called_once
+        assert not mock_get_token.called
 
 
 class TestODKCentralCredentials:
