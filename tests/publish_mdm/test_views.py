@@ -11,6 +11,7 @@ from django.utils.formats import date_format
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers.data import JsonLexer
+from pytest_django.asserts import assertTemplateNotUsed
 from requests.exceptions import HTTPError
 
 from tests.publish_mdm.factories import (
@@ -1588,7 +1589,8 @@ class TestDevicesList(ViewTestBase):
         """Format a datetime object the same way the django-tables2 DateTimeColumn does."""
         return date_format(localtime(datetime), settings.SHORT_DATETIME_FORMAT)
 
-    def test_get(self, client, url, user, project, organization):
+    @pytest.mark.parametrize("htmx", [True, False])
+    def test_get(self, client, url, user, project, organization, htmx):
         # Set up some devices in 2 policies linked to the current project
         project_devices = []
         for policy in PolicyFactory.create_batch(2, project=project):
@@ -1654,7 +1656,8 @@ class TestDevicesList(ViewTestBase):
                 return self.format_datetime(last_seen)
             return table.default
 
-        response = client.get(url)
+        headers = {"HX-Request": "true"} if htmx else None
+        response = client.get(url, headers=headers)
 
         assert response.status_code == 200
         # Ensure the devices table is included in the context and it has the
@@ -1690,3 +1693,6 @@ class TestDevicesList(ViewTestBase):
         assert not hasattr(table, "paginator")
         # Ensure the table is rendered in the page
         assert table.as_html(response.wsgi_request) in response.content.decode()
+        # Ensure the correct template is used for htmx requests
+        if htmx:
+            assertTemplateNotUsed(response, "publish_mdm/devices_list.html")
