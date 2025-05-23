@@ -13,6 +13,7 @@ from invitations.exceptions import AlreadyAccepted, AlreadyInvited, UserRegister
 
 from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import (
+    BaseEmailInput,
     CheckboxInput,
     CheckboxSelectMultiple,
     EmailInput,
@@ -457,19 +458,24 @@ class CentralServerForm(forms.ModelForm):
         model = CentralServer
         fields = "__all__"
         widgets = {
+            "username": BaseEmailInput(render_value=False),
             "password": forms.widgets.PasswordInput,
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if self.instance.id and self.instance.password is not None:
-            # PasswordInput widget with render_value=False (the default) does not
-            # render the current value for security purposes. Add some help text
-            # to indicate that a password exists even if the input is empty, and
-            # the user has to re-enter it for the form to be valid.
-            self.fields[
-                "password"
-            ].help_text = "You will be required to re-enter the password to save any changes."
+        if self.instance.id:
+            # PasswordInput and BaseEmailInput with render_value=False do not
+            # render the current value for security purposes (default is False
+            # for PasswordInput). Add some help text to indicate that a password
+            # exists even if the input is empty, and the user has to re-enter it
+            # for the form to be valid.
+            for field_name in ("username", "password"):
+                field = self.fields[field_name]
+                if not field.widget.render_value and getattr(self.instance, field_name) is not None:
+                    field.help_text = (
+                        f"You will be required to re-enter the {field_name} to save any changes."
+                    )
 
     def clean(self):
         if not self.errors:
@@ -512,6 +518,6 @@ class CentralServerFrontendForm(PlatformFormMixin, CentralServerForm):
         fields = ["base_url", "username", "password"]
         widgets = {
             "base_url": TextInput,
-            "username": EmailInput,
+            "username": EmailInput(render_value=False),
             "password": PasswordInput,
         }

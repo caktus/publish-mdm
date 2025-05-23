@@ -5,6 +5,7 @@ from django.forms.widgets import PasswordInput
 from django.urls import reverse
 from requests.exceptions import ConnectionError
 
+from apps.patterns.widgets import BaseEmailInput
 from apps.publish_mdm.forms import (
     CentralServerForm,
     CentralServerFrontendForm,
@@ -261,20 +262,21 @@ class TestCentralServerForm:
         assert not cache_file.exists()
 
     @pytest.mark.parametrize("form_class", [CentralServerForm, CentralServerFrontendForm])
-    def test_password_input(self, organization, form_class):
-        """Ensure the correct widget is used for the password field."""
+    @pytest.mark.parametrize("field_name", ["username", "password"])
+    def test_password_and_username_input(self, organization, form_class, field_name):
+        """Ensure the correct widget is used for username and password fields."""
         form = form_class()
-        field = form.fields["password"]
-        assert isinstance(field.widget, PasswordInput)
+        field = form.fields[field_name]
+        assert isinstance(field.widget, (PasswordInput, BaseEmailInput))
         assert not field.widget.render_value
         assert not field.help_text
 
         server = CentralServerFactory(organization=organization)
         form = form_class(instance=server)
-        field = form.fields["password"]
-        assert isinstance(field.widget, PasswordInput)
+        field = form.fields[field_name]
+        assert isinstance(field.widget, (PasswordInput, BaseEmailInput))
         assert not field.widget.render_value
         # Help text when editing a server
-        assert (
-            field.help_text == "You will be required to re-enter the password to save any changes."
+        assert field.help_text == (
+            f"You will be required to re-enter the {field_name} to save any changes."
         )

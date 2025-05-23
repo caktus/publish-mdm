@@ -18,7 +18,23 @@ class TextInput(widgets.TextInput):
     template_name = "patterns/forms/widgets/input.html"
 
 
-class EmailInput(widgets.EmailInput):
+class BaseEmailInput(widgets.EmailInput):
+    """An EmailInput where a render_value argument can be passed to the constructor,
+    similar to a PasswordInput: if render_value=False, the current value does not get
+    rendered when the field is rendered.
+    """
+
+    def __init__(self, attrs=None, render_value=True):
+        super().__init__(attrs)
+        self.render_value = render_value
+
+    def get_context(self, name, value, attrs):
+        if not self.render_value:
+            value = None
+        return super().get_context(name, value, attrs)
+
+
+class EmailInput(BaseEmailInput):
     template_name = "patterns/forms/widgets/input.html"
 
 
