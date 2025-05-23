@@ -20,6 +20,7 @@ django-widget-tweaks
 dj-database-url
 gspread
 gunicorn
+infisicalsdk
 markdown
 newrelic
 openpyxl

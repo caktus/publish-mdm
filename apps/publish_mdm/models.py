@@ -19,6 +19,7 @@ from invitations.app_settings import app_settings as invitations_settings
 from invitations.base_invitation import AbstractBaseInvitation
 from invitations.signals import invite_url_sent
 
+from apps.infisical.fields import EncryptedCharField, EncryptedEmailField
 from apps.users.models import User
 
 from .etl import template
@@ -52,10 +53,12 @@ class Organization(AbstractBaseModel):
 class CentralServer(AbstractBaseModel):
     """A server running ODK Central."""
 
-    base_url = models.URLField(max_length=1024)
+    base_url = models.URLField(max_length=1024, verbose_name="base URL")
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name="central_servers"
     )
+    username = EncryptedEmailField(null=True)
+    password = EncryptedCharField(null=True)
 
     def __str__(self):
         parsed_url = urlparse(self.base_url)

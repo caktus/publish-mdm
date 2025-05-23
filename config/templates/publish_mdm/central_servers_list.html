@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% load django_tables2 %}
+{% block content %}
+    <div class="mb-4 items-end justify-between space-y-4 sm:flex sm:space-y-0 md:mb-8">
+        <a href="{% url 'publish_mdm:add-central-server' request.organization.slug %}"
+           class="btn btn-outline mr-4">Add central server</a>
+    </div>
+    {% include "patterns/tables/table-partial.html" %}
+{% endblock content %}
