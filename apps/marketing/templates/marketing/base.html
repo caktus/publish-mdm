@@ -1,19 +1,24 @@
 {% load static %}
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{% block title %}Publish MDM{% endblock %}</title>
-    <link href="{% static 'css/main.css' %}" rel="stylesheet" />
-    <script src="https://cdn.jsdelivr.net/npm/flowbite@3.1.2/dist/flowbite.min.js"></script>
-  </head>
-  <body class="bg-gray-50 dark:bg-gray-900 antialiased">
-    {% include "marketing/includes/navbar.html" %}
-    <main>
-      {% block content %}{% endblock %}
-    </main>
-    <script>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>
+            {% block title %}
+                Publish MDM
+            {% endblock title %}
+        </title>
+        <link href="{% static 'css/main.css' %}" rel="stylesheet" />
+        <script src="https://cdn.jsdelivr.net/npm/flowbite@3.1.2/dist/flowbite.min.js"></script>
+    </head>
+    <body class="bg-gray-50 dark:bg-gray-900 antialiased">
+        {% include "marketing/includes/navbar.html" %}
+        <main>
+            {% block content %}
+            {% endblock content %}
+        </main>
+        <script>
         document.body.addEventListener('htmx:configRequest', (event) => {
             event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
         })
@@ -80,6 +85,6 @@
             }
 
         });
-    </script>
-  </body>
-</html> 
+        </script>
+    </body>
+</html>
