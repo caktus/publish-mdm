@@ -34,6 +34,9 @@ SECRET_KEY = "django-insecure-t1586xqgp3f7k%0@k-gfxpewx)9!cl$*z!a!sckvu0gcoy3afj
 DEBUG = os.getenv("DJANGO_DEBUG", "False") == "True"
 ENVIRONMENT = os.getenv("ENVIRONMENT", "dev")
 
+# Whether to use the marketing site or the main application
+USE_MARKETING_SITE = os.getenv("USE_MARKETING_SITE", "False") == "True"
+
 ALLOWED_HOSTS = []
 
 # Application definition
@@ -70,6 +73,7 @@ INSTALLED_APPS = [
     "apps.patterns",
     "apps.tailscale",
     "apps.users",
+    "apps.marketing",
 ]
 
 if not os.getenv("USE_GUNICORN"):
@@ -97,8 +101,8 @@ TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [
-            "templates",
             BASE_DIR / "config" / "templates",
+            BASE_DIR / "apps" / "marketing" / "templates",
         ],
         "APP_DIRS": True,
         "OPTIONS": {
@@ -107,6 +111,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.marketing.context_processors.marketing_site",
             ],
         },
     },

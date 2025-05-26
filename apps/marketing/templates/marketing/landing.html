@@ -1,0 +1,114 @@
+{% extends "marketing/base.html" %}
+
+{% block title %}Publish MDM{% endblock %}
+
+{% block content %}
+<main>
+  <section class=" bg-gray-50 dark:bg-gray-900">
+    <div class="max-w-screen-xl px-4 pt-8 mx-auto text-center lg:pt-16 lg:px-12">
+        <h1 class="mb-4 text-4xl font-extrabold tracking-tight leading-none text-blue-600 md:text-5xl lg:text-4xl dark:text-white">From Google Sheets to ODK Central: Seamless Data Collection</h1>
+        <p class="mb-8 font-light text-gray-700 md:text-lg lg:text-xl sm:px-16 xl:px-48 dark:text-gray-400">Publish MDM simplifies form management, versioning, and user assignments for organizations collecting data in the field.</p>
+        <div class="flex flex-col mb-8 lg:mb-16 space-y-4 sm:flex-row sm:justify-center sm:space-y-0 sm:space-x-4">
+          <a href="#" class="inline-block btn text-white bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 font-medium rounded-lg text-lg px-8 py-4 transition mb-4">Try a Free Demo!</a>
+        </div> 
+        <div class=" flex items-center justify-center mb-8 lg:mb-0 ">
+          <img src="/static/publish.gif" alt="Dashboard illustration " class="h-[500px] w-auto object-fit rounded shadow-lg" />
+        </div>
+    </div>
+    <div class="pt-48 lg:pb-16 pb-8 -mt-48 bg-gradient-to-b from-gray-50 to-blue-50 dark:from-gray-900 dark:to-gray-800 z-2">
+    </div>
+</section>
+<!-- Value Proposition Section -->
+<section class="py-10 bg-blue-50 dark:bg-gray-800 w-full relative overflow-hidden">
+  <div class="max-w-screen-xl mx-auto px-4 lg:px-8 relative z-10">
+    <h2 class="mb-6 text-3xl text-blue-600 text-center md:text-4xl font-extrabold text-blue-0  dark:text-white">
+      Why Choose Publish MDM?
+    </h2>
+    <p class="mb-8 font-light text-gray-700 md:text-lg lg:text-xl dark:text-gray-400">
+      Publish MDM is designed for organizations and teams that rely on mobile data collection and need a seamless, reliable way to manage, version, and deploy forms at scale. Whether you're running field surveys, humanitarian projects, research studies, or operational data collection, Publish MDM removes the friction from your workflow and empowers your team to focus on what matters most—collecting high-quality data and making informed decisions.
+    </p>
+    <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
+      <!-- Card 1 -->
+      <div class="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl shadow-md p-6 flex flex-col items-start">
+        <div class="bg-blue-100 dark:bg-blue-600 p-3 rounded-full mb-4">
+          <!-- Automation Icon -->
+          <svg class="w-7 h-7 text-blue-600 dark:text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        </div>
+        <h3 class="font-semibold text-lg text-gray-900 dark:text-white mb-2">End-to-End Automation</h3>
+        <p class="text-gray-700 dark:text-gray-300">Effortlessly publish XLSForm templates from Google Sheets directly to ODK Central. No more manual uploads, version confusion, or repetitive admin work.</p>
+      </div>
+      <!-- Card 2 -->
+      <div class="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl shadow-md p-6 flex flex-col items-start">
+        <div class="bg-blue-100 dark:bg-blue-600 p-3 rounded-full mb-4">
+          <!-- Version Control Icon -->
+          <svg class="w-7 h-7 text-blue-600 dark:text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2"/><circle cx="12" cy="12" r="10"/></svg>
+        </div>
+        <h3 class="font-semibold text-lg text-gray-900 dark:text-white mb-2">Version Control Made Simple</h3>
+        <p class="text-gray-700 dark:text-gray-300">Instantly create, manage, and deploy new versions of your forms, ensuring your field teams always have the latest updates.</p>
+      </div>
+      <!-- Card 3 -->
+      <div class="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl shadow-md p-6 flex flex-col items-start">
+        <div class="bg-blue-100 dark:bg-blue-600 p-3 rounded-full mb-4">
+          <!-- User Management Icon -->
+          <svg class="w-7 h-7 text-blue-600 dark:text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m9-4a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        </div>
+        <h3 class="font-semibold text-lg text-gray-900 dark:text-white mb-2">User Management</h3>
+        <p class="text-gray-700 dark:text-gray-300">Assign forms to specific app users and projects with just a few clicks, and keep your user assignments in sync with your data collection needs.</p>
+      </div>
+      <!-- Card 4 -->
+      <div class="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl shadow-md p-6 flex flex-col items-start">
+        <div class="bg-blue-100 dark:bg-blue-600 p-3 rounded-full mb-4">
+          <!-- Google SSO Icon -->
+          <svg class="w-7 h-7 text-blue-600 dark:text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 01.88 7.88m-1.36 1.36A4 4 0 1112 7m0 0V3m0 4a4 4 0 014 4"/></svg>
+        </div>
+        <h3 class="font-semibold text-lg text-gray-900 dark:text-white mb-2">Google SSO Integration</h3>
+        <p class="text-gray-700 dark:text-gray-300">Secure, convenient access for your team with single sign-on using Google accounts.</p>
+      </div>
+      <!-- Card 5 -->
+      <div class="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl shadow-md p-6 flex flex-col items-start">
+        <div class="bg-blue-100 dark:bg-blue-600 p-3 rounded-full mb-4">
+          <!-- Open Source Icon -->
+          <svg class="w-7 h-7 text-blue-600 dark:text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 1.343-3 3 0 1.657 1.343 3 3 3s3-1.343 3-3c0-1.657-1.343-3-3-3zm0 0V4m0 7v7"/></svg>
+        </div>
+        <h3 class="font-semibold text-lg text-gray-900 dark:text-white mb-2">Open Source & Extensible</h3>
+        <p class="text-gray-700 dark:text-gray-300">Built by and for the community, Publish MDM is open source and can be customized to fit your unique workflows.</p>
+      </div>
+      <!-- Card 6 -->
+      <div class="bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl shadow-md p-6 flex flex-col items-start">
+        <div class="bg-blue-100 dark:bg-blue-600 p-3 rounded-full mb-4">
+          <!-- Lifebuoy Icon -->
+          <svg class="w-7 h-7 text-blue-600 dark:text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><path stroke-linecap="round" stroke-linejoin="round" d="M4.93 4.93l4.24 4.24m5.66 5.66l4.24 4.24m0-14.14l-4.24 4.24m-5.66 5.66l-4.24 4.24"/></svg>
+        </div>
+        <h3 class="font-semibold text-lg text-gray-900 dark:text-white mb-2">Reliable Support & Documentation</h3>
+        <p class="text-gray-700 dark:text-gray-300">Access comprehensive documentation and responsive community support to help you get the most out of Publish MDM.</p>
+      </div>
+    </div>
+    <p class="font-light text-gray-700 md:text-lg lg:text-xl dark:text-gray-400">
+      With Publish MDM, you can streamline your data collection operations, reduce errors, and empower your team to deliver results faster. Experience the difference of a tool built for real-world fieldwork—try the free demo today.
+    </p>
+  </div>
+</section>
+<section class="bg-white dark:bg-gray-900  bg-gradient-to-b from-blue-50 to-white dark:from-gray-800 dark:to-gray-900">
+  <div class="py-8 px-4 mx-auto max-w-screen-xl lg:py-16 lg:px-6">
+      <div class="mx-auto max-w-screen-md sm:text-center">
+          <h2 class="mb-4 text-3xl tracking-tight font-extrabold text-blue-600 sm:text-4xl dark:text-white">Stay in the Loop with Publish MDM Dev Updates</h2>
+          <p class="mx-auto mb-8 max-w-2xl font-light text-gray-700 md:mb-12 sm:text-xl dark:text-gray-400">Get occasional emails about new features, improvements, and important changes to Publish MDM. No spam—just the latest for developers and power users.</p>
+          <form action="#">
+              <div class="items-center mx-auto mb-3 space-y-4 max-w-screen-sm sm:flex sm:space-y-0">
+                  <div class="relative w-full">
+                      <label for="email" class="hidden mb-2 text-sm font-medium text-gray-900 dark:text-gray-300">Email address</label>
+                      <div class="flex absolute inset-y-0 left-0 items-center pl-3 pointer-events-none">
+                          <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path></svg>
+                      </div>
+                      <input class="block p-3 pl-10 w-full text-sm text-gray-900 bg-gray-50 rounded-lg border border-gray-300 sm:rounded-none sm:rounded-l-lg focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500" placeholder="Email address..." type="email" id="email" required="">
+                  </div>
+                  <div>
+                      <button type="submit" class="py-3 px-5 w-full text-sm font-medium text-center text-white rounded-lg border cursor-pointer bg-blue-600 border-blue-600 sm:rounded-none sm:rounded-r-lg hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">Subscribe</button>
+                  </div>
+              </div>
+          </form>
+      </div>
+  </div>
+</section>
+</main>
+{% endblock %}

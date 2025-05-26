@@ -22,7 +22,8 @@ from django.views.generic import TemplateView
 
 from apps.publish_mdm.views import websockets_server_health, AcceptOrganizationInvite
 
-urlpatterns = [
+# The main application URLs
+app_urlpatterns = [
     path("accounts/", include("allauth.urls")),
     path("admin/", admin.site.urls),
     path("", include("apps.publish_mdm.urls", namespace="publish_mdm")),
@@ -35,6 +36,17 @@ urlpatterns = [
     ),
     path(r"", TemplateView.as_view(template_name="home.html"), name="home"),
 ]
+
+# The marketing site URLs
+marketing_urlpatterns = [
+    path("", include("apps.marketing.urls", namespace="marketing")),
+]
+
+# Choose which URL patterns to use based on settings
+if settings.USE_MARKETING_SITE:
+    urlpatterns = marketing_urlpatterns
+else:
+    urlpatterns = app_urlpatterns
 
 if settings.DEBUG:
     from django.conf.urls.static import static
