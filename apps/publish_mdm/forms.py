@@ -92,6 +92,7 @@ class ProjectSyncForm(PlatformFormMixin, forms.Form):
             self.fields["project"].widget.attrs.pop("disabled", None)
 
     def set_project_choices(self, central_server: CentralServer):
+        central_server.decrypt()
         with PublishMDMClient(central_server=central_server) as client:
             self.fields["project"].choices = [
                 (project.id, project.name) for project in client.projects.list()

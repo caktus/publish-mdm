@@ -450,6 +450,7 @@ def change_project(request, organization_slug, odk_project_pk=None):
             form.save(commit=False)
             # Create the project in ODK Central then save it in the database
             try:
+                project.central_server.decrypt()
                 project.central_id = create_project(project.central_server, project.name)
             except (RequestException, PyODKError) as e:
                 save_error = mark_safe(

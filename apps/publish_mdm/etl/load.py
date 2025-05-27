@@ -56,6 +56,7 @@ def publish_form_template(event: PublishTemplateEvent, user: User, send_message:
     form_template = FormTemplate.objects.select_related().get(id=event.form_template)
     send_message(f"Publishing next version of {repr(form_template)}")
     # Get the next version by querying ODK Central
+    form_template.project.central_server.decrypt()
     client = PublishMDMClient(
         central_server=form_template.project.central_server,
         project_id=form_template.project.central_id,
@@ -135,6 +136,7 @@ def generate_and_save_app_user_collect_qrcodes(project: Project):
     """Generate and save QR codes for all app users in the project."""
     app_users: QuerySet[AppUser] = project.app_users.all()
     logger.info("Generating QR codes", project=project.name, app_users=len(app_users))
+    project.central_server.decrypt()
     with PublishMDMClient(
         central_server=project.central_server, project_id=project.central_id
     ) as client:

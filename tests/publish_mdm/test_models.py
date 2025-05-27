@@ -49,12 +49,47 @@ class TestCentralServer:
             cursor.execute(f"SELECT {field} from {server._meta.db_table} where id = {server.id}")
             assert cursor.fetchone() == (encrypted_value,)
 
-        # Test decryption when getting from the database
+        # Ensure the value is not decrypted when getting it from the database using
+        # the default model manager
         mock_decrypt = mocker.patch.object(InfisicalKMS, "decrypt", return_value=plaintext_value)
         server = CentralServer.objects.get(id=server.id)
+        mock_decrypt.assert_not_called()
+        assert getattr(server, field) == encrypted_value
+
+        # Ensure the value is decrypted when getting it from the database using
+        # the custom model manager
+        server = CentralServer.decrypted.get(id=server.id)
         mock_decrypt.assert_called_once()
         mock_decrypt.assert_called_with("centralserver", encrypted_value)
         assert getattr(server, field) == plaintext_value
+
+    def test_decrypt_method(self, mocker):
+        """Test the CentralServer.decrypt() method."""
+        plaintext_value = "plaintext"
+        encrypted_value = "encrypted"
+        mocker.patch.object(InfisicalKMS, "encrypt", return_value=encrypted_value)
+        mock_decrypt = mocker.patch.object(InfisicalKMS, "decrypt", return_value=plaintext_value)
+        server = CentralServerFactory(username=plaintext_value, password=plaintext_value)
+        server = CentralServer.objects.get(id=server.id)
+        assert server.username == encrypted_value
+        assert server.password == encrypted_value
+
+        server.decrypt()
+        assert server.username == plaintext_value
+        assert server.password == plaintext_value
+        assert mock_decrypt.call_count == 2
+
+    def test_decrypt_method_unset_fields(self, mocker):
+        """Ensure the CentralServer.decrypt() method does not attempt to decrypt
+        null or blank values.
+        """
+        mock_decrypt = mocker.patch.object(InfisicalKMS, "decrypt")
+        server = CentralServerFactory(username=None, password="")
+        server = CentralServer.objects.get(id=server.id)
+        server.decrypt()
+        assert server.username is None
+        assert server.password == ""
+        mock_decrypt.assert_not_called()
 
 
 class TestTemplateVariable:

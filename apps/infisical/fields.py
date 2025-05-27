@@ -1,6 +1,17 @@
 from django.db import models
+from django.utils.functional import cached_property
 
 from .api import kms_api
+
+
+class EncryptedCol(models.expressions.Col):
+    def get_db_converters(self, connection):
+        """Don't call self.target.get_db_converters() if self.target != self.output_field.
+        self.target.get_db_converters() would call EncryptedMixin.from_db_value()
+        which decrypts the DB value, and we don't want to do that when we've set a
+        different output_field.
+        """
+        return self.output_field.get_db_converters(connection)
 
 
 class EncryptedMixin:
@@ -29,6 +40,20 @@ class EncryptedMixin:
             del kwargs["max_length"]
 
         return name, path, args, kwargs
+
+    @cached_property
+    def cached_col(self):
+        return EncryptedCol(self.model._meta.db_table, self, output_field=models.TextField())
+
+    def get_col(self, alias, output_field=None):
+        """Like Field.get_col(), but returns an EncryptedCol with a TextField as
+        the default output_field so the value is not decrypted by default.
+        """
+        if alias == self.model._meta.db_table and (
+            output_field is None or isinstance(output_field, models.TextField)
+        ):
+            return self.cached_col
+        return EncryptedCol(alias, self, output_field)
 
 
 class EncryptedCharField(EncryptedMixin, models.CharField):
