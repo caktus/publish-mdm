@@ -165,7 +165,6 @@ class TestCentralServerForm:
         assert form.errors == {
             "base_url": ["Enter a valid URL."],
             "username": ["Enter a valid email address."],
-            "password": ["This field is required."],
         }
 
     def test_credentials_validation_via_api_successful(self, organization, requests_mock):
@@ -278,5 +277,5 @@ class TestCentralServerForm:
         assert not field.widget.render_value
         # Help text when editing a server
         assert field.help_text == (
-            f"You will be required to re-enter the {field_name} to save any changes."
+            f"A {field_name} exists. Re-enter it otherwise it will be blank."
         )

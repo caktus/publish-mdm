@@ -1728,7 +1728,6 @@ class TestAddCentralServer(ViewTestBase):
         expected_errors = {
             "base_url": "Enter a valid URL.",
             "username": "Enter a valid email address.",
-            "password": "This field is required.",
         }
         for field_name, expected_error in expected_errors.items():
             assert response.context["form"].errors[field_name] == [expected_error]
@@ -1798,7 +1797,6 @@ class TestEditCentralServer(ViewTestBase):
         expected_errors = {
             "base_url": "Enter a valid URL.",
             "username": "Enter a valid email address.",
-            "password": "This field is required.",
         }
         for field_name, expected_error in expected_errors.items():
             assert response.context["form"].errors[field_name] == [expected_error]

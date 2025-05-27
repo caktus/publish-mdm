@@ -13,12 +13,12 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="centralserver",
             name="password",
-            field=apps.infisical.fields.EncryptedCharField(null=True),
+            field=apps.infisical.fields.EncryptedCharField(null=True, blank=True),
         ),
         migrations.AddField(
             model_name="centralserver",
             name="username",
-            field=apps.infisical.fields.EncryptedEmailField(null=True),
+            field=apps.infisical.fields.EncryptedEmailField(null=True, blank=True),
         ),
         migrations.AlterField(
             model_name="centralserver",

@@ -59,8 +59,8 @@ class CentralServer(AbstractBaseModel):
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name="central_servers"
     )
-    username = EncryptedEmailField(null=True)
-    password = EncryptedCharField(null=True)
+    username = EncryptedEmailField(null=True, blank=True)
+    password = EncryptedCharField(null=True, blank=True)
 
     # The default manager will *not* decrypt usernames and passwords after fetching
     # them from the database. Usernames and passwords will be encrypted when saving

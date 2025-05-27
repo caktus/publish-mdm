@@ -470,16 +470,16 @@ class CentralServerForm(forms.ModelForm):
             # render the current value for security purposes (default is False
             # for PasswordInput). Add some help text to indicate that a password
             # exists even if the input is empty, and the user has to re-enter it
-            # for the form to be valid.
+            # otherwise it will be blank.
             for field_name in ("username", "password"):
                 field = self.fields[field_name]
-                if not field.widget.render_value and getattr(self.instance, field_name) is not None:
+                if not field.widget.render_value and getattr(self.instance, field_name):
                     field.help_text = (
-                        f"You will be required to re-enter the {field_name} to save any changes."
+                        f"A {field_name} exists. Re-enter it otherwise it will be blank."
                     )
 
     def clean(self):
-        if not self.errors:
+        if not self.errors and self.cleaned_data["username"] and self.cleaned_data["password"]:
             # Strip trailing "/" from base_url
             self.cleaned_data["base_url"] = self.cleaned_data["base_url"].rstrip("/")
             # Validate the base URL and credentials by checking if we can log in
