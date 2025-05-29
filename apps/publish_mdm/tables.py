@@ -1,7 +1,7 @@
 import django_tables2 as tables
 
 from .models import FormTemplate, FormTemplateVersion
-from apps.mdm.models import Device
+from apps.mdm.models import Device, Fleet
 
 
 class FormTemplateTable(tables.Table):
@@ -60,5 +60,19 @@ class DeviceTable(tables.Table):
             "last_seen_mdm",
             "last_seen_vpn",
         ]
+        template_name = "patterns/tables/table.html"
+        attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
+
+
+class FleetTable(tables.Table):
+    name = tables.LinkColumn(
+        "publish_mdm:edit-fleet",
+        args=[tables.A("organization__slug"), tables.A("pk")],
+        attrs={"a": {"class": "text-primary-600 hover:underline"}},
+    )
+
+    class Meta:
+        model = Fleet
+        fields = ("name", "policy", "mdm_group_id", "project")
         template_name = "patterns/tables/table.html"
         attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}

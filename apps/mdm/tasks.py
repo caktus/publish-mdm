@@ -11,7 +11,6 @@ from requests_ratelimiter import LimiterSession
 from urllib3.util.retry import Retry
 
 from apps.mdm.models import Device, DeviceSnapshot, DeviceSnapshotApp, Policy
-from apps.publish_mdm.models import AppUser
 
 logger = structlog.getLogger(__name__)
 
@@ -209,10 +208,10 @@ def push_device_config(session: Session, device: Device):
         logger.debug("New device. Cannot sync", device=device)
         return
     logger.debug("Syncing device", device=device)
-    if (device.app_user_name) and (
-        app_user := AppUser.objects.filter(
-            name=device.app_user_name, project=device.policy.project
-        ).first()
+    if (
+        device.app_user_name
+        and device.fleet.project
+        and (app_user := device.fleet.project.app_users.filter(name=device.app_user_name).first())
     ):
         qr_code_data = json.dumps(app_user.qr_code_data, separators=(",", ":"))
     else:
@@ -266,3 +265,27 @@ def sync_policies(push_config: bool = True):
     session = get_tinymdm_session()
     for policy in Policy.objects.all():
         sync_policy(session=session, policy=policy, push_config=push_config)
+
+
+def create_group(session, fleet):
+    logger.info(
+        "Creating a group in TinyMDM",
+        fleet=fleet,
+        organization=fleet.organization,
+        policy=fleet.policy,
+        group_name=fleet.group_name,
+    )
+    response = session.post(
+        "https://www.tinymdm.net/api/v1/groups", json={"name": fleet.group_name}
+    )
+    response.raise_for_status()
+    fleet.mdm_group_id = response.json()["id"]
+
+
+def add_group_to_policy(session, fleet):
+    logger.info("Adding the TinyMDM group to its policy", fleet=fleet, policy=fleet.policy)
+    response = session.post(
+        f"https://www.tinymdm.net/api/v1/policies/{fleet.policy.policy_id}/members/{fleet.mdm_group_id}",
+        headers={"content-type": "application/json"},
+    )
+    response.raise_for_status()

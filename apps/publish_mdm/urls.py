@@ -108,8 +108,23 @@ urlpatterns = [
         name="organization-template-variables",
     ),
     path(
-        "o/<slug:organization_slug>/<int:odk_project_pk>/devices/",
+        "o/<slug:organization_slug>/devices/",
         views.devices_list,
         name="devices-list",
+    ),
+    path(
+        "o/<slug:organization_slug>/fleets/",
+        views.fleets_list,
+        name="fleets-list",
+    ),
+    path(
+        "o/<slug:organization_slug>/fleet/<int:fleet_id>/",
+        views.change_fleet,
+        name="edit-fleet",
+    ),
+    path(
+        "o/<slug:organization_slug>/fleet/add/",
+        views.change_fleet,
+        name="add-fleet",
     ),
 ]

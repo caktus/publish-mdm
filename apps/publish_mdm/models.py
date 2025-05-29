@@ -20,6 +20,8 @@ from invitations.base_invitation import AbstractBaseInvitation
 from invitations.signals import invite_url_sent
 
 from apps.users.models import User
+from apps.mdm.models import Fleet, Policy
+from apps.mdm.tasks import add_group_to_policy, create_group, get_tinymdm_session
 
 from .etl import template
 from .etl.google import download_user_google_sheet
@@ -47,6 +49,19 @@ class Organization(AbstractBaseModel):
 
     def get_absolute_url(self):
         return reverse("publish_mdm:organization-home", args=[self.slug])
+
+    def create_default_fleet(self):
+        """Create a default MDM Fleet for the organization if the TinyMDM API is
+        configured and a default Policy exists.
+        """
+        if (session := get_tinymdm_session()) and (
+            default_policy := Policy.objects.filter(default_policy=True).first()
+        ):
+            fleet = Fleet(organization=self, name="Default", policy=default_policy)
+            create_group(session, fleet)
+            add_group_to_policy(session, fleet)
+            fleet.save()
+            return fleet
 
 
 class CentralServer(AbstractBaseModel):

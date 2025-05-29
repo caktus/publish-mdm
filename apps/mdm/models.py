@@ -2,9 +2,6 @@ import structlog
 from django.db import models
 from django.core.validators import RegexValidator
 
-from apps.publish_mdm.models import Organization, Project
-
-
 logger = structlog.get_logger()
 
 
@@ -15,6 +12,7 @@ class Policy(models.Model):
     policy_id = models.CharField(
         verbose_name="Policy ID", max_length=255, help_text="The ID of the policy in the MDM."
     )
+    default_policy = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         from apps.mdm.tasks import get_tinymdm_session, pull_devices
@@ -25,6 +23,16 @@ class Policy(models.Model):
 
     class Meta:
         verbose_name_plural = "policies"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["default_policy"],
+                condition=models.Q(default_policy=True),
+                name="unique_default_policy",
+                violation_error_message="A default policy already exists.",
+            ),
+        ]
+        # Default policy first
+        ordering = ("-default_policy", "id")
 
     def __str__(self):
         return f"{self.name} ({self.policy_id})"
@@ -34,18 +42,18 @@ class Fleet(models.Model):
     """A fleet of devices that corresponds to a single group in the MDM."""
 
     organization = models.ForeignKey(
-        Organization,
+        "publish_mdm.Organization",
         on_delete=models.CASCADE,
         help_text="The organization that this fleet belongs to.",
         related_name="fleets",
     )
-
     name = models.CharField(max_length=255)
     mdm_group_id = models.CharField(
         verbose_name="MDM Group ID",
         max_length=32,
         help_text="The ID of the group in the MDM.",
         unique=True,
+        null=True,
     )
     policy = models.ForeignKey(
         Policy,
@@ -54,7 +62,7 @@ class Fleet(models.Model):
         related_name="fleets",
     )
     project = models.ForeignKey(
-        Project,
+        "publish_mdm.Project",
         on_delete=models.CASCADE,
         help_text="The project to deploy to this fleet of devices.",
         related_name="fleets",
@@ -69,6 +77,10 @@ class Fleet(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def group_name(self):
+        return f"{self.organization.name}: {self.name}"
 
 
 class Device(models.Model):
