@@ -8,7 +8,7 @@ class DeviceResource(ModelResource):
 
     class Meta:
         model = Device
-        fields = ("id", "policy", "serial_number", "app_user_name", "device_id")
+        fields = ("id", "fleet", "serial_number", "app_user_name", "device_id")
         clean_model_instances = True
         skip_unchanged = True
 

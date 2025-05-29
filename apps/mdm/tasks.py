@@ -10,7 +10,7 @@ from requests.adapters import HTTPAdapter
 from requests_ratelimiter import LimiterSession
 from urllib3.util.retry import Retry
 
-from apps.mdm.models import Device, DeviceSnapshot, DeviceSnapshotApp, Policy
+from apps.mdm.models import Device, DeviceSnapshot, DeviceSnapshotApp, Fleet
 
 logger = structlog.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def get_tinymdm_session() -> Session:
     return session
 
 
-def update_existing_devices(policy: Policy, mdm_devices: list[dict]):
+def update_existing_devices(fleet: Fleet, mdm_devices: list[dict]):
     """
     Updates existing devices in our datatabase based on the full list
     of mdm_devices returned form the TinyMDM API.
@@ -51,7 +51,7 @@ def update_existing_devices(policy: Policy, mdm_devices: list[dict]):
     devices_by_serial = {device["serial_number"]: device for device in mdm_devices}
 
     our_devices = Device.objects.filter(
-        Q(policy=policy)
+        Q(fleet=fleet)
         & (Q(device_id__in=devices_by_id.keys()) | Q(serial_number__in=devices_by_serial.keys()))
     )
 
@@ -75,7 +75,7 @@ def update_existing_devices(policy: Policy, mdm_devices: list[dict]):
     return our_devices
 
 
-def create_new_devices(policy: Policy, mdm_devices: list[dict]):
+def create_new_devices(fleet: Fleet, mdm_devices: list[dict]):
     """
     Creates new devices in our database based on the mdm_devices
     received from the API. This list must not contain devices that
@@ -83,7 +83,7 @@ def create_new_devices(policy: Policy, mdm_devices: list[dict]):
     """
     mdm_devices_to_create = [
         Device(
-            policy=policy,
+            fleet=fleet,
             serial_number=mdm_device["serial_number"] or "",
             device_id=mdm_device["id"],
             name=mdm_device["nickname"] or mdm_device["name"],
@@ -96,12 +96,12 @@ def create_new_devices(policy: Policy, mdm_devices: list[dict]):
     return mdm_devices_to_create
 
 
-def create_device_snapshots(session: Session, policy: Policy, mdm_devices: list[dict]):
+def create_device_snapshots(session: Session, fleet: Fleet, mdm_devices: list[dict]):
     """ """
     sync_time = timezone.now()
 
     # Create snapshots for each device
-    logger.debug("Creating device snapshots", policy=policy, total_devices=len(mdm_devices))
+    logger.debug("Creating device snapshots", fleet=fleet, total_devices=len(mdm_devices))
     snapshots: list[DeviceSnapshot] = []
     for mdm_device in mdm_devices:
         last_sync = dt.datetime.fromtimestamp(mdm_device["last_sync_timestamp"], tz=dt.UTC)
@@ -131,7 +131,7 @@ def create_device_snapshots(session: Session, policy: Policy, mdm_devices: list[
     snapshots = DeviceSnapshot.objects.bulk_create(snapshots)
 
     # Create app snapshots for each device
-    logger.debug("Creating app snapshots", policy=policy)
+    logger.debug("Creating app snapshots", fleet=fleet)
     app_snapshots: list[DeviceSnapshotApp] = []
     for snapshot in snapshots:
         url = f"https://www.tinymdm.net/api/v1/devices/{snapshot.device_id}/apps"
@@ -154,24 +154,24 @@ def create_device_snapshots(session: Session, policy: Policy, mdm_devices: list[
     DeviceSnapshotApp.objects.bulk_create(app_snapshots)
 
 
-def pull_devices(session: Session, policy: Policy):
+def pull_devices(session: Session, fleet: Fleet):
     """
     Retrieves devices from TinyMDM and updates or creates the records in our
     database for those devices.
     """
     url = "https://www.tinymdm.net/api/v1/devices"
-    querystring = {"policy_id": policy.policy_id, "per_page": 1000}
+    querystring = {"group_id": fleet.mdm_group_id, "per_page": 1000}
     logger.info("Pulling devices from TinyMDM", url=url, querystring=querystring)
     response = session.request("GET", url, params=querystring)
     response.raise_for_status()
     mdm_devices = response.json()["results"]
-    create_device_snapshots(session=session, policy=policy, mdm_devices=mdm_devices)
-    our_devices = update_existing_devices(policy, mdm_devices)
+    create_device_snapshots(session=session, fleet=fleet, mdm_devices=mdm_devices)
+    our_devices = update_existing_devices(fleet, mdm_devices)
     our_device_ids = {device.device_id for device in our_devices}
     mdm_devices_to_create = [
         mdm_device for mdm_device in mdm_devices if mdm_device["id"] not in our_device_ids
     ]
-    create_new_devices(policy, mdm_devices_to_create)
+    create_new_devices(fleet, mdm_devices_to_create)
     # Link snapshots to devices
     # Get all snapshots that don't have a device
     qs = DeviceSnapshot.objects.filter(mdm_device_id=None).select_for_update()
@@ -243,31 +243,32 @@ def push_device_config(session: Session, device: Device):
     response.raise_for_status()
 
 
-def sync_policy(session: Session, policy: Policy, push_config: bool = True):
+def sync_fleet(session: Session, fleet: Fleet, push_config: bool = True):
     """
     Synchronizes the remote TinyMDM device list with our database,
     and updates the device (user) configuration in TinyMDM based on the
     configured ODK Central app users.
     """
-    logger.info("Syncing policy to TinyMDM devices", policy=policy)
-    pull_devices(session, policy)
+    logger.info("Syncing fleet to TinyMDM devices", fleet=fleet)
+    pull_devices(session, fleet)
     if push_config:
-        for device in policy.devices.exclude(app_user_name="").select_related("policy").all():
+        for device in fleet.devices.exclude(app_user_name="").select_related("fleet").all():
             push_device_config(session=session, device=device)
 
 
-def sync_policies(push_config: bool = True):
+def sync_fleets(push_config: bool = True):
     """
-    Synchronizes all configured policies with TinyMDM and updates the applicable
+    Synchronizes all configured fleets with TinyMDM and updates the applicable
     device configurations.
     """
-    logger.info("Syncing policies with TinyMDM")
+    logger.info("Syncing fleets with TinyMDM")
     session = get_tinymdm_session()
-    for policy in Policy.objects.all():
-        sync_policy(session=session, policy=policy, push_config=push_config)
+    for fleet in Fleet.objects.filter(mdm_group_id__isnull=False):
+        sync_fleet(session=session, fleet=fleet, push_config=push_config)
 
 
-def create_group(session, fleet):
+def create_group(session: Session, fleet: Fleet):
+    """Creates a group in TinyMDM."""
     logger.info(
         "Creating a group in TinyMDM",
         fleet=fleet,
@@ -279,10 +280,14 @@ def create_group(session, fleet):
         "https://www.tinymdm.net/api/v1/groups", json={"name": fleet.group_name}
     )
     response.raise_for_status()
+    # Update the Fleet.mdm_group_id field
     fleet.mdm_group_id = response.json()["id"]
 
 
-def add_group_to_policy(session, fleet):
+def add_group_to_policy(session: Session, fleet: Fleet):
+    """Adds a group to a policy in TinyMDM. If the group was previously in another
+    policy it will be moved to the new policy.
+    """
     logger.info("Adding the TinyMDM group to its policy", fleet=fleet, policy=fleet.policy)
     response = session.post(
         f"https://www.tinymdm.net/api/v1/policies/{fleet.policy.policy_id}/members/{fleet.mdm_group_id}",

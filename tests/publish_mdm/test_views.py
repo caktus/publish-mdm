@@ -49,7 +49,7 @@ from tests.mdm.factories import (
     DeviceFactory,
     DeviceSnapshotFactory,
     FirmwareSnapshotFactory,
-    PolicyFactory,
+    FleetFactory,
 )
 from tests.tailscale.factories import DeviceFactory as TailscaleDeviceFactory
 
@@ -1581,8 +1581,8 @@ class TestDevicesList(ViewTestBase):
     """Tests the page that lists the MDM devices linked to a Project."""
 
     @pytest.fixture
-    def url(self, project, organization):
-        return reverse("publish_mdm:devices-list", args=[organization.slug, project.id])
+    def url(self, organization):
+        return reverse("publish_mdm:devices-list", args=[organization.slug])
 
     @staticmethod
     def format_datetime(datetime):
@@ -1590,26 +1590,26 @@ class TestDevicesList(ViewTestBase):
         return date_format(localtime(datetime), settings.SHORT_DATETIME_FORMAT)
 
     @pytest.mark.parametrize("htmx", [True, False])
-    def test_get(self, client, url, user, project, organization, htmx):
-        # Set up some devices in 2 policies linked to the current project
-        project_devices = []
-        for policy in PolicyFactory.create_batch(2, project=project):
+    def test_get(self, client, url, user, organization, htmx):
+        # Set up some devices in 2 fleets linked to the current organization
+        organization_devices = []
+        for fleet in FleetFactory.create_batch(2, organization=organization):
             # Some devices with values for serial_number and app_user_name
-            for device in DeviceFactory.build_batch(5, policy=policy):
+            for device in DeviceFactory.build_batch(5, fleet=fleet):
                 # serial_number and device_id with mixed cases to test matching
                 # to Tailscale devices
                 device.serial_number = fake.pystr()
                 device.device_id = fake.unique.pystr()
                 device.save()
-                project_devices.append(device)
+                organization_devices.append(device)
             # Some devices with blank serial_number
-            project_devices += DeviceFactory.create_batch(3, serial_number="", policy=policy)
+            organization_devices += DeviceFactory.create_batch(3, serial_number="", fleet=fleet)
             # Some devices with blank app_user_name
-            project_devices += DeviceFactory.create_batch(2, app_user_name="", policy=policy)
+            organization_devices += DeviceFactory.create_batch(2, app_user_name="", fleet=fleet)
 
         # Create matching Tailscale devices for some MDM devices
         ts_devices = []
-        for device in fake.random_sample(project_devices, 10):
+        for device in fake.random_sample(organization_devices, 10):
             if fake.boolean() and device.serial_number:
                 # matches by serial number
                 matcher = device.serial_number.lower()
@@ -1621,22 +1621,22 @@ class TestDevicesList(ViewTestBase):
             )
 
         # Create a device snapshot for some devices
-        for device in fake.random_sample(project_devices, 10):
+        for device in fake.random_sample(organization_devices, 10):
             device.latest_snapshot = DeviceSnapshotFactory(mdm_device=device)
             device.save()
 
         # Create firmware snapshots for some devices. firmware_versions will hold
         # the version from the latest snapshot by synced_at
         firmware_versions = {}
-        for device in fake.random_sample(project_devices, 10):
+        for device in fake.random_sample(organization_devices, 10):
             versions = {
                 i.synced_at: i.version
                 for i in FirmwareSnapshotFactory.create_batch(3, device=device)
             }
             firmware_versions[device.id] = versions[sorted(versions)[-1]]
 
-        # Some devices in another project. Should not be included in the list
-        DeviceFactory.create_batch(3, policy__project=ProjectFactory(organization=organization))
+        # Some devices in another organization. Should not be included in the list
+        DeviceFactory.create_batch(3, fleet__organization=OrganizationFactory())
 
         def get_last_seen_vpn(device):
             # The last_seen from the most recent Tailscale Device (by last_seen)
@@ -1685,7 +1685,7 @@ class TestDevicesList(ViewTestBase):
                 ),
                 get_last_seen_vpn(i),
             )
-            for i in project_devices
+            for i in organization_devices
         }
         # All columns are sortable
         assert table.orderable

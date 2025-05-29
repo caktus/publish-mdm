@@ -7,7 +7,7 @@ from apps.mdm.import_export import DeviceResource
 from apps.mdm.models import Device
 from tests.users.factories import UserFactory
 
-from .factories import DeviceFactory, PolicyFactory
+from .factories import DeviceFactory, FleetFactory
 
 
 @pytest.mark.django_db
@@ -21,9 +21,9 @@ class TestDeviceAdmin:
 
     @pytest.fixture
     def dataset(self):
-        # Create 3 Devices with the same Policy
-        policy = PolicyFactory()
-        DeviceFactory.create_batch(3, policy=policy)
+        # Create 3 Devices with the same Fleet
+        fleet = FleetFactory()
+        DeviceFactory.create_batch(3, fleet=fleet)
         # Create a Dataset in the format expected by the import functionality
         return DeviceResource().export()
 

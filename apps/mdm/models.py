@@ -14,13 +14,6 @@ class Policy(models.Model):
     )
     default_policy = models.BooleanField(default=False)
 
-    def save(self, *args, **kwargs):
-        from apps.mdm.tasks import get_tinymdm_session, pull_devices
-
-        super().save(*args, **kwargs)
-        if session := get_tinymdm_session():
-            pull_devices(session, self)
-
     class Meta:
         verbose_name_plural = "policies"
         constraints = [
@@ -77,6 +70,13 @@ class Fleet(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        from apps.mdm.tasks import get_tinymdm_session, pull_devices
+
+        super().save(*args, **kwargs)
+        if session := get_tinymdm_session():
+            pull_devices(session, self)
 
     @property
     def group_name(self):

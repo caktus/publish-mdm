@@ -3,8 +3,8 @@ import datetime as dt
 import factory
 import faker
 
-from apps.mdm.models import Device, DeviceSnapshot, FirmwareSnapshot, Policy
-from tests.publish_mdm.factories import ProjectFactory
+from apps.mdm.models import Device, DeviceSnapshot, FirmwareSnapshot, Fleet, Policy
+from tests.publish_mdm.factories import OrganizationFactory, ProjectFactory
 
 fake = faker.Faker()
 
@@ -15,6 +15,16 @@ class PolicyFactory(factory.django.DjangoModelFactory):
 
     name = factory.Faker("word")
     policy_id = factory.Faker("word")
+
+
+class FleetFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = Fleet
+
+    name = factory.Faker("word")
+    mdm_group_id = factory.Faker("pystr")
+    organization = factory.SubFactory(OrganizationFactory)
+    policy = factory.SubFactory(PolicyFactory)
     project = factory.SubFactory(ProjectFactory)
 
 
@@ -22,7 +32,7 @@ class DeviceFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Device
 
-    policy = factory.SubFactory(PolicyFactory)
+    fleet = factory.SubFactory(FleetFactory)
     serial_number = factory.Faker("word")
     app_user_name = factory.Faker("word")
     name = factory.Faker("word")
