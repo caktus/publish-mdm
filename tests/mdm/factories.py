@@ -21,7 +21,7 @@ class FleetFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Fleet
 
-    name = factory.Faker("word")
+    name = factory.Sequence(lambda _: fake.unique.word())
     mdm_group_id = factory.Faker("pystr")
     organization = factory.SubFactory(OrganizationFactory)
     policy = factory.SubFactory(PolicyFactory)
