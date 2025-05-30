@@ -409,3 +409,8 @@ DEFAULT_APP_LANGUAGE = "en"
 
 # To address Django deprecation warning for URLField
 FORMS_URLFIELD_ASSUME_HTTPS = True
+
+# Infisical settings
+INFISICAL_HOST = os.getenv("INFISICAL_HOST")
+INFISICAL_TOKEN = os.getenv("INFISICAL_TOKEN")
+INFISICAL_PROJECT_ID = os.getenv("INFISICAL_PROJECT_ID")

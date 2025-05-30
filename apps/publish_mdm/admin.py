@@ -6,6 +6,7 @@ from django import forms
 from invitations.admin import InvitationAdmin
 
 from .etl.load import generate_and_save_app_user_collect_qrcodes
+from .forms import CentralServerForm
 from .models import (
     CentralServer,
     Project,
@@ -30,6 +31,15 @@ class CentralServerAdmin(admin.ModelAdmin):
     list_display = ("base_url", "created_at", "modified_at", "organization")
     search_fields = ("base_url",)
     ordering = ("base_url",)
+    form = CentralServerForm
+
+    def save_model(self, request, obj, form, change):
+        if change:
+            # If the username or password is blank, keep the current value.
+            # The other fields cannot be blank.
+            obj.save(update_fields=[f for f, v in form.cleaned_data.items() if v])
+        else:
+            obj.save()
 
 
 @admin.register(TemplateVariable)

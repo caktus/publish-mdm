@@ -45,11 +45,12 @@ from .forms import (
     ProjectTemplateVariableFormSet,
     OrganizationForm,
     TemplateVariableFormSet,
+    CentralServerFrontendForm,
 )
 from .import_export import AppUserResource
-from .models import FormTemplateVersion, FormTemplate, AppUser, Project
+from .models import FormTemplateVersion, FormTemplate, AppUser, Project, CentralServer
 from .nav import Breadcrumbs
-from .tables import FormTemplateTable, FormTemplateVersionTable
+from .tables import CentralServerTable, FormTemplateTable, FormTemplateVersionTable
 
 
 logger = structlog.getLogger(__name__)
@@ -63,9 +64,8 @@ def server_sync(request: HttpRequest, organization_slug):
     form = ProjectSyncForm(request=request, data=request.POST or None)
     if request.method == "POST" and form.is_valid():
         project = sync_central_project(
-            base_url=form.cleaned_data["server"],
+            server=form.cleaned_data["server"],
             project_id=form.cleaned_data["project"],
-            organization=request.organization,
         )
         messages.add_message(request, messages.SUCCESS, "Project synced.")
         return redirect("publish_mdm:form-template-list", organization_slug, project.id)
@@ -80,7 +80,7 @@ def server_sync(request: HttpRequest, organization_slug):
 
 
 @login_required
-def server_sync_projects(request: HttpRequest):
+def server_sync_projects(request: HttpRequest, organization_slug):
     form = ProjectSyncForm(request=request, data=request.GET or None)
     return render(request, "publish_mdm/project_sync.html#project-select-partial", {"form": form})
 
@@ -450,7 +450,8 @@ def change_project(request, organization_slug, odk_project_pk=None):
             form.save(commit=False)
             # Create the project in ODK Central then save it in the database
             try:
-                project.central_id = create_project(project.central_server.base_url, project.name)
+                project.central_server.decrypt()
+                project.central_id = create_project(project.central_server, project.name)
             except (RequestException, PyODKError) as e:
                 save_error = mark_safe(
                     "The following error occurred when creating the project in "
@@ -620,3 +621,54 @@ def organization_template_variables(request, organization_slug):
         ),
     }
     return render(request, "publish_mdm/organization_template_variables.html", context)
+
+
+@login_required
+def central_servers_list(request: HttpRequest, organization_slug):
+    """List CentralServers linked to the current organization."""
+    central_servers = request.organization.central_servers.order_by("-created_at")
+    table = CentralServerTable(data=central_servers, request=request, show_footer=False)
+    context = {
+        "table": table,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("Central Servers", "central-servers-list")],
+        ),
+    }
+    return render(request, "publish_mdm/central_servers_list.html", context)
+
+
+@login_required
+def change_central_server(request: HttpRequest, organization_slug, central_server_id=None):
+    """Add or edit a CentralServer."""
+    if central_server_id:
+        # Editing a CentralServer
+        action = "edit"
+        server = get_object_or_404(request.organization.central_servers, pk=central_server_id)
+    else:
+        # Adding a new CentralServer
+        action = "add"
+        server = CentralServer(organization=request.organization)
+    form = CentralServerFrontendForm(request.POST or None, instance=server)
+    if request.method == "POST" and form.is_valid():
+        if central_server_id:
+            server = form.save(commit=False)
+            # If the username or password is blank, keep the current value.
+            # base_url cannot be blank
+            server.save(update_fields=[f for f, v in form.cleaned_data.items() if v])
+        else:
+            form.save()
+        messages.success(request, f"Successfully {action}ed {server}.")
+        return redirect("publish_mdm:central-servers-list", organization_slug)
+    context = {
+        "form": form,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[
+                ("Central Servers", "central-servers-list"),
+                (f"{action.title()} Central Server", f"{action}-central-server"),
+            ],
+        ),
+        "server": server,
+    }
+    return render(request, "publish_mdm/change_central_server.html", context)
