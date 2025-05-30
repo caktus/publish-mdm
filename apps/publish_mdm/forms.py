@@ -440,7 +440,6 @@ class FleetForm(PlatformFormMixin, forms.ModelForm):
         fields = ["name", "policy", "project"]
         widgets = {
             "name": TextInput,
-            "policy": Select,
             "project": Select,
         }
 
