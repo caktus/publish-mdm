@@ -647,7 +647,7 @@ def organization_template_variables(request, organization_slug):
 
 @login_required
 def devices_list(request: HttpRequest, organization_slug):
-    """List all MDM devices linked to the current Project."""
+    """List all MDM devices linked to the current Organization."""
     devices = (
         Device.objects.filter(fleet__organization=request.organization)
         .annotate(
