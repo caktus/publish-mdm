@@ -468,28 +468,36 @@ class CentralServerForm(forms.ModelForm):
         if self.instance.id:
             # PasswordInput and BaseEmailInput with render_value=False do not
             # render the current value for security purposes (default is False
-            # for PasswordInput). Add some help text to indicate that a password
-            # exists even if the input is empty, and the user has to re-enter it
-            # otherwise it will be blank.
+            # for PasswordInput). Add some help text to indicate that a value
+            # exists even if the input is empty, and the user can leave it blank
+            # to keep the current value.
             for field_name in ("username", "password"):
                 field = self.fields[field_name]
                 if not field.widget.render_value and getattr(self.instance, field_name):
                     field.help_text = (
-                        f"A {field_name} exists. Re-enter it otherwise it will be blank."
+                        f"A {field_name} exists. You can leave it blank to keep the current value."
                     )
+                    field.required = False
 
     def clean(self):
-        if not self.errors and self.cleaned_data["username"] and self.cleaned_data["password"]:
+        if not self.errors and (
+            self.cleaned_data["username"]
+            or self.cleaned_data["password"]
+            or "base_url" in self.changed_data
+        ):
             # Strip trailing "/" from base_url
             self.cleaned_data["base_url"] = self.cleaned_data["base_url"].rstrip("/")
             # Validate the base URL and credentials by checking if we can log in
             # https://docs.getodk.org/central-api-authentication/#logging-in
+            if not (self.cleaned_data["username"] and self.cleaned_data["password"]):
+                # We'll need to get at least one of the credentials from the database
+                self.instance.decrypt()
             try:
                 response = requests.post(
                     self.cleaned_data["base_url"] + "/v1/sessions",
                     json={
-                        "email": self.cleaned_data["username"],
-                        "password": self.cleaned_data["password"],
+                        "email": self.cleaned_data["username"] or self.instance.username,
+                        "password": self.cleaned_data["password"] or self.instance.password,
                     },
                     timeout=10,
                 )

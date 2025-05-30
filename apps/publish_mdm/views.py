@@ -651,7 +651,13 @@ def change_central_server(request: HttpRequest, organization_slug, central_serve
         server = CentralServer(organization=request.organization)
     form = CentralServerFrontendForm(request.POST or None, instance=server)
     if request.method == "POST" and form.is_valid():
-        form.save()
+        if central_server_id:
+            server = form.save(commit=False)
+            # If the username or password is blank, keep the current value.
+            # base_url cannot be blank
+            server.save(update_fields=[f for f, v in form.cleaned_data.items() if v])
+        else:
+            form.save()
         messages.success(request, f"Successfully {action}ed {server}.")
         return redirect("publish_mdm:central-servers-list", organization_slug)
     context = {

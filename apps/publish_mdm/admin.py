@@ -33,6 +33,14 @@ class CentralServerAdmin(admin.ModelAdmin):
     ordering = ("base_url",)
     form = CentralServerForm
 
+    def save_model(self, request, obj, form, change):
+        if change:
+            # If the username or password is blank, keep the current value.
+            # The other fields cannot be blank.
+            obj.save(update_fields=[f for f, v in form.cleaned_data.items() if v])
+        else:
+            obj.save()
+
 
 @admin.register(TemplateVariable)
 class TemplateVariableAdmin(admin.ModelAdmin):

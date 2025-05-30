@@ -165,7 +165,36 @@ class TestCentralServerForm:
         assert form.errors == {
             "base_url": ["Enter a valid URL."],
             "username": ["Enter a valid email address."],
+            "password": ["This field is required."],
         }
+
+    @pytest.mark.parametrize("username", ["", "new@test.com"])
+    def test_username_and_password_validation(self, organization, requests_mock, username):
+        """Ensure the username and password can be blank for an existing server
+        if there is already a value saved. If any of them is not blank, the
+        credentials should be validated using the ODK API.
+        """
+        server = CentralServerFactory(organization=organization)
+        data = {
+            "base_url": server.base_url,
+            "username": username,
+            "password": "",
+            "organization": organization.id,
+        }
+        mock_odk_request = requests_mock.post(
+            f'{data["base_url"]}/v1/sessions',
+            json={
+                "createdAt": "2018-04-18T03:04:51.695Z",
+                "expiresAt": "2018-04-19T03:04:51.695Z",
+                "token": "token",
+            },
+        )
+        form = CentralServerForm(data, instance=server)
+        assert form.is_valid()
+        if username:
+            assert mock_odk_request.called_once
+        else:
+            assert not mock_odk_request.called
 
     def test_credentials_validation_via_api_successful(self, organization, requests_mock):
         """Test successful validation of the base_url and credentials using an ODK Central
@@ -178,7 +207,7 @@ class TestCentralServerForm:
             "organization": organization.id,
         }
         form = CentralServerForm(data)
-        requests_mock.post(
+        mock_odk_request = requests_mock.post(
             f'{data["base_url"]}/v1/sessions',
             json={
                 "createdAt": "2018-04-18T03:04:51.695Z",
@@ -187,6 +216,7 @@ class TestCentralServerForm:
             },
         )
         assert form.is_valid()
+        assert mock_odk_request.called_once
 
     def test_credentials_validation_via_api_failed(self, organization, requests_mock):
         """Test failed validation of the base_url and credentials using an ODK Central
@@ -199,7 +229,7 @@ class TestCentralServerForm:
             "organization": organization.id,
         }
         form = CentralServerForm(data)
-        requests_mock.post(
+        mock_odk_request = requests_mock.post(
             f'{data["base_url"]}/v1/sessions',
             status_code=401,
             json={
@@ -208,6 +238,7 @@ class TestCentralServerForm:
             },
         )
         assert not form.is_valid()
+        assert mock_odk_request.called_once
         assert form.errors == {
             "__all__": [
                 "The base URL and/or login credentials appear to be incorrect. Please try again."
@@ -225,8 +256,11 @@ class TestCentralServerForm:
             "organization": organization.id,
         }
         form = CentralServerForm(data)
-        requests_mock.post(f'{data["base_url"]}/v1/sessions', exc=ConnectionError())
+        mock_odk_request = requests_mock.post(
+            f'{data["base_url"]}/v1/sessions', exc=ConnectionError()
+        )
         assert not form.is_valid()
+        assert mock_odk_request.called_once
         assert form.errors == {
             "__all__": [
                 "The base URL and/or login credentials appear to be incorrect. Please try again."
@@ -264,12 +298,26 @@ class TestCentralServerForm:
     @pytest.mark.parametrize("field_name", ["username", "password"])
     def test_password_and_username_input(self, organization, form_class, field_name):
         """Ensure the correct widget is used for username and password fields."""
+        # Creating a new CentralServer
         form = form_class()
         field = form.fields[field_name]
         assert isinstance(field.widget, (PasswordInput, BaseEmailInput))
         assert not field.widget.render_value
         assert not field.help_text
+        # The field should be required when creating a server
+        assert field.required
 
+        # Editing a CentralServer and the field doesn't have a value
+        server = CentralServerFactory(organization=organization, **{field_name: None})
+        form = form_class(instance=server)
+        field = form.fields[field_name]
+        assert isinstance(field.widget, (PasswordInput, BaseEmailInput))
+        assert not field.widget.render_value
+        assert not field.help_text
+        # The field should be required if there is currently no value in the DB
+        assert field.required
+
+        # Editing a CentralServer and the field has a value
         server = CentralServerFactory(organization=organization)
         form = form_class(instance=server)
         field = form.fields[field_name]
@@ -277,5 +325,7 @@ class TestCentralServerForm:
         assert not field.widget.render_value
         # Help text when editing a server
         assert field.help_text == (
-            f"A {field_name} exists. Re-enter it otherwise it will be blank."
+            f"A {field_name} exists. You can leave it blank to keep the current value."
         )
+        # The field should not be required if there is already a value in the DB
+        assert not field.required

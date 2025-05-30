@@ -1711,13 +1711,14 @@ class TestAddCentralServer(ViewTestBase):
             (reverse("publish_mdm:central-servers-list", args=[organization.slug]), 302)
         ]
 
-    def test_invalid_form(self, client, url, user, organization):
+    @pytest.mark.parametrize("username", ["", "invalid_email"])
+    def test_invalid_form(self, client, url, user, organization, username):
         """Ensure submitting an invalid form does not save a CentralServer and
         error messages are displayed to the user.
         """
         data = {
             "base_url": "invalid_url",
-            "username": "invalid_email",
+            "username": username,
             "password": "",
         }
         response = client.post(url, data=data)
@@ -1727,7 +1728,8 @@ class TestAddCentralServer(ViewTestBase):
         response_content = response.content.decode()
         expected_errors = {
             "base_url": "Enter a valid URL.",
-            "username": "Enter a valid email address.",
+            "username": "Enter a valid email address." if username else "This field is required.",
+            "password": "This field is required.",
         }
         for field_name, expected_error in expected_errors.items():
             assert response.context["form"].errors[field_name] == [expected_error]
@@ -1774,6 +1776,33 @@ class TestEditCentralServer(ViewTestBase):
         assert response.status_code == 200
         server.refresh_from_db()
         assert {f: getattr(server, f) for f in data} == data
+        assert f"Successfully edited {server}." in response.content.decode()
+        assert response.redirect_chain == [
+            (reverse("publish_mdm:central-servers-list", args=[organization.slug]), 302)
+        ]
+
+    def test_valid_form_no_username_and_password(
+        self, client, url, user, organization, server, requests_mock
+    ):
+        """Ensure submitting a form without a username or password is valid if
+        they are already set in the database. The saved values should not be changed.
+        """
+        username_before = server.username
+        password_before = server.password
+        data = {
+            "base_url": server.base_url,
+            "username": "",
+            "password": "",
+        }
+        # Mock the ODK Central API request for validating the base URL and credentials
+        mock_odk_request = requests_mock.post(f'{data["base_url"]}/v1/sessions')
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        assert not mock_odk_request.called
+        server.refresh_from_db()
+        assert server.base_url == data["base_url"]
+        assert server.username == username_before
+        assert server.password == password_before
         assert f"Successfully edited {server}." in response.content.decode()
         assert response.redirect_chain == [
             (reverse("publish_mdm:central-servers-list", args=[organization.slug]), 302)
