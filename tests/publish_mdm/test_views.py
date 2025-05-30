@@ -11,7 +11,7 @@ from django.utils.formats import date_format
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers.data import JsonLexer
-from pytest_django.asserts import assertTemplateNotUsed
+from pytest_django.asserts import assertContains, assertTemplateNotUsed
 from requests.exceptions import HTTPError
 
 from tests.publish_mdm.factories import (
@@ -37,6 +37,7 @@ from apps.publish_mdm.forms import (
     ProjectForm,
     ProjectTemplateVariableFormSet,
     TemplateVariableFormSet,
+    FleetForm,
 )
 from apps.publish_mdm.models import (
     AppUser,
@@ -1127,9 +1128,13 @@ class TestCreateOrganization(ViewTestBase):
         assert response.status_code == 200
         assert isinstance(response.context.get("form"), OrganizationForm)
 
-    def test_valid_form(self, client, url, user):
+    @pytest.mark.parametrize("tinymdm_api_error", [None, HTTPError("error")])
+    def test_valid_form(self, client, url, user, mocker, tinymdm_api_error):
         """Test a valid form."""
         data = {"name": "New organization", "slug": "new-org"}
+        mock_create_default_fleet = mocker.patch.object(
+            Organization, "create_default_fleet", side_effect=tinymdm_api_error
+        )
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
         # Ensure the Organization has been created with the expected values
@@ -1149,6 +1154,17 @@ class TestCreateOrganization(ViewTestBase):
         ]
         # Ensure there is a success message
         assert f"Successfully created {organization}." in response.content.decode()
+        # Ensure the create_default_fleet() method is called
+        mock_create_default_fleet.assert_called_once()
+        if tinymdm_api_error:
+            assertContains(
+                response,
+                (
+                    "The organization was created but its default TinyMDM group "
+                    "could not be created due to the following error:"
+                    f'<code class="block text-xs mt-2">{tinymdm_api_error}</code>'
+                ),
+            )
 
     def test_invalid_form(self, client, url, user):
         """Test a valid form."""
@@ -1578,7 +1594,7 @@ class TestOrganizationTemplateVariables(ViewTestBase):
 
 
 class TestDevicesList(ViewTestBase):
-    """Tests the page that lists the MDM devices linked to a Project."""
+    """Tests the page that lists the MDM devices linked to an organization."""
 
     @pytest.fixture
     def url(self, organization):
@@ -1696,3 +1712,80 @@ class TestDevicesList(ViewTestBase):
         # Ensure the correct template is used for htmx requests
         if htmx:
             assertTemplateNotUsed(response, "publish_mdm/devices_list.html")
+
+
+class TestFleetsList(ViewTestBase):
+    """Tests the page that lists the MDM fleets linked to an organization."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("publish_mdm:fleets-list", args=[organization.slug])
+
+    @pytest.mark.parametrize("htmx", [True, False])
+    def test_get(self, client, url, user, organization, htmx):
+        # Create some fleets within the current organization
+        fleets = FleetFactory.create_batch(10, organization=organization)
+        # Some fleets in a different organization. Should not be included in the list
+        FleetFactory.create_batch(3, organization=OrganizationFactory())
+
+        headers = {"HX-Request": "true"} if htmx else None
+        response = client.get(url, headers=headers)
+
+        assert response.status_code == 200
+        # Ensure the devices table is included in the context and it has the
+        # expected data
+        table = response.context.get("table")
+        assert isinstance(table, Table)
+        rows = response.context["table"].as_values()
+        assert next(rows) == ["Name", "Policy", "MDM Group ID", "Project"]
+        rows = {tuple(i) for i in rows}
+        assert rows == {
+            (
+                i.name,
+                str(i.policy),
+                i.mdm_group_id,
+                str(i.project),
+            )
+            for i in fleets
+        }
+        # All columns are sortable
+        assert table.orderable
+        # Not paginated
+        assert not hasattr(table, "paginator")
+        # Ensure the table is rendered in the page
+        assert table.as_html(response.wsgi_request) in response.content.decode()
+        # Ensure the correct template is used for htmx requests
+        if htmx:
+            assertTemplateNotUsed(response, "publish_mdm/fleets_list.html")
+
+
+class TestAddFleet(ViewTestBase):
+    """Test creating a new Fleet for the current organization."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("publish_mdm:add-fleet", args=[organization.slug])
+
+    def test_get(self, client, url, user, organization):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), FleetForm)
+        assert response.context["form"].instance.organization == organization
+
+
+class TestEditFleet(ViewTestBase):
+    """Test editing a Fleet."""
+
+    @pytest.fixture
+    def fleet(self, organization):
+        return FleetFactory(organization=organization)
+
+    @pytest.fixture
+    def url(self, fleet):
+        return reverse("publish_mdm:edit-fleet", args=[fleet.organization.slug, fleet.id])
+
+    def test_get(self, client, url, user, fleet):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), FleetForm)
+        assert response.context["form"].instance == fleet

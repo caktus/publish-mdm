@@ -1,8 +1,10 @@
 import pytest
 from django.urls import reverse
 from django.conf import settings
+from pytest_django.asserts import assertContains
+from requests.exceptions import HTTPError
 
-from apps.publish_mdm.models import Project
+from apps.publish_mdm.models import Organization, Project
 from tests.publish_mdm.factories import (
     CentralServerFactory,
     FormTemplateFactory,
@@ -190,3 +192,58 @@ class TestProjectAdmin(BaseTestAdmin):
                 assert set(new_db_value) == set(new_values[changed_field])
             else:
                 assert new_db_value.get() == new_values[changed_field]
+
+
+class TestOrganizationAdmin(BaseTestAdmin):
+    @pytest.mark.parametrize("api_error", [None, HTTPError("error")])
+    def test_new_organization(self, user, client, mocker, api_error):
+        """Ensures the create_default_fleet() method is called when creating a
+        new organization.
+        """
+        organization = OrganizationFactory.build()
+        data = {
+            "name": organization.name,
+            "slug": organization.slug,
+            "users": [user.id],
+        }
+        mock_create_default_fleet = mocker.patch.object(
+            Organization, "create_default_fleet", side_effect=api_error
+        )
+        response = client.post(
+            reverse("admin:publish_mdm_organization_add"), data=data, follow=True
+        )
+
+        assert response.status_code == 200
+        mock_create_default_fleet.assert_called_once()
+        assert Organization.objects.count() == 1
+        if api_error:
+            assertContains(
+                response,
+                (
+                    "The organization was created but its default TinyMDM group "
+                    f"could not be created due to the following error:<br><code>{api_error}</code>"
+                ),
+            )
+
+    def test_edit_organization(self, user, client, mocker):
+        """Ensures the create_default_fleet() method is not called when editing
+        an organization.
+        """
+        organization = OrganizationFactory()
+        data = {
+            "name": organization.name + "edited",
+            "slug": organization.slug + "edited",
+            "users": [user.id],
+        }
+        mock_create_default_fleet = mocker.patch.object(Organization, "create_default_fleet")
+        response = client.post(
+            reverse("admin:publish_mdm_organization_change", args=[organization.id]),
+            data=data,
+            follow=True,
+        )
+
+        assert response.status_code == 200
+        mock_create_default_fleet.assert_not_called()
+        organization.refresh_from_db()
+        assert organization.name == data["name"]
+        assert organization.slug == data["slug"]

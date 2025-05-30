@@ -14,8 +14,6 @@ fake = faker.Faker()
 
 @pytest.mark.django_db
 class TestTasks:
-    TINYMDM_ENV_VARS = ("TINYMDM_APIKEY_PUBLIC", "TINYMDM_APIKEY_SECRET", "TINYMDM_ACCOUNT_ID")
-
     @pytest.fixture
     def fleet(self):
         return FleetFactory()
@@ -26,18 +24,6 @@ class TestTasks:
         return DeviceFactory.create_batch(5, fleet=fleet) + [
             DeviceFactory(fleet=fleet, device_id="")
         ]
-
-    @pytest.fixture
-    def del_tinymdm_env_vars(self, monkeypatch):
-        """Delete environment variables for TinyMDM API credentials, if they exist."""
-        for var in self.TINYMDM_ENV_VARS:
-            monkeypatch.delenv(var, raising=False)
-
-    @pytest.fixture
-    def set_tinymdm_env_vars(self, monkeypatch):
-        """Set environment variables for TinyMDM API credentials to fake values."""
-        for var in self.TINYMDM_ENV_VARS:
-            monkeypatch.setenv(var, "test")
 
     def get_fake_device_data(self):
         data = {
@@ -117,7 +103,7 @@ class TestTasks:
     def fleets(self, fleet):
         return FleetFactory.create_batch(2) + [fleet]
 
-    def test_get_tinymdm_session_without_env_variables(self, del_tinymdm_env_vars):
+    def test_get_tinymdm_session_without_env_variables(self):
         """Ensure get_tinymdm_session() returns None if the environment variables
         for TinyMDM API credentials are not set.
         """
@@ -274,3 +260,39 @@ class TestTasks:
         for call in mock_sync_fleet.call_list_args:
             assert isinstance(call.args[0], Session)
             assert call.args[1] in fleets
+
+    def test_create_group(self, requests_mock, set_tinymdm_env_vars):
+        """Ensures create_group() makes the expected API request and updates
+        the fleet's mdm_group_id field if successful.
+        """
+        fleet = FleetFactory.build(mdm_group_id=None)
+        json_response = {
+            "id": fake.pystr(),
+            "name": fleet.group_name,
+            "policy_id": None,
+            "creation_date": "2020-09-12 09:45:12",
+            "modification_date": "2020-08-05 15:57:25",
+        }
+        create_group_request = requests_mock.post(
+            "https://www.tinymdm.net/api/v1/groups", json=json_response, status_code=201
+        )
+        session = tasks.get_tinymdm_session()
+        tasks.create_group(session, fleet)
+
+        assert create_group_request.called_once
+        assert create_group_request.last_request.json() == {
+            "name": fleet.group_name,
+        }
+        assert fleet.mdm_group_id == json_response["id"]
+
+    def test_add_group_to_policy(self, fleet, requests_mock, set_tinymdm_env_vars):
+        """Ensures add_group_to_policy() makes the expected API request."""
+        add_group_to_policy_request = requests_mock.post(
+            f"https://www.tinymdm.net/api/v1/policies/{fleet.policy.policy_id}/members/{fleet.mdm_group_id}",
+            status_code=204,
+        )
+        session = tasks.get_tinymdm_session()
+        tasks.add_group_to_policy(session, fleet)
+
+        assert add_group_to_policy_request.called_once
+        assert not add_group_to_policy_request.last_request.body
