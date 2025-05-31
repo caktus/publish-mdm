@@ -2,16 +2,19 @@ import pytest
 from django.conf import settings
 from django.urls import reverse
 from import_export.tmp_storages import TempFolderStorage
+from pytest_django.asserts import assertContains
+from requests.exceptions import HTTPError
 
 from apps.mdm.import_export import DeviceResource
 from apps.mdm.models import Device
+from tests.publish_mdm.factories import OrganizationFactory
 from tests.users.factories import UserFactory
 
-from .factories import DeviceFactory, PolicyFactory
+from .factories import DeviceFactory, FleetFactory, PolicyFactory
 
 
 @pytest.mark.django_db
-class TestDeviceAdmin:
+class TestAdmin:
     @pytest.fixture
     def user(self, client):
         user = UserFactory(is_staff=True, is_superuser=True)
@@ -19,11 +22,13 @@ class TestDeviceAdmin:
         client.force_login(user=user)
         return user
 
+
+class TestDeviceAdmin(TestAdmin):
     @pytest.fixture
     def dataset(self):
-        # Create 3 Devices with the same Policy
-        policy = PolicyFactory()
-        DeviceFactory.create_batch(3, policy=policy)
+        # Create 3 Devices with the same Fleet
+        fleet = FleetFactory()
+        DeviceFactory.create_batch(3, fleet=fleet)
         # Create a Dataset in the format expected by the import functionality
         return DeviceResource().export()
 
@@ -126,3 +131,60 @@ class TestDeviceAdmin:
             "Row 4, Column 'device_id': Device with this Device ID already exists."
             in response_content
         )
+
+
+class TestFleetAdmin(TestAdmin):
+    @pytest.mark.parametrize("api_error", [None, HTTPError("error")])
+    def test_new_fleet(self, user, client, mocker, set_tinymdm_env_vars, api_error):
+        """Ensures the add_group_to_policy() function is called for a new fleet."""
+        organization = OrganizationFactory()
+        fleet = FleetFactory.build(organization=organization, policy=PolicyFactory())
+        data = {
+            "organization": fleet.organization_id,
+            "name": fleet.name,
+            "mdm_group_id": fleet.mdm_group_id,
+            "policy": fleet.policy_id,
+        }
+        mock_add_group_to_policy = mocker.patch(
+            "apps.mdm.admin.add_group_to_policy", side_effect=api_error
+        )
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        response = client.post(reverse("admin:mdm_fleet_add"), data=data, follow=True)
+
+        assert response.status_code == 200
+        mock_add_group_to_policy.assert_called_once()
+        assert organization.fleets.count() == 1
+        if api_error:
+            assertContains(
+                response,
+                (
+                    "The fleet has been saved but it could not be added to the "
+                    f"{fleet.policy.name} policy in TinyMDM due to the following error:"
+                    f"<br><code>{api_error}</code>"
+                ),
+            )
+
+    @pytest.mark.parametrize("policy_changed", [True, False])
+    def test_existing_fleet(self, user, client, mocker, set_tinymdm_env_vars, policy_changed):
+        """Ensures the add_group_to_policy() function is called for an existing fleet
+        if its policy is changed.
+        """
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        fleet = FleetFactory()
+        data = {
+            "organization": fleet.organization_id,
+            "name": fleet.name,
+            "mdm_group_id": fleet.mdm_group_id,
+            "policy": PolicyFactory().id if policy_changed else fleet.policy_id,
+        }
+        mock_add_group_to_policy = mocker.patch("apps.mdm.admin.add_group_to_policy")
+        response = client.post(
+            reverse("admin:mdm_fleet_change", args=[fleet.id]), data=data, follow=True
+        )
+
+        assert response.status_code == 200
+
+        if policy_changed:
+            mock_add_group_to_policy.assert_called_once()
+        else:
+            mock_add_group_to_policy.assert_not_called()

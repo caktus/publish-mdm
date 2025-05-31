@@ -11,6 +11,7 @@ from import_export.tmp_storages import MediaStorage
 from invitations.adapters import get_invitations_adapter
 from invitations.exceptions import AlreadyAccepted, AlreadyInvited, UserRegisteredEmail
 
+from apps.mdm.models import Fleet
 from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import (
     BaseEmailInput,
@@ -530,3 +531,30 @@ class CentralServerFrontendForm(PlatformFormMixin, CentralServerForm):
             "username": EmailInput(render_value=False),
             "password": PasswordInput,
         }
+
+
+class FleetForm(PlatformFormMixin, forms.ModelForm):
+    class Meta:
+        model = Fleet
+        fields = ["name", "project"]
+        widgets = {
+            "name": TextInput,
+            "project": Select,
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["project"].queryset = self.instance.organization.projects.all()
+
+    def clean_name(self):
+        """Check if another Fleet has the same name within the same organization."""
+        name = self.cleaned_data.get("name")
+        if name and (
+            self.instance.organization.fleets.exclude(id=self.instance.id)
+            .filter(name__iexact=name)
+            .exists()
+        ):
+            raise forms.ValidationError(
+                "A fleet with the same name already exists in the current organization."
+            )
+        return name

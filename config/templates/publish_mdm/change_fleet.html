@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+    <p class="mb-4 dark:text-gray-400">A group of MDM devices that can be assigned to an ODK project.</p>
+    <form method="post" autocomplete="off">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+        <div class="grid gap-4 sm:grid-cols-2 md:mb-8">
+            <div class="grid gap-4 sm:grid-cols-1 sm:gap-6">
+                {% for field in form.visible_fields %}
+                    <div id="id_{{ field.name }}_container">
+                        {{ field.label_tag }}
+                        {{ field }}
+                        {{ field.errors }}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="flex items-center space-x-4">
+            <button type="submit" class="btn btn-outline btn-primary">
+                {% if fleet.id %}
+                    Save
+                {% else %}
+                    Add
+                {% endif %}
+                fleet
+            </button>
+            <a type="button"
+               class="btn btn-outline"
+               href="{% url 'publish_mdm:fleets-list' request.organization.slug %}">Cancel</a>
+        </div>
+    </form>
+{% endblock content %}

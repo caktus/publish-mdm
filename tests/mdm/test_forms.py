@@ -4,14 +4,6 @@ from tests.mdm.factories import DeviceFactory
 
 
 class TestFirmwareSnapshotForm:
-    TINYMDM_ENV_VARS = ("TINYMDM_APIKEY_PUBLIC", "TINYMDM_APIKEY_SECRET", "TINYMDM_ACCOUNT_ID")
-
-    @pytest.fixture(autouse=True)
-    def del_tinymdm_env_vars(self, monkeypatch):
-        """Delete environment variables for TinyMDM API credentials, if they exist."""
-        for var in self.TINYMDM_ENV_VARS:
-            monkeypatch.delenv(var, raising=False)
-
     def test_post_request_initialization(self):
         json_data = {"version": "unknown", "deviceIdentifier": "12345"}
         form = FirmwareSnapshotForm(json_data=json_data)
