@@ -54,9 +54,7 @@ class Organization(AbstractBaseModel):
         """Create a default MDM Fleet for the organization if the TinyMDM API is
         configured and a default Policy exists.
         """
-        if (session := get_tinymdm_session()) and (
-            default_policy := Policy.objects.filter(default_policy=True).first()
-        ):
+        if (session := get_tinymdm_session()) and (default_policy := Policy.get_default()):
             fleet = Fleet(organization=self, name="Default", policy=default_policy)
             create_group(session, fleet)
             add_group_to_policy(session, fleet)

@@ -1,6 +1,7 @@
 import pytest
 
-from .factories import DeviceFactory, FleetFactory
+from apps.mdm.models import Policy
+from .factories import DeviceFactory, FleetFactory, PolicyFactory
 
 
 @pytest.mark.django_db
@@ -46,3 +47,22 @@ class TestModels:
         '<org name>: <fleet name>'.
         """
         assert fleet.group_name == f"{fleet.organization.name}: {fleet.name}"
+
+    def test_policy_get_default(self, settings):
+        """Tests the Policy.get_default() method."""
+        settings.TINYMDM_DEFAULT_POLICY = None
+        # Cannot determine a default either from the database or using the setting
+        assert not Policy.get_default()
+
+        settings.TINYMDM_DEFAULT_POLICY = "12345"
+        # The default policy is created in the database and returned
+        policy = Policy.get_default()
+        assert policy
+        assert policy.policy_id == settings.TINYMDM_DEFAULT_POLICY
+        assert policy.default_policy
+
+        # get_default() gets whichever Policy has default_policy=True
+        policy.default_policy = False
+        policy.save()
+        new_default = PolicyFactory(default_policy=True)
+        assert Policy.get_default() == new_default

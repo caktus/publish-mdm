@@ -29,7 +29,7 @@ from pygments.lexers.data import JsonLexer
 from pyodk.errors import PyODKError
 from requests.exceptions import RequestException
 
-from apps.mdm.models import Device, FirmwareSnapshot, Fleet
+from apps.mdm.models import Device, FirmwareSnapshot, Fleet, Policy
 from apps.mdm.tasks import add_group_to_policy, create_group, get_tinymdm_session
 from apps.tailscale.models import Device as TailscaleDevice
 
@@ -717,7 +717,14 @@ def change_fleet(request: HttpRequest, organization_slug, fleet_id=None):
     else:
         # Adding a new Fleet
         action = "add"
-        fleet = Fleet(organization=request.organization)
+        default_policy = Policy.get_default()
+        if not default_policy:
+            logger.warning("Cannot create Fleets. Please set up a default TinyMDM policy.")
+            messages.error(
+                request, "Sorry, cannot create a fleet at this time. Please try again later."
+            )
+            return redirect("publish_mdm:fleets-list", organization_slug)
+        fleet = Fleet(organization=request.organization, policy=default_policy)
     form = FleetForm(request.POST or None, instance=fleet)
     if request.method == "POST" and form.is_valid():
         fleet = form.save(commit=False)

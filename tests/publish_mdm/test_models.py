@@ -216,7 +216,7 @@ class TestAppUser:
 
 @pytest.mark.django_db
 class TestOrganization:
-    def test_create_default_fleet(self, set_tinymdm_env_vars, mocker):
+    def test_create_default_fleet(self, set_tinymdm_env_vars, mocker, settings):
         """Ensures calling create_default_fleet() creates a default Fleet for an
         organization if a default policy exists.
         """
@@ -226,6 +226,7 @@ class TestOrganization:
         mocker.patch("apps.mdm.tasks.pull_devices")
 
         # No default policy. The default fleet should not be created
+        settings.TINYMDM_DEFAULT_POLICY = None
         organization.create_default_fleet()
         assert not organization.fleets.exists()
         mock_create_group.assert_not_called()

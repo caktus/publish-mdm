@@ -11,9 +11,10 @@ from django.utils.formats import date_format
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers.data import JsonLexer
-from pytest_django.asserts import assertContains, assertTemplateNotUsed
+from pytest_django.asserts import assertContains, assertRedirects, assertTemplateNotUsed
 from requests.exceptions import HTTPError
 
+from tests.mdm.factories import PolicyFactory
 from tests.publish_mdm.factories import (
     AppUserFactory,
     AppUserFormTemplateFactory,
@@ -1767,10 +1768,21 @@ class TestAddFleet(ViewTestBase):
         return reverse("publish_mdm:add-fleet", args=[organization.slug])
 
     def test_get(self, client, url, user, organization):
+        default_policy = PolicyFactory(default_policy=True)
         response = client.get(url)
         assert response.status_code == 200
         assert isinstance(response.context.get("form"), FleetForm)
-        assert response.context["form"].instance.organization == organization
+        form_instance = response.context["form"].instance
+        assert form_instance.organization == organization
+        assert form_instance.policy == default_policy
+
+    def test_get_no_default_policy(self, client, url, user, organization, settings):
+        settings.TINYMDM_DEFAULT_POLICY = None
+        response = client.get(url, follow=True)
+        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
+        assertContains(
+            response, "Sorry, cannot create a fleet at this time. Please try again later."
+        )
 
 
 class TestEditFleet(ViewTestBase):

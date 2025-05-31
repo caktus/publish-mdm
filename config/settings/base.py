@@ -409,3 +409,7 @@ DEFAULT_APP_LANGUAGE = "en"
 
 # To address Django deprecation warning for URLField
 FORMS_URLFIELD_ASSUME_HTTPS = True
+
+# The TinyMDM ID of the default policy. If a different policy is marked as the default
+# in the Policy model it will be considered the default instead.
+TINYMDM_DEFAULT_POLICY = os.getenv("TINYMDM_DEFAULT_POLICY")

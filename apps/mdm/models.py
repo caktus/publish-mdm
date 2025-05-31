@@ -1,5 +1,6 @@
 import structlog
 from django.db import models
+from django.conf import settings
 from django.core.validators import RegexValidator
 
 logger = structlog.get_logger()
@@ -29,6 +30,20 @@ class Policy(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.policy_id})"
+
+    @classmethod
+    def get_default(cls):
+        """Gets the default policy. First tries to get the Policy marked as default.
+        If none exists and the TINYMDM_DEFAULT_POLICY setting is set, get or create
+        a Policy with that policy_id.
+        """
+        policy = cls.objects.filter(default_policy=True).first()
+        if not policy and settings.TINYMDM_DEFAULT_POLICY:
+            policy = cls.objects.get_or_create(
+                policy_id=settings.TINYMDM_DEFAULT_POLICY,
+                defaults={"name": "Default", "default_policy": True},
+            )[0]
+        return policy
 
 
 class Fleet(models.Model):

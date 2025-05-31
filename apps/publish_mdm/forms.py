@@ -437,7 +437,7 @@ TemplateVariableFormSet.deletion_widget = CheckboxInput
 class FleetForm(PlatformFormMixin, forms.ModelForm):
     class Meta:
         model = Fleet
-        fields = ["name", "policy", "project"]
+        fields = ["name", "project"]
         widgets = {
             "name": TextInput,
             "project": Select,
