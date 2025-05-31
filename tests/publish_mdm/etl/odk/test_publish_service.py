@@ -11,10 +11,13 @@ from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment, Form
 from apps.publish_mdm.etl.odk.client import PublishMDMClient
 from tests.publish_mdm.factories import FormTemplateFactory, FormTemplateVersionFactory
 
+from tests.publish_mdm.factories import CentralServerFactory
+
 
 @pytest.fixture
 def odk_client() -> Generator[PublishMDMClient, None, None]:
-    with PublishMDMClient(base_url="https://central", project_id=1) as client:
+    central_server = CentralServerFactory.build(id=1, base_url="https://central")
+    with PublishMDMClient(central_server=central_server, project_id=1) as client:
         yield client
 
 

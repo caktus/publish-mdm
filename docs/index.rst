@@ -25,6 +25,7 @@ interface for publishing form versions.
    src/tutorial
    src/local-development/index
    src/contributing
+   src/infisical
 
 Contributors:
 

@@ -1,3 +1,6 @@
+from pathlib import Path
+
+import requests
 import structlog
 from django import forms
 from django.conf import settings
@@ -11,10 +14,13 @@ from invitations.exceptions import AlreadyAccepted, AlreadyInvited, UserRegister
 from apps.mdm.models import Fleet
 from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import (
+    BaseEmailInput,
     CheckboxInput,
     CheckboxSelectMultiple,
+    EmailInput,
     FileInput,
     InputWithAddon,
+    PasswordInput,
     Select,
     TextInput,
 )
@@ -24,6 +30,7 @@ from .http import HttpRequest
 from .models import (
     AppUser,
     AppUserTemplateVariable,
+    CentralServer,
     FormTemplate,
     Organization,
     OrganizationInvitation,
@@ -42,18 +49,20 @@ class ProjectSyncForm(PlatformFormMixin, forms.Form):
     render logic for the project field during an HTMX request.
     """
 
-    server = forms.ChoiceField(
+    server = forms.ModelChoiceField(
+        # The queryset will be updated based on the current organization in __init__()
+        queryset=None,
         # When a server is selected, the project field below is populated with
         # the available projects for that server using HMTX.
         widget=Select(
             attrs={
                 "hx-trigger": "change",
-                "hx-get": reverse_lazy("publish_mdm:server-sync-projects"),
                 "hx-target": "#id_project_container",
                 "hx-swap": "innerHTML",
                 "hx-indicator": ".loading",
             }
         ),
+        empty_label="Select an ODK Central server...",
     )
     project = forms.ChoiceField(widget=Select(attrs={"disabled": "disabled"}))
 
@@ -63,20 +72,29 @@ class ProjectSyncForm(PlatformFormMixin, forms.Form):
         # field is required" errors
         data = data if not request.htmx else None
         super().__init__(data, *args, **kwargs)
-        # The server field is populated with the available ODK Central servers
-        # (from an environment variable) when the form is rendered. Loaded here to
-        # avoid fetching during the project initialization sequence.
-        self.fields["server"].choices = [("", "Select an ODK Central server...")] + [
-            (config.base_url, config.base_url) for config in PublishMDMClient.get_configs().values()
-        ]
+        # The server field is populated with the CentralServers linked to the current
+        # Organization whose username and password fields are set
+        self.fields["server"].queryset = central_servers = (
+            request.organization.central_servers.filter(
+                username__isnull=False, password__isnull=False
+            )
+        )
+        self.fields["server"].widget.attrs["hx-get"] = reverse_lazy(
+            "publish_mdm:server-sync-projects", args=[request.organization.slug]
+        )
         # Set `project` field choices when a server is provided either via a
         # POST or HTMX request
-        if server := htmx_data.get("server") or self.data.get("server"):
-            self.set_project_choices(base_url=server)
+        if (
+            (server_id := htmx_data.get("server") or self.data.get("server"))
+            and server_id.isdigit()
+            and (central_server := central_servers.filter(id=server_id).first())
+        ):
+            self.set_project_choices(central_server)
             self.fields["project"].widget.attrs.pop("disabled", None)
 
-    def set_project_choices(self, base_url: str):
-        with PublishMDMClient(base_url=base_url) as client:
+    def set_project_choices(self, central_server: CentralServer):
+        central_server.decrypt()
+        with PublishMDMClient(central_server=central_server) as client:
             self.fields["project"].choices = [
                 (project.id, project.name) for project in client.projects.list()
             ]
@@ -305,10 +323,11 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Limit template variables to those linked to the project's organization
+        # Limit template variables and central servers to those linked to the project's organization
         self.fields[
             "template_variables"
         ].queryset = self.instance.organization.template_variables.all()
+        self.fields["central_server"].queryset = self.instance.organization.central_servers.all()
 
 
 class ProjectTemplateVariableForm(PlatformFormMixin, forms.ModelForm):
@@ -432,6 +451,86 @@ TemplateVariableFormSet = forms.models.inlineformset_factory(
     Organization, TemplateVariable, form=TemplateVariableForm, extra=0
 )
 TemplateVariableFormSet.deletion_widget = CheckboxInput
+
+
+class CentralServerForm(forms.ModelForm):
+    """A form for adding or editing a CentralServer."""
+
+    class Meta:
+        model = CentralServer
+        fields = "__all__"
+        widgets = {
+            "username": BaseEmailInput(render_value=False),
+            "password": forms.widgets.PasswordInput,
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.id:
+            # PasswordInput and BaseEmailInput with render_value=False do not
+            # render the current value for security purposes (default is False
+            # for PasswordInput). Add some help text to indicate that a value
+            # exists even if the input is empty, and the user can leave it blank
+            # to keep the current value.
+            for field_name in ("username", "password"):
+                field = self.fields[field_name]
+                if not field.widget.render_value and getattr(self.instance, field_name):
+                    field.help_text = (
+                        f"A {field_name} exists. You can leave it blank to keep the current value."
+                    )
+                    field.required = False
+
+    def clean(self):
+        if not self.errors and (
+            self.cleaned_data["username"]
+            or self.cleaned_data["password"]
+            or "base_url" in self.changed_data
+        ):
+            # Strip trailing "/" from base_url
+            self.cleaned_data["base_url"] = self.cleaned_data["base_url"].rstrip("/")
+            # Validate the base URL and credentials by checking if we can log in
+            # https://docs.getodk.org/central-api-authentication/#logging-in
+            if not (self.cleaned_data["username"] and self.cleaned_data["password"]):
+                # We'll need to get at least one of the credentials from the database
+                self.instance.decrypt()
+            try:
+                response = requests.post(
+                    self.cleaned_data["base_url"] + "/v1/sessions",
+                    json={
+                        "email": self.cleaned_data["username"] or self.instance.username,
+                        "password": self.cleaned_data["password"] or self.instance.password,
+                    },
+                    timeout=10,
+                )
+            except requests.RequestException:
+                # Probably an invalid base_url
+                success = False
+            else:
+                success = response.status_code == 200
+            if not success:
+                raise forms.ValidationError(
+                    "The base URL and/or login credentials appear to be incorrect. Please try again."
+                )
+        return self.cleaned_data
+
+    def save(self, commit=True):
+        if self.instance.id:
+            # Delete the pyodk cache file if it exists, else pyodk will continue
+            # using the cached auth token until it expires (24h after it was created)
+            Path(f"/tmp/.pyodk_cache_{self.instance.id}.toml").unlink(missing_ok=True)
+        return super().save(commit)
+
+
+class CentralServerFrontendForm(PlatformFormMixin, CentralServerForm):
+    """A form for adding or editing a CentralServer on the frontend."""
+
+    class Meta(CentralServerForm.Meta):
+        fields = ["base_url", "username", "password"]
+        widgets = {
+            "base_url": TextInput,
+            "username": EmailInput(render_value=False),
+            "password": PasswordInput,
+        }
 
 
 class FleetForm(PlatformFormMixin, forms.ModelForm):
