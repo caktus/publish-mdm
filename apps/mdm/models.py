@@ -115,7 +115,9 @@ class Device(models.Model):
         blank=True,
         null=True,
     )
-    serial_number = models.CharField(max_length=255, help_text="The serial number of the device.")
+    serial_number = models.CharField(
+        max_length=255, help_text="The serial number of the device.", blank=True
+    )
     name = models.CharField(
         max_length=255, help_text="The name or nickname of the device in the MDM.", blank=True
     )

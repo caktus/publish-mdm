@@ -182,4 +182,11 @@ class Migration(migrations.Migration):
             name="policy",
             options={"ordering": ("-default_policy", "id"), "verbose_name_plural": "policies"},
         ),
+        migrations.AlterField(
+            model_name="device",
+            name="serial_number",
+            field=models.CharField(
+                blank=True, help_text="The serial number of the device.", max_length=255
+            ),
+        ),
     ]

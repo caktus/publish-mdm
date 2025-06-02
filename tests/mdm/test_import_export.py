@@ -105,29 +105,29 @@ class TestDeviceResource:
     def test_invalid_import(self, fleet, devices, dataset):
         """Ensure errors are caught properly for an invalid import."""
         expected_validation_errors = []
-        for index, row in enumerate(models.Device.objects.values_list(*dataset.headers)[:4], 1):
+        for index, row in enumerate(models.Device.objects.values_list(*dataset.headers)[:3], 1):
             row = list(row)
-            if index <= 2:
-                # Value not provided for a required field (either fleet or serial_number)
+            if index == 1:
+                # Value not provided for a required field (fleet)
                 new_value = ""
-                if index == 1:
-                    errors = {"fleet": ["This field cannot be null."]}
-                else:
-                    errors = {"serial_number": ["This field cannot be blank."]}
-            elif index == 3:
+                col = "fleet"
+                error = "This field cannot be null."
+            elif index == 2:
                 # Invalid AppUser name (contains spaces)
                 new_value = "an invalid name"
-                errors = {
-                    "app_user_name": [
-                        "Name can only contain alphanumeric characters, underscores, "
-                        "hyphens, and not more than one colon."
-                    ]
-                }
+                col = "app_user_name"
+                error = (
+                    "Name can only contain alphanumeric characters, underscores, "
+                    "hyphens, and not more than one colon."
+                )
             else:
                 # Same device_id as the previous device
-                new_value = dataset[-1][index]
-                errors = {"device_id": ["Device with this Device ID already exists."]}
-            row[index] = new_value
+                new_value = dataset[-1][-1]
+                col = "device_id"
+                error = "Device with this Device ID already exists."
+            errors = {col: [error]}
+            col_index = dataset.headers.index(col)
+            row[col_index] = new_value
             dataset.append(row)
             expected_validation_errors.append((index, errors))
         # A new row with a non-existent fleet
@@ -149,7 +149,7 @@ class TestDeviceResource:
         row_errors = result.row_errors()
         assert len(row_errors) == 1
         row_number, error_list = row_errors[0]
-        assert row_number == 5
+        assert row_number == 4
         assert isinstance(error_list[0].error, models.Fleet.DoesNotExist)
 
     @pytest.mark.parametrize("dry_run", [True, False])

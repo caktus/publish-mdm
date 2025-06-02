@@ -44,11 +44,13 @@ def get_tinymdm_session() -> Session:
 
 def update_existing_devices(fleet: Fleet, mdm_devices: list[dict]):
     """
-    Updates existing devices in our datatabase based on the full list
-    of mdm_devices returned form the TinyMDM API.
+    Updates existing devices in our database based on the full list
+    of mdm_devices returned from the TinyMDM API.
     """
     devices_by_id = {device["id"]: device for device in mdm_devices}
-    devices_by_serial = {device["serial_number"]: device for device in mdm_devices}
+    devices_by_serial = {
+        device["serial_number"]: device for device in mdm_devices if device["serial_number"]
+    }
 
     our_devices = Device.objects.filter(
         Q(fleet=fleet)
