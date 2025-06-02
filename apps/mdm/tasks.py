@@ -228,6 +228,13 @@ def push_device_config(session: Session, device: Device):
     logger.debug("Updating user", url=url, user_id=user_id, data=data)
     response = session.request("PUT", url, json=data)
     response.raise_for_status()
+    # Add the user to the MDM group
+    url = f"https://www.tinymdm.net/api/v1/groups/{device.fleet.mdm_group_id}/users/{user_id}"
+    logger.debug(
+        "Adding user to group", url=url, user_id=user_id, group_id=device.fleet.mdm_group_id
+    )
+    response = session.post(url, headers={"content-type": "application/json"})
+    response.raise_for_status()
     # Send a message to the user to inform them of the update and trigger a policy reload
     url = "https://www.tinymdm.net/api/v1/actions/message"
     logger.debug("Sending message to device", url=url, user_id=user_id)

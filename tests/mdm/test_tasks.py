@@ -180,6 +180,9 @@ class TestTasks:
             f"https://www.tinymdm.net/api/v1/users/{device.raw_mdm_device['user_id']}"
         )
         message_request = requests_mock.post("https://www.tinymdm.net/api/v1/actions/message")
+        add_to_group_request = requests_mock.post(
+            f"https://www.tinymdm.net/api/v1/groups/{device.fleet.mdm_group_id}/users/{device.raw_mdm_device['user_id']}"
+        )
         session = tasks.get_tinymdm_session()
         tasks.push_device_config(session, device)
 
@@ -208,6 +211,8 @@ class TestTasks:
             "title": "HNEC Collect Project Update",
             "devices": [device.device_id],
         }
+        assert add_to_group_request.called_once
+        assert not add_to_group_request.last_request.body
 
     def test_push_device_config_new_device(self, fleet, set_tinymdm_env_vars):
         """Ensures calling push_device_config() with a Device whose `raw_mdm_device` field
