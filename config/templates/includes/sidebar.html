@@ -35,21 +35,6 @@
                     </a>
                 </li>
                 <li>
-                    <a href="{% url 'publish_mdm:central-servers-list' request.organization.slug %}"
-                       class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
-                        <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
-                             aria-hidden="true"
-                             xmlns="http://www.w3.org/2000/svg"
-                             width="24"
-                             height="24"
-                             fill="none"
-                             viewBox="0 0 24 24">
-                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1M5 12h14M5 12a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1m-2 3h.01M14 15h.01M17 9h.01M14 9h.01" />
-                        </svg>
-                        <span class="ml-3">Central Servers</span>
-                    </a>
-                </li>
-                <li>
                     <a href="{% url 'publish_mdm:fleets-list' request.organization.slug %}"
                        class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
                         <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
@@ -77,6 +62,21 @@
                             <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 18h2M5.875 3h12.25c.483 0 .875.448.875 1v16c0 .552-.392 1-.875 1H5.875C5.392 21 5 20.552 5 20V4c0-.552.392-1 .875-1Z" />
                         </svg>
                         <span class="ml-3">Devices</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'publish_mdm:central-servers-list' request.organization.slug %}"
+                       class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
+                        <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
+                             aria-hidden="true"
+                             xmlns="http://www.w3.org/2000/svg"
+                             width="24"
+                             height="24"
+                             fill="none"
+                             viewBox="0 0 24 24">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1M5 12h14M5 12a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1m-2 3h.01M14 15h.01M17 9h.01M14 9h.01" />
+                        </svg>
+                        <span class="ml-3">Central Servers</span>
                     </a>
                 </li>
                 <li>
