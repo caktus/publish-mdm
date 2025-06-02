@@ -52,7 +52,8 @@ from .forms import (
     ProjectTemplateVariableFormSet,
     OrganizationForm,
     TemplateVariableFormSet,
-    FleetForm,
+    FleetAddForm,
+    FleetEditForm,
     CentralServerFrontendForm,
 )
 from .import_export import AppUserResource
@@ -766,77 +767,104 @@ def fleets_list(request: HttpRequest, organization_slug):
 
 
 @login_required
-def change_fleet(request: HttpRequest, organization_slug, fleet_id=None):
-    """Add or edit a Fleet."""
-    if fleet_id:
-        # Editing a Fleet
-        action = "edit"
-        fleet = get_object_or_404(request.organization.fleets, pk=fleet_id)
-    else:
-        # Adding a new Fleet
-        action = "add"
-        default_policy = Policy.get_default()
-        if not default_policy:
-            logger.warning("Cannot create Fleets. Please set up a default TinyMDM policy.")
-            messages.error(
-                request, "Sorry, cannot create a fleet at this time. Please try again later."
-            )
-            return redirect("publish_mdm:fleets-list", organization_slug)
-        fleet = Fleet(organization=request.organization, policy=default_policy)
-    form = FleetForm(request.POST or None, instance=fleet)
+def add_fleet(request: HttpRequest, organization_slug):
+    """Add a Fleet."""
+    default_policy = Policy.get_default()
+
+    if not default_policy:
+        logger.warning("Cannot create Fleets. Please set up a default TinyMDM policy.")
+        messages.error(
+            request, "Sorry, cannot create a fleet at this time. Please try again later."
+        )
+        return redirect("publish_mdm:fleets-list", organization_slug)
+
+    fleet = Fleet(organization=request.organization, policy=default_policy)
+    form = FleetAddForm(request.POST or None, instance=fleet)
+
     if request.method == "POST" and form.is_valid():
         fleet = form.save(commit=False)
+
         if session := get_tinymdm_session():
-            if not fleet.mdm_group_id:
-                try:
-                    create_group(session, fleet)
-                except RequestException as e:
-                    logger.debug(
-                        "Unable to create TinyMDM group",
-                        fleet=fleet,
-                        organization=request.organization,
-                        exc_info=True,
-                    )
-                    messages.error(
-                        request,
-                        mark_safe(
-                            "The fleet has not been saved because its TinyMDM group "
-                            "could not be created due to the following error:"
-                            f'<code class="block text-xs mt-2">{e}</code>'
-                        ),
-                    )
-                    return redirect("publish_mdm:fleets-list", organization_slug)
-            if "policy" in form.changed_data:
-                try:
-                    add_group_to_policy(session, fleet)
-                except RequestException as e:
-                    logger.debug(
-                        "Unable to add the TinyMDM group to policy",
-                        fleet=fleet,
-                        organization=request.organization,
-                        policy=fleet.policy,
-                        exc_info=True,
-                    )
-                    messages.warning(
-                        request,
-                        mark_safe(
-                            "The fleet has been saved but it could not be added to the "
-                            f"{fleet.policy.name} policy in TinyMDM due to the following error:"
-                            f'<code class="block text-xs mt-2">{e}</code>'
-                        ),
-                    )
+            # Create a group in TinyMDM and set the mdm_group_id field
+            try:
+                create_group(session, fleet)
+            except RequestException as e:
+                logger.debug(
+                    "Unable to create TinyMDM group",
+                    fleet=fleet,
+                    organization=request.organization,
+                    exc_info=True,
+                )
+                messages.error(
+                    request,
+                    mark_safe(
+                        "The fleet has not been saved because its TinyMDM group "
+                        "could not be created due to the following error:"
+                        f'<code class="block text-xs mt-2">{e}</code>'
+                    ),
+                )
+                return redirect("publish_mdm:fleets-list", organization_slug)
+
+            # Add the TinyMDM group to the default policy
+            try:
+                add_group_to_policy(session, fleet)
+            except RequestException as e:
+                logger.debug(
+                    "Unable to add the TinyMDM group to policy",
+                    fleet=fleet,
+                    organization=request.organization,
+                    policy=fleet.policy,
+                    exc_info=True,
+                )
+                messages.warning(
+                    request,
+                    mark_safe(
+                        "The fleet has been saved but it could not be added to the "
+                        f"{fleet.policy.name} policy in TinyMDM due to the following error:"
+                        f'<code class="block text-xs mt-2">{e}</code>'
+                    ),
+                )
+
         fleet.save()
-        messages.success(request, f"Successfully {action}ed {fleet}.")
+        messages.success(request, f"Successfully added {fleet}.")
         return redirect("publish_mdm:fleets-list", organization_slug)
+
     context = {
         "form": form,
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
             items=[
                 ("Fleets", "fleets-list"),
-                (f"{action.title()} Fleet", f"{action}-fleet"),
+                ("Add Fleet", "add-fleet"),
             ],
         ),
         "fleet": fleet,
     }
+
+    return render(request, "publish_mdm/change_fleet.html", context)
+
+
+@login_required
+def edit_fleet(request: HttpRequest, organization_slug, fleet_id):
+    """Edit a Fleet."""
+    fleet = get_object_or_404(request.organization.fleets, pk=fleet_id)
+    form = FleetEditForm(request.POST or None, instance=fleet)
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, f"Successfully edited {fleet}.")
+        return redirect("publish_mdm:fleets-list", organization_slug)
+
+    context = {
+        "form": form,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[
+                ("Fleets", "fleets-list"),
+                (f"Edit {fleet}", "edit-fleet"),
+            ],
+        ),
+        "fleet": fleet,
+    }
+
     return render(request, "publish_mdm/change_fleet.html", context)

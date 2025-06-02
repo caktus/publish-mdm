@@ -34,13 +34,14 @@ from apps.publish_mdm.forms import (
     AppUserForm,
     AppUserTemplateVariableFormSet,
     CentralServerFrontendForm,
+    FleetAddForm,
+    FleetEditForm,
     OrganizationForm,
     OrganizationInviteForm,
     ProjectForm,
     ProjectSyncForm,
     ProjectTemplateVariableFormSet,
     TemplateVariableFormSet,
-    FleetForm,
 )
 from apps.publish_mdm.models import (
     AppUser,
@@ -2034,21 +2035,145 @@ class TestAddFleet(ViewTestBase):
         return reverse("publish_mdm:add-fleet", args=[organization.slug])
 
     def test_get(self, client, url, user, organization):
+        PolicyFactory.create_batch(2)
         default_policy = PolicyFactory(default_policy=True)
         response = client.get(url)
         assert response.status_code == 200
-        assert isinstance(response.context.get("form"), FleetForm)
+        assert isinstance(response.context.get("form"), FleetAddForm)
         form_instance = response.context["form"].instance
         assert form_instance.organization == organization
         assert form_instance.policy == default_policy
 
     def test_get_no_default_policy(self, client, url, user, organization, settings):
+        """Ensures a warning message that a fleet cannot be created is shown if
+        there is no default policy.
+        """
         settings.TINYMDM_DEFAULT_POLICY = None
         response = client.get(url, follow=True)
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
         assertContains(
             response, "Sorry, cannot create a fleet at this time. Please try again later."
         )
+
+    def test_valid_form(
+        self, client, url, user, organization, project, set_tinymdm_env_vars, requests_mock, mocker
+    ):
+        """Ensure submitting a valid form creates a Fleet with the expected data
+        and makes the expected TinyMDM API requests.
+        """
+        data = {
+            "name": "My Fleet",
+            "project": project.id,
+        }
+        group_id = fake.pystr()
+        mock_create_group_request = requests_mock.post(
+            "https://www.tinymdm.net/api/v1/groups", json={"id": group_id}, status_code=201
+        )
+        mock_add_group_to_policy = mocker.patch("apps.publish_mdm.views.add_group_to_policy")
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        PolicyFactory(default_policy=True)
+
+        response = client.post(url, data=data, follow=True)
+        fleet = organization.fleets.get()
+        assert fleet.mdm_group_id == group_id
+        assert fleet.name == data["name"]
+        assert fleet.project_id == data["project"]
+        assert mock_create_group_request.called_once
+        mock_add_group_to_policy.assert_called_once()
+        assertContains(response, f"Successfully added {fleet}.")
+        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
+
+    def test_valid_form_no_tinymdm_config(
+        self, client, url, user, organization, project, requests_mock, mocker
+    ):
+        """Ensure submitting a valid form creates a Fleet with the expected data
+        but does not attempt to make TinyMDM API requests if the TinyMDM API
+        credentials are not configured.
+        """
+        data = {
+            "name": "My Fleet",
+            "project": project.id,
+        }
+        mock_create_group_request = requests_mock.post("https://www.tinymdm.net/api/v1/groups")
+        mock_add_group_to_policy = mocker.patch("apps.publish_mdm.views.add_group_to_policy")
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        PolicyFactory(default_policy=True)
+
+        response = client.post(url, data=data, follow=True)
+        fleet = organization.fleets.get()
+        assert fleet.mdm_group_id is None
+        assert fleet.name == data["name"]
+        assert fleet.project_id == data["project"]
+        assert not mock_create_group_request.called
+        mock_add_group_to_policy.assert_not_called()
+        assertContains(response, f"Successfully added {fleet}.")
+        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
+
+    def test_valid_form_but_create_group_fails(
+        self, client, url, user, organization, project, set_tinymdm_env_vars, requests_mock, mocker
+    ):
+        """Ensure submitting a valid form does not create a Fleet if the API request
+        to create a group in TinyMDM fails.
+        """
+        data = {
+            "name": "My Fleet",
+            "project": project.id,
+        }
+        create_group_error = HTTPError("error")
+        mock_create_group = mocker.patch(
+            "apps.publish_mdm.views.create_group", side_effect=create_group_error
+        )
+        mock_add_group_to_policy = mocker.patch("apps.publish_mdm.views.add_group_to_policy")
+        PolicyFactory(default_policy=True)
+
+        response = client.post(url, data=data, follow=True)
+        assert not organization.fleets.exists()
+        mock_create_group.assert_called_once()
+        mock_add_group_to_policy.assert_not_called()
+        assertContains(
+            response,
+            "The fleet has not been saved because its TinyMDM group "
+            "could not be created due to the following error:"
+            f'<code class="block text-xs mt-2">{create_group_error}</code>',
+        )
+        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
+
+    def test_valid_form_but_add_group_to_policy_fails(
+        self, client, url, user, organization, project, set_tinymdm_env_vars, requests_mock, mocker
+    ):
+        """Ensure submitting a valid form creates a Fleet with the expected data,
+        creates a group in TinyMDM, and shows a warning message if the TinyMDM API
+        request for adding the group to the default policy fails.
+        """
+        data = {
+            "name": "My Fleet",
+            "project": project.id,
+        }
+        group_id = fake.pystr()
+        requests_mock.post(
+            "https://www.tinymdm.net/api/v1/groups", json={"id": group_id}, status_code=201
+        )
+        add_group_to_policy_error = HTTPError("error")
+        mock_add_group_to_policy = mocker.patch(
+            "apps.publish_mdm.views.add_group_to_policy", side_effect=add_group_to_policy_error
+        )
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        PolicyFactory(default_policy=True)
+
+        response = client.post(url, data=data, follow=True)
+        fleet = organization.fleets.get()
+        assert fleet.mdm_group_id == group_id
+        assert fleet.name == data["name"]
+        assert fleet.project_id == data["project"]
+        mock_add_group_to_policy.assert_called_once()
+        assertContains(response, f"Successfully added {fleet}.")
+        assertContains(
+            response,
+            "The fleet has been saved but it could not be added to the "
+            f"{fleet.policy.name} policy in TinyMDM due to the following error:"
+            f'<code class="block text-xs mt-2">{add_group_to_policy_error}</code>',
+        )
+        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
 
 
 class TestEditFleet(ViewTestBase):
@@ -2065,5 +2190,16 @@ class TestEditFleet(ViewTestBase):
     def test_get(self, client, url, user, fleet):
         response = client.get(url)
         assert response.status_code == 200
-        assert isinstance(response.context.get("form"), FleetForm)
+        assert isinstance(response.context.get("form"), FleetEditForm)
         assert response.context["form"].instance == fleet
+
+    def test_valid_form(self, client, url, user, fleet, organization, project):
+        """Ensure submitting a valid form updates the Fleet."""
+        data = {
+            "project": project.id,
+        }
+        response = client.post(url, data=data, follow=True)
+        fleet.refresh_from_db()
+        assert fleet.project_id == data["project"]
+        assertContains(response, f"Successfully edited {fleet}.")
+        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))

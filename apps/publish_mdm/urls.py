@@ -134,12 +134,12 @@ urlpatterns = [
     ),
     path(
         "o/<slug:organization_slug>/fleet/<int:fleet_id>/",
-        views.change_fleet,
+        views.edit_fleet,
         name="edit-fleet",
     ),
     path(
         "o/<slug:organization_slug>/fleet/add/",
-        views.change_fleet,
+        views.add_fleet,
         name="add-fleet",
     ),
 ]

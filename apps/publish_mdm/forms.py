@@ -533,7 +533,20 @@ class CentralServerFrontendForm(PlatformFormMixin, CentralServerForm):
         }
 
 
-class FleetForm(PlatformFormMixin, forms.ModelForm):
+class FleetEditForm(PlatformFormMixin, forms.ModelForm):
+    class Meta:
+        model = Fleet
+        fields = ["project"]
+        widgets = {
+            "project": Select,
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["project"].queryset = self.instance.organization.projects.all()
+
+
+class FleetAddForm(FleetEditForm):
     class Meta:
         model = Fleet
         fields = ["name", "project"]
@@ -541,10 +554,6 @@ class FleetForm(PlatformFormMixin, forms.ModelForm):
             "name": TextInput,
             "project": Select,
         }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields["project"].queryset = self.instance.organization.projects.all()
 
     def clean_name(self):
         """Check if another Fleet has the same name within the same organization."""
