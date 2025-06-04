@@ -770,9 +770,13 @@ def fleets_list(request: HttpRequest, organization_slug):
 def add_fleet(request: HttpRequest, organization_slug):
     """Add a Fleet."""
     default_policy = Policy.get_default()
+    session = get_tinymdm_session()
 
-    if not default_policy:
-        logger.warning("Cannot create Fleets. Please set up a default TinyMDM policy.")
+    if not default_policy or not session:
+        logger.warning(
+            "Cannot create Fleets. Please set up a default TinyMDM policy "
+            f"({default_policy=}) and/or credentials ({session=})."
+        )
         messages.error(
             request, "Sorry, cannot create a fleet at this time. Please try again later."
         )
@@ -784,46 +788,45 @@ def add_fleet(request: HttpRequest, organization_slug):
     if request.method == "POST" and form.is_valid():
         fleet = form.save(commit=False)
 
-        if session := get_tinymdm_session():
-            # Create a group in TinyMDM and set the mdm_group_id field
-            try:
-                create_group(session, fleet)
-            except RequestException as e:
-                logger.debug(
-                    "Unable to create TinyMDM group",
-                    fleet=fleet,
-                    organization=request.organization,
-                    exc_info=True,
-                )
-                messages.error(
-                    request,
-                    mark_safe(
-                        "The fleet has not been saved because its TinyMDM group "
-                        "could not be created due to the following error:"
-                        f'<code class="block text-xs mt-2">{e}</code>'
-                    ),
-                )
-                return redirect("publish_mdm:fleets-list", organization_slug)
+        # Create a group in TinyMDM and set the mdm_group_id field
+        try:
+            create_group(session, fleet)
+        except RequestException as e:
+            logger.debug(
+                "Unable to create TinyMDM group",
+                fleet=fleet,
+                organization=request.organization,
+                exc_info=True,
+            )
+            messages.error(
+                request,
+                mark_safe(
+                    "The fleet has not been saved because its TinyMDM group "
+                    "could not be created due to the following error:"
+                    f'<code class="block text-xs mt-2">{e}</code>'
+                ),
+            )
+            return redirect("publish_mdm:fleets-list", organization_slug)
 
-            # Add the TinyMDM group to the default policy
-            try:
-                add_group_to_policy(session, fleet)
-            except RequestException as e:
-                logger.debug(
-                    "Unable to add the TinyMDM group to policy",
-                    fleet=fleet,
-                    organization=request.organization,
-                    policy=fleet.policy,
-                    exc_info=True,
-                )
-                messages.warning(
-                    request,
-                    mark_safe(
-                        "The fleet has been saved but it could not be added to the "
-                        f"{fleet.policy.name} policy in TinyMDM due to the following error:"
-                        f'<code class="block text-xs mt-2">{e}</code>'
-                    ),
-                )
+        # Add the TinyMDM group to the default policy
+        try:
+            add_group_to_policy(session, fleet)
+        except RequestException as e:
+            logger.debug(
+                "Unable to add the TinyMDM group to policy",
+                fleet=fleet,
+                organization=request.organization,
+                policy=fleet.policy,
+                exc_info=True,
+            )
+            messages.warning(
+                request,
+                mark_safe(
+                    "The fleet has been saved but it could not be added to the "
+                    f"{fleet.policy.name} policy in TinyMDM due to the following error:"
+                    f'<code class="block text-xs mt-2">{e}</code>'
+                ),
+            )
 
         fleet.save()
         messages.success(request, f"Successfully added {fleet}.")

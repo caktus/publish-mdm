@@ -2035,15 +2035,27 @@ class TestAddFleet(ViewTestBase):
     def url(self, organization):
         return reverse("publish_mdm:add-fleet", args=[organization.slug])
 
-    def test_get(self, client, url, user, organization):
+    def test_get(self, client, url, user, organization, mocker):
         PolicyFactory.create_batch(2)
         default_policy = PolicyFactory(default_policy=True)
+        mocker.patch("apps.publish_mdm.views.get_tinymdm_session", side_effect=[True])
         response = client.get(url)
         assert response.status_code == 200
         assert isinstance(response.context.get("form"), FleetAddForm)
         form_instance = response.context["form"].instance
         assert form_instance.organization == organization
         assert form_instance.policy == default_policy
+
+    def test_get_no_tinymdm_credentials(self, client, url, user, organization):
+        """Ensures a warning message that a fleet cannot be created is shown if
+        there are no TinyMDM credentials configured.
+        """
+        PolicyFactory(default_policy=True)
+        response = client.get(url, follow=True)
+        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
+        assertContains(
+            response, "Sorry, cannot create a fleet at this time. Please try again later."
+        )
 
     def test_get_no_default_policy(self, client, url, user, organization, settings):
         """Ensures a warning message that a fleet cannot be created is shown if
@@ -2081,32 +2093,6 @@ class TestAddFleet(ViewTestBase):
         assert fleet.project_id == data["project"]
         assert mock_create_group_request.called_once
         mock_add_group_to_policy.assert_called_once()
-        assertContains(response, f"Successfully added {fleet}.")
-        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
-
-    def test_valid_form_no_tinymdm_config(
-        self, client, url, user, organization, project, requests_mock, mocker
-    ):
-        """Ensure submitting a valid form creates a Fleet with the expected data
-        but does not attempt to make TinyMDM API requests if the TinyMDM API
-        credentials are not configured.
-        """
-        data = {
-            "name": "My Fleet",
-            "project": project.id,
-        }
-        mock_create_group_request = requests_mock.post("https://www.tinymdm.net/api/v1/groups")
-        mock_add_group_to_policy = mocker.patch("apps.publish_mdm.views.add_group_to_policy")
-        mocker.patch("apps.mdm.tasks.pull_devices")
-        PolicyFactory(default_policy=True)
-
-        response = client.post(url, data=data, follow=True)
-        fleet = organization.fleets.get()
-        assert fleet.mdm_group_id is None
-        assert fleet.name == data["name"]
-        assert fleet.project_id == data["project"]
-        assert not mock_create_group_request.called
-        mock_add_group_to_policy.assert_not_called()
         assertContains(response, f"Successfully added {fleet}.")
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
 
