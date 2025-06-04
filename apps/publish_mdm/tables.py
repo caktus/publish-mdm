@@ -71,6 +71,7 @@ class DeviceTable(tables.Table):
     class Meta:
         model = Device
         fields = [
+            "device_id",
             "serial_number",
             "app_user_name",
             "firmware_version",
@@ -90,6 +91,6 @@ class FleetTable(tables.Table):
 
     class Meta:
         model = Fleet
-        fields = ("name", "policy", "mdm_group_id", "project")
+        fields = ("name", "mdm_group_id", "project")
         template_name = "patterns/tables/table.html"
         attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}

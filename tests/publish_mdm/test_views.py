@@ -1950,6 +1950,7 @@ class TestDevicesList(ViewTestBase):
         assert isinstance(table, Table)
         rows = response.context["table"].as_values()
         assert next(rows) == [
+            "Device ID",
             "Serial number",
             "App user name",
             "Firmware version",
@@ -1959,6 +1960,7 @@ class TestDevicesList(ViewTestBase):
         rows = {tuple(i) for i in rows}
         assert rows == {
             (
+                i.device_id or None,
                 i.serial_number or None,
                 i.app_user_name or None,
                 firmware_versions.get(i.id),
@@ -2005,12 +2007,11 @@ class TestFleetsList(ViewTestBase):
         table = response.context.get("table")
         assert isinstance(table, Table)
         rows = response.context["table"].as_values()
-        assert next(rows) == ["Name", "Policy", "MDM Group ID", "Project"]
+        assert next(rows) == ["Name", "MDM Group ID", "Project"]
         rows = {tuple(i) for i in rows}
         assert rows == {
             (
                 i.name,
-                str(i.policy),
                 i.mdm_group_id,
                 str(i.project),
             )
