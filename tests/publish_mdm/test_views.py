@@ -1,5 +1,6 @@
 import json
 
+import faker
 import pytest
 from django_tables2 import Table
 from django.urls import reverse
@@ -10,8 +11,10 @@ from django.utils.formats import date_format
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers.data import JsonLexer
+from pytest_django.asserts import assertContains, assertRedirects, assertTemplateNotUsed
 from requests.exceptions import HTTPError
 
+from tests.mdm.factories import PolicyFactory
 from tests.publish_mdm.factories import (
     AppUserFactory,
     AppUserFormTemplateFactory,
@@ -31,6 +34,8 @@ from apps.publish_mdm.forms import (
     AppUserForm,
     AppUserTemplateVariableFormSet,
     CentralServerFrontendForm,
+    FleetAddForm,
+    FleetEditForm,
     OrganizationForm,
     OrganizationInviteForm,
     ProjectForm,
@@ -45,6 +50,15 @@ from apps.publish_mdm.models import (
     OrganizationInvitation,
     Project,
 )
+from tests.mdm.factories import (
+    DeviceFactory,
+    DeviceSnapshotFactory,
+    FirmwareSnapshotFactory,
+    FleetFactory,
+)
+from tests.tailscale.factories import DeviceFactory as TailscaleDeviceFactory
+
+fake = faker.Faker()
 
 
 @pytest.mark.django_db
@@ -1123,9 +1137,13 @@ class TestCreateOrganization(ViewTestBase):
         assert response.status_code == 200
         assert isinstance(response.context.get("form"), OrganizationForm)
 
-    def test_valid_form(self, client, url, user):
+    @pytest.mark.parametrize("tinymdm_api_error", [None, HTTPError("error")])
+    def test_valid_form(self, client, url, user, mocker, tinymdm_api_error):
         """Test a valid form."""
         data = {"name": "New organization", "slug": "new-org"}
+        mock_create_default_fleet = mocker.patch.object(
+            Organization, "create_default_fleet", side_effect=tinymdm_api_error
+        )
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
         # Ensure the Organization has been created with the expected values
@@ -1145,6 +1163,17 @@ class TestCreateOrganization(ViewTestBase):
         ]
         # Ensure there is a success message
         assert f"Successfully created {organization}." in response.content.decode()
+        # Ensure the create_default_fleet() method is called
+        mock_create_default_fleet.assert_called_once()
+        if tinymdm_api_error:
+            assertContains(
+                response,
+                (
+                    "The organization was created but its default TinyMDM group "
+                    "could not be created due to the following error:"
+                    f'<code class="block text-xs mt-2">{tinymdm_api_error}</code>'
+                ),
+            )
 
     def test_invalid_form(self, client, url, user):
         """Test a valid form."""
@@ -1830,3 +1859,334 @@ class TestEditCentralServer(ViewTestBase):
         for field_name, expected_error in expected_errors.items():
             assert response.context["form"].errors[field_name] == [expected_error]
             assert expected_error in response_content
+
+
+class TestDevicesList(ViewTestBase):
+    """Tests the page that lists the MDM devices linked to an organization."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("publish_mdm:devices-list", args=[organization.slug])
+
+    @staticmethod
+    def format_datetime(datetime):
+        """Format a datetime object the same way the django-tables2 DateTimeColumn does."""
+        return date_format(localtime(datetime), settings.SHORT_DATETIME_FORMAT)
+
+    @pytest.mark.parametrize("htmx", [True, False])
+    def test_get(self, client, url, user, organization, htmx):
+        # Set up some devices in 2 fleets linked to the current organization
+        organization_devices = []
+        for fleet in FleetFactory.create_batch(2, organization=organization):
+            # Some devices with values for serial_number and app_user_name
+            for device in DeviceFactory.build_batch(5, fleet=fleet):
+                # serial_number and device_id with mixed cases to test matching
+                # to Tailscale devices
+                device.serial_number = fake.pystr()
+                device.device_id = fake.unique.pystr()
+                device.save()
+                organization_devices.append(device)
+            # Some devices with blank serial_number
+            organization_devices += DeviceFactory.create_batch(3, serial_number="", fleet=fleet)
+            # Some devices with blank app_user_name
+            organization_devices += DeviceFactory.create_batch(2, app_user_name="", fleet=fleet)
+
+        # Create matching Tailscale devices for some MDM devices
+        ts_devices = []
+        for device in fake.random_sample(organization_devices, 10):
+            if fake.boolean() and device.serial_number:
+                # matches by serial number
+                matcher = device.serial_number.lower()
+            else:
+                # matches by device id
+                matcher = device.device_id.lower()
+            ts_devices += TailscaleDeviceFactory.create_batch(
+                3, name=f"{fake.word()}-{matcher}.tail123.ts.net"
+            )
+
+        # Create a device snapshot for some devices
+        for device in fake.random_sample(organization_devices, 10):
+            device.latest_snapshot = DeviceSnapshotFactory(mdm_device=device)
+            device.save()
+
+        # Create firmware snapshots for some devices. firmware_versions will hold
+        # the version from the latest snapshot by synced_at
+        firmware_versions = {}
+        for device in fake.random_sample(organization_devices, 10):
+            versions = {
+                i.synced_at: i.version
+                for i in FirmwareSnapshotFactory.create_batch(3, device=device)
+            }
+            firmware_versions[device.id] = versions[sorted(versions)[-1]]
+
+        # Some devices in another organization. Should not be included in the list
+        DeviceFactory.create_batch(3, fleet__organization=OrganizationFactory())
+
+        def get_last_seen_vpn(device):
+            # The last_seen from the most recent Tailscale Device (by last_seen)
+            # whose name contains either:
+            # (a) the lowercase serial number of the MDM device, or
+            # (b) the lowercase device id of the MDM device
+            matching = [
+                ts_device.last_seen
+                for ts_device in ts_devices
+                if (
+                    (device.serial_number and device.serial_number.lower() in ts_device.name)
+                    or (device.device_id and device.device_id.lower() in ts_device.name)
+                )
+            ]
+            if matching:
+                last_seen = sorted(matching)[-1]
+                return self.format_datetime(last_seen)
+            return table.default
+
+        headers = {"HX-Request": "true"} if htmx else None
+        response = client.get(url, headers=headers)
+
+        assert response.status_code == 200
+        # Ensure the devices table is included in the context and it has the
+        # expected data
+        table = response.context.get("table")
+        assert isinstance(table, Table)
+        rows = response.context["table"].as_values()
+        assert next(rows) == [
+            "Device ID",
+            "Serial number",
+            "App user name",
+            "Firmware version",
+            "Last seen (MDM)",
+            "Last seen (VPN)",
+        ]
+        rows = {tuple(i) for i in rows}
+        assert rows == {
+            (
+                i.device_id or None,
+                i.serial_number or None,
+                i.app_user_name or None,
+                firmware_versions.get(i.id),
+                (
+                    self.format_datetime(i.latest_snapshot.last_sync)
+                    if i.latest_snapshot
+                    else table.default
+                ),
+                get_last_seen_vpn(i),
+            )
+            for i in organization_devices
+        }
+        # All columns are sortable
+        assert table.orderable
+        # Not paginated
+        assert not hasattr(table, "paginator")
+        # Ensure the table is rendered in the page
+        assert table.as_html(response.wsgi_request) in response.content.decode()
+        # Ensure the correct template is used for htmx requests
+        if htmx:
+            assertTemplateNotUsed(response, "publish_mdm/devices_list.html")
+
+
+class TestFleetsList(ViewTestBase):
+    """Tests the page that lists the MDM fleets linked to an organization."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("publish_mdm:fleets-list", args=[organization.slug])
+
+    @pytest.mark.parametrize("htmx", [True, False])
+    def test_get(self, client, url, user, organization, htmx):
+        # Create some fleets within the current organization
+        fleets = FleetFactory.create_batch(10, organization=organization)
+        # Some fleets in a different organization. Should not be included in the list
+        FleetFactory.create_batch(3, organization=OrganizationFactory())
+
+        headers = {"HX-Request": "true"} if htmx else None
+        response = client.get(url, headers=headers)
+
+        assert response.status_code == 200
+        # Ensure the devices table is included in the context and it has the
+        # expected data
+        table = response.context.get("table")
+        assert isinstance(table, Table)
+        rows = response.context["table"].as_values()
+        assert next(rows) == ["Name", "MDM Group ID", "Project"]
+        rows = {tuple(i) for i in rows}
+        assert rows == {
+            (
+                i.name,
+                i.mdm_group_id,
+                str(i.project),
+            )
+            for i in fleets
+        }
+        # All columns are sortable
+        assert table.orderable
+        # Not paginated
+        assert not hasattr(table, "paginator")
+        # Ensure the table is rendered in the page
+        assert table.as_html(response.wsgi_request) in response.content.decode()
+        # Ensure the correct template is used for htmx requests
+        if htmx:
+            assertTemplateNotUsed(response, "publish_mdm/fleets_list.html")
+
+
+class TestAddFleet(ViewTestBase):
+    """Test creating a new Fleet for the current organization."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("publish_mdm:add-fleet", args=[organization.slug])
+
+    def test_get(self, client, url, user, organization, mocker):
+        PolicyFactory.create_batch(2)
+        default_policy = PolicyFactory(default_policy=True)
+        mocker.patch("apps.publish_mdm.views.get_tinymdm_session", side_effect=[True])
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), FleetAddForm)
+        form_instance = response.context["form"].instance
+        assert form_instance.organization == organization
+        assert form_instance.policy == default_policy
+
+    def test_get_no_tinymdm_credentials(self, client, url, user, organization):
+        """Ensures a warning message that a fleet cannot be created is shown if
+        there are no TinyMDM credentials configured.
+        """
+        PolicyFactory(default_policy=True)
+        response = client.get(url, follow=True)
+        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
+        assertContains(
+            response, "Sorry, cannot create a fleet at this time. Please try again later."
+        )
+
+    def test_get_no_default_policy(self, client, url, user, organization, settings):
+        """Ensures a warning message that a fleet cannot be created is shown if
+        there is no default policy.
+        """
+        settings.TINYMDM_DEFAULT_POLICY = None
+        response = client.get(url, follow=True)
+        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
+        assertContains(
+            response, "Sorry, cannot create a fleet at this time. Please try again later."
+        )
+
+    def test_valid_form(
+        self, client, url, user, organization, project, set_tinymdm_env_vars, requests_mock, mocker
+    ):
+        """Ensure submitting a valid form creates a Fleet with the expected data
+        and makes the expected TinyMDM API requests.
+        """
+        data = {
+            "name": "My Fleet",
+            "project": project.id,
+        }
+        group_id = fake.pystr()
+        mock_create_group_request = requests_mock.post(
+            "https://www.tinymdm.net/api/v1/groups", json={"id": group_id}, status_code=201
+        )
+        mock_add_group_to_policy = mocker.patch("apps.publish_mdm.views.add_group_to_policy")
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        PolicyFactory(default_policy=True)
+
+        response = client.post(url, data=data, follow=True)
+        fleet = organization.fleets.get()
+        assert fleet.mdm_group_id == group_id
+        assert fleet.name == data["name"]
+        assert fleet.project_id == data["project"]
+        assert mock_create_group_request.called_once
+        mock_add_group_to_policy.assert_called_once()
+        assertContains(response, f"Successfully added {fleet}.")
+        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
+
+    def test_valid_form_but_create_group_fails(
+        self, client, url, user, organization, project, set_tinymdm_env_vars, requests_mock, mocker
+    ):
+        """Ensure submitting a valid form does not create a Fleet if the API request
+        to create a group in TinyMDM fails.
+        """
+        data = {
+            "name": "My Fleet",
+            "project": project.id,
+        }
+        create_group_error = HTTPError("error")
+        mock_create_group = mocker.patch(
+            "apps.publish_mdm.views.create_group", side_effect=create_group_error
+        )
+        mock_add_group_to_policy = mocker.patch("apps.publish_mdm.views.add_group_to_policy")
+        PolicyFactory(default_policy=True)
+
+        response = client.post(url, data=data, follow=True)
+        assert not organization.fleets.exists()
+        mock_create_group.assert_called_once()
+        mock_add_group_to_policy.assert_not_called()
+        assertContains(
+            response,
+            "The fleet has not been saved because its TinyMDM group "
+            "could not be created due to the following error:"
+            f'<code class="block text-xs mt-2">{create_group_error}</code>',
+        )
+        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
+
+    def test_valid_form_but_add_group_to_policy_fails(
+        self, client, url, user, organization, project, set_tinymdm_env_vars, requests_mock, mocker
+    ):
+        """Ensure submitting a valid form creates a Fleet with the expected data,
+        creates a group in TinyMDM, and shows a warning message if the TinyMDM API
+        request for adding the group to the default policy fails.
+        """
+        data = {
+            "name": "My Fleet",
+            "project": project.id,
+        }
+        group_id = fake.pystr()
+        requests_mock.post(
+            "https://www.tinymdm.net/api/v1/groups", json={"id": group_id}, status_code=201
+        )
+        add_group_to_policy_error = HTTPError("error")
+        mock_add_group_to_policy = mocker.patch(
+            "apps.publish_mdm.views.add_group_to_policy", side_effect=add_group_to_policy_error
+        )
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        PolicyFactory(default_policy=True)
+
+        response = client.post(url, data=data, follow=True)
+        fleet = organization.fleets.get()
+        assert fleet.mdm_group_id == group_id
+        assert fleet.name == data["name"]
+        assert fleet.project_id == data["project"]
+        mock_add_group_to_policy.assert_called_once()
+        assertContains(response, f"Successfully added {fleet}.")
+        assertContains(
+            response,
+            "The fleet has been saved but it could not be added to the "
+            f"{fleet.policy.name} policy in TinyMDM due to the following error:"
+            f'<code class="block text-xs mt-2">{add_group_to_policy_error}</code>',
+        )
+        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
+
+
+class TestEditFleet(ViewTestBase):
+    """Test editing a Fleet."""
+
+    @pytest.fixture
+    def fleet(self, organization):
+        return FleetFactory(organization=organization)
+
+    @pytest.fixture
+    def url(self, fleet):
+        return reverse("publish_mdm:edit-fleet", args=[fleet.organization.slug, fleet.id])
+
+    def test_get(self, client, url, user, fleet):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), FleetEditForm)
+        assert response.context["form"].instance == fleet
+
+    def test_valid_form(self, client, url, user, fleet, organization, project):
+        """Ensure submitting a valid form updates the Fleet."""
+        data = {
+            "project": project.id,
+        }
+        response = client.post(url, data=data, follow=True)
+        fleet.refresh_from_db()
+        assert fleet.project_id == data["project"]
+        assertContains(response, f"Successfully edited {fleet}.")
+        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))

@@ -7,37 +7,23 @@ from apps.mdm import tasks
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from tests.publish_mdm.factories import AppUserFactory
 
-from .factories import DeviceFactory, PolicyFactory
+from .factories import DeviceFactory, FleetFactory
 
 fake = faker.Faker()
 
 
 @pytest.mark.django_db
 class TestTasks:
-    TINYMDM_ENV_VARS = ("TINYMDM_APIKEY_PUBLIC", "TINYMDM_APIKEY_SECRET", "TINYMDM_ACCOUNT_ID")
+    @pytest.fixture
+    def fleet(self):
+        return FleetFactory()
 
     @pytest.fixture
-    def policy(self):
-        return PolicyFactory()
-
-    @pytest.fixture
-    def devices(self, policy):
+    def devices(self, fleet):
         """Create 6 Devices, one with a blank device_id."""
-        return DeviceFactory.create_batch(5, policy=policy) + [
-            DeviceFactory(policy=policy, device_id="")
+        return DeviceFactory.create_batch(5, fleet=fleet) + [
+            DeviceFactory(fleet=fleet, device_id="")
         ]
-
-    @pytest.fixture
-    def del_tinymdm_env_vars(self, monkeypatch):
-        """Delete environment variables for TinyMDM API credentials, if they exist."""
-        for var in self.TINYMDM_ENV_VARS:
-            monkeypatch.delenv(var, raising=False)
-
-    @pytest.fixture
-    def set_tinymdm_env_vars(self, monkeypatch):
-        """Set environment variables for TinyMDM API credentials to fake values."""
-        for var in self.TINYMDM_ENV_VARS:
-            monkeypatch.setenv(var, "test")
 
     def get_fake_device_data(self):
         data = {
@@ -96,16 +82,16 @@ class TestTasks:
         }
 
     @pytest.fixture
-    def device(self, request, policy):
+    def device(self, request, fleet):
         """Create one Device. If request.param is True, create an AppUser with
         the name in the device's app_user_name field and with qr_code_data set.
         """
-        device = DeviceFactory.build(policy=policy)
+        device = DeviceFactory.build(fleet=fleet)
         device.raw_mdm_device = self.get_raw_mdm_device(device)
         if request.param:
             AppUserFactory(
                 name=device.app_user_name,
-                project=policy.project,
+                project=fleet.project,
                 qr_code_data=DEFAULT_COLLECT_SETTINGS,
             )
         else:
@@ -114,10 +100,10 @@ class TestTasks:
         return device
 
     @pytest.fixture
-    def policies(self, policy):
-        return PolicyFactory.create_batch(2) + [policy]
+    def fleets(self, fleet):
+        return FleetFactory.create_batch(2) + [fleet]
 
-    def test_get_tinymdm_session_without_env_variables(self, del_tinymdm_env_vars):
+    def test_get_tinymdm_session_without_env_variables(self):
         """Ensure get_tinymdm_session() returns None if the environment variables
         for TinyMDM API credentials are not set.
         """
@@ -129,7 +115,7 @@ class TestTasks:
         """
         assert isinstance(tasks.get_tinymdm_session(), Session)
 
-    def test_pull_devices(self, policy, requests_mock, devices_response, set_tinymdm_env_vars):
+    def test_pull_devices(self, fleet, requests_mock, devices_response, set_tinymdm_env_vars):
         """Ensures calling pull_devices() updates and creates Devices as expected."""
         requests_mock.get("https://www.tinymdm.net/api/v1/devices", json=devices_response)
         apps = {}
@@ -151,12 +137,12 @@ class TestTasks:
             )
 
         session = tasks.get_tinymdm_session()
-        tasks.pull_devices(session, policy)
+        tasks.pull_devices(session, fleet)
 
         # There should be 10 devices now in the DB. 4 are new
-        assert policy.devices.count() == 10
+        assert fleet.devices.count() == 10
         # Ensure the devices have the expected data from the API response
-        db_devices = policy.devices.in_bulk(field_name="device_id")
+        db_devices = fleet.devices.in_bulk(field_name="device_id")
         for device in devices_response["results"]:
             db_device = db_devices[device["id"]]
             assert db_device.serial_number == device["serial_number"]
@@ -194,12 +180,15 @@ class TestTasks:
             f"https://www.tinymdm.net/api/v1/users/{device.raw_mdm_device['user_id']}"
         )
         message_request = requests_mock.post("https://www.tinymdm.net/api/v1/actions/message")
+        add_to_group_request = requests_mock.post(
+            f"https://www.tinymdm.net/api/v1/groups/{device.fleet.mdm_group_id}/users/{device.raw_mdm_device['user_id']}"
+        )
         session = tasks.get_tinymdm_session()
         tasks.push_device_config(session, device)
 
         if device.app_user_name:
             # Get QR code data from the AppUser
-            app_user = device.policy.project.app_users.get(name=device.app_user_name)
+            app_user = device.fleet.project.app_users.get(name=device.app_user_name)
             qr_code_data = json.dumps(app_user.qr_code_data, separators=(",", ":"))
         else:
             qr_code_data = ""
@@ -222,27 +211,29 @@ class TestTasks:
             "title": "HNEC Collect Project Update",
             "devices": [device.device_id],
         }
+        assert add_to_group_request.called_once
+        assert not add_to_group_request.last_request.body
 
-    def test_push_device_config_new_device(self, policy, set_tinymdm_env_vars):
+    def test_push_device_config_new_device(self, fleet, set_tinymdm_env_vars):
         """Ensures calling push_device_config() with a Device whose `raw_mdm_device` field
         is not set does not raise a TypeError."""
-        device = DeviceFactory.build(policy=policy, raw_mdm_device=None)
+        device = DeviceFactory.build(fleet=fleet, raw_mdm_device=None)
         device.save(push_to_mdm=False)
         session = tasks.get_tinymdm_session()
         tasks.push_device_config(session, device)
 
-    def test_sync_policy(self, policy, devices, mocker, set_tinymdm_env_vars):
-        """Ensure calling sync_policy() calls pull_devices() for the specified policy
-        and push_device_config() for the policy's devices whose app_user_name field is set.
+    def test_sync_fleet(self, fleet, devices, mocker, set_tinymdm_env_vars):
+        """Ensure calling sync_fleet() calls pull_devices() for the specified fleet
+        and push_device_config() for the fleet's devices whose app_user_name field is set.
         """
         # Make app_user_name blank for some devices
-        policy.devices.filter(id__in=[d.id for d in devices][:3]).update(app_user_name="")
-        devices_to_push = policy.devices.exclude(app_user_name="")
+        fleet.devices.filter(id__in=[d.id for d in devices][:3]).update(app_user_name="")
+        devices_to_push = fleet.devices.exclude(app_user_name="")
 
         mock_pull_devices = mocker.patch("apps.mdm.tasks.pull_devices")
         mock_push_device_config = mocker.patch("apps.mdm.tasks.push_device_config")
         session = tasks.get_tinymdm_session()
-        tasks.sync_policy(session, policy)
+        tasks.sync_fleet(session, fleet)
 
         mock_pull_devices.assert_called_once()
         # push_device_config should be called only for the devices where
@@ -253,26 +244,60 @@ class TestTasks:
         )
         assert mock_push_device_config.call_count == len(devices_to_push)
 
-    def test_sync_policy_with_push_config_false(
-        self, policy, devices, mocker, set_tinymdm_env_vars
-    ):
-        """Ensure calling sync_policy() with push_config=False calls pull_devices()
-        for the specified policy but does not call push_device_config() for any device.
+    def test_sync_fleet_with_push_config_false(self, fleet, devices, mocker, set_tinymdm_env_vars):
+        """Ensure calling sync_fleet() with push_config=False calls pull_devices()
+        for the specified fleet but does not call push_device_config() for any device.
         """
         mock_pull_devices = mocker.patch("apps.mdm.tasks.pull_devices")
         mock_push_device_config = mocker.patch("apps.mdm.tasks.push_device_config")
         session = tasks.get_tinymdm_session()
-        tasks.sync_policy(session, policy, push_config=False)
+        tasks.sync_fleet(session, fleet, push_config=False)
 
         mock_pull_devices.assert_called_once()
         mock_push_device_config.assert_not_called()
 
-    def test_sync_policies(self, policies, mocker, set_tinymdm_env_vars):
-        """Ensure calling sync_policies() calls sync_policy() for all policies."""
-        mock_sync_policy = mocker.patch("apps.mdm.tasks.sync_policy")
-        tasks.sync_policies()
+    def test_sync_fleets(self, fleets, mocker, set_tinymdm_env_vars):
+        """Ensure calling sync_fleets() calls sync_fleet() for all fleets."""
+        mock_sync_fleet = mocker.patch("apps.mdm.tasks.sync_fleet")
+        tasks.sync_fleets()
 
-        assert mock_sync_policy.call_count == len(policies)
-        for call in mock_sync_policy.call_list_args:
+        assert mock_sync_fleet.call_count == len(fleets)
+        for call in mock_sync_fleet.call_list_args:
             assert isinstance(call.args[0], Session)
-            assert call.args[1] in policies
+            assert call.args[1] in fleets
+
+    def test_create_group(self, requests_mock, set_tinymdm_env_vars):
+        """Ensures create_group() makes the expected API request and updates
+        the fleet's mdm_group_id field if successful.
+        """
+        fleet = FleetFactory.build(mdm_group_id=None)
+        json_response = {
+            "id": fake.pystr(),
+            "name": fleet.group_name,
+            "policy_id": None,
+            "creation_date": "2020-09-12 09:45:12",
+            "modification_date": "2020-08-05 15:57:25",
+        }
+        create_group_request = requests_mock.post(
+            "https://www.tinymdm.net/api/v1/groups", json=json_response, status_code=201
+        )
+        session = tasks.get_tinymdm_session()
+        tasks.create_group(session, fleet)
+
+        assert create_group_request.called_once
+        assert create_group_request.last_request.json() == {
+            "name": fleet.group_name,
+        }
+        assert fleet.mdm_group_id == json_response["id"]
+
+    def test_add_group_to_policy(self, fleet, requests_mock, set_tinymdm_env_vars):
+        """Ensures add_group_to_policy() makes the expected API request."""
+        add_group_to_policy_request = requests_mock.post(
+            f"https://www.tinymdm.net/api/v1/policies/{fleet.policy.policy_id}/members/{fleet.mdm_group_id}",
+            status_code=204,
+        )
+        session = tasks.get_tinymdm_session()
+        tasks.add_group_to_policy(session, fleet)
+
+        assert add_group_to_policy_request.called_once
+        assert not add_group_to_policy_request.last_request.body

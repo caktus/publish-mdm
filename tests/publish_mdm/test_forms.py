@@ -3,16 +3,20 @@ from pathlib import Path
 import pytest
 from django.forms.widgets import PasswordInput
 from django.urls import reverse
+from pytest_django.asserts import assertQuerySetEqual, assertFormError
 from requests.exceptions import ConnectionError
 
 from apps.patterns.widgets import BaseEmailInput
 from apps.publish_mdm.forms import (
     CentralServerForm,
     CentralServerFrontendForm,
+    FleetAddForm,
+    FleetEditForm,
     ProjectSyncForm,
     PublishTemplateForm,
 )
 from apps.publish_mdm.http import HttpRequest
+from tests.mdm.factories import FleetFactory
 from tests.publish_mdm.factories import (
     FormTemplateFactory,
     ProjectFactory,
@@ -329,3 +333,44 @@ class TestCentralServerForm:
         )
         # The field should not be required if there is already a value in the DB
         assert not field.required
+
+
+@pytest.mark.django_db
+class TestFleetForm:
+    @pytest.fixture
+    def organization(self):
+        return OrganizationFactory()
+
+    @pytest.fixture
+    def projects(self, organization):
+        return ProjectFactory.create_batch(3, organization=organization)
+
+    @pytest.mark.parametrize("FleetForm", [FleetAddForm, FleetEditForm])
+    def test_project_choices(self, organization, projects, FleetForm):
+        """Ensures the choices for the project field are the current organization's
+        projects only.
+        """
+        # Create some projects in another organization
+        ProjectFactory.create_batch(2, organization=OrganizationFactory())
+        form = FleetForm(instance=FleetFactory.build(organization=organization))
+        assertQuerySetEqual(form.fields["project"].queryset, projects, ordered=False)
+
+    def test_name_validation(self, organization, projects):
+        """Ensures a name cannot be duplicated within the same organization."""
+        fleet = FleetFactory(organization=organization)
+        # Try to create a Fleet with the same name
+        data = {
+            "name": fleet.name,
+            "project": projects[0].id,
+        }
+        form = FleetAddForm(data=data, instance=FleetFactory.build(organization=organization))
+        assert not form.is_valid()
+        assertFormError(
+            form, "name", "A fleet with the same name already exists in the current organization."
+        )
+
+        # If the existing fleet is in a different organization the form should be valid
+        fleet.organization = OrganizationFactory()
+        fleet.save()
+        form = FleetAddForm(data=data, instance=FleetFactory.build(organization=organization))
+        assert form.is_valid()

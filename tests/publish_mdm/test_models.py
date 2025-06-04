@@ -14,11 +14,13 @@ from .factories import (
     FormTemplateVersionFactory,
     AppUserFactory,
     AppUserTemplateVariableFactory,
+    OrganizationFactory,
 )
 from apps.infisical.api import InfisicalKMS
 from apps.infisical.fields import EncryptedMixin
 from apps.publish_mdm.etl import template
 from apps.publish_mdm.models import CentralServer
+from tests.mdm.factories import PolicyFactory
 
 
 @pytest.mark.django_db
@@ -279,3 +281,29 @@ class TestAppUser:
             match="Name can only contain alphanumeric characters, underscores, hyphens, and not more than one colon.",
         ):
             app_user.full_clean()
+
+
+@pytest.mark.django_db
+class TestOrganization:
+    def test_create_default_fleet(self, set_tinymdm_env_vars, mocker, settings):
+        """Ensures calling create_default_fleet() creates a default Fleet for an
+        organization if a default policy exists.
+        """
+        organization = OrganizationFactory()
+        mock_create_group = mocker.patch("apps.publish_mdm.models.create_group")
+        mock_add_group_to_policy = mocker.patch("apps.publish_mdm.models.add_group_to_policy")
+        mocker.patch("apps.mdm.tasks.pull_devices")
+
+        # No default policy. The default fleet should not be created
+        settings.TINYMDM_DEFAULT_POLICY = None
+        organization.create_default_fleet()
+        assert not organization.fleets.exists()
+        mock_create_group.assert_not_called()
+        mock_add_group_to_policy.assert_not_called()
+
+        # Create a default policy and call create_default_fleet() again
+        default_policy = PolicyFactory(default_policy=True)
+        organization.create_default_fleet()
+        assert organization.fleets.filter(name="Default", policy=default_policy).exists()
+        mock_create_group.assert_called_once()
+        mock_add_group_to_policy.assert_called_once()

@@ -5,10 +5,13 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import models, transaction
+from django.db.models import OuterRef, Q, Subquery, Value
+from django.db.models.functions import Lower, NullIf
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.html import mark_safe
 from django.utils.timezone import localdate
+from django_tables2.config import RequestConfig
 from import_export.results import RowResult
 from import_export.tmp_storages import MediaStorage
 from invitations.adapters import get_invitations_adapter
@@ -25,6 +28,10 @@ from pygments.formatters import HtmlFormatter
 from pygments.lexers.data import JsonLexer
 from pyodk.errors import PyODKError
 from requests.exceptions import RequestException
+
+from apps.mdm.models import Device, FirmwareSnapshot, Fleet, Policy
+from apps.mdm.tasks import add_group_to_policy, create_group, get_tinymdm_session
+from apps.tailscale.models import Device as TailscaleDevice
 
 from .etl.load import (
     create_project,
@@ -45,12 +52,20 @@ from .forms import (
     ProjectTemplateVariableFormSet,
     OrganizationForm,
     TemplateVariableFormSet,
+    FleetAddForm,
+    FleetEditForm,
     CentralServerFrontendForm,
 )
 from .import_export import AppUserResource
 from .models import FormTemplateVersion, FormTemplate, AppUser, Project, CentralServer
 from .nav import Breadcrumbs
-from .tables import CentralServerTable, FormTemplateTable, FormTemplateVersionTable
+from .tables import (
+    CentralServerTable,
+    DeviceTable,
+    FleetTable,
+    FormTemplateTable,
+    FormTemplateVersionTable,
+)
 
 
 logger = structlog.getLogger(__name__)
@@ -486,6 +501,21 @@ def create_organization(request: HttpRequest):
         organization = form.save()
         organization.users.add(request.user)
         messages.success(request, f"Successfully created {organization}.")
+        # Create the default fleet
+        try:
+            organization.create_default_fleet()
+        except RequestException as e:
+            logger.debug(
+                "Unable to create the default fleet", organization=organization, exc_info=True
+            )
+            messages.warning(
+                request,
+                mark_safe(
+                    "The organization was created but its default TinyMDM group "
+                    "could not be created due to the following error:"
+                    f'<code class="block text-xs mt-2">{e}</code>'
+                ),
+            )
         return redirect("publish_mdm:organization-home", organization.slug)
     context = {
         "form": form,
@@ -672,3 +702,172 @@ def change_central_server(request: HttpRequest, organization_slug, central_serve
         "server": server,
     }
     return render(request, "publish_mdm/change_central_server.html", context)
+
+
+@login_required
+def devices_list(request: HttpRequest, organization_slug):
+    """List all MDM devices linked to the current Organization."""
+    devices = (
+        Device.objects.filter(fleet__organization=request.organization)
+        .annotate(
+            # The version from the latest firmware snapshot, if available
+            firmware_version=Subquery(
+                FirmwareSnapshot.objects.filter(device=OuterRef("id"))
+                .values("version")
+                .order_by("-synced_at")[:1]
+            ),
+            # The last_seen from the most recent Tailscale Device (by last_seen)
+            # whose name contains either:
+            # (a) the lowercase serial number of the MDM device, or
+            # (b) the lowercase device id of the MDM device
+            last_seen_vpn=Subquery(
+                TailscaleDevice.objects.filter(
+                    Q(name__contains=Lower(NullIf(OuterRef("serial_number"), Value(""))))
+                    | Q(name__contains=Lower(NullIf(OuterRef("device_id"), Value(""))))
+                )
+                .values("last_seen")
+                .order_by("-last_seen")[:1]
+            ),
+        )
+        .select_related("latest_snapshot")
+    )
+    table = DeviceTable(data=devices, show_footer=False)
+    RequestConfig(request, paginate=False).configure(table)
+    context = {
+        "table": table,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("Devices", "devices-list")],
+        ),
+    }
+    if request.htmx:
+        template = "patterns/tables/table-partial.html"
+    else:
+        template = "publish_mdm/devices_list.html"
+    return render(request, template, context)
+
+
+@login_required
+def fleets_list(request: HttpRequest, organization_slug):
+    fleets = request.organization.fleets.all()
+    table = FleetTable(data=fleets, show_footer=False)
+    RequestConfig(request, paginate=False).configure(table)
+    context = {
+        "table": table,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("Fleets", "fleets-list")],
+        ),
+    }
+    if request.htmx:
+        template = "patterns/tables/table-partial.html"
+    else:
+        template = "publish_mdm/fleets_list.html"
+    return render(request, template, context)
+
+
+@login_required
+def add_fleet(request: HttpRequest, organization_slug):
+    """Add a Fleet."""
+    default_policy = Policy.get_default()
+    session = get_tinymdm_session()
+
+    if not default_policy or not session:
+        logger.warning(
+            "Cannot create Fleets. Please set up a default TinyMDM policy "
+            f"({default_policy=}) and/or credentials ({session=})."
+        )
+        messages.error(
+            request, "Sorry, cannot create a fleet at this time. Please try again later."
+        )
+        return redirect("publish_mdm:fleets-list", organization_slug)
+
+    fleet = Fleet(organization=request.organization, policy=default_policy)
+    form = FleetAddForm(request.POST or None, instance=fleet)
+
+    if request.method == "POST" and form.is_valid():
+        fleet = form.save(commit=False)
+
+        # Create a group in TinyMDM and set the mdm_group_id field
+        try:
+            create_group(session, fleet)
+        except RequestException as e:
+            logger.debug(
+                "Unable to create TinyMDM group",
+                fleet=fleet,
+                organization=request.organization,
+                exc_info=True,
+            )
+            messages.error(
+                request,
+                mark_safe(
+                    "The fleet has not been saved because its TinyMDM group "
+                    "could not be created due to the following error:"
+                    f'<code class="block text-xs mt-2">{e}</code>'
+                ),
+            )
+            return redirect("publish_mdm:fleets-list", organization_slug)
+
+        # Add the TinyMDM group to the default policy
+        try:
+            add_group_to_policy(session, fleet)
+        except RequestException as e:
+            logger.debug(
+                "Unable to add the TinyMDM group to policy",
+                fleet=fleet,
+                organization=request.organization,
+                policy=fleet.policy,
+                exc_info=True,
+            )
+            messages.warning(
+                request,
+                mark_safe(
+                    "The fleet has been saved but it could not be added to the "
+                    f"{fleet.policy.name} policy in TinyMDM due to the following error:"
+                    f'<code class="block text-xs mt-2">{e}</code>'
+                ),
+            )
+
+        fleet.save()
+        messages.success(request, f"Successfully added {fleet}.")
+        return redirect("publish_mdm:fleets-list", organization_slug)
+
+    context = {
+        "form": form,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[
+                ("Fleets", "fleets-list"),
+                ("Add Fleet", "add-fleet"),
+            ],
+        ),
+        "fleet": fleet,
+    }
+
+    return render(request, "publish_mdm/change_fleet.html", context)
+
+
+@login_required
+def edit_fleet(request: HttpRequest, organization_slug, fleet_id):
+    """Edit a Fleet."""
+    fleet = get_object_or_404(request.organization.fleets, pk=fleet_id)
+    form = FleetEditForm(request.POST or None, instance=fleet)
+
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, f"Successfully edited {fleet}.")
+        return redirect("publish_mdm:fleets-list", organization_slug)
+
+    context = {
+        "form": form,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[
+                ("Fleets", "fleets-list"),
+                (f"Edit {fleet}", "edit-fleet"),
+            ],
+        ),
+        "fleet": fleet,
+    }
+
+    return render(request, "publish_mdm/change_fleet.html", context)

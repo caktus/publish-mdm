@@ -3,7 +3,7 @@ import django
 
 django.setup()
 
-from apps.mdm.tasks import sync_policies  # noqa: E402
+from apps.mdm.tasks import sync_fleets  # noqa: E402
 
 
 @dg.asset(
@@ -11,4 +11,4 @@ from apps.mdm.tasks import sync_policies  # noqa: E402
     group_name="tinymdm_assets",
 )
 def tinymdm_device_snapshot():
-    sync_policies(push_config=False)
+    sync_fleets(push_config=False)

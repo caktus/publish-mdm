@@ -122,4 +122,24 @@ urlpatterns = [
         views.change_central_server,
         name="add-central-server",
     ),
+    path(
+        "o/<slug:organization_slug>/devices/",
+        views.devices_list,
+        name="devices-list",
+    ),
+    path(
+        "o/<slug:organization_slug>/fleets/",
+        views.fleets_list,
+        name="fleets-list",
+    ),
+    path(
+        "o/<slug:organization_slug>/fleet/<int:fleet_id>/",
+        views.edit_fleet,
+        name="edit-fleet",
+    ),
+    path(
+        "o/<slug:organization_slug>/fleet/add/",
+        views.add_fleet,
+        name="add-fleet",
+    ),
 ]

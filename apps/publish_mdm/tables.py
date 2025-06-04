@@ -1,6 +1,7 @@
 import django_tables2 as tables
 
 from .models import CentralServer, FormTemplate, FormTemplateVersion
+from apps.mdm.models import Device, Fleet
 
 
 class FormTemplateTable(tables.Table):
@@ -57,3 +58,39 @@ class CentralServerTable(tables.Table):
         template_name = "patterns/tables/table.html"
         attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
         orderable = False
+
+
+class DeviceTable(tables.Table):
+    """A table for listing MDM Devices."""
+
+    last_seen_mdm = tables.DateTimeColumn(
+        accessor="latest_snapshot__last_sync", verbose_name="Last seen (MDM)"
+    )
+    last_seen_vpn = tables.DateTimeColumn(verbose_name="Last seen (VPN)")
+
+    class Meta:
+        model = Device
+        fields = [
+            "device_id",
+            "serial_number",
+            "app_user_name",
+            "firmware_version",
+            "last_seen_mdm",
+            "last_seen_vpn",
+        ]
+        template_name = "patterns/tables/table.html"
+        attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
+
+
+class FleetTable(tables.Table):
+    name = tables.LinkColumn(
+        "publish_mdm:edit-fleet",
+        args=[tables.A("organization__slug"), tables.A("pk")],
+        attrs={"a": {"class": "text-primary-600 hover:underline"}},
+    )
+
+    class Meta:
+        model = Fleet
+        fields = ("name", "mdm_group_id", "project")
+        template_name = "patterns/tables/table.html"
+        attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}

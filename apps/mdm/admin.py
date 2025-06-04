@@ -1,27 +1,60 @@
+import structlog
 from django.contrib import admin
 from django.contrib import messages
 from django.db import transaction
 from django.utils.html import mark_safe
 from import_export.admin import ImportExportMixin
 from import_export.forms import ExportForm
+from requests.exceptions import RequestException
 
 from .import_export import DeviceResource
-from .models import Policy, Device, DeviceSnapshot, DeviceSnapshotApp, FirmwareSnapshot
+from .models import Policy, Device, DeviceSnapshot, DeviceSnapshotApp, FirmwareSnapshot, Fleet
+from .tasks import add_group_to_policy, get_tinymdm_session
+
+logger = structlog.getLogger(__name__)
 
 
 @admin.register(Policy)
 class PolicyAdmin(admin.ModelAdmin):
-    list_display = ("name", "policy_id", "project")
-    search_fields = ("name", "policy_id", "project__name")
-    list_filter = ("project",)
+    list_display = ("name", "policy_id", "default_policy")
+    search_fields = ("name", "policy_id")
+
+
+@admin.register(Fleet)
+class FleetAdmin(admin.ModelAdmin):
+    list_display = ("name", "organization", "mdm_group_id", "policy", "project")
+    search_fields = ("name", "organization__name", "policy__name", "project__name", "mdm_group_id")
+    list_filter = ("organization", "policy", "project")
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if "policy" in form.changed_data and (session := get_tinymdm_session()):
+            try:
+                add_group_to_policy(session, obj)
+            except RequestException as e:
+                logger.debug(
+                    "Unable to add the TinyMDM group to policy",
+                    fleet=obj,
+                    organization=obj.organization,
+                    policy=obj.policy,
+                    exc_info=True,
+                )
+                messages.warning(
+                    request,
+                    mark_safe(
+                        "The fleet has been saved but it could not be added to the "
+                        f"{obj.policy.name} policy in TinyMDM due to the following error:"
+                        f"<br><code>{e}</code>"
+                    ),
+                )
 
 
 @admin.register(Device)
 class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
-    list_display = ("name", "serial_number", "app_user_name", "policy")
-    search_fields = ("serial_number", "app_user_name", "policy__name", "serial_number")
+    list_display = ("name", "serial_number", "app_user_name", "fleet")
+    search_fields = ("serial_number", "app_user_name", "fleet__name", "serial_number")
     readonly_fields = ("name", "device_id", "raw_mdm_device", "latest_snapshot")
-    list_filter = ("policy", "app_user_name")
+    list_filter = ("fleet", "app_user_name")
     export_form_class = ExportForm
     resource_classes = [DeviceResource]
 

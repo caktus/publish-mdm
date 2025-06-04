@@ -35,6 +35,36 @@
                     </a>
                 </li>
                 <li>
+                    <a href="{% url 'publish_mdm:fleets-list' request.organization.slug %}"
+                       class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
+                        <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
+                             aria-hidden="true"
+                             xmlns="http://www.w3.org/2000/svg"
+                             width="24"
+                             height="24"
+                             fill="none"
+                             viewBox="0 0 24 24">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-width="2" d="M4.5 17H4a1 1 0 0 1-1-1 3 3 0 0 1 3-3h1m0-3.05A2.5 2.5 0 1 1 9 5.5M19.5 17h.5a1 1 0 0 0 1-1 3 3 0 0 0-3-3h-1m0-3.05a2.5 2.5 0 1 0-2-4.45m.5 13.5h-7a1 1 0 0 1-1-1 3 3 0 0 1 3-3h3a3 3 0 0 1 3 3 1 1 0 0 1-1 1Zm-1-9.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z" />
+                        </svg>
+                        <span class="ml-3">Fleets</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'publish_mdm:devices-list' request.organization.slug %}"
+                       class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
+                        <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
+                             aria-hidden="true"
+                             xmlns="http://www.w3.org/2000/svg"
+                             width="24"
+                             height="24"
+                             fill="none"
+                             viewBox="0 0 24 24">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 18h2M5.875 3h12.25c.483 0 .875.448.875 1v16c0 .552-.392 1-.875 1H5.875C5.392 21 5 20.552 5 20V4c0-.552.392-1 .875-1Z" />
+                        </svg>
+                        <span class="ml-3">Devices</span>
+                    </a>
+                </li>
+                <li>
                     <a href="{% url 'publish_mdm:central-servers-list' request.organization.slug %}"
                        class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
                         <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
@@ -47,36 +77,6 @@
                             <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1M5 12h14M5 12a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1m-2 3h.01M14 15h.01M17 9h.01M14 9h.01" />
                         </svg>
                         <span class="ml-3">Central Servers</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="{% url 'publish_mdm:organization-users-list' request.organization.slug %}"
-                       class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
-                        <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
-                             aria-hidden="true"
-                             xmlns="http://www.w3.org/2000/svg"
-                             width="24"
-                             height="24"
-                             fill="none"
-                             viewBox="0 0 24 24">
-                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 18h2M5.875 3h12.25c.483 0 .875.448.875 1v16c0 .552-.392 1-.875 1H5.875C5.392 21 5 20.552 5 20V4c0-.552.392-1 .875-1Z" />
-                        </svg>
-                        <span class="ml-3">MDM Devices</span>
-                    </a>
-                </li>
-                <li>
-                    <a href="{% url 'publish_mdm:server-sync' request.organization.slug %}"
-                       class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
-                        <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
-                             aria-hidden="true"
-                             xmlns="http://www.w3.org/2000/svg"
-                             width="24"
-                             height="24"
-                             fill="none"
-                             viewBox="0 0 24 24">
-                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.651 7.65a7.131 7.131 0 0 0-12.68 3.15M18.001 4v4h-4m-7.652 8.35a7.13 7.13 0 0 0 12.68-3.15M6 20v-4h4" />
-                        </svg>
-                        <span class="ml-3">Sync Project</span>
                     </a>
                 </li>
                 <li>
@@ -94,9 +94,14 @@
                         <span class="ml-3">Template Variables</span>
                     </a>
                 </li>
+            </ul>
+            <div class="pt-5 pl-2 mt-5 mb-4 text-sm font-bold text-gray-500 border-t border-gray-200 dark:text-gray-400 dark:border-gray-700">
+                <h3>Project</h3>
+            </div>
+            <ul class="pb-4 pl-2 mt-2 mb-4 space-y-2 border-dotted border-b border-gray-200 dark:border-gray-700">
                 <li>
                     <a href="{% url 'publish_mdm:add-project' request.organization.slug %}"
-                       class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
+                       class="flex items-center text-sm text-gray-500 hover:text-primary-700 dark:text-gray-400 dark:hover:text-white group">
                         <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
                              aria-hidden="true"
                              xmlns="http://www.w3.org/2000/svg"
@@ -106,13 +111,25 @@
                              viewBox="0 0 24 24">
                             <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9V4a1 1 0 0 0-1-1H8.914a1 1 0 0 0-.707.293L4.293 7.207A1 1 0 0 0 4 7.914V20a1 1 0 0 0 1 1h4M9 3v4a1 1 0 0 1-1 1H4m11 6v4m-2-2h4m3 0a5 5 0 1 1-10 0 5 5 0 0 1 10 0Z" />
                         </svg>
-                        <span class="ml-3">Add Project</span>
+                        <span class="ml-2">Add Project</span>
+                    </a>
+                </li>
+                <li>
+                    <a href="{% url 'publish_mdm:server-sync' request.organization.slug %}"
+                       class="flex items-center text-sm text-gray-500 hover:text-primary-700 dark:text-gray-400 dark:hover:text-white group">
+                        <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
+                             aria-hidden="true"
+                             xmlns="http://www.w3.org/2000/svg"
+                             width="24"
+                             height="24"
+                             fill="none"
+                             viewBox="0 0 24 24">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.651 7.65a7.131 7.131 0 0 0-12.68 3.15M18.001 4v4h-4m-7.652 8.35a7.13 7.13 0 0 0 12.68-3.15M6 20v-4h4" />
+                        </svg>
+                        <span class="ml-2">Sync Project</span>
                     </a>
                 </li>
             </ul>
-            <div class="pt-5 pl-2 mt-5 mb-4 text-sm font-bold text-gray-500 border-t border-gray-200 dark:text-gray-400 dark:border-gray-700">
-                <h3>Project</h3>
-            </div>
             <button id="dropdownProjectNameButton"
                     data-dropdown-toggle="dropdownProjectName"
                     class="flex justify-between items-center p-2 w-full rounded-lg bg-primary-100 cursor-pointer dark:bg-gray-800 dark:hover:bg-gray-700 hover:bg-primary-200 dark:hover-bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700"
