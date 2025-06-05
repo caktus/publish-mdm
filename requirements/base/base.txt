@@ -95,24 +95,24 @@ cryptography==45.0.3
     #   autobahn
     #   pyopenssl
     #   service-identity
-dagster==1.10.18
+dagster==1.10.19
     # via
     #   -r requirements/base/base.in
     #   dagster-graphql
     #   dagster-k8s
     #   dagster-postgres
     #   dagster-webserver
-dagster-graphql==1.10.18
+dagster-graphql==1.10.19
     # via dagster-webserver
-dagster-k8s==0.26.18
+dagster-k8s==0.26.19
     # via -r requirements/base/base.in
-dagster-pipes==1.10.18
+dagster-pipes==1.10.19
     # via dagster
-dagster-postgres==0.26.18
+dagster-postgres==0.26.19
     # via -r requirements/base/base.in
-dagster-shared==1.10.18
+dagster-shared==1.10.19
     # via dagster
-dagster-webserver==1.10.18
+dagster-webserver==1.10.19
     # via -r requirements/base/base.in
 daphne==4.2.0
     # via -r requirements/base/base.in
@@ -301,7 +301,7 @@ pygments==2.19.1
     #   rich
 pyjwt==2.10.1
     # via -r requirements/base/base.in
-pyodk @ git+https://github.com/getodk/pyodk.git@b09fe11ebb47166c81df5831c4a58e7ffd8f759e
+pyodk @ git+https://github.com/getodk/pyodk.git@c20fbd36622fe3a309292b7f646bd7347858aaa6
     # via -r requirements/base/base.in
 pyopenssl==25.1.0
     # via twisted
