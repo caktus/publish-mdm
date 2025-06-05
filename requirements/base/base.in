@@ -26,8 +26,8 @@ newrelic
 openpyxl
 Pillow
 PyJWT
-# Newer pydantic
-pyodk @ git+https://github.com/getodk/pyodk.git@b09fe11ebb47166c81df5831c4a58e7ffd8f759e
+# Form attachments update for Central v2025.1 (see https://github.com/getodk/pyodk/pull/116)
+pyodk @ git+https://github.com/getodk/pyodk.git@c20fbd36622fe3a309292b7f646bd7347858aaa6
 psycopg
 requests
 requests-ratelimiter
