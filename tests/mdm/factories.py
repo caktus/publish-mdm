@@ -26,6 +26,7 @@ class FleetFactory(factory.django.DjangoModelFactory):
     organization = factory.SubFactory(OrganizationFactory)
     policy = factory.SubFactory(PolicyFactory)
     project = factory.SubFactory(ProjectFactory)
+    enroll_qr_code = factory.django.ImageField()
 
 
 class DeviceFactory(factory.django.DjangoModelFactory):

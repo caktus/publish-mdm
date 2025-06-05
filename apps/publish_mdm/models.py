@@ -24,7 +24,12 @@ from apps.infisical.fields import EncryptedCharField, EncryptedEmailField
 from apps.infisical.managers import EncryptedManager
 from apps.users.models import User
 from apps.mdm.models import Fleet, Policy
-from apps.mdm.tasks import add_group_to_policy, create_group, get_tinymdm_session
+from apps.mdm.tasks import (
+    add_group_to_policy,
+    create_group,
+    get_enrollment_qr_code,
+    get_tinymdm_session,
+)
 
 from .etl import template
 from .etl.google import download_user_google_sheet
@@ -61,6 +66,7 @@ class Organization(AbstractBaseModel):
             fleet = Fleet(organization=self, name="Default", policy=default_policy)
             create_group(session, fleet)
             add_group_to_policy(session, fleet)
+            get_enrollment_qr_code(session, fleet)
             fleet.save()
             return fleet
 

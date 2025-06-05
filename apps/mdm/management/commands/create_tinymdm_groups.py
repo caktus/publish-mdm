@@ -3,7 +3,12 @@ from django.core.management.base import BaseCommand
 from requests.exceptions import RequestException
 
 from apps.mdm.models import Fleet
-from apps.mdm.tasks import add_group_to_policy, create_group, get_tinymdm_session
+from apps.mdm.tasks import (
+    add_group_to_policy,
+    create_group,
+    get_enrollment_qr_code,
+    get_tinymdm_session,
+)
 
 logger = structlog.getLogger(__name__)
 
@@ -28,6 +33,19 @@ class Command(BaseCommand):
                     organization=fleet.organization,
                     policy=fleet.policy,
                     group_name=fleet.group_name,
+                    exc_info=True,
+                )
+
+            try:
+                get_enrollment_qr_code(session, fleet)
+            except RequestException:
+                logger.debug(
+                    "TinyMDM group created but unable to get the enrollment QR code",
+                    fleet=fleet,
+                    organization=fleet.organization,
+                    policy=fleet.policy,
+                    group_name=fleet.group_name,
+                    mdm_group_id=fleet.mdm_group_id,
                     exc_info=True,
                 )
 

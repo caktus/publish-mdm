@@ -1,0 +1,30 @@
+<div id="qr-code" class="w-full relative">
+    <div class="loading hidden absolute text-center w-full top-[-11px]">
+        <span class="px-3 py-1 text-xs font-medium leading-none text-center text-primary-700 bg-primary-200 rounded-full animate-pulse dark:bg-blue-900 dark:text-blue-200">loading...</span>
+    </div>
+    {% if not_found %}
+        <div class="flex flex-col items-center justify-center w-full aspect-square text-red bg-red-50 dark:bg-gray-800 dark:text-red-400">
+            <p class="text-center">QR CODE NOT FOUND</p>
+        </div>
+    {% else %}
+        <div class="flex flex-col items-center justify-center w-full aspect-square border bg-primary-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600">
+            {% if fleet.enroll_qr_code %}
+                <img src="{{ fleet.enroll_qr_code.url }}"
+                     alt="{{ fleet }} QR code"
+                     width="485"
+                     height="485">
+            {% else %}
+                <svg class="placeholder w-[48px] h-[48px] text-gray-200 dark:text-gray-600"
+                     aria-hidden="true"
+                     xmlns="http://www.w3.org/2000/svg"
+                     width="24"
+                     height="24"
+                     fill="none"
+                     viewBox="0 0 24 24">
+                    <path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M4 4h6v6H4V4Zm10 10h6v6h-6v-6Zm0-10h6v6h-6V4Zm-4 10h.01v.01H10V14Zm0 4h.01v.01H10V18Zm-3 2h.01v.01H7V20Zm0-4h.01v.01H7V16Zm-3 2h.01v.01H4V18Zm0-4h.01v.01H4V14Z" />
+                    <path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M7 7h.01v.01H7V7Zm10 10h.01v.01H17V17Z" />
+                </svg>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>

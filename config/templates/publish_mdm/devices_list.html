@@ -1,5 +1,73 @@
 {% extends "base.html" %}
 {% load django_tables2 %}
+{% block extra-css %}
+    <style>
+    .htmx-request.loading {
+        display:inline;
+    }
+    </style>
+{% endblock extra-css %}
 {% block content %}
-    {% include "patterns/tables/table-partial.html" %}
+    <div id="inner-table">
+        {% block table-header %}
+            <div class="flex flex-col md:flex-row items-center justify-end mb-4">
+                <button type="button"
+                        class="btn btn-outline btn-primary flex items-center justify-center text-sm px-4 py-2"
+                        data-modal-target="qr-codes-modal"
+                        data-modal-toggle="qr-codes-modal">
+                    <svg class="w-[20px] h-[20px] mr-2"
+                         aria-hidden="true"
+                         xmlns="http://www.w3.org/2000/svg"
+                         width="24"
+                         height="24"
+                         fill="currentColor"
+                         viewBox="0 0 24 24">
+                        <path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M4 4h6v6H4V4Zm10 10h6v6h-6v-6Zm0-10h6v6h-6V4Zm-4 10h.01v.01H10V14Zm0 4h.01v.01H10V18Zm-3 2h.01v.01H7V20Zm0-4h.01v.01H7V16Zm-3 2h.01v.01H4V18Zm0-4h.01v.01H4V14Z" />
+                        <path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M7 7h.01v.01H7V7Zm10 10h.01v.01H17V17Z" />
+                    </svg>
+                    Enroll
+                </button>
+            </div>
+        {% endblock table-header %}
+        <div class="bg-white sm:rounded-md overflow-x-auto">
+            {# Progress indicator #}
+            <div class="progress">
+                <div class="indeterminate"></div>
+            </div>
+            {% render_table table %}
+        </div>
+        <div id="qr-codes-modal"
+             tabindex="-1"
+             aria-hidden="true"
+             class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
+            <div class="relative p-4 w-full max-w-[550px] max-h-full">
+                <div class="relative bg-white rounded-lg shadow-sm dark:bg-gray-700">
+                    <div class="flex items-center justify-between p-4 md:p-5 border-b rounded-t dark:border-gray-600 border-gray-200">
+                        <h3 class="text-xl font-semibold text-gray-900 dark:text-white">Enrollment QR codes</h3>
+                        <button type="button"
+                                class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white"
+                                data-modal-hide="qr-codes-modal">
+                            <svg class="w-3 h-3"
+                                 aria-hidden="true"
+                                 xmlns="http://www.w3.org/2000/svg"
+                                 fill="none"
+                                 viewBox="0 0 14 14">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
+                            </svg>
+                            <span class="sr-only">Close modal</span>
+                        </button>
+                    </div>
+                    <form method="post"
+                          class="p-4 md:p-5 space-y-4 flex flex-col items-center justify-center mb-4">
+                        {% csrf_token %}
+                        <div class="flex w-full flex-row justify-center items-center space-x-2">
+                            <label for="id_fleet" class="font-medium text-gray-900 dark:text-white">Fleet:</label>
+                            {{ enroll_form.fleet }}
+                        </div>
+                        {% include "includes/mdm_enroll_qr_code.html" %}
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 {% endblock content %}

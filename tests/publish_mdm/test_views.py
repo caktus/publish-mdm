@@ -5,13 +5,19 @@ import pytest
 from django_tables2 import Table
 from django.urls import reverse
 from django.conf import settings
+from django.core.files.base import ContentFile
 from django.db.models import Q
 from django.utils.timezone import now, localtime
 from django.utils.formats import date_format
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers.data import JsonLexer
-from pytest_django.asserts import assertContains, assertRedirects, assertTemplateNotUsed
+from pytest_django.asserts import (
+    assertContains,
+    assertNotContains,
+    assertRedirects,
+    assertTemplateNotUsed,
+)
 from requests.exceptions import HTTPError
 
 from tests.mdm.factories import PolicyFactory
@@ -2083,6 +2089,7 @@ class TestAddFleet(ViewTestBase):
             "https://www.tinymdm.net/api/v1/groups", json={"id": group_id}, status_code=201
         )
         mock_add_group_to_policy = mocker.patch("apps.publish_mdm.views.add_group_to_policy")
+        mock_get_enrollment_qr_code = mocker.patch("apps.publish_mdm.views.get_enrollment_qr_code")
         mocker.patch("apps.mdm.tasks.pull_devices")
         PolicyFactory(default_policy=True)
 
@@ -2093,6 +2100,7 @@ class TestAddFleet(ViewTestBase):
         assert fleet.project_id == data["project"]
         assert mock_create_group_request.called_once
         mock_add_group_to_policy.assert_called_once()
+        mock_get_enrollment_qr_code.assert_called_once()
         assertContains(response, f"Successfully added {fleet}.")
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
 
@@ -2140,6 +2148,7 @@ class TestAddFleet(ViewTestBase):
         requests_mock.post(
             "https://www.tinymdm.net/api/v1/groups", json={"id": group_id}, status_code=201
         )
+        mock_get_enrollment_qr_code = mocker.patch("apps.publish_mdm.views.get_enrollment_qr_code")
         add_group_to_policy_error = HTTPError("error")
         mock_add_group_to_policy = mocker.patch(
             "apps.publish_mdm.views.add_group_to_policy", side_effect=add_group_to_policy_error
@@ -2153,12 +2162,53 @@ class TestAddFleet(ViewTestBase):
         assert fleet.name == data["name"]
         assert fleet.project_id == data["project"]
         mock_add_group_to_policy.assert_called_once()
+        mock_get_enrollment_qr_code.assert_called_once()
         assertContains(response, f"Successfully added {fleet}.")
         assertContains(
             response,
             "The fleet has been saved but it could not be added to the "
             f"{fleet.policy.name} policy in TinyMDM due to the following error:"
             f'<code class="block text-xs mt-2">{add_group_to_policy_error}</code>',
+        )
+        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
+
+    def test_valid_form_but_get_enrollment_qr_code_fails(
+        self, client, url, user, organization, project, set_tinymdm_env_vars, requests_mock, mocker
+    ):
+        """Ensure submitting a valid form creates a Fleet with the expected data
+        and shows a warning message if the TinyMDM API request for getting the
+        fleet's enrollment QR code fails.
+        """
+        data = {
+            "name": "My Fleet",
+            "project": project.id,
+        }
+        group_id = fake.pystr()
+        requests_mock.post(
+            "https://www.tinymdm.net/api/v1/groups", json={"id": group_id}, status_code=201
+        )
+        get_enrollment_qr_code_error = HTTPError("error")
+        mock_get_enrollment_qr_code = mocker.patch(
+            "apps.publish_mdm.views.get_enrollment_qr_code",
+            side_effect=get_enrollment_qr_code_error,
+        )
+        mock_add_group_to_policy = mocker.patch("apps.publish_mdm.views.add_group_to_policy")
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        PolicyFactory(default_policy=True)
+
+        response = client.post(url, data=data, follow=True)
+        fleet = organization.fleets.get()
+        assert fleet.mdm_group_id == group_id
+        assert fleet.name == data["name"]
+        assert fleet.project_id == data["project"]
+        mock_add_group_to_policy.assert_called_once()
+        mock_get_enrollment_qr_code.assert_called_once()
+        assertContains(response, f"Successfully added {fleet}.")
+        assertContains(
+            response,
+            "The fleet has been saved but we could not get its TinyMDM "
+            "enrollment QR code due to the following error:"
+            f'<code class="block text-xs mt-2">{get_enrollment_qr_code_error}</code>',
         )
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
 
@@ -2190,3 +2240,89 @@ class TestEditFleet(ViewTestBase):
         assert fleet.project_id == data["project"]
         assertContains(response, f"Successfully edited {fleet}.")
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
+
+
+class TestFleetQRCode(ViewTestBase):
+    """Test the view for getting a Fleet's enrollment QR code."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("publish_mdm:fleet-qr-code", args=[organization.slug])
+
+    def test_saved_qr_code(self, client, url, user, organization):
+        """Ensure an img tag with the saved QR code is included in the response."""
+        fleet = FleetFactory(organization=organization)
+        data = {
+            "fleet": fleet.id,
+        }
+        response = client.post(url, data=data)
+        assertContains(response, f'<img src="{fleet.enroll_qr_code.url}"')
+
+    def test_no_saved_qr_code(self, client, url, user, organization, mocker, set_tinymdm_env_vars):
+        """Ensure a the QR code is downloaded and saved if it's not saved yet,
+        and an img tag with the saved QR code is included in the response.
+        """
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        fleet = FleetFactory(organization=organization, enroll_qr_code=None)
+
+        def side_effect(session, fleet):
+            fleet.enroll_qr_code.save(f"{fleet}.png", ContentFile(fake.image()), save=False)
+
+        mock_get_enrollment_qr_code = mocker.patch(
+            "apps.publish_mdm.views.get_enrollment_qr_code",
+            side_effect=side_effect,
+        )
+        data = {
+            "fleet": fleet.id,
+        }
+        response = client.post(url, data=data)
+        mock_get_enrollment_qr_code.assert_called_once()
+        fleet.refresh_from_db()
+        assertContains(response, f'<img src="{fleet.enroll_qr_code.url}"')
+
+    def test_no_fleet_selected(self, client, url, user):
+        """Ensure a placeholder is shown if no fleet is selected."""
+        data = {
+            "fleet": "",
+        }
+        response = client.post(url, data=data)
+        assertContains(response, '<svg class="placeholder ')
+        assertNotContains(response, "QR CODE NOT FOUND")
+
+    def test_invalid_form(self, client, url, user):
+        """Ensure 'not found' is shown for an invalid fleet."""
+        data = {
+            "fleet": 99,
+        }
+        response = client.post(url, data=data)
+        assertContains(response, "QR CODE NOT FOUND")
+
+    def test_not_found_no_api_credentials(self, client, url, user, organization, mocker):
+        """Ensure 'not found' is shown if there is no QR code saved and we could
+        not get it using the TinyMDM API because there are no API credentials.
+        """
+        fleet = FleetFactory(organization=organization, enroll_qr_code=None)
+        data = {
+            "fleet": fleet.id,
+        }
+        response = client.post(url, data=data)
+        assertContains(response, "QR CODE NOT FOUND")
+
+    def test_not_found_api_error(
+        self, client, url, user, organization, mocker, set_tinymdm_env_vars
+    ):
+        """Ensure 'not found' is shown if there is no QR code saved and we could
+        not get it using the TinyMDM API because there was an API error.
+        """
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        fleet = FleetFactory(organization=organization, enroll_qr_code=None)
+        data = {
+            "fleet": fleet.id,
+        }
+        mock_get_enrollment_qr_code = mocker.patch(
+            "apps.publish_mdm.views.get_enrollment_qr_code",
+            side_effect=HTTPError("error"),
+        )
+        response = client.post(url, data=data)
+        mock_get_enrollment_qr_code.assert_called_once()
+        assertContains(response, "QR CODE NOT FOUND")
