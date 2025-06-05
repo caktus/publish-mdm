@@ -301,3 +301,28 @@ class TestTasks:
 
         assert add_group_to_policy_request.called_once
         assert not add_group_to_policy_request.last_request.body
+
+    def test_get_enrollment_qr_code(self, fleet, requests_mock, set_tinymdm_env_vars):
+        """Ensures get_enrollment_qr_code() makes the expected API request and updates
+        the fleet's enroll_qr_code field if successful.
+        """
+        fleet = FleetFactory.build(enroll_qr_code=None)
+        json_response = {
+            "enrollment_qr_code_url": "https://www.tinymdm.net/qr_code.php?data=12345",
+        }
+        get_enrollment_qr_code_request = requests_mock.get(
+            f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}/enrollment_qr_code",
+            json=json_response,
+        )
+        qr_code = fake.image()
+        download_qr_code_request = requests_mock.get(
+            json_response["enrollment_qr_code_url"],
+            content=qr_code,
+        )
+        session = tasks.get_tinymdm_session()
+        tasks.get_enrollment_qr_code(session, fleet)
+
+        assert get_enrollment_qr_code_request.called_once
+        assert download_qr_code_request.called_once
+        assert fleet.enroll_qr_code is not None
+        assert fleet.enroll_qr_code.read() == qr_code

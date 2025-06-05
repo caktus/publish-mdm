@@ -10,6 +10,7 @@ from apps.patterns.widgets import BaseEmailInput
 from apps.publish_mdm.forms import (
     CentralServerForm,
     CentralServerFrontendForm,
+    DeviceEnrollmentQRCodeForm,
     FleetAddForm,
     FleetEditForm,
     ProjectSyncForm,
@@ -374,3 +375,23 @@ class TestFleetForm:
         fleet.save()
         form = FleetAddForm(data=data, instance=FleetFactory.build(organization=organization))
         assert form.is_valid()
+
+
+@pytest.mark.django_db
+class TestDeviceQRCodeForm:
+    @pytest.fixture
+    def organization(self):
+        return OrganizationFactory()
+
+    @pytest.fixture
+    def fleets(self, organization):
+        return FleetFactory.create_batch(3, organization=organization)
+
+    def test_fleet_choices(self, organization, fleets):
+        """Ensures the choices for the fleet field are the current organization's
+        fleets only.
+        """
+        # Create some fleets in another organization
+        FleetFactory.create_batch(2, organization=OrganizationFactory())
+        form = DeviceEnrollmentQRCodeForm(organization=organization)
+        assertQuerySetEqual(form.fields["fleet"].queryset, fleets, ordered=False)

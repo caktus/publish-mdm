@@ -142,4 +142,9 @@ urlpatterns = [
         views.add_fleet,
         name="add-fleet",
     ),
+    path(
+        "o/<slug:organization_slug>/fleet-qr-code/",
+        views.fleet_qr_code,
+        name="fleet-qr-code",
+    ),
 ]

@@ -292,6 +292,7 @@ class TestOrganization:
         organization = OrganizationFactory()
         mock_create_group = mocker.patch("apps.publish_mdm.models.create_group")
         mock_add_group_to_policy = mocker.patch("apps.publish_mdm.models.add_group_to_policy")
+        mock_get_enrollment_qr_code = mocker.patch("apps.publish_mdm.models.get_enrollment_qr_code")
         mocker.patch("apps.mdm.tasks.pull_devices")
 
         # No default policy. The default fleet should not be created
@@ -300,6 +301,7 @@ class TestOrganization:
         assert not organization.fleets.exists()
         mock_create_group.assert_not_called()
         mock_add_group_to_policy.assert_not_called()
+        mock_get_enrollment_qr_code.assert_not_called()
 
         # Create a default policy and call create_default_fleet() again
         default_policy = PolicyFactory(default_policy=True)
@@ -307,3 +309,4 @@ class TestOrganization:
         assert organization.fleets.filter(name="Default", policy=default_policy).exists()
         mock_create_group.assert_called_once()
         mock_add_group_to_policy.assert_called_once()
+        mock_get_enrollment_qr_code.assert_called_once()

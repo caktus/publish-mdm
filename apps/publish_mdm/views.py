@@ -30,7 +30,12 @@ from pyodk.errors import PyODKError
 from requests.exceptions import RequestException
 
 from apps.mdm.models import Device, FirmwareSnapshot, Fleet, Policy
-from apps.mdm.tasks import add_group_to_policy, create_group, get_tinymdm_session
+from apps.mdm.tasks import (
+    add_group_to_policy,
+    create_group,
+    get_enrollment_qr_code,
+    get_tinymdm_session,
+)
 from apps.tailscale.models import Device as TailscaleDevice
 
 from .etl.load import (
@@ -55,6 +60,7 @@ from .forms import (
     FleetAddForm,
     FleetEditForm,
     CentralServerFrontendForm,
+    DeviceEnrollmentQRCodeForm,
 )
 from .import_export import AppUserResource
 from .models import FormTemplateVersion, FormTemplate, AppUser, Project, CentralServer
@@ -739,6 +745,7 @@ def devices_list(request: HttpRequest, organization_slug):
             request=request,
             items=[("Devices", "devices-list")],
         ),
+        "enroll_form": DeviceEnrollmentQRCodeForm(request.organization),
     }
     if request.htmx:
         template = "patterns/tables/table-partial.html"
@@ -808,6 +815,26 @@ def add_fleet(request: HttpRequest, organization_slug):
             )
             return redirect("publish_mdm:fleets-list", organization_slug)
 
+        # Get the TinyMDM enrollment QR code for the group
+        try:
+            get_enrollment_qr_code(session, fleet)
+        except RequestException as e:
+            logger.debug(
+                "Unable to get the TinyMDM enrollment QR code",
+                fleet=fleet,
+                organization=request.organization,
+                policy=fleet.policy,
+                exc_info=True,
+            )
+            messages.warning(
+                request,
+                mark_safe(
+                    "The fleet has been saved but we could not get its TinyMDM "
+                    "enrollment QR code due to the following error:"
+                    f'<code class="block text-xs mt-2">{e}</code>'
+                ),
+            )
+
         # Add the TinyMDM group to the default policy
         try:
             add_group_to_policy(session, fleet)
@@ -871,3 +898,28 @@ def edit_fleet(request: HttpRequest, organization_slug, fleet_id):
     }
 
     return render(request, "publish_mdm/change_fleet.html", context)
+
+
+@login_required
+def fleet_qr_code(request: HttpRequest, organization_slug):
+    """Get the HTML for displaying the enrollment QR code for one Fleet."""
+    form = DeviceEnrollmentQRCodeForm(request.organization, request.POST or None)
+    fleet = None
+    not_found = False
+    if form.is_valid():
+        fleet = form.cleaned_data["fleet"]
+        if fleet:
+            if not fleet.enroll_qr_code and (session := get_tinymdm_session()):
+                # The QR code is not saved. Get it via the TinyMDM API and save it
+                try:
+                    get_enrollment_qr_code(session, fleet)
+                except RequestException:
+                    pass
+                else:
+                    fleet.save()
+            not_found = not fleet.enroll_qr_code
+    else:
+        not_found = True
+    return render(
+        request, "includes/mdm_enroll_qr_code.html", {"fleet": fleet, "not_found": not_found}
+    )

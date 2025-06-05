@@ -567,3 +567,28 @@ class FleetAddForm(FleetEditForm):
                 "A fleet with the same name already exists in the current organization."
             )
         return name
+
+
+class DeviceEnrollmentQRCodeForm(PlatformFormMixin, forms.Form):
+    fleet = forms.ModelChoiceField(
+        # The queryset will be updated based on the current organization in __init__()
+        queryset=None,
+        # When a fleet is selected, its QR code is fetched and displayed using HMTX.
+        widget=Select(
+            attrs={
+                "hx-trigger": "change",
+                "hx-target": "#qr-code",
+                "hx-swap": "outerHTML",
+                "hx-indicator": ".loading",
+            }
+        ),
+        empty_label="Select a Fleet to view its QR code",
+        required=False,
+    )
+
+    def __init__(self, organization, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["fleet"].queryset = organization.fleets.all()
+        self.fields["fleet"].widget.attrs["hx-post"] = reverse_lazy(
+            "publish_mdm:fleet-qr-code", args=[organization.slug]
+        )

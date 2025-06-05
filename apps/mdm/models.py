@@ -46,6 +46,10 @@ class Policy(models.Model):
         return policy
 
 
+def enroll_qr_code_path(fleet, filename):
+    return f"mdm-enroll-qr-codes/{fleet.organization.slug}/{filename}"
+
+
 class Fleet(models.Model):
     """A fleet of devices that corresponds to a single group in the MDM."""
 
@@ -76,6 +80,9 @@ class Fleet(models.Model):
         related_name="fleets",
         null=True,
         blank=True,
+    )
+    enroll_qr_code = models.ImageField(
+        upload_to=enroll_qr_code_path, null=True, blank=True, verbose_name="enrollment QR code"
     )
 
     class Meta:

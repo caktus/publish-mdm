@@ -2,7 +2,9 @@ import datetime as dt
 import json
 import os
 
+import requests
 import structlog
+from django.core.files.base import ContentFile
 from django.db.models import Q, Subquery, OuterRef, F
 from django.utils import timezone
 from requests import Session
@@ -303,3 +305,24 @@ def add_group_to_policy(session: Session, fleet: Fleet):
         headers={"content-type": "application/json"},
     )
     response.raise_for_status()
+
+
+def get_enrollment_qr_code(session: Session, fleet: Fleet):
+    """Download the enrollment QR code image for a Fleet and save it in the
+    enroll_qr_code field.
+    """
+    logger.info(
+        "Getting the URL for the TinyMDM enrollment QR code", fleet=fleet, policy=fleet.policy
+    )
+    response = session.get(
+        f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}/enrollment_qr_code",
+        params={"prefix_type": "SERIAL_NUMBER"},
+        headers={"content-type": "application/json"},
+    )
+    response.raise_for_status()
+    qr_code_url = response.json()["enrollment_qr_code_url"]
+    logger.info("Downloading TinyMDM enrollment QR code", fleet=fleet, url=qr_code_url)
+    response = requests.get(qr_code_url, timeout=10)
+    response.raise_for_status()
+    # Update the enroll_qr_code field. Do not call Fleet.save()
+    fleet.enroll_qr_code.save(f"{fleet}.png", ContentFile(response.content), save=False)
