@@ -6,6 +6,9 @@
     .htmx-request.loading {
         display:inline;
     }
+    .htmx-request.syncing {
+        display:block;
+    }
     </style>
 {% endblock extra-css %}
 {% block content %}
@@ -54,7 +57,7 @@
                                             hx-target="#inner-table"
                                             hx-swap="outerHTML"
                                             hx-push-url="true"
-                                            hx-indicator=".progress"
+                                            hx-indicator=".syncing"
                                             hx-disabled-elt="this"
                                             class="w-full text-left py-2 px-4 hover:bg-gray-100 dark:hover:bg-gray-600 dark:hover:text-white disabled:opacity-75 disabled:cursor-wait">
                                         Sync From MDM
@@ -69,6 +72,9 @@
                 {# Progress indicator #}
                 <div class="progress">
                     <div class="indeterminate"></div>
+                </div>
+                <div class="syncing hidden mb-1">
+                    <span class="px-3 py-1 text-xs font-medium leading-none text-center text-primary-700 bg-primary-200 rounded-full animate-pulse dark:bg-blue-900 dark:text-blue-200">Syncing...</span>
                 </div>
                 {% render_table table %}
             </div>
