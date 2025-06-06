@@ -1,4 +1,3 @@
-from enum import auto
 import pytest
 from tablib import Dataset
 
