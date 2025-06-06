@@ -1,3 +1,4 @@
+from enum import auto
 import pytest
 from tablib import Dataset
 
@@ -9,6 +10,11 @@ from .factories import DeviceFactory, FleetFactory
 @pytest.mark.django_db
 class TestDeviceResource:
     HEADERS = ["id", "fleet", "serial_number", "app_user_name", "device_id"]
+
+    @pytest.fixture(autouse=True)
+    def disable_dagster(self, settings):
+        """Disable Dagster queuing for these tests."""
+        settings.DAGSTER_URL = None
 
     @pytest.fixture
     def fleet(self):
