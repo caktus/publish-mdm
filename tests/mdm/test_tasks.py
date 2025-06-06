@@ -4,6 +4,7 @@ import faker
 from requests.sessions import Session
 
 from apps.mdm import tasks
+from apps.mdm.models import Device
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from tests.publish_mdm.factories import AppUserFactory
 
@@ -115,8 +116,25 @@ class TestTasks:
         """
         assert isinstance(tasks.get_tinymdm_session(), Session)
 
-    def test_pull_devices(self, fleet, requests_mock, devices_response, set_tinymdm_env_vars):
+    @pytest.mark.parametrize("device_in_different_fleet", [False, True])
+    def test_pull_devices(
+        self,
+        fleet,
+        requests_mock,
+        devices_response,
+        fleets,
+        devices,
+        set_tinymdm_env_vars,
+        device_in_different_fleet,
+    ):
         """Ensures calling pull_devices() updates and creates Devices as expected."""
+        if device_in_different_fleet:
+            # Change the fleet of one of the devices such that it does not match
+            # the API response. The device should still be updated instead of
+            # attempting to create a new Device which leads to an IntegrityError.
+            devices[0].fleet = fleets[0]
+            devices[0].save()
+
         requests_mock.get("https://www.tinymdm.net/api/v1/devices", json=devices_response)
         apps = {}
         for device in devices_response["results"]:
@@ -139,10 +157,15 @@ class TestTasks:
         session = tasks.get_tinymdm_session()
         tasks.pull_devices(session, fleet)
 
-        # There should be 10 devices now in the DB. 4 are new
-        assert fleet.devices.count() == 10
+        # There should be 9 or 10 devices in the fleet now
+        if device_in_different_fleet:
+            assert fleet.devices.count() == 9
+        else:
+            assert fleet.devices.count() == 10
+        # 4 devices are new
+        assert fleet.devices.exclude(id__in=[i.id for i in devices]).count() == 4
         # Ensure the devices have the expected data from the API response
-        db_devices = fleet.devices.in_bulk(field_name="device_id")
+        db_devices = Device.objects.in_bulk(field_name="device_id")
         for device in devices_response["results"]:
             db_device = db_devices[device["id"]]
             assert db_device.serial_number == device["serial_number"]

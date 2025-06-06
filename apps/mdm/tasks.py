@@ -55,8 +55,7 @@ def update_existing_devices(fleet: Fleet, mdm_devices: list[dict]):
     }
 
     our_devices = Device.objects.filter(
-        Q(fleet=fleet)
-        & (Q(device_id__in=devices_by_id.keys()) | Q(serial_number__in=devices_by_serial.keys()))
+        Q(device_id__in=devices_by_id.keys()) | Q(serial_number__in=devices_by_serial.keys())
     )
 
     for our_device in our_devices:
@@ -71,6 +70,13 @@ def update_existing_devices(fleet: Fleet, mdm_devices: list[dict]):
         our_device.device_id = mdm_device["id"]
         our_device.name = mdm_device["nickname"] or mdm_device["name"]
         our_device.raw_mdm_device = mdm_device
+        if our_device.fleet_id != fleet.id:
+            logger.debug(
+                "Device seems to be assigned to the wrong Fleet in our database",
+                device=our_device,
+                fleet_id=our_device.fleet_id,
+                correct_fleet_id=fleet.id,
+            )
 
     logger.debug("Updating existing devices", our_devices=our_devices)
     Device.objects.bulk_update(
