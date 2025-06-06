@@ -1,5 +1,6 @@
 import dagster as dg
 import django
+import requests
 
 django.setup()
 
@@ -7,10 +8,7 @@ from apps.mdm.models import Device  # noqa: E402
 from apps.mdm.tasks import get_tinymdm_session, push_device_config, sync_fleets  # noqa: E402
 
 
-@dg.asset(
-    description="Get a list of devices from TinyMDM",
-    group_name="tinymdm_assets",
-)
+@dg.asset(description="Get a list of devices from TinyMDM", group_name="tinymdm_assets")
 def tinymdm_device_snapshot():
     sync_fleets(push_config=False)
 
@@ -21,7 +19,7 @@ class DeviceConfig(dg.Config):
 
 @dg.asset(description="Push TinyMDM device configuration")
 def push_tinymdm_device_config(context: dg.AssetExecutionContext, config: DeviceConfig):
-    """Push the device configuration to TinyMDM for the specified device IDs."""
+    """Push the device configuration to TinyMDM for the specified device PKs."""
     devices = Device.objects.filter(pk__in=config.device_pks)
     context.log.info(
         f"Pushing configuration for {devices.count()} device(s)",
@@ -31,8 +29,10 @@ def push_tinymdm_device_config(context: dg.AssetExecutionContext, config: Device
         raise ValueError(f"Devices with IDs {config.device_pks} not found.")
     if session := get_tinymdm_session():
         for device in devices:
-            push_device_config(session=session, device=device)
-            context.log.info(
-                f"Configuration pushed for device {device.device_id}",
-                extra={"device_id": device.device_id},
-            )
+            try:
+                push_device_config(session=session, device=device)
+                context.log.info(f"Configuration pushed for device {device.device_id}")
+            except requests.exceptions.RequestException as e:
+                context.log.error(
+                    f"Failed to push configuration for device {device.device_id}: {e}"
+                )
