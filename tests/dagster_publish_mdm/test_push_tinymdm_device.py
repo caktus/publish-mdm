@@ -42,10 +42,8 @@ class TestPushTinyMDMDeviceConfig:
         mock_push = mocker.patch("dagster_publish_mdm.assets.tinymdm_devices.push_device_config")
         device1 = DeviceFactory()
         device2 = DeviceFactory()
-        mock_push.side_effect = [
-            requests.exceptions.RequestException(),
-            None,
-        ]  # Simulate failure for device1
+        # Simulate failure for device1
+        mock_push.side_effect = [requests.exceptions.RequestException(), None]
 
         push_tinymdm_device_config(
             context=dg.build_asset_context(),
@@ -54,4 +52,5 @@ class TestPushTinyMDMDeviceConfig:
 
         assert mock_push.call_count == 2
         mock_push.assert_any_call(session=session, device=device1)
+        # Ensure device2 was also pushed even if device1 failed
         mock_push.assert_any_call(session=session, device=device2)
