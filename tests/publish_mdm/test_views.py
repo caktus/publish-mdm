@@ -1989,6 +1989,61 @@ class TestDevicesList(ViewTestBase):
         if htmx:
             assertTemplateNotUsed(response, "publish_mdm/devices_list.html")
 
+    def test_sync(self, client, url, user, organization, mocker, set_tinymdm_env_vars):
+        """Ensure syncing calls sync_fleet for all the fleets in an organization
+        and the updated device list is included in the response.
+        """
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        fleets = FleetFactory.create_batch(3, organization=organization)
+        devices = DeviceFactory.create_batch(3, fleet=fleets[0])
+
+        # Mock sync_fleet. It will add one new Device for each Fleet
+        def side_effect(session, fleet, push_config):
+            devices.append(DeviceFactory(fleet=fleet))
+
+        mock_sync_fleet = mocker.patch("apps.publish_mdm.views.sync_fleet", side_effect=side_effect)
+
+        response = client.post(url, data={"sync": 1})
+
+        # Ensure the expected sync_fleet calls have been made
+        assert mock_sync_fleet.call_count == len(fleets)
+        assert {
+            (call.args[1], call.kwargs["push_config"]) for call in mock_sync_fleet.mock_calls
+        } == {(fleet, False) for fleet in fleets}
+        # Ensure the expected devices list is included in the response
+        table = response.context.get("table")
+        assert isinstance(table, Table)
+        rows = table.as_values()
+        next(rows)
+        assert {row[0] for row in rows} == {device.device_id for device in devices}
+        assert len(devices) == 6
+        assertContains(response, table.as_html(response.wsgi_request))
+        # Ensure a success message is displayed
+        assertContains(
+            response, "Successfully synced devices from MDM. The devices list has been updated."
+        )
+
+    def test_sync_no_api_credentials(self, client, url, user, organization, mocker):
+        """Ensure syncing is not attempted if the TinyMDM API is not configured
+        and a message is shown to the user that syncing failed.
+        """
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        mock_sync_fleet = mocker.patch("apps.publish_mdm.views.sync_fleet")
+        fleets = FleetFactory.create_batch(3, organization=organization)
+        devices = DeviceFactory.create_batch(3, fleet=fleets[0])
+        response = client.post(url, data={"sync": 1})
+
+        mock_sync_fleet.assert_not_called()
+        # Ensure the expected devices list is included in the response
+        table = response.context.get("table")
+        assert isinstance(table, Table)
+        rows = table.as_values()
+        next(rows)
+        assert {row[0] for row in rows} == {device.device_id for device in devices}
+        assertContains(response, table.as_html(response.wsgi_request))
+        # Ensure an error message is displayed
+        assertContains(response, "Unable to sync. Please try again later.")
+
 
 class TestFleetsList(ViewTestBase):
     """Tests the page that lists the MDM fleets linked to an organization."""

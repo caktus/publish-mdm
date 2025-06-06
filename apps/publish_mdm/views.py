@@ -35,6 +35,7 @@ from apps.mdm.tasks import (
     create_group,
     get_enrollment_qr_code,
     get_tinymdm_session,
+    sync_fleet,
 )
 from apps.tailscale.models import Device as TailscaleDevice
 
@@ -713,6 +714,27 @@ def change_central_server(request: HttpRequest, organization_slug, central_serve
 @login_required
 def devices_list(request: HttpRequest, organization_slug):
     """List all MDM devices linked to the current Organization."""
+    devices_list_messages = []
+
+    if "sync" in request.POST:
+        # Sync devices from the MDM
+        if session := get_tinymdm_session():
+            fleets = request.organization.fleets.all()
+            logger.info(
+                "Syncing MDM devices from the Devices list page",
+                organization=request.organization,
+                fleets=list(fleets),
+            )
+            for fleet in fleets:
+                sync_fleet(session, fleet, push_config=False)
+            message = messages.Message(
+                messages.SUCCESS,
+                "Successfully synced devices from MDM. The devices list has been updated.",
+            )
+        else:
+            message = messages.Message(messages.ERROR, "Unable to sync. Please try again later.")
+        devices_list_messages.append(message)
+
     devices = (
         Device.objects.filter(fleet__organization=request.organization)
         .annotate(
@@ -746,11 +768,13 @@ def devices_list(request: HttpRequest, organization_slug):
             items=[("Devices", "devices-list")],
         ),
         "enroll_form": DeviceEnrollmentQRCodeForm(request.organization),
+        "devices_list_messages": devices_list_messages,
     }
+
+    template = "publish_mdm/devices_list.html"
     if request.htmx:
-        template = "patterns/tables/table-partial.html"
-    else:
-        template = "publish_mdm/devices_list.html"
+        template += "#devices-list-partial"
+
     return render(request, template, context)
 
 
