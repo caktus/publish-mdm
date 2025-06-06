@@ -24,6 +24,11 @@ class TestAdmin:
 
 
 class TestDeviceAdmin(TestAdmin):
+    @pytest.fixture(autouse=True)
+    def disable_dagster(self, settings):
+        """Disable Dagster queuing for these tests."""
+        settings.DAGSTER_URL = None
+
     @pytest.fixture
     def dataset(self):
         # Create 3 Devices with the same Fleet

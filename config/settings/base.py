@@ -418,3 +418,6 @@ INFISICAL_PROJECT_ID = os.getenv("INFISICAL_PROJECT_ID")
 # The TinyMDM ID of the default policy. If a different policy is marked as the default
 # in the Policy model it will be considered the default instead.
 TINYMDM_DEFAULT_POLICY = os.getenv("TINYMDM_DEFAULT_POLICY")
+
+# Dagster settings
+DAGSTER_URL = os.getenv("DAGSTER_URL", "")
