@@ -200,19 +200,22 @@ class TestTasks:
             "name": f"{device.app_user_name}-{device_name}",
             "custom_field_1": qr_code_data,
         }
-        assert message_request.called_once
-        assert message_request.last_request.json() == {
-            "message": (
-                f"This device has been configured for Center Number {device.app_user_name}.\n\n"
-                "Please close and re-open the HNEC Collect app to see the new project.\n\n"
-                "In case of any issues, please open the TinyMDM app and reload the policy "
-                "or restart the device."
-            ),
-            "title": "HNEC Collect Project Update",
-            "devices": [device.device_id],
-        }
         assert add_to_group_request.called_once
         assert not add_to_group_request.last_request.body
+        if device.app_user_name:
+            assert message_request.called_once
+            assert message_request.last_request.json() == {
+                "message": (
+                    f"This device has been configured for App User {device.app_user_name}.\n\n"
+                    "Please close and re-open the Collect app to see the new project.\n\n"
+                    "In case of any issues, please open the TinyMDM app and reload the policy "
+                    "or restart the device."
+                ),
+                "title": "Project Update",
+                "devices": [device.device_id],
+            }
+        else:
+            assert not message_request.called
 
     def test_push_device_config_new_device(self, fleet, set_tinymdm_env_vars):
         """Ensures calling push_device_config() with a Device whose `raw_mdm_device` field
