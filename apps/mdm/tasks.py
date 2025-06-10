@@ -222,9 +222,8 @@ def push_device_config(session: Session, device: Device):
         qr_code_data = ""
     user_id = device.raw_mdm_device["user_id"]
     url = f"https://www.tinymdm.net/api/v1/users/{user_id}"
-    device_name = device.raw_mdm_device["nickname"] or device.raw_mdm_device["name"]
     data = {
-        "name": f"{device.app_user_name}-{device_name}",
+        "name": f"{device.app_user_name}",
         "custom_field_1": qr_code_data,
     }
     logger.debug("Updating user", url=url, user_id=user_id, data=data)

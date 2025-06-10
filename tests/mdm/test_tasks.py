@@ -193,11 +193,9 @@ class TestTasks:
         else:
             qr_code_data = ""
 
-        device_name = device.raw_mdm_device["nickname"] or device.raw_mdm_device["name"]
-
         assert user_update_request.called_once
         assert user_update_request.last_request.json() == {
-            "name": f"{device.app_user_name}-{device_name}",
+            "name": f"{device.app_user_name}",
             "custom_field_1": qr_code_data,
         }
         assert add_to_group_request.called_once
