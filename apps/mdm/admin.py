@@ -1,14 +1,15 @@
 import structlog
-from django.contrib import admin
-from django.contrib import messages
+from django.contrib import admin, messages
 from django.db import transaction
 from django.utils.html import mark_safe
 from import_export.admin import ImportExportMixin
 from import_export.forms import ExportForm
 from requests.exceptions import RequestException
 
+from apps.mdm.forms import DeviceConfirmImportForm, DeviceImportForm
+
 from .import_export import DeviceResource
-from .models import Policy, Device, DeviceSnapshot, DeviceSnapshotApp, FirmwareSnapshot, Fleet
+from .models import Device, DeviceSnapshot, DeviceSnapshotApp, FirmwareSnapshot, Fleet, Policy
 from .tasks import add_group_to_policy, get_tinymdm_session
 
 logger = structlog.getLogger(__name__)
@@ -55,8 +56,24 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
     search_fields = ("serial_number", "app_user_name", "fleet__name", "serial_number")
     readonly_fields = ("name", "device_id", "raw_mdm_device", "latest_snapshot")
     list_filter = ("fleet", "app_user_name")
+    import_form_class = DeviceImportForm
+    confirm_form_class = DeviceConfirmImportForm
     export_form_class = ExportForm
     resource_classes = [DeviceResource]
+
+    def get_import_data_kwargs(self, request, *args, **kwargs):
+        """Prepare kwargs for import_data."""
+        form = kwargs.get("form", None)
+        if form and hasattr(form, "cleaned_data"):
+            kwargs.update({"push_method": form.cleaned_data.get("push_method", None)})
+        print(form.cleaned_data)
+        return kwargs
+
+    def get_confirm_form_initial(self, request, dataset, **kwargs):
+        """Pass the push method to the confirm form."""
+        initial = super().get_confirm_form_initial(request, dataset, **kwargs)
+        initial["push_method"] = request.POST.get("push_method", "")
+        return initial
 
     def process_result(self, result, request):
         if request.path.endswith("/process_import/"):

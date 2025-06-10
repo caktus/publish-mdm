@@ -1,8 +1,10 @@
 import structlog
 from django import forms
-from .models import FirmwareSnapshot
-from apps.mdm.models import Device
+from import_export.forms import ConfirmImportForm, ImportForm
 
+from apps.mdm.models import Device, PushMethodChoices
+
+from .models import FirmwareSnapshot
 
 logger = structlog.get_logger()
 
@@ -48,3 +50,19 @@ class FirmwareSnapshotForm(forms.ModelForm):
         if device:
             self.instance.device = device
         return super().save(*args, **kwargs)
+
+
+class DeviceImportForm(ImportForm):
+    """Form for importing devices with a choice of push method."""
+
+    push_method = forms.ChoiceField(
+        choices=PushMethodChoices.choices,
+        initial=PushMethodChoices.NEW_AND_UPDATED,
+        label="MDM Device Push Method",
+        help_text="Choose how to handle devices after import.",
+    )
+
+
+class DeviceConfirmImportForm(ConfirmImportForm):
+    # Pull the push_method from the import form and make it hidden in the confirm form
+    push_method = forms.ChoiceField(choices=PushMethodChoices.choices, widget=forms.HiddenInput)

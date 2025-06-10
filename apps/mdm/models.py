@@ -105,6 +105,13 @@ class Fleet(models.Model):
         return f"{self.organization.name}: {self.name}"
 
 
+class PushMethodChoices(models.TextChoices):
+    """Choices for how to push device configurations to the MDM."""
+
+    NEW_AND_UPDATED = "new-and-updated", "Push New and Updated Devices Only"
+    ALL = "all", "Push All Devices"
+
+
 class Device(models.Model):
     """A device that is enrolled in the MDM."""
 

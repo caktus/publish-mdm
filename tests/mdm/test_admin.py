@@ -51,6 +51,7 @@ class TestDeviceAdmin(TestAdmin):
         data = {
             "import_file_name": tmp_storage.name,
             "original_file_name": f"test.{format_name}",
+            "push_method": "all",
             "format": 0,
             "resource": "",
         }
