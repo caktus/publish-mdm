@@ -45,10 +45,11 @@ class TestPushTinyMDMDeviceConfig:
         # Simulate failure for device1
         mock_push.side_effect = [requests.exceptions.RequestException(), None]
 
-        push_tinymdm_device_config(
-            context=dg.build_asset_context(),
-            config=DeviceConfig(device_pks=[device1.pk, device2.pk]),
-        )
+        with pytest.raises(ValueError, match="Failed to push configuration for devices"):
+            push_tinymdm_device_config(
+                context=dg.build_asset_context(),
+                config=DeviceConfig(device_pks=[device1.pk, device2.pk]),
+            )
 
         assert mock_push.call_count == 2
         mock_push.assert_any_call(session=session, device=device1)

@@ -28,6 +28,7 @@ def push_tinymdm_device_config(context: dg.AssetExecutionContext, config: Device
     if not devices.exists():
         raise ValueError(f"Devices with IDs {config.device_pks} not found.")
     if session := get_tinymdm_session():
+        failed_pks = []
         for device in devices:
             try:
                 push_device_config(session=session, device=device)
@@ -36,3 +37,6 @@ def push_tinymdm_device_config(context: dg.AssetExecutionContext, config: Device
                 context.log.error(
                     f"Failed to push configuration for device {device.device_id}: {e}"
                 )
+                failed_pks.append(device.pk)
+        if failed_pks:
+            raise ValueError(f"Failed to push configuration for devices: {failed_pks}")
