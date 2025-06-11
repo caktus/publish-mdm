@@ -195,7 +195,7 @@ class TestTasks:
 
         assert user_update_request.called_once
         assert user_update_request.last_request.json() == {
-            "name": f"{device.app_user_name}",
+            "name": f"{device.app_user_name} - {device.device_id}",
             "custom_field_1": qr_code_data,
         }
         assert add_to_group_request.called_once
