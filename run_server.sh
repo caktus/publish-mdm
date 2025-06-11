@@ -1,5 +1,4 @@
 #!/bin/sh
-set -x
 
 if [ "$USE_GUNICORN" ]; then
     alias run_server="newrelic-admin run-program gunicorn config.wsgi --bind 0.0.0.0 --config python:config.gunicorn"
@@ -8,10 +7,11 @@ else
 fi
 
 if [ "$INFISICAL_SECRETS_FILE" ]; then
+    echo "Adding Infisical secrets to the environment..."
     export $(cat $INFISICAL_SECRETS_FILE | xargs)
 fi
 
-export TEST=test
+set -x
 
 if [ "$USE_INFISICAL_RUN" ]; then
     # Run the application with `infisical run`, which will inject secrets into
