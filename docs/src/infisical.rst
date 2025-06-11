@@ -18,7 +18,7 @@ See `Infisical's documentation <https://infisical.com/docs/self-hosting/overview
 
 If you prefer not to self-host, you can sign up for an `Infisical Cloud <https://app.infisical.com/>`_ account.
 
-The URL you use to access Infisical will be your value for the ``INFISICAL_HOST`` environment variable.
+The URL you use to access Infisical will be your value for the ``INFISICAL_API_URL`` environment variable.
 
 .. _infisical:setup:
 
@@ -32,7 +32,7 @@ Go to the KMS page in Infisical and create a project:
    :align: center
 
 In the new project's Overview Page, click on Project Settings and then copy the project's ID.
-You will use it to set the ``INFISICAL_PROJECT_ID`` environment variable:
+You will use it to set the ``INFISICAL_KMS_PROJECT_ID`` environment variable:
 
 .. figure:: ../_static/copy_infisical_project_id.png
    :alt: Copy project ID
@@ -73,3 +73,10 @@ Lastly, add the Identity to the Project you created earlier with the "Developer"
 .. figure:: ../_static/add_identity_to_infisical_project.png
    :alt: Add Identity to Project
    :align: center
+
+.. _infisical:setup_secrets:
+
+Setting up a Secrets Project (optional)
+---------------------------------------
+
+...

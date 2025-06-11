@@ -411,9 +411,9 @@ DEFAULT_APP_LANGUAGE = "en"
 FORMS_URLFIELD_ASSUME_HTTPS = True
 
 # Infisical settings
-INFISICAL_HOST = os.getenv("INFISICAL_HOST")
+INFISICAL_API_URL = os.getenv("INFISICAL_API_URL")
 INFISICAL_TOKEN = os.getenv("INFISICAL_TOKEN")
-INFISICAL_PROJECT_ID = os.getenv("INFISICAL_PROJECT_ID")
+INFISICAL_KMS_PROJECT_ID = os.getenv("INFISICAL_KMS_PROJECT_ID")
 
 # The TinyMDM ID of the default policy. If a different policy is marked as the default
 # in the Policy model it will be considered the default instead.

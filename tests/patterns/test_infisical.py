@@ -13,9 +13,9 @@ class TestInfisicalKMS:
 
     @pytest.fixture
     def set_infisical_settings(self, settings):
-        settings.INFISICAL_HOST = "http://test"
+        settings.INFISICAL_API_URL = "http://test"
         settings.INFISICAL_TOKEN = "token"
-        settings.INFISICAL_PROJECT_ID = "projectid"
+        settings.INFISICAL_KMS_PROJECT_ID = "projectid"
 
     @pytest.fixture
     def key_json(self, set_infisical_settings, settings):
@@ -29,7 +29,7 @@ class TestInfisicalKMS:
                 "name": "testkey",
                 "createdAt": "2023-11-07T05:31:56Z",
                 "updatedAt": "2023-11-07T05:31:56Z",
-                "projectId": settings.INFISICAL_PROJECT_ID,
+                "projectId": settings.INFISICAL_KMS_PROJECT_ID,
                 "keyUsage": "encrypt-decrypt",
                 "version": 1,
                 "encryptionAlgorithm": "aes-256-gcm",
@@ -40,16 +40,16 @@ class TestInfisicalKMS:
         """Ensure an ImproperlyConfigured exception is raised when getting the API
         client if any of the INFISICAL_* settings is missing.
         """
-        settings.INFISICAL_HOST = None
+        settings.INFISICAL_API_URL = None
         kms_api = InfisicalKMS()
         with pytest.raises(
-            ImproperlyConfigured, match="INFISICAL_HOST must be defined in settings."
+            ImproperlyConfigured, match="INFISICAL_API_URL must be defined in settings."
         ):
             kms_api.client
         settings.INFISICAL_TOKEN = None
         with pytest.raises(
             ImproperlyConfigured,
-            match="INFISICAL_HOST and INFISICAL_TOKEN must be defined in settings.",
+            match="INFISICAL_API_URL and INFISICAL_TOKEN must be defined in settings.",
         ):
             kms_api.client
 
@@ -57,7 +57,7 @@ class TestInfisicalKMS:
         """Ensure calling get_key() with a valid key name returns a KmsKey object."""
         kms_api = InfisicalKMS()
         requests_mock.get(
-            f"/api/v1/kms/keys/key-name/testkey?projectId={settings.INFISICAL_PROJECT_ID}",
+            f"/api/v1/kms/keys/key-name/testkey?projectId={settings.INFISICAL_KMS_PROJECT_ID}",
             json=key_json,
         )
         key = kms_api.get_key("testkey")
@@ -72,7 +72,7 @@ class TestInfisicalKMS:
         """
         kms_api = InfisicalKMS()
         requests_mock.get(
-            f"/api/v1/kms/keys/key-name/testkey?projectId={settings.INFISICAL_PROJECT_ID}",
+            f"/api/v1/kms/keys/key-name/testkey?projectId={settings.INFISICAL_KMS_PROJECT_ID}",
             status_code=404,
         )
         create_key_request = requests_mock.post("/api/v1/kms/keys", json=key_json)
@@ -89,7 +89,7 @@ class TestInfisicalKMS:
         """
         kms_api = InfisicalKMS()
         requests_mock.get(
-            f"/api/v1/kms/keys/key-name/testkey?projectId={settings.INFISICAL_PROJECT_ID}",
+            f"/api/v1/kms/keys/key-name/testkey?projectId={settings.INFISICAL_KMS_PROJECT_ID}",
             status_code=404,
         )
         create_key_request = requests_mock.post("/api/v1/kms/keys", json=key_json)
@@ -101,7 +101,7 @@ class TestInfisicalKMS:
         """Test encrypting."""
         kms_api = InfisicalKMS()
         requests_mock.get(
-            f"/api/v1/kms/keys/key-name/testkey?projectId={settings.INFISICAL_PROJECT_ID}",
+            f"/api/v1/kms/keys/key-name/testkey?projectId={settings.INFISICAL_KMS_PROJECT_ID}",
             json=key_json,
         )
         encrypt_json = {"ciphertext": "encrypted"}
@@ -113,7 +113,7 @@ class TestInfisicalKMS:
         """Test Decrypting."""
         kms_api = InfisicalKMS()
         requests_mock.get(
-            f"/api/v1/kms/keys/key-name/testkey?projectId={settings.INFISICAL_PROJECT_ID}",
+            f"/api/v1/kms/keys/key-name/testkey?projectId={settings.INFISICAL_KMS_PROJECT_ID}",
             json=key_json,
         )
         expected = "decrypted"
