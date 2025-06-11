@@ -78,7 +78,8 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
 
     def get_queryset(self, request: HttpRequest) -> models.QuerySet[Device]:
         return (
-            super().get_queryset(request)
+            super()
+            .get_queryset(request)
             # Create admin-searchable field for app_user_name that is deterministic
             .annotate(app_user_deterministic=Collate("app_user_name", "und-x-icu"))
         )

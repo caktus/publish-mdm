@@ -34,8 +34,13 @@ def push_tinymdm_device_config(context: dg.AssetExecutionContext, config: Device
                 push_device_config(session=session, device=device)
                 context.log.info(f"Configuration pushed for device {device.device_id}")
             except requests.exceptions.RequestException as e:
+                try:
+                    error_data = e.response.json() if e.response is not None else None
+                except requests.exceptions.JSONDecodeError:
+                    error_data = None
                 context.log.error(
-                    f"Failed to push configuration for device {device.device_id}: {e}"
+                    f"Failed to push configuration ({device.device_id=} {device.pk=} {str(e)=} "
+                    f"{error_data=})"
                 )
                 failed_pks.append(device.pk)
         if failed_pks:

@@ -55,3 +55,23 @@ class TestPushTinyMDMDeviceConfig:
         mock_push.assert_any_call(session=session, device=device1)
         # Ensure device2 was also pushed even if device1 failed
         mock_push.assert_any_call(session=session, device=device2)
+
+
+@pytest.mark.django_db
+class TestPushTinyMDMDeviceConfigWithError:
+    def test_push_fail_logs_error(self, mocker, requests_mock, set_tinymdm_env_vars, capsys):
+        """Test pushing TinyMDM device configuration logs error."""
+        device = DeviceFactory(raw_mdm_device={"user_id": "test_user"})
+        requests_mock.put(
+            "https://www.tinymdm.net/api/v1/users/test_user",
+            json={"error": "My error message"},
+            status_code=400,
+        )
+        with pytest.raises(ValueError, match="Failed to push configuration"):
+            # This will raise an error because the request fails
+            push_tinymdm_device_config(
+                context=dg.build_asset_context(), config=DeviceConfig(device_pks=[device.pk])
+            )
+        captured = capsys.readouterr()
+        assert "Failed to push configuration" in captured.err
+        assert "My error message" in captured.err
