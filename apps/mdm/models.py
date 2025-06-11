@@ -96,8 +96,9 @@ class Fleet(models.Model):
     def save(self, *args, **kwargs):
         from apps.mdm.tasks import get_tinymdm_session, pull_devices
 
+        sync_with_mdm = kwargs.pop("sync_with_mdm", False)
         super().save(*args, **kwargs)
-        if session := get_tinymdm_session():
+        if sync_with_mdm and (session := get_tinymdm_session()):
             pull_devices(session, self)
 
     @property
@@ -166,7 +167,7 @@ class Device(models.Model):
     def save(self, *args, **kwargs):
         from apps.mdm.tasks import get_tinymdm_session, push_device_config
 
-        push_to_mdm = kwargs.pop("push_to_mdm", True)
+        push_to_mdm = kwargs.pop("push_to_mdm", False)
         super().save(*args, **kwargs)
         logger.info(
             "Device saved",

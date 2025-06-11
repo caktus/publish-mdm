@@ -30,7 +30,9 @@ class FleetAdmin(admin.ModelAdmin):
     list_filter = ("organization", "policy", "project")
 
     def save_model(self, request, obj, form, change):
-        super().save_model(request, obj, form, change)
+        # Always sync with MDM when saving a Fleet in the admin
+        obj.save(sync_with_mdm=True)
+        # If the policy has changed, add the group to the new policy
         if "policy" in form.changed_data and (session := get_tinymdm_session()):
             try:
                 add_group_to_policy(session, obj)
@@ -70,10 +72,13 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
     export_form_class = ExportForm
     resource_classes = [DeviceResource]
 
+    def save_model(self, request, obj, form, change):
+        """Always push to MDM when saving a Device in the admin."""
+        obj.save(push_to_mdm=True)
+
     def get_queryset(self, request: HttpRequest) -> models.QuerySet[Device]:
         return (
-            super()
-            .get_queryset(request)
+            super().get_queryset(request)
             # Create admin-searchable field for app_user_name that is deterministic
             .annotate(app_user_deterministic=Collate("app_user_name", "und-x-icu"))
         )
