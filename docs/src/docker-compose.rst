@@ -125,9 +125,10 @@ Visit http://localhost:8000 in your browser and log in with your Google account.
 
    docker compose exec app python manage.py shell -c "from apps.users.models import User; User.objects.all().update(is_staff=True, is_superuser=True)"
 
-6. Infisical should be running at http://localhost:8888.
-:ref:`Set up a KMS project and an access token <infisical:setup>`. If you want
+6. Infisical should be running at http://localhost:8888. You can now
+:ref:`set up a KMS project and an access token <infisical:setup>`. If you want
 ``infisical run`` to inject secrets as environment variables, you'll also need to:
+
 - :ref:`set up a Secrets project <infisical:setup_secrets>` and add your secrets to it.
 - Update the ``docker-compose.yml`` file to change the command for the ``app`` service
   to ``infisical run --projectId $INFISICAL_SECRETS_PROJECT_ID --env $INFISICAL_SECRETS_ENV --silent -- daphne config.asgi:application -b 0.0.0.0 -p 8000``.

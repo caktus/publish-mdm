@@ -28,7 +28,7 @@ Setting up a KMS Project
 Go to the KMS page in Infisical and create a project:
 
 .. figure:: ../_static/create_infisical_project.png
-   :alt: Create a project
+   :alt: Create a KMS project
    :align: center
 
 In the new project's Overview Page, click on Project Settings and then copy the project's ID.
@@ -79,4 +79,17 @@ Lastly, add the Identity to the Project you created earlier with the "Developer"
 Setting up a Secrets Project (optional)
 ---------------------------------------
 
-...
+If you want to pull some secrets from Infisical (e.g. using the Infisical `CLI <https://infisical.com/docs/cli/overview>`_
+or `Agent <https://infisical.com/docs/integrations/platforms/infisical-agent>`_), you will
+need to create a Secrets project and add your secrets to it.
+
+.. figure:: ../_static/create_infisical_secrets_project.png
+   :alt: Create a Secrets project
+   :align: center
+
+Copy the Project ID the same way you did for the KMS project. You will use it to
+set the ``INFISICAL_SECRETS_PROJECT_ID`` environment variable. The ``INFISICAL_SECRETS_ENV``
+will be the slug for the `environment <https://infisical.com/docs/documentation/guides/organization-structure#3-environments>`_
+Infisical should pull from. The available environments and their slugs are listed in the Project Settings page.
+
+Lastly, assign an Identity to the project, just like you did for the KMS project.
