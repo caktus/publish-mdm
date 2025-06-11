@@ -11,6 +11,8 @@ if [ "$INFISICAL_SECRETS_FILE" ]; then
     export $(cat $INFISICAL_SECRETS_FILE | xargs)
 fi
 
+export TEST=test
+
 if [ "$USE_INFISICAL_RUN" ]; then
     # Run the application with `infisical run`, which will inject secrets into
     # the application process as environment variables.
