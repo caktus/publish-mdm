@@ -78,8 +78,7 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
 
     def get_queryset(self, request: HttpRequest) -> models.QuerySet[Device]:
         return (
-            super()
-            .get_queryset(request)
+            super().get_queryset(request)
             # Create admin-searchable field for app_user_name that is deterministic
             .annotate(app_user_deterministic=Collate("app_user_name", "und-x-icu"))
         )
@@ -89,7 +88,6 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
         form = kwargs.get("form", None)
         if form and hasattr(form, "cleaned_data"):
             kwargs.update({"push_method": form.cleaned_data.get("push_method", None)})
-        print(form.cleaned_data)
         return kwargs
 
     def get_confirm_form_initial(self, request, dataset, **kwargs):
