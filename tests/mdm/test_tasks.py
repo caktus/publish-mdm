@@ -4,6 +4,7 @@ import faker
 from requests.sessions import Session
 
 from apps.mdm import tasks
+from apps.mdm.models import Device
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from tests.publish_mdm.factories import AppUserFactory
 
@@ -115,8 +116,25 @@ class TestTasks:
         """
         assert isinstance(tasks.get_tinymdm_session(), Session)
 
-    def test_pull_devices(self, fleet, requests_mock, devices_response, set_tinymdm_env_vars):
+    @pytest.mark.parametrize("device_in_different_fleet", [False, True])
+    def test_pull_devices(
+        self,
+        fleet,
+        requests_mock,
+        devices_response,
+        fleets,
+        devices,
+        set_tinymdm_env_vars,
+        device_in_different_fleet,
+    ):
         """Ensures calling pull_devices() updates and creates Devices as expected."""
+        if device_in_different_fleet:
+            # Change the fleet of one of the devices such that it does not match
+            # the API response. The device should still be updated instead of
+            # attempting to create a new Device which leads to an IntegrityError.
+            devices[0].fleet = fleets[0]
+            devices[0].save()
+
         requests_mock.get("https://www.tinymdm.net/api/v1/devices", json=devices_response)
         apps = {}
         for device in devices_response["results"]:
@@ -139,10 +157,15 @@ class TestTasks:
         session = tasks.get_tinymdm_session()
         tasks.pull_devices(session, fleet)
 
-        # There should be 10 devices now in the DB. 4 are new
-        assert fleet.devices.count() == 10
+        # There should be 9 or 10 devices in the fleet now
+        if device_in_different_fleet:
+            assert fleet.devices.count() == 9
+        else:
+            assert fleet.devices.count() == 10
+        # 4 devices are new
+        assert fleet.devices.exclude(id__in=[i.id for i in devices]).count() == 4
         # Ensure the devices have the expected data from the API response
-        db_devices = fleet.devices.in_bulk(field_name="device_id")
+        db_devices = Device.objects.in_bulk(field_name="device_id")
         for device in devices_response["results"]:
             db_device = db_devices[device["id"]]
             assert db_device.serial_number == device["serial_number"]
@@ -193,26 +216,27 @@ class TestTasks:
         else:
             qr_code_data = ""
 
-        device_name = device.raw_mdm_device["nickname"] or device.raw_mdm_device["name"]
-
         assert user_update_request.called_once
         assert user_update_request.last_request.json() == {
-            "name": f"{device.app_user_name}-{device_name}",
+            "name": f"{device.app_user_name} - {device.device_id}",
             "custom_field_1": qr_code_data,
-        }
-        assert message_request.called_once
-        assert message_request.last_request.json() == {
-            "message": (
-                f"This device has been configured for Center Number {device.app_user_name}.\n\n"
-                "Please close and re-open the HNEC Collect app to see the new project.\n\n"
-                "In case of any issues, please open the TinyMDM app and reload the policy "
-                "or restart the device."
-            ),
-            "title": "HNEC Collect Project Update",
-            "devices": [device.device_id],
         }
         assert add_to_group_request.called_once
         assert not add_to_group_request.last_request.body
+        if device.app_user_name:
+            assert message_request.called_once
+            assert message_request.last_request.json() == {
+                "message": (
+                    f"This device has been configured for App User {device.app_user_name}.\n\n"
+                    "Please close and re-open the Collect app to see the new project.\n\n"
+                    "In case of any issues, please open the TinyMDM app and reload the policy "
+                    "or restart the device."
+                ),
+                "title": "Project Update",
+                "devices": [device.device_id],
+            }
+        else:
+            assert not message_request.called
 
     def test_push_device_config_new_device(self, fleet, set_tinymdm_env_vars):
         """Ensures calling push_device_config() with a Device whose `raw_mdm_device` field

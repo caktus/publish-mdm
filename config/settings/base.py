@@ -420,6 +420,9 @@ INFISICAL_KMS_PROJECT_ID = os.getenv("INFISICAL_KMS_PROJECT_ID")
 # in the Policy model it will be considered the default instead.
 TINYMDM_DEFAULT_POLICY = os.getenv("TINYMDM_DEFAULT_POLICY")
 
+# Dagster settings
+DAGSTER_URL = os.getenv("DAGSTER_URL", "")
+
 if os.getenv("SECRETS_FILE"):
     SECRETS = dotenv_values(os.getenv("SECRETS_FILE"))
 else:

@@ -23,7 +23,7 @@ class TestModels:
         environment variables are set.
         """
         mock_pull_devices = mocker.patch("apps.mdm.tasks.pull_devices")
-        fleet.save()
+        fleet.save(sync_with_mdm=True)
         mock_pull_devices.assert_called_once()
 
     def test_device_save_without_tinymdm_env_vars(self, fleet, mocker):
@@ -39,7 +39,8 @@ class TestModels:
         TinyMDM environment variables are set.
         """
         mock_push_device_config = mocker.patch("apps.mdm.tasks.push_device_config")
-        DeviceFactory(fleet=fleet)
+        device = DeviceFactory(fleet=fleet)
+        device.save(push_to_mdm=True)
         mock_push_device_config.assert_called_once()
 
     def test_fleet_group_name(self, fleet):

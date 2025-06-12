@@ -24,6 +24,11 @@ class TestAdmin:
 
 
 class TestDeviceAdmin(TestAdmin):
+    @pytest.fixture(autouse=True)
+    def disable_dagster(self, settings):
+        """Disable Dagster queuing for these tests."""
+        settings.DAGSTER_URL = None
+
     @pytest.fixture
     def dataset(self):
         # Create 3 Devices with the same Fleet
@@ -46,6 +51,7 @@ class TestDeviceAdmin(TestAdmin):
         data = {
             "import_file_name": tmp_storage.name,
             "original_file_name": f"test.{format_name}",
+            "push_method": "all",
             "format": 0,
             "resource": "",
         }
