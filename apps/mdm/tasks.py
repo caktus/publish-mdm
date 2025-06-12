@@ -222,9 +222,8 @@ def push_device_config(session: Session, device: Device):
         qr_code_data = ""
     user_id = device.raw_mdm_device["user_id"]
     url = f"https://www.tinymdm.net/api/v1/users/{user_id}"
-    device_name = device.raw_mdm_device["nickname"] or device.raw_mdm_device["name"]
     data = {
-        "name": f"{device.app_user_name}-{device_name}",
+        "name": f"{device.app_user_name} - {device.device_id}",
         "custom_field_1": qr_code_data,
     }
     logger.debug("Updating user", url=url, user_id=user_id, data=data)
@@ -237,21 +236,22 @@ def push_device_config(session: Session, device: Device):
     )
     response = session.post(url, headers={"content-type": "application/json"})
     response.raise_for_status()
-    # Send a message to the user to inform them of the update and trigger a policy reload
-    url = "https://www.tinymdm.net/api/v1/actions/message"
-    logger.debug("Sending message to device", url=url, user_id=user_id)
-    data = {
-        "message": (
-            f"This device has been configured for Center Number {device.app_user_name}.\n\n"
-            "Please close and re-open the HNEC Collect app to see the new project.\n\n"
-            "In case of any issues, please open the TinyMDM app and reload the policy "
-            "or restart the device."
-        ),
-        "title": "HNEC Collect Project Update",
-        "devices": [device.device_id],
-    }
-    response = session.request("POST", url, json=data)
-    response.raise_for_status()
+    if qr_code_data:
+        # Send a message to the user to inform them of the update and trigger a policy reload
+        url = "https://www.tinymdm.net/api/v1/actions/message"
+        logger.debug("Sending message to device", url=url, user_id=user_id)
+        data = {
+            "message": (
+                f"This device has been configured for App User {device.app_user_name}.\n\n"
+                "Please close and re-open the Collect app to see the new project.\n\n"
+                "In case of any issues, please open the TinyMDM app and reload the policy "
+                "or restart the device."
+            ),
+            "title": "Project Update",
+            "devices": [device.device_id],
+        }
+        response = session.request("POST", url, json=data)
+        response.raise_for_status()
 
 
 def sync_fleet(session: Session, fleet: Fleet, push_config: bool = True):

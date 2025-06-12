@@ -1,6 +1,12 @@
+import structlog
 from import_export.resources import ModelResource
+from import_export.results import Result
+import tablib
 
-from .models import Device
+from .models import Device, PushMethodChoices
+from config.dagster import dagster_enabled, trigger_dagster_job
+
+logger = structlog.get_logger(__name__)
 
 
 class DeviceResource(ModelResource):
@@ -30,6 +36,34 @@ class DeviceResource(ModelResource):
                 self.do_instance_save(instance, is_create, self._is_dry_run(kwargs))
         self.after_save_instance(instance, row, **kwargs)
 
-    def do_instance_save(self, instance, is_create, is_dry_run=False):
-        """Only push changes to MDM if not in dry run (Preview) mode."""
-        instance.save(push_to_mdm=not is_dry_run)
+    def do_instance_save(self, instance: Device, is_create: bool, is_dry_run: bool = False):
+        """Save the instance to the database, optionally pushing to MDM."""
+        push_to_mdm = not is_dry_run and not dagster_enabled()
+        instance.save(push_to_mdm=push_to_mdm)
+
+    def after_import(self, dataset: tablib.Dataset, result: Result, dry_run: bool = True, **kwargs):
+        super().after_import(dataset, result, **kwargs)
+        if not dagster_enabled():
+            return
+        if dry_run:
+            logger.debug("Dry run mode, skipping post-import actions")
+            return
+        push_method = kwargs.get("push_method")
+        if push_method == PushMethodChoices.ALL:
+            device_pks = [row.object_id for row in result]
+            logger.info("Post-import actions triggered for all devices", device_pks=device_pks)
+        else:
+            device_pks = [row.object_id for row in result if row.is_new() or row.is_update()]
+            logger.info(
+                "Post-import actions triggered for new/updated devices only", device_pks=device_pks
+            )
+        # Trigger the Dagster job to push device configurations after import
+        logger.info("Triggering Dagster job", device_pks=device_pks)
+        try:
+            run_config = {
+                "ops": {"push_tinymdm_device_config": {"config": {"device_pks": device_pks}}}
+            }
+            trigger_dagster_job(job_name="tinymdm_job", run_config=run_config)
+        except Exception as e:
+            logger.error("Failed to trigger Dagster job after import", error=str(e))
+            raise e

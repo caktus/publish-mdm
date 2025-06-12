@@ -10,6 +10,11 @@ from .factories import DeviceFactory, FleetFactory
 class TestDeviceResource:
     HEADERS = ["id", "fleet", "serial_number", "app_user_name", "device_id"]
 
+    @pytest.fixture(autouse=True)
+    def disable_dagster(self, settings):
+        """Disable Dagster queuing for these tests."""
+        settings.DAGSTER_URL = None
+
     @pytest.fixture
     def fleet(self):
         return FleetFactory()
