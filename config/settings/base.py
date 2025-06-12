@@ -17,6 +17,7 @@ from pathlib import Path
 
 import dj_database_url
 import structlog
+from dotenv import dotenv_values
 from import_export.formats import base_formats
 from ..import_export_formats import XLSX
 
@@ -418,3 +419,8 @@ INFISICAL_KMS_PROJECT_ID = os.getenv("INFISICAL_KMS_PROJECT_ID")
 # The TinyMDM ID of the default policy. If a different policy is marked as the default
 # in the Policy model it will be considered the default instead.
 TINYMDM_DEFAULT_POLICY = os.getenv("TINYMDM_DEFAULT_POLICY")
+
+if os.getenv("SECRETS_FILE"):
+    SECRETS = dotenv_values(os.getenv("SECRETS_FILE"))
+else:
+    SECRETS = {}

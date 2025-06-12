@@ -1,6 +1,5 @@
 import datetime as dt
 import json
-import os
 
 import requests
 import structlog
@@ -13,6 +12,7 @@ from requests_ratelimiter import LimiterSession
 from urllib3.util.retry import Retry
 
 from apps.mdm.models import Device, DeviceSnapshot, DeviceSnapshotApp, Fleet
+from apps.publish_mdm.utils import get_secret
 
 logger = structlog.getLogger(__name__)
 
@@ -26,9 +26,9 @@ def get_tinymdm_session() -> Session:
 
     headers = {
         # TODO: Move these to secure credential store
-        "X-Tinymdm-Manager-Apikey-Public": os.getenv("TINYMDM_APIKEY_PUBLIC"),
-        "X-Tinymdm-Manager-Apikey-Secret": os.getenv("TINYMDM_APIKEY_SECRET"),
-        "X-Account-Id": os.getenv("TINYMDM_ACCOUNT_ID"),
+        "X-Tinymdm-Manager-Apikey-Public": get_secret("TINYMDM_APIKEY_PUBLIC"),
+        "X-Tinymdm-Manager-Apikey-Secret": get_secret("TINYMDM_APIKEY_SECRET"),
+        "X-Account-Id": get_secret("TINYMDM_ACCOUNT_ID"),
     }
     if not all(headers.values()):
         logger.warning("TinyMDM API credentials not configured.")
