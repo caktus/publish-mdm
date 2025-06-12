@@ -15,7 +15,6 @@ FROM python:3.12-slim-bookworm AS base
 # Install packages needed to run your application (not build deps):
 #   mime-support -- for mime types when serving static files
 #   postgresql-client -- matches RDS version, for running database commands
-#   infisical -- Infisical CLI for injecting secrets into the application as environment variables
 # We need to recreate the /usr/share/man/man{1..8} directories first because
 # they were clobbered by a parent image.
 ENV POSTGRESQL_CLIENT_VERSION="15"
@@ -34,11 +33,6 @@ RUN set -ex \
     && wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - \
     && apt-get update \
     && apt-get install -y --no-install-recommends $RUN_DEPS \
-    # Infisical CLI
-    && curl -1sLf 'https://artifacts-cli.infisical.com/setup.deb.sh' | bash \
-    && apt-get update \
-    && apt-get install -y infisical \
-    # Clean up package lists cache
     && rm -rf /var/lib/apt/lists/*
 
 ADD requirements /requirements
