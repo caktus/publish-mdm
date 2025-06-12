@@ -1,11 +1,20 @@
 import pytest
 
+from apps.infisical.api import InfisicalKMS
+
 
 @pytest.fixture(autouse=True)
-def disable_client_auth(mocker, monkeypatch):
+def disable_client_auth(mocker):
     # Never attempt to authenticate with ODK Central
     mocker.patch("pyodk._utils.session.Auth.login")
-    monkeypatch.setenv(
-        "ODK_CENTRAL_CREDENTIALS",
-        "base_url=https://central;username=username;password=password",
-    )
+
+
+@pytest.fixture(autouse=True)
+def disable_infisical_encryption(mocker):
+    # Never attempt to encrypt/decrypt with Infisical
+    def side_effect(key_name, value):
+        # Return the value unchanged
+        return value
+
+    mocker.patch.object(InfisicalKMS, "encrypt", side_effect=side_effect)
+    mocker.patch.object(InfisicalKMS, "decrypt", side_effect=side_effect)

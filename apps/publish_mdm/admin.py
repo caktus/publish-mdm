@@ -1,11 +1,14 @@
 import structlog
 
 from django.conf import settings
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.utils.html import mark_safe
 from django import forms
 from invitations.admin import InvitationAdmin
+from requests.exceptions import RequestException
 
 from .etl.load import generate_and_save_app_user_collect_qrcodes
+from .forms import CentralServerForm
 from .models import (
     CentralServer,
     Project,
@@ -30,6 +33,15 @@ class CentralServerAdmin(admin.ModelAdmin):
     list_display = ("base_url", "created_at", "modified_at", "organization")
     search_fields = ("base_url",)
     ordering = ("base_url",)
+    form = CentralServerForm
+
+    def save_model(self, request, obj, form, change):
+        if change:
+            # If the username or password is blank, keep the current value.
+            # The other fields cannot be blank.
+            obj.save(update_fields=[f for f, v in form.cleaned_data.items() if v])
+        else:
+            obj.save()
 
 
 @admin.register(TemplateVariable)
@@ -174,6 +186,21 @@ class OrganizationAdmin(admin.ModelAdmin):
     search_fields = ("name", "slug")
     ordering = ("name",)
     filter_horizontal = ("users",)
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if not change:
+            try:
+                obj.create_default_fleet()
+            except RequestException as e:
+                logger.debug("Unable to create the default fleet", organization=obj, exc_info=True)
+                messages.warning(
+                    request,
+                    mark_safe(
+                        "The organization was created but its default TinyMDM group "
+                        f"could not be created due to the following error:<br><code>{e}</code>"
+                    ),
+                )
 
 
 admin.site.unregister(OrganizationInvitation)

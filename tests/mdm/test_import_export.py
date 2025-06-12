@@ -3,20 +3,25 @@ from tablib import Dataset
 
 from apps.mdm import import_export, models
 
-from .factories import DeviceFactory, PolicyFactory
+from .factories import DeviceFactory, FleetFactory
 
 
 @pytest.mark.django_db
 class TestDeviceResource:
-    HEADERS = ["id", "policy", "serial_number", "app_user_name", "device_id"]
+    HEADERS = ["id", "fleet", "serial_number", "app_user_name", "device_id"]
+
+    @pytest.fixture(autouse=True)
+    def disable_dagster(self, settings):
+        """Disable Dagster queuing for these tests."""
+        settings.DAGSTER_URL = None
 
     @pytest.fixture
-    def policy(self):
-        return PolicyFactory()
+    def fleet(self):
+        return FleetFactory()
 
     @pytest.fixture
-    def devices(self, policy):
-        return DeviceFactory.create_batch(5, policy=policy)
+    def devices(self, fleet):
+        return DeviceFactory.create_batch(5, fleet=fleet)
 
     @pytest.fixture
     def dataset(self):
@@ -38,19 +43,19 @@ class TestDeviceResource:
         for row in dataset:
             assert tuple(str(i) for i in row) in expected_export_values
 
-    def test_valid_import(self, policy, devices, dataset):
+    def test_valid_import(self, fleet, devices, dataset):
         """Ensure a valid import updates the database as expected."""
         # Add all current devices to the dataset
         dataset.extend(models.Device.objects.values_list(*dataset.headers))
-        new_policy = PolicyFactory()
+        new_fleet = FleetFactory()
         # Leave the first row unchanged, then change a different column in each row
         expected_rows = []
         for index, row in enumerate(dataset):
             if index:
                 row = list(row)
                 if index == 1:
-                    # Change the policy
-                    row[index] = new_policy.id
+                    # Change the fleet
+                    row[index] = new_fleet.id
                 else:
                     # Prepend 'edited-' to the value
                     row[index] = f"edited-{row[index]}"
@@ -59,10 +64,10 @@ class TestDeviceResource:
             expected_rows.append(row)
         # Add new Devices
         new_devices = [
-            # one with only the required fields set (policy and serial number)
-            (None, policy.id, "111111", "", ""),
+            # one with only the required fields set (fleet and serial number)
+            (None, fleet.id, "111111", "", ""),
             # one with all fields set
-            (None, new_policy.id, "222222", "appuser", "99999"),
+            (None, new_fleet.id, "222222", "appuser", "99999"),
         ]
         dataset.extend(new_devices)
         expected_rows.extend(new_devices)
@@ -102,36 +107,36 @@ class TestDeviceResource:
                 # New row
                 assert row.import_type == "new"
 
-    def test_invalid_import(self, policy, devices, dataset):
+    def test_invalid_import(self, fleet, devices, dataset):
         """Ensure errors are caught properly for an invalid import."""
         expected_validation_errors = []
-        for index, row in enumerate(models.Device.objects.values_list(*dataset.headers)[:4], 1):
+        for index, row in enumerate(models.Device.objects.values_list(*dataset.headers)[:3], 1):
             row = list(row)
-            if index <= 2:
-                # Value not provided for a required field (either policy or serial_number)
+            if index == 1:
+                # Value not provided for a required field (fleet)
                 new_value = ""
-                if index == 1:
-                    errors = {"policy": ["This field cannot be null."]}
-                else:
-                    errors = {"serial_number": ["This field cannot be blank."]}
-            elif index == 3:
+                col = "fleet"
+                error = "This field cannot be null."
+            elif index == 2:
                 # Invalid AppUser name (contains spaces)
                 new_value = "an invalid name"
-                errors = {
-                    "app_user_name": [
-                        "Name can only contain alphanumeric characters, underscores, "
-                        "hyphens, and not more than one colon."
-                    ]
-                }
+                col = "app_user_name"
+                error = (
+                    "Name can only contain alphanumeric characters, underscores, "
+                    "hyphens, and not more than one colon."
+                )
             else:
                 # Same device_id as the previous device
-                new_value = dataset[-1][index]
-                errors = {"device_id": ["Device with this Device ID already exists."]}
-            row[index] = new_value
+                new_value = dataset[-1][-1]
+                col = "device_id"
+                error = "Device with this Device ID already exists."
+            errors = {col: [error]}
+            col_index = dataset.headers.index(col)
+            row[col_index] = new_value
             dataset.append(row)
             expected_validation_errors.append((index, errors))
-        # A new row with a non-existent policy
-        dataset.append(["", policy.id + 1, "12345", "", ""])
+        # A new row with a non-existent fleet
+        dataset.append(["", fleet.id + 1, "12345", "", ""])
 
         # Import the data
         resource = import_export.DeviceResource()
@@ -144,16 +149,16 @@ class TestDeviceResource:
             assert result.invalid_rows[index].number == row_number
             assert result.invalid_rows[index].error_dict == row_errors
 
-        # Ensure an error is raised for the new row with a non-existent policy
+        # Ensure an error is raised for the new row with a non-existent fleet
         assert result.has_errors()
         row_errors = result.row_errors()
         assert len(row_errors) == 1
         row_number, error_list = row_errors[0]
-        assert row_number == 5
-        assert isinstance(error_list[0].error, models.Policy.DoesNotExist)
+        assert row_number == 4
+        assert isinstance(error_list[0].error, models.Fleet.DoesNotExist)
 
     @pytest.mark.parametrize("dry_run", [True, False])
-    def test_valid_import_dry_run(self, policy, devices, dataset, mocker, dry_run):
+    def test_valid_import_dry_run(self, fleet, devices, dataset, mocker, dry_run):
         """Ensure we only push to the MDM when an import is confirmed and not
         during the dry run (preview).
         """

@@ -101,5 +101,4 @@ Setup
 4. Access the ODK Central web interface at https://<your-tunnel-fqdn>
    and log in with the admin user you created.
 
-5. Finally, when you configure Publish MDM, set the ``ODK_CENTRAL_CREDENTIALS``
-   environment variable to use ``base_url=https://<your-tunnel-fqdn>``.
+5. Finally, when you log in to Publish MDM, create a Central Server with the base URL set to ``https://<your-tunnel-fqdn>``.

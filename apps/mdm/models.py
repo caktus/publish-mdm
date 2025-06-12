@@ -1,9 +1,7 @@
 import structlog
 from django.db import models
+from django.conf import settings
 from django.core.validators import RegexValidator
-
-from apps.publish_mdm.models import Project
-
 
 logger = structlog.get_logger()
 
@@ -15,44 +13,126 @@ class Policy(models.Model):
     policy_id = models.CharField(
         verbose_name="Policy ID", max_length=255, help_text="The ID of the policy in the MDM."
     )
-    project = models.ForeignKey(
-        Project,
+    default_policy = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name_plural = "policies"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["default_policy"],
+                condition=models.Q(default_policy=True),
+                name="unique_default_policy",
+                violation_error_message="A default policy already exists.",
+            ),
+        ]
+        # Default policy first
+        ordering = ("-default_policy", "id")
+
+    def __str__(self):
+        return f"{self.name} ({self.policy_id})"
+
+    @classmethod
+    def get_default(cls):
+        """Gets the default policy. First tries to get the Policy marked as default.
+        If none exists and the TINYMDM_DEFAULT_POLICY setting is set, get or create
+        a Policy with that policy_id.
+        """
+        policy = cls.objects.filter(default_policy=True).first()
+        if not policy and settings.TINYMDM_DEFAULT_POLICY:
+            policy = cls.objects.get_or_create(
+                policy_id=settings.TINYMDM_DEFAULT_POLICY,
+                defaults={"name": "Default", "default_policy": True},
+            )[0]
+        return policy
+
+
+def enroll_qr_code_path(fleet, filename):
+    return f"mdm-enroll-qr-codes/{fleet.organization.slug}/{filename}"
+
+
+class Fleet(models.Model):
+    """A fleet of devices that corresponds to a single group in the MDM."""
+
+    organization = models.ForeignKey(
+        "publish_mdm.Organization",
         on_delete=models.CASCADE,
-        help_text="The project that this policy belongs to.",
-        related_name="policies",
+        help_text="The organization that this fleet belongs to.",
+        related_name="fleets",
     )
+    name = models.CharField(max_length=255)
+    mdm_group_id = models.CharField(
+        verbose_name="MDM Group ID",
+        max_length=32,
+        help_text="The ID of the group in the MDM.",
+        unique=True,
+        null=True,
+    )
+    policy = models.ForeignKey(
+        Policy,
+        on_delete=models.CASCADE,
+        help_text="The MDM policy to assign for this fleet of devices.",
+        related_name="fleets",
+    )
+    project = models.ForeignKey(
+        "publish_mdm.Project",
+        on_delete=models.CASCADE,
+        help_text="The project to deploy to this fleet of devices.",
+        related_name="fleets",
+        null=True,
+        blank=True,
+    )
+    enroll_qr_code = models.ImageField(
+        upload_to=enroll_qr_code_path, null=True, blank=True, verbose_name="enrollment QR code"
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["organization", "name"], name="unique_org_and_name"),
+        ]
+
+    def __str__(self):
+        return self.name
 
     def save(self, *args, **kwargs):
         from apps.mdm.tasks import get_tinymdm_session, pull_devices
 
+        sync_with_mdm = kwargs.pop("sync_with_mdm", False)
         super().save(*args, **kwargs)
-        if session := get_tinymdm_session():
+        if sync_with_mdm and (session := get_tinymdm_session()):
             pull_devices(session, self)
 
-    class Meta:
-        verbose_name_plural = "policies"
+    @property
+    def group_name(self):
+        return f"{self.organization.name}: {self.name}"
 
-    def __str__(self):
-        return f"{self.name} ({self.policy_id})"
+
+class PushMethodChoices(models.TextChoices):
+    """Choices for how to push device configurations to the MDM."""
+
+    NEW_AND_UPDATED = "new-and-updated", "Push New and Updated Devices Only"
+    ALL = "all", "Push All Devices"
 
 
 class Device(models.Model):
     """A device that is enrolled in the MDM."""
 
-    policy = models.ForeignKey(
-        Policy,
+    fleet = models.ForeignKey(
+        "Fleet",
         on_delete=models.CASCADE,
-        help_text="The policy that the device is assigned to.",
+        help_text="The fleet that the device is assigned to.",
         related_name="devices",
     )
     device_id = models.CharField(
         verbose_name="Device ID",
-        max_length=255,
+        max_length=32,
         help_text="The ID of the device in the MDM.",
         unique=True,
         blank=True,
+        null=True,
     )
-    serial_number = models.CharField(max_length=255, help_text="The serial number of the device.")
+    serial_number = models.CharField(
+        max_length=255, help_text="The serial number of the device.", blank=True
+    )
     name = models.CharField(
         max_length=255, help_text="The name or nickname of the device in the MDM.", blank=True
     )
@@ -87,7 +167,7 @@ class Device(models.Model):
     def save(self, *args, **kwargs):
         from apps.mdm.tasks import get_tinymdm_session, push_device_config
 
-        push_to_mdm = kwargs.pop("push_to_mdm", True)
+        push_to_mdm = kwargs.pop("push_to_mdm", False)
         super().save(*args, **kwargs)
         logger.info(
             "Device saved",
@@ -99,13 +179,6 @@ class Device(models.Model):
         if push_to_mdm:
             if session := get_tinymdm_session():
                 push_device_config(session, self)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["policy", "device_id"], name="unique_policy_and_device_id"
-            ),
-        ]
 
     def __str__(self):
         return f"{self.name} ({self.device_id})"

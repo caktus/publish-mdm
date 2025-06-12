@@ -17,6 +17,7 @@ tinymdm_schedule = dg.ScheduleDefinition(
     cron_schedule="*/30 * * * *",
     default_status=dg.DefaultScheduleStatus.RUNNING,
 )
+tinymdm_job = dg.define_asset_job(name="tinymdm_job", selection="push_tinymdm_device_config")
 
 defs = dg.Definitions(
     assets=all_assets,
@@ -28,4 +29,5 @@ defs = dg.Definitions(
         ),
     },
     schedules=[tailscale_schedule, tinymdm_schedule],
+    jobs=[tinymdm_job],
 )

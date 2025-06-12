@@ -142,40 +142,7 @@
                         </div>
                     </div>
                 {% endif %}
-                {% if request.odk_project %}
-                    <button type="button"
-                            id="toggleMobileMenuButton"
-                            data-collapse-toggle="toggleMobileMenu"
-                            class="items-center p-2 text-gray-500 rounded-lg md:ml-2 md:hidden hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700 focus:ring-4 focus:ring-gray-300 dark:focus:ring-gray-600">
-                        <span class="sr-only">Open menu</span>
-                        <svg class="w-[18px] h-[18px]"
-                             aria-hidden="true"
-                             xmlns="http://www.w3.org/2000/svg"
-                             fill="none"
-                             viewBox="0 0 17 14">
-                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 1h15M1 7h15M1 13h15" />
-                        </svg>
-                    </button>
-                {% endif %}
             </div>
         </div>
     </nav>
-    {% if request.odk_project and False %}
-        <nav id="toggleMobileMenu"
-             class="hidden order-3 bg-gray-50 dark:border-b shadow-sm dark:bg-gray-900 md:block dark:border-gray-800 md:order-2">
-            <div class="px-0 lg:px-6">
-                <div class="flex items-center">
-                    <ul class="flex flex-col mt-0 w-full text-sm font-medium md:flex-row">
-                        {% for tab in request.odk_project_tabs %}
-                            <li class="block border-b dark:border-gray-700 md:inline md:border-b-0">
-                                <a href="{{ tab.path }}"
-                                   class="block py-3 px-4 hover:text-primary-600 {% if tab.path in request.path %}border-b-2 text-primary-600 dark:text-primary-500 dark:border-primary-500 border-primary-600{% else %} text-gray-500 dark:text-gray-400 hover:border-b-2 dark:hover:text-primary-500 dark:hover:border-primary-500 hover:border-primary-400{% endif %}"
-                                   aria-current="page">{{ tab.label }}</a>
-                            </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
-        </nav>
-    {% endif %}
 </header>

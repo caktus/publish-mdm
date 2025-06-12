@@ -32,9 +32,6 @@ rather use Docker, see :doc:`/src/docker-compose`.
     export GOOGLE_API_KEY=
     export GOOGLE_APP_ID=
 
-    # odk central
-    export ODK_CENTRAL_CREDENTIALS="base_url=https://myserver.com;username=user1;password=pass1"
-
 Update the environment variables as needed for your local setup. You may need to
 add a ``PGPASSWORD`` variable if your database expects a password. If the database
 does not exist yet, create it with the ``createdb`` `command <https://www.postgresql.org/docs/current/app-createdb.html>`_.
@@ -55,7 +52,6 @@ See :doc:`the tutorial </src/tutorial>` for more details on the Google and ODK C
 .. code-block:: bash
 
     python manage.py migrate
-    python manage.py populate_sample_odk_data
 
 5. Run the development server.
 
@@ -65,3 +61,9 @@ See :doc:`the tutorial </src/tutorial>` for more details on the Google and ODK C
     npm run dev
     # in another terminal
     python manage.py runserver
+
+6. Set up sample data. Log in with Google first so that your user is added to the sample Organization that will be created.
+
+.. code-block:: bash
+
+    python manage.py populate_sample_odk_data
