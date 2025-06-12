@@ -7,11 +7,6 @@ if [ "$ENV_VARS_FILE" ] && [ -f "$ENV_VARS_FILE" ] && [ -s "$ENV_VARS_FILE" ]; t
     export $(cat $ENV_VARS_FILE | xargs)
 fi
 
-if [ -z "$INFISICAL_TOKEN" ] && [ "$INFISICAL_CLIENT_ID" ] && [ "$INFISICAL_CLIENT_SECRET" ]; then
-    echo "Generating an Infisical access token ..."
-    export INFISICAL_TOKEN=$(infisical login --method=universal-auth --client-id=$INFISICAL_CLIENT_ID --client-secret=$INFISICAL_CLIENT_SECRET --silent --plain)
-fi
-
 set -x
 
 if [ "$USE_GUNICORN" ]; then
