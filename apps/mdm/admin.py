@@ -12,7 +12,7 @@ from apps.mdm.forms import DeviceConfirmImportForm, DeviceImportForm
 
 from .import_export import DeviceResource
 from .models import Device, DeviceSnapshot, DeviceSnapshotApp, FirmwareSnapshot, Fleet, Policy
-from .tasks import add_group_to_policy, get_tinymdm_session
+from .tasks import add_group_to_policy, delete_group, get_tinymdm_session
 
 logger = structlog.getLogger(__name__)
 
@@ -52,6 +52,23 @@ class FleetAdmin(admin.ModelAdmin):
                         f"<br><code>{e}</code>"
                     ),
                 )
+
+    def delete_model(self, request, obj):
+        # Delete the TinyMDM group first. Won't delete anything if the fleet
+        # is linked to devices either in the database or in TinyMDM
+        error = None
+        if session := get_tinymdm_session():
+            try:
+                if not delete_group(session, obj):
+                    error = "Cannot delete the fleet because it has devices linked to it."
+            except RequestException:
+                error = "Cannot delete the fleet due a TinyMDM API error. Please try again later."
+        else:
+            error = "Cannot delete the fleet. Please try again later."
+        if error:
+            messages.error(request, error)
+            return
+        super().delete_model(request, obj)
 
 
 @admin.register(Device)

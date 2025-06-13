@@ -6,7 +6,7 @@ from pytest_django.asserts import assertContains
 from requests.exceptions import HTTPError
 
 from apps.mdm.import_export import DeviceResource
-from apps.mdm.models import Device
+from apps.mdm.models import Device, Fleet
 from tests.publish_mdm.factories import OrganizationFactory
 from tests.users.factories import UserFactory
 
@@ -194,3 +194,67 @@ class TestFleetAdmin(TestAdmin):
             mock_add_group_to_policy.assert_called_once()
         else:
             mock_add_group_to_policy.assert_not_called()
+
+    def test_delete_fleet_successful(self, user, client, mocker, set_tinymdm_env_vars):
+        """Ensures a Fleet is successfully deleted if it's not linked to any device
+        either in the database or in TinyMDM.
+        """
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        fleet = FleetFactory()
+        mock_delete_group = mocker.patch("apps.mdm.admin.delete_group", return_value=True)
+        response = client.post(
+            reverse("admin:mdm_fleet_delete", args=[fleet.id]), data={"post": "yes"}, follow=True
+        )
+
+        assert response.status_code == 200
+        mock_delete_group.assert_called_once()
+        assert not Fleet.objects.filter(pk=fleet.pk).exists()
+
+    def test_delete_fleet_no_api_credentials(self, user, client, mocker):
+        """Ensures a Fleet is not deleted if TinyMDM API access is not configured."""
+        fleet = FleetFactory()
+        mock_delete_group = mocker.patch("apps.mdm.admin.delete_group")
+        response = client.post(
+            reverse("admin:mdm_fleet_delete", args=[fleet.id]), data={"post": "yes"}, follow=True
+        )
+
+        assert response.status_code == 200
+        mock_delete_group.assert_not_called()
+        assertContains(response, "Cannot delete the fleet. Please try again later.")
+        assert Fleet.objects.filter(pk=fleet.pk).exists()
+
+    def test_delete_fleet_has_devices(self, user, client, mocker, set_tinymdm_env_vars):
+        """Ensures a Fleet is not deleted if it's linked to some devices either in
+        the database or in TinyMDM.
+        """
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        fleet = FleetFactory()
+        mock_delete_group = mocker.patch("apps.mdm.admin.delete_group", return_value=False)
+        response = client.post(
+            reverse("admin:mdm_fleet_delete", args=[fleet.id]), data={"post": "yes"}, follow=True
+        )
+
+        assert response.status_code == 200
+        mock_delete_group.assert_called_once()
+        assertContains(response, "Cannot delete the fleet because it has devices linked to it.")
+        assert Fleet.objects.filter(pk=fleet.pk).exists()
+
+    def test_delete_fleet_api_error(self, user, client, mocker, set_tinymdm_env_vars):
+        """Ensures a Fleet is not deleted if an API error occurs when deleting the
+        group in TinyMDM.
+        """
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        fleet = FleetFactory()
+        mock_delete_group = mocker.patch(
+            "apps.mdm.admin.delete_group", side_effect=HTTPError("error")
+        )
+        response = client.post(
+            reverse("admin:mdm_fleet_delete", args=[fleet.id]), data={"post": "yes"}, follow=True
+        )
+
+        assert response.status_code == 200
+        mock_delete_group.assert_called_once()
+        assertContains(
+            response, "Cannot delete the fleet due a TinyMDM API error. Please try again later."
+        )
+        assert Fleet.objects.filter(pk=fleet.pk).exists()
