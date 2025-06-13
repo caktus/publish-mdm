@@ -1,8 +1,14 @@
 import structlog
 from django.contrib import admin, messages
+from django.contrib.admin.exceptions import DisallowedModelAdminToField
+from django.contrib.admin.options import IS_POPUP_VAR, TO_FIELD_VAR
+from django.contrib.admin.utils import unquote
+from django.core.exceptions import PermissionDenied
 from django.db import transaction, models
 from django.db.models.functions import Collate
+from django.shortcuts import redirect
 from django.utils.html import mark_safe
+from django.utils.translation import gettext as _
 from import_export.admin import ImportExportMixin
 from import_export.forms import ExportForm
 from requests.exceptions import RequestException
@@ -53,22 +59,101 @@ class FleetAdmin(admin.ModelAdmin):
                     ),
                 )
 
-    def delete_model(self, request, obj):
-        # Delete the TinyMDM group first. Won't delete anything if the fleet
-        # is linked to devices either in the database or in TinyMDM
-        error = None
-        if session := get_tinymdm_session():
-            try:
-                if not delete_group(session, obj):
-                    error = "Cannot delete the fleet because it has devices linked to it."
-            except RequestException:
-                error = "Cannot delete the fleet due a TinyMDM API error. Please try again later."
+    def _delete_view(self, request, object_id, extra_context):
+        """The 'delete' admin view for this model.
+
+        This is an exact copy of the builtin _delete_view(), except it will not
+        delete a Fleet if it has devices either in the database or in TinyMDM.
+        We could not use the delete_model() method as it "isn't meant for veto
+        purposes" (https://docs.djangoproject.com/en/5.2/ref/contrib/admin/#modeladmin-methods):
+        a deletion would still be logged in LogEntry and a success message would
+        still be shown.
+        """
+        app_label = self.opts.app_label
+
+        to_field = request.POST.get(TO_FIELD_VAR, request.GET.get(TO_FIELD_VAR))
+        if to_field and not self.to_field_allowed(request, to_field):
+            raise DisallowedModelAdminToField("The field %s cannot be referenced." % to_field)
+
+        obj = self.get_object(request, unquote(object_id), to_field)
+
+        if not self.has_delete_permission(request, obj):
+            raise PermissionDenied
+
+        if obj is None:
+            return self._get_obj_does_not_exist_redirect(request, self.opts, object_id)
+
+        # Populate deleted_objects, a data structure of all related objects that
+        # will also be deleted.
+        (
+            deleted_objects,
+            model_count,
+            perms_needed,
+            protected,
+        ) = self.get_deleted_objects([obj], request)
+
+        if request.POST and not protected:  # The user has confirmed the deletion.
+            if perms_needed:
+                raise PermissionDenied
+
+            # BEGIN ADDED CODE
+            # Delete the TinyMDM group first. Won't delete anything if the fleet
+            # is linked to devices either in the database or in TinyMDM.
+            error = None
+            if session := get_tinymdm_session():
+                try:
+                    if not delete_group(session, obj):
+                        error = "Cannot delete the fleet because it has devices linked to it."
+                except RequestException:
+                    error = (
+                        "Cannot delete the fleet due a TinyMDM API error. Please try again later."
+                    )
+            else:
+                error = "Cannot delete the fleet. Please try again later."
+            if error:
+                messages.error(request, error)
+
+                # TODO: need to do something else if popup or no change perm?
+                # (like in response_delete() called below after successful deletion)
+                return redirect(
+                    "admin:{}_{}_changelist".format(self.opts.app_label, self.opts.model_name)
+                )
+            # END ADDED CODE
+
+            obj_display = str(obj)
+            attr = str(to_field) if to_field else self.opts.pk.attname
+            obj_id = obj.serializable_value(attr)
+            self.log_deletions(request, [obj])
+            self.delete_model(request, obj)
+
+            return self.response_delete(request, obj_display, obj_id)
+
+        object_name = str(self.opts.verbose_name)
+
+        if perms_needed or protected:
+            title = _("Cannot delete %(name)s") % {"name": object_name}
         else:
-            error = "Cannot delete the fleet. Please try again later."
-        if error:
-            messages.error(request, error)
-            return
-        super().delete_model(request, obj)
+            title = _("Delete")
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": title,
+            "subtitle": None,
+            "object_name": object_name,
+            "object": obj,
+            "deleted_objects": deleted_objects,
+            "model_count": dict(model_count).items(),
+            "perms_lacking": perms_needed,
+            "protected": protected,
+            "opts": self.opts,
+            "app_label": app_label,
+            "preserved_filters": self.get_preserved_filters(request),
+            "is_popup": IS_POPUP_VAR in request.POST or IS_POPUP_VAR in request.GET,
+            "to_field": to_field,
+            **(extra_context or {}),
+        }
+
+        return self.render_delete_form(request, context)
 
 
 @admin.register(Device)

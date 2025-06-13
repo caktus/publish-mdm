@@ -2,7 +2,7 @@ import pytest
 from django.conf import settings
 from django.urls import reverse
 from import_export.tmp_storages import TempFolderStorage
-from pytest_django.asserts import assertContains
+from pytest_django.asserts import assertContains, assertNotContains
 from requests.exceptions import HTTPError
 
 from apps.mdm.import_export import DeviceResource
@@ -209,6 +209,7 @@ class TestFleetAdmin(TestAdmin):
         assert response.status_code == 200
         mock_delete_group.assert_called_once()
         assert not Fleet.objects.filter(pk=fleet.pk).exists()
+        assertContains(response, f"The fleet “{fleet}” was deleted successfully.")
 
     def test_delete_fleet_no_api_credentials(self, user, client, mocker):
         """Ensures a Fleet is not deleted if TinyMDM API access is not configured."""
@@ -222,6 +223,7 @@ class TestFleetAdmin(TestAdmin):
         mock_delete_group.assert_not_called()
         assertContains(response, "Cannot delete the fleet. Please try again later.")
         assert Fleet.objects.filter(pk=fleet.pk).exists()
+        assertNotContains(response, f"The fleet “{fleet}” was deleted successfully.")
 
     def test_delete_fleet_has_devices(self, user, client, mocker, set_tinymdm_env_vars):
         """Ensures a Fleet is not deleted if it's linked to some devices either in
@@ -238,6 +240,7 @@ class TestFleetAdmin(TestAdmin):
         mock_delete_group.assert_called_once()
         assertContains(response, "Cannot delete the fleet because it has devices linked to it.")
         assert Fleet.objects.filter(pk=fleet.pk).exists()
+        assertNotContains(response, f"The fleet “{fleet}” was deleted successfully.")
 
     def test_delete_fleet_api_error(self, user, client, mocker, set_tinymdm_env_vars):
         """Ensures a Fleet is not deleted if an API error occurs when deleting the
@@ -258,3 +261,4 @@ class TestFleetAdmin(TestAdmin):
             response, "Cannot delete the fleet due a TinyMDM API error. Please try again later."
         )
         assert Fleet.objects.filter(pk=fleet.pk).exists()
+        assertNotContains(response, f"The fleet “{fleet}” was deleted successfully.")
