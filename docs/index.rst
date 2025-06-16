@@ -26,6 +26,7 @@ interface for publishing form versions.
    src/local-development/index
    src/helm-chart
    src/contributing
+   src/infisical
 
 Contributors:
 

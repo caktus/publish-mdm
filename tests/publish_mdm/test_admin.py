@@ -1,8 +1,10 @@
 import pytest
 from django.urls import reverse
 from django.conf import settings
+from pytest_django.asserts import assertContains
+from requests.exceptions import HTTPError
 
-from apps.publish_mdm.models import Project
+from apps.publish_mdm.models import CentralServer, Organization, Project
 from tests.publish_mdm.factories import (
     CentralServerFactory,
     FormTemplateFactory,
@@ -190,3 +192,115 @@ class TestProjectAdmin(BaseTestAdmin):
                 assert set(new_db_value) == set(new_values[changed_field])
             else:
                 assert new_db_value.get() == new_values[changed_field]
+
+
+class TestCentralServerAdmin(BaseTestAdmin):
+    @pytest.fixture
+    def server(self):
+        return CentralServerFactory()
+
+    def test_edit_with_no_username_and_password(self, client, user, server, requests_mock):
+        """Ensure submitting a form without a username or password is valid if
+        they are already set in the database. The saved values should not be changed.
+        """
+        username_before = server.username
+        password_before = server.password
+        data = {
+            "base_url": server.base_url,
+            "username": "",
+            "password": "",
+            "organization": OrganizationFactory().id,
+        }
+        # Mock the ODK Central API request for validating the base URL and credentials
+        mock_odk_request = requests_mock.post(f'{data["base_url"]}/v1/sessions')
+        response = client.post(
+            reverse("admin:publish_mdm_centralserver_change", args=[server.id]),
+            data=data,
+            follow=True,
+        )
+        assert response.status_code == 200
+        assert not mock_odk_request.called
+        server.refresh_from_db()
+        assert server.base_url == data["base_url"]
+        assert server.organization_id == data["organization"]
+        assert server.username == username_before
+        assert server.password == password_before
+
+    def test_add(self, client, user, requests_mock):
+        """Test creating a new CentralServer."""
+        data = {
+            "base_url": "https://central.example.com",
+            "username": "test@email.com",
+            "password": "password",
+            "organization": OrganizationFactory().id,
+        }
+        # Mock the ODK Central API request for validating the base URL and credentials
+        mock_odk_request = requests_mock.post(
+            f'{data["base_url"]}/v1/sessions',
+            json={
+                "createdAt": "2018-04-18T03:04:51.695Z",
+                "expiresAt": "2018-04-19T03:04:51.695Z",
+                "token": "token",
+            },
+        )
+        response = client.post(
+            reverse("admin:publish_mdm_centralserver_add"), data=data, follow=True
+        )
+        assert response.status_code == 200
+        assert mock_odk_request.called_once
+        assert CentralServer.objects.values(*data).get() == data
+
+
+class TestOrganizationAdmin(BaseTestAdmin):
+    @pytest.mark.parametrize("api_error", [None, HTTPError("error")])
+    def test_new_organization(self, user, client, mocker, api_error):
+        """Ensures the create_default_fleet() method is called when creating a
+        new organization.
+        """
+        organization = OrganizationFactory.build()
+        data = {
+            "name": organization.name,
+            "slug": organization.slug,
+            "users": [user.id],
+        }
+        mock_create_default_fleet = mocker.patch.object(
+            Organization, "create_default_fleet", side_effect=api_error
+        )
+        response = client.post(
+            reverse("admin:publish_mdm_organization_add"), data=data, follow=True
+        )
+
+        assert response.status_code == 200
+        mock_create_default_fleet.assert_called_once()
+        assert Organization.objects.count() == 1
+        if api_error:
+            assertContains(
+                response,
+                (
+                    "The organization was created but its default TinyMDM group "
+                    f"could not be created due to the following error:<br><code>{api_error}</code>"
+                ),
+            )
+
+    def test_edit_organization(self, user, client, mocker):
+        """Ensures the create_default_fleet() method is not called when editing
+        an organization.
+        """
+        organization = OrganizationFactory()
+        data = {
+            "name": organization.name + "edited",
+            "slug": organization.slug + "edited",
+            "users": [user.id],
+        }
+        mock_create_default_fleet = mocker.patch.object(Organization, "create_default_fleet")
+        response = client.post(
+            reverse("admin:publish_mdm_organization_change", args=[organization.id]),
+            data=data,
+            follow=True,
+        )
+
+        assert response.status_code == 200
+        mock_create_default_fleet.assert_not_called()
+        organization.refresh_from_db()
+        assert organization.name == data["name"]
+        assert organization.slug == data["slug"]

@@ -1,12 +1,15 @@
 from typing import Generic, TypeVar
 
 import factory
+import faker
 from django.utils.crypto import get_random_string
 
 from apps.publish_mdm import models
 from tests.users.factories import UserFactory
 
 T = TypeVar("T")
+
+fake = faker.Faker()
 
 
 class BaseMetaFactory(Generic[T], factory.base.FactoryMetaClass):
@@ -37,6 +40,8 @@ class CentralServerFactory(
 
     base_url = factory.Faker("url")
     organization = factory.SubFactory(OrganizationFactory)
+    username = factory.Faker("email")
+    password = "password"
 
 
 class TemplateVariableFactory(
@@ -45,7 +50,7 @@ class TemplateVariableFactory(
     class Meta:
         model = models.TemplateVariable
 
-    name = factory.Faker("word")
+    name = factory.Sequence(lambda _: fake.unique.word())
     organization = factory.SubFactory(OrganizationFactory)
 
 

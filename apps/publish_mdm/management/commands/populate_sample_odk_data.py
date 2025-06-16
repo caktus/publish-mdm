@@ -4,6 +4,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.contrib.auth import get_user_model
 
 import apps.publish_mdm.models as publish_mdm
 
@@ -14,6 +15,7 @@ class Command(BaseCommand):
     @transaction.atomic
     def handle(self, *args, **options):
         logger.info("Cleaning data...")
+        publish_mdm.Organization.objects.all().delete()
         publish_mdm.CentralServer.objects.all().delete()
         publish_mdm.TemplateVariable.objects.all().delete()
         publish_mdm.Project.objects.all().delete()
@@ -25,27 +27,43 @@ class Command(BaseCommand):
             if file.is_file():
                 logger.info("Removing file", file=file.name)
                 file.unlink()
+        logger.info("Creating Organization...")
+        organization = publish_mdm.Organization.objects.create(name="Test Org", slug="test")
+        organization.users.set(get_user_model().objects.all())
         logger.info("Creating CentralServers...")
         central_server = publish_mdm.CentralServer.objects.create(
-            base_url="https://odk-central.caktustest.net/"
+            base_url="https://odk-central.example.com/",
+            organization=organization,
         )
-        myodkcloud = publish_mdm.CentralServer.objects.create(base_url="https://myodkcloud.com/")
+        myodkcloud = publish_mdm.CentralServer.objects.create(
+            base_url="https://myodkcloud.com/", organization=organization
+        )
         logger.info("Creating Projects...")
         project = publish_mdm.Project.objects.create(
-            name="Caktus Test",
+            name="Test Project",
             central_id=1,
             central_server=central_server,
+            organization=organization,
         )
         publish_mdm.Project.objects.create(
             name="Other Project",
             central_id=5,
             central_server=myodkcloud,
+            organization=organization,
         )
         logger.info("Creating TemplateVariable...")
-        center_id_var = publish_mdm.TemplateVariable.objects.create(name="center_id")
-        center_label_var = publish_mdm.TemplateVariable.objects.create(name="center_label")
-        public_key_var = publish_mdm.TemplateVariable.objects.create(name="public_key")
-        manager_password_var = publish_mdm.TemplateVariable.objects.create(name="manager_password")
+        center_id_var = publish_mdm.TemplateVariable.objects.create(
+            name="center_id", organization=organization
+        )
+        center_label_var = publish_mdm.TemplateVariable.objects.create(
+            name="center_label", organization=organization
+        )
+        public_key_var = publish_mdm.TemplateVariable.objects.create(
+            name="public_key", organization=organization
+        )
+        manager_password_var = publish_mdm.TemplateVariable.objects.create(
+            name="manager_password", organization=organization
+        )
         project.template_variables.set(
             [center_id_var, center_label_var, public_key_var, manager_password_var]
         )

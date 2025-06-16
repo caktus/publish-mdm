@@ -19,7 +19,17 @@ from invitations.app_settings import app_settings as invitations_settings
 from invitations.base_invitation import AbstractBaseInvitation
 from invitations.signals import invite_url_sent
 
+from apps.infisical.api import kms_api
+from apps.infisical.fields import EncryptedCharField, EncryptedEmailField
+from apps.infisical.managers import EncryptedManager
 from apps.users.models import User
+from apps.mdm.models import Fleet, Policy
+from apps.mdm.tasks import (
+    add_group_to_policy,
+    create_group,
+    get_enrollment_qr_code,
+    get_tinymdm_session,
+)
 
 from .etl import template
 from .etl.google import download_user_google_sheet
@@ -48,14 +58,34 @@ class Organization(AbstractBaseModel):
     def get_absolute_url(self):
         return reverse("publish_mdm:organization-home", args=[self.slug])
 
+    def create_default_fleet(self):
+        """Create a default MDM Fleet for the organization if the TinyMDM API is
+        configured and a default Policy exists.
+        """
+        if (session := get_tinymdm_session()) and (default_policy := Policy.get_default()):
+            fleet = Fleet(organization=self, name="Default", policy=default_policy)
+            create_group(session, fleet)
+            add_group_to_policy(session, fleet)
+            get_enrollment_qr_code(session, fleet)
+            fleet.save()
+            return fleet
+
 
 class CentralServer(AbstractBaseModel):
     """A server running ODK Central."""
 
-    base_url = models.URLField(max_length=1024)
+    base_url = models.URLField(max_length=1024, verbose_name="base URL")
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name="central_servers"
     )
+    username = EncryptedEmailField(null=True)
+    password = EncryptedCharField(null=True)
+
+    # The default manager will *not* decrypt usernames and passwords after fetching
+    # them from the database. Usernames and passwords will be encrypted when saving
+    # with both managers
+    objects = models.Manager()
+    decrypted = EncryptedManager()
 
     def __str__(self):
         parsed_url = urlparse(self.base_url)
@@ -64,6 +94,16 @@ class CentralServer(AbstractBaseModel):
     def save(self, *args, **kwargs):
         self.base_url = self.base_url.rstrip("/")
         super().save(*args, **kwargs)
+
+    def decrypt(self):
+        """Decrypt username and password. Use this if they were not decrypted when
+        getting from the database (i.e. if the `decrypted` model manager was not used).
+        """
+        for field in ("username", "password"):
+            value = getattr(self, field)
+            if value:
+                value = kms_api.decrypt("centralserver", value)
+                setattr(self, field, value)
 
 
 class TemplateVariable(AbstractBaseModel):

@@ -17,14 +17,19 @@ urlpatterns = [
         name="server-sync",
     ),
     path(
-        "servers/sync/projects/",
+        "o/<slug:organization_slug>/servers/sync/projects/",
         views.server_sync_projects,
         name="server-sync-projects",
     ),
     path(
         "o/<slug:organization_slug>/<int:odk_project_pk>/edit/",
-        views.edit_project,
+        views.change_project,
         name="edit-project",
+    ),
+    path(
+        "o/<slug:organization_slug>/add-project/",
+        views.change_project,
+        name="add-project",
     ),
     path(
         "o/<slug:organization_slug>/<int:odk_project_pk>/app-users/",
@@ -96,5 +101,50 @@ urlpatterns = [
         "o/<slug:organization_slug>/users/",
         views.organization_users_list,
         name="organization-users-list",
+    ),
+    path(
+        "o/<slug:organization_slug>/template-variables/",
+        views.organization_template_variables,
+        name="organization-template-variables",
+    ),
+    path(
+        "o/<slug:organization_slug>/central-servers/",
+        views.central_servers_list,
+        name="central-servers-list",
+    ),
+    path(
+        "o/<slug:organization_slug>/central-servers/<int:central_server_id>/",
+        views.change_central_server,
+        name="edit-central-server",
+    ),
+    path(
+        "o/<slug:organization_slug>/central-servers/add/",
+        views.change_central_server,
+        name="add-central-server",
+    ),
+    path(
+        "o/<slug:organization_slug>/devices/",
+        views.devices_list,
+        name="devices-list",
+    ),
+    path(
+        "o/<slug:organization_slug>/fleets/",
+        views.fleets_list,
+        name="fleets-list",
+    ),
+    path(
+        "o/<slug:organization_slug>/fleet/<int:fleet_id>/",
+        views.edit_fleet,
+        name="edit-fleet",
+    ),
+    path(
+        "o/<slug:organization_slug>/fleet/add/",
+        views.add_fleet,
+        name="add-fleet",
+    ),
+    path(
+        "o/<slug:organization_slug>/fleet-qr-code/",
+        views.fleet_qr_code,
+        name="fleet-qr-code",
     ),
 ]

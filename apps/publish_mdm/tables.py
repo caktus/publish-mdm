@@ -1,6 +1,7 @@
 import django_tables2 as tables
 
-from .models import FormTemplate
+from .models import CentralServer, FormTemplate, FormTemplateVersion
+from apps.mdm.models import Device, Fleet
 
 
 class FormTemplateTable(tables.Table):
@@ -15,7 +16,7 @@ class FormTemplateTable(tables.Table):
     )
     title_base = tables.LinkColumn(
         "publish_mdm:form-template-detail",
-        args=[tables.A("project.organization.slug"), tables.A("project_id"), tables.A("pk")],
+        args=[tables.A("project__organization__slug"), tables.A("project_id"), tables.A("pk")],
         attrs={"a": {"class": "text-primary-600 hover:underline"}},
     )
 
@@ -25,3 +26,71 @@ class FormTemplateTable(tables.Table):
         template_name = "patterns/tables/table.html"
         attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
         orderable = False
+
+
+class FormTemplateVersionTable(tables.Table):
+    """A table for displaying the version history for a form template."""
+
+    version = tables.Column(verbose_name="Version number")
+    modified_at = tables.DateColumn(verbose_name="Date published")
+    published_by = tables.Column(accessor="user__get_full_name")
+
+    class Meta:
+        model = FormTemplateVersion
+        fields = ["version", "modified_at"]
+        template_name = "patterns/tables/table.html"
+        attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
+        orderable = False
+
+
+class CentralServerTable(tables.Table):
+    """A table for listing CentralServers."""
+
+    base_url = tables.LinkColumn(
+        "publish_mdm:edit-central-server",
+        args=[tables.A("organization__slug"), tables.A("pk")],
+        attrs={"a": {"class": "text-primary-600 hover:underline"}},
+    )
+
+    class Meta:
+        model = CentralServer
+        fields = ["base_url", "created_at"]
+        template_name = "patterns/tables/table.html"
+        attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
+        orderable = False
+
+
+class DeviceTable(tables.Table):
+    """A table for listing MDM Devices."""
+
+    last_seen_mdm = tables.DateTimeColumn(
+        accessor="latest_snapshot__last_sync", verbose_name="Last seen (MDM)"
+    )
+    last_seen_vpn = tables.DateTimeColumn(verbose_name="Last seen (VPN)")
+
+    class Meta:
+        model = Device
+        fields = [
+            "device_id",
+            "serial_number",
+            "app_user_name",
+            "firmware_version",
+            "last_seen_mdm",
+            "last_seen_vpn",
+        ]
+        template_name = "patterns/tables/table.html"
+        attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
+
+
+class FleetTable(tables.Table):
+    name = tables.LinkColumn(
+        "publish_mdm:edit-fleet",
+        args=[tables.A("organization__slug"), tables.A("pk")],
+        attrs={"a": {"class": "text-primary-600 hover:underline"}},
+    )
+
+    class Meta:
+        model = Fleet
+        fields = ("name", "mdm_group_id", "project")
+        template_name = "patterns/tables/table.html"
+        attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}

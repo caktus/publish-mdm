@@ -4,9 +4,9 @@
     "build": "npx @tailwindcss/cli -i ./config/assets/styles/tailwind-entry.css -o ./config/static/css/main.css --minify"
   },
   "devDependencies": {
-    "@tailwindcss/cli": "^4.0.0-beta.10",
-    "@tailwindcss/postcss": "^4.0.0-beta.10",
-    "flowbite": "^3.0.0-beta.1",
-    "tailwindcss": "^4.0.0-beta.10"
+    "@tailwindcss/cli": "^4.1.4",
+    "@tailwindcss/postcss": "^4.1.4",
+    "flowbite": "^3.1.2",
+    "tailwindcss": "^4.1.4"
   }
 }

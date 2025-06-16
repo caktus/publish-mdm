@@ -42,3 +42,12 @@ repos:
       - id: check-merge-conflict
       - id: debug-statements
       - id: detect-private-key
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.19.1
+    hooks:
+      - id: pyupgrade
+  - repo: https://github.com/adamchainz/django-upgrade
+    rev: 1.25.0
+    hooks:
+      - id: django-upgrade
+        args: [--target-version, "5.2"]

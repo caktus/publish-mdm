@@ -86,11 +86,14 @@
                 </tfoot>
             </table>
         {% endwith %}
+        {% if request.odk_project %}
+            {% url 'publish_mdm:form-template-list' request.organization.slug request.odk_project.pk as cancel_url %}
+        {% else %}
+            {% url 'publish_mdm:organization-home' request.organization.slug as cancel_url %}
+        {% endif %}
         <div class="flex items-center space-x-4">
             <button type="submit" class="btn btn-outline btn-primary">Save project</button>
-            <a type="button"
-               class="btn btn-outline"
-               href="{% url 'publish_mdm:form-template-list' request.organization.slug request.odk_project.pk %}">Cancel</a>
+            <a type="button" class="btn btn-outline" href="{{ cancel_url }}">Cancel</a>
         </div>
     </form>
     <script>

@@ -15,7 +15,7 @@ class DeviceFactory(factory.django.DjangoModelFactory):
 
     node_id = factory.Faker("uuid4")
     name = factory.Faker("name")
-    last_seen = fake.date_time(tzinfo=dt.timezone.utc)
+    last_seen = factory.Faker("date_time", tzinfo=dt.timezone.utc)
     tailnet = factory.Faker("word")
     latest_snapshot = factory.SubFactory("tests.tailscale.factories.DeviceSnapshotFactory")
 
