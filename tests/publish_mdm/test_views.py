@@ -15,6 +15,7 @@ from pygments.lexers.data import JsonLexer
 from pytest_django.asserts import (
     assertContains,
     assertNotContains,
+    assertQuerySetEqual,
     assertRedirects,
     assertTemplateNotUsed,
 )
@@ -42,6 +43,7 @@ from apps.publish_mdm.forms import (
     CentralServerFrontendForm,
     FleetAddForm,
     FleetEditForm,
+    FormTemplateForm,
     OrganizationForm,
     OrganizationInviteForm,
     ProjectForm,
@@ -267,7 +269,13 @@ class TestAddFormTemplate(ViewTestBase):
             kwargs={"organization_slug": project.organization.slug, "odk_project_pk": project.pk},
         )
 
-    def test_get(self, client, url, user):
+    @pytest.fixture
+    def project_app_users(self, project):
+        return AppUserFactory.create_batch(3, project=project)
+
+    def test_get(self, client, url, user, project_app_users):
+        # Create some app users not linked to the current project
+        AppUserFactory.create_batch(2)
         response = client.get(url)
         assert response.status_code == 200
         # Ensure the context includes the variables required for the Google Picker JS
@@ -279,21 +287,34 @@ class TestAddFormTemplate(ViewTestBase):
         # Ensure the 'Cross-Origin-Opener-Policy' header has the value required
         # for the Google Picker popup to work correctly
         assert response.headers["Cross-Origin-Opener-Policy"] == "same-origin-allow-popups"
+        # Ensure the form only includes the current project's app users in the
+        # app_users field
+        form = response.context["form"]
+        assert isinstance(form, FormTemplateForm)
+        assertQuerySetEqual(form.fields["app_users"].queryset, project_app_users, ordered=False)
 
-    def test_post(self, client, url, user, project):
+    def test_post(self, client, url, user, project, project_app_users):
         data = {
             "title_base": "Test template",
             "form_id_base": "testing",
             "template_url": "https://docs.google.com/spreadsheets/d/1/edit",
             "template_url_user": user.id,
+            "app_users": [i.pk for i in project_app_users[:2]],
         }
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
         # Ensure a new FormTemplate was created with the expected values
         assert FormTemplate.objects.count() == 1
-        form_template_values = FormTemplate.objects.values("project", *data.keys()).get()
-        assert form_template_values.pop("project") == project.id
-        assert form_template_values == data
+        form_template = FormTemplate.objects.get()
+        assert form_template.project_id == project.id
+        assert form_template.template_url_user_id == user.id
+        for field in ("title_base", "form_id_base", "template_url"):
+            assert data[field] == getattr(form_template, field)
+        assertQuerySetEqual(
+            AppUser.objects.filter(app_user_forms__form_template=form_template),
+            project_app_users[:2],
+            ordered=False,
+        )
         # Ensure the view redirects to the form templates list page
         assert response.redirect_chain == [
             (
@@ -304,17 +325,23 @@ class TestAddFormTemplate(ViewTestBase):
             )
         ]
         # Ensure there is a success message
-        assert (
-            f"Successfully added {form_template_values['title_base']}." in response.content.decode()
-        )
+        assert f"Successfully added {form_template.title_base}." in response.content.decode()
 
 
 class TestEditFormTemplate(ViewTestBase):
     """Test the editing a form template."""
 
     @pytest.fixture
-    def form_template(self, project):
-        return FormTemplateFactory(project=project)
+    def project_app_users(self, project):
+        return AppUserFactory.create_batch(3, project=project)
+
+    @pytest.fixture
+    def form_template(self, project, project_app_users):
+        form_template = FormTemplateFactory(project=project)
+        # Assign the first 2 app users to the form template
+        for app_user in project_app_users[:2]:
+            form_template.app_user_forms.create(app_user=app_user)
+        return form_template
 
     @pytest.fixture
     def url(self, form_template):
@@ -327,7 +354,9 @@ class TestEditFormTemplate(ViewTestBase):
             },
         )
 
-    def test_get(self, client, url, user):
+    def test_get(self, client, url, user, project_app_users):
+        # Create some app users not linked to the current project
+        AppUserFactory.create_batch(2)
         response = client.get(url)
         assert response.status_code == 200
         # Ensure the context includes the variables required for the Google Picker JS
@@ -339,22 +368,36 @@ class TestEditFormTemplate(ViewTestBase):
         # Ensure the 'Cross-Origin-Opener-Policy' header has the value required
         # for the Google Picker popup to work correctly
         assert response.headers["Cross-Origin-Opener-Policy"] == "same-origin-allow-popups"
+        # Ensure the form only includes the current project's app users in the
+        # app_users field
+        form = response.context["form"]
+        assert isinstance(form, FormTemplateForm)
+        assertQuerySetEqual(form.fields["app_users"].queryset, project_app_users, ordered=False)
+        assertQuerySetEqual(form.fields["app_users"].initial, project_app_users[:2], ordered=False)
 
-    def test_post(self, client, url, user, form_template):
+    def test_post(self, client, url, user, form_template, project, project_app_users):
         data = {
             "title_base": "Test template",
             "form_id_base": "testing",
             "template_url": "https://docs.google.com/spreadsheets/d/1/edit",
             "template_url_user": user.id,
+            # Remove one user, add one user, and one user is unchanged
+            "app_users": [i.pk for i in project_app_users[1:]],
         }
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
         # Ensure the FormTemplate was edited with the expected values
         assert FormTemplate.objects.count() == 1
-        form_template_values = FormTemplate.objects.values("id", "project", *data.keys()).get()
-        assert form_template_values.pop("id") == form_template.id
-        assert form_template_values.pop("project") == form_template.project_id
-        assert form_template_values == data
+        form_template.refresh_from_db()
+        assert form_template.project_id == project.id
+        assert form_template.template_url_user_id == user.id
+        for field in ("title_base", "form_id_base", "template_url"):
+            assert data[field] == getattr(form_template, field)
+        assertQuerySetEqual(
+            AppUser.objects.filter(app_user_forms__form_template=form_template),
+            project_app_users[1:],
+            ordered=False,
+        )
         # Ensure the view redirects to the form templates list page
         assert response.redirect_chain == [
             (
@@ -366,10 +409,7 @@ class TestEditFormTemplate(ViewTestBase):
             )
         ]
         # Ensure there is a success message
-        assert (
-            f"Successfully edited {form_template_values['title_base']}."
-            in response.content.decode()
-        )
+        assert f"Successfully edited {form_template.title_base}." in response.content.decode()
 
 
 class TestFormTemplateDetail(ViewTestBase):

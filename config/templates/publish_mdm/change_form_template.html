@@ -4,8 +4,7 @@
 {% block content %}
     <p class="mb-4 dark:text-gray-400">
         A form template is used to create forms in ODK Central, one for each
-        assigned App User. Use the App User Import/Export to assign form
-        templates to App Users.
+        assigned App User.
     </p>
     <div class="mb-4 grid gap-4 sm:grid-cols-2 md:mb-8">
         {{ form.media }}
@@ -17,6 +16,9 @@
                     <div id="id_{{ field.name }}_container">
                         {{ field.label_tag }}
                         {{ field }}
+                        {% if field.name == "app_users" and not field.field.choices %}
+                            <span class="text-sm">The current project does not have any App Users at the moment.</span>
+                        {% endif %}
                         {{ field.errors }}
                     </div>
                 {% endfor %}

@@ -63,7 +63,14 @@ from .forms import (
     DeviceEnrollmentQRCodeForm,
 )
 from .import_export import AppUserResource
-from .models import FormTemplateVersion, FormTemplate, AppUser, Project, CentralServer
+from .models import (
+    FormTemplateVersion,
+    FormTemplate,
+    AppUser,
+    Project,
+    CentralServer,
+    AppUserFormTemplate,
+)
 from .nav import Breadcrumbs
 from .tables import (
     CentralServerTable,
@@ -371,6 +378,31 @@ def change_form_template(
     form = FormTemplateForm(request.POST or None, instance=form_template)
     if request.method == "POST" and form.is_valid():
         form_template = form.save()
+        current_app_users = set(form.fields["app_users"].initial or [])
+        new_app_users = set(form.cleaned_data["app_users"])
+        # Create AppUserFormTemplates for new app users
+        to_add = new_app_users - current_app_users
+        if to_add:
+            logger.info(
+                "Assigning form template to app users",
+                form_template=form_template,
+                app_users=to_add,
+            )
+            AppUserFormTemplate.objects.bulk_create(
+                [
+                    AppUserFormTemplate(app_user=app_user, form_template=form_template)
+                    for app_user in to_add
+                ]
+            )
+        # Delete AppUserFormTemplates for removed app users
+        to_remove = current_app_users - new_app_users
+        if to_remove:
+            logger.info(
+                "Unassigning form template for app users",
+                form_template=form_template,
+                app_users=to_remove,
+            )
+            form_template.app_user_forms.filter(app_user__in=to_remove).delete()
         messages.success(
             request,
             f"Successfully {'edit' if form_template_id else 'add'}ed {form_template.title_base}.",
