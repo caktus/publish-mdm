@@ -112,14 +112,10 @@ class FleetAdmin(admin.ModelAdmin):
                     )
             else:
                 error = "Cannot delete the fleet. Please try again later."
+
             if error:
                 messages.error(request, error)
-
-                # TODO: need to do something else if popup or no change perm?
-                # (like in response_delete() called below after successful deletion)
-                return redirect(
-                    "admin:{}_{}_changelist".format(self.opts.app_label, self.opts.model_name)
-                )
+                return redirect("admin:mdm_fleet_changelist")
             # END ADDED CODE
 
             obj_display = str(obj)

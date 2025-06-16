@@ -3,7 +3,7 @@ from django.conf import settings
 from django.urls import reverse
 from django.utils.html import linebreaks
 from import_export.tmp_storages import TempFolderStorage
-from pytest_django.asserts import assertContains, assertNotContains
+from pytest_django.asserts import assertContains, assertNotContains, assertRedirects
 from requests.exceptions import HTTPError
 
 from apps.mdm.import_export import DeviceResource
@@ -225,6 +225,7 @@ class TestFleetAdmin(TestAdmin):
         assertContains(response, "Cannot delete the fleet. Please try again later.")
         assert Fleet.objects.filter(pk=fleet.pk).exists()
         assertNotContains(response, f"The fleet “{fleet}” was deleted successfully.")
+        assertRedirects(response, reverse("admin:mdm_fleet_changelist"))
 
     def test_delete_fleet_has_devices(self, user, client, mocker, set_tinymdm_env_vars):
         """Ensures a Fleet is not deleted if it's linked to some devices either in
@@ -242,6 +243,7 @@ class TestFleetAdmin(TestAdmin):
         assertContains(response, "Cannot delete the fleet because it has devices linked to it.")
         assert Fleet.objects.filter(pk=fleet.pk).exists()
         assertNotContains(response, f"The fleet “{fleet}” was deleted successfully.")
+        assertRedirects(response, reverse("admin:mdm_fleet_changelist"))
 
     def test_delete_fleet_api_error(self, user, client, mocker, set_tinymdm_env_vars):
         """Ensures a Fleet is not deleted if an API error occurs when deleting the
@@ -263,6 +265,7 @@ class TestFleetAdmin(TestAdmin):
         )
         assert Fleet.objects.filter(pk=fleet.pk).exists()
         assertNotContains(response, f"The fleet “{fleet}” was deleted successfully.")
+        assertRedirects(response, reverse("admin:mdm_fleet_changelist"))
 
     def test_delete_selected_fully_successful(self, user, client, mocker, set_tinymdm_env_vars):
         """Ensures fleets are successfully deleted using the delete_selected action
