@@ -210,7 +210,7 @@ class FleetAdmin(admin.ModelAdmin):
                         request,
                         mark_safe(
                             "Cannot delete the following fleets because they have "
-                            f"devices linked to them: {linebreaks('\n'.join(has_devices))}"
+                            f"devices linked to them: {linebreaks('\n'.join(sorted(has_devices)))}"
                         ),
                     )
 
@@ -219,7 +219,7 @@ class FleetAdmin(admin.ModelAdmin):
                         request,
                         mark_safe(
                             "Cannot delete the following fleets due a TinyMDM API error: "
-                            f"{linebreaks('\n'.join(api_errors))}Please try again later."
+                            f"{linebreaks('\n'.join(sorted(api_errors)))}Please try again later."
                         ),
                     )
 

@@ -1,6 +1,7 @@
 import pytest
 from django.conf import settings
 from django.urls import reverse
+from django.utils.html import linebreaks
 from import_export.tmp_storages import TempFolderStorage
 from pytest_django.asserts import assertContains, assertNotContains
 from requests.exceptions import HTTPError
@@ -262,3 +263,88 @@ class TestFleetAdmin(TestAdmin):
         )
         assert Fleet.objects.filter(pk=fleet.pk).exists()
         assertNotContains(response, f"The fleet “{fleet}” was deleted successfully.")
+
+    def test_delete_selected_fully_successful(self, user, client, mocker, set_tinymdm_env_vars):
+        """Ensures fleets are successfully deleted using the delete_selected action
+        if they are not linked to any device either in the database or in TinyMDM.
+        """
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        fleets = FleetFactory.create_batch(5)
+        # Will delete 3 fleets, 2 should remain
+        to_delete_ids = [i.pk for i in fleets[:3]]
+        mock_delete_group = mocker.patch("apps.mdm.admin.delete_group", return_value=True)
+        data = {"post": "yes", "action": "delete_selected", "_selected_action": to_delete_ids}
+        response = client.post(reverse("admin:mdm_fleet_changelist"), data=data, follow=True)
+
+        assert response.status_code == 200
+        assert mock_delete_group.call_count == 3
+        assert not Fleet.objects.filter(pk__in=to_delete_ids).exists()
+        assert Fleet.objects.filter(pk__in=[i.pk for i in fleets[3:]]).count() == 2
+        assertContains(response, "Successfully deleted 3 fleets.")
+
+    @pytest.mark.parametrize("partial_success", [True, False])
+    def test_delete_selected_failures(
+        self, user, client, mocker, set_tinymdm_env_vars, partial_success
+    ):
+        """Ensures fleets are not deleted using the delete_selected action if
+        they are linked to devices either in the database or in TinyMDM.
+        """
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        fleets = FleetFactory.create_batch(6 if partial_success else 4)
+        # Will try to delete all fleets. 2 will fail because they have devices,
+        # 2 will fail because of an API error, the rest (if any) will be successful
+        has_devices = {i.pk: i.name for i in fleets[:2]}
+        api_errors = {i.pk: i.name for i in fleets[2:4]}
+        successful = [i.pk for i in fleets[4:]]
+
+        def delete_group(session, fleet):
+            if fleet.pk in has_devices:
+                return False
+            if fleet.pk in api_errors:
+                raise HTTPError("error")
+            return True
+
+        mock_delete_group = mocker.patch("apps.mdm.admin.delete_group", side_effect=delete_group)
+        data = {
+            "post": "yes",
+            "action": "delete_selected",
+            "_selected_action": [i.pk for i in fleets],
+        }
+        response = client.post(reverse("admin:mdm_fleet_changelist"), data=data, follow=True)
+
+        assert response.status_code == 200
+        assert mock_delete_group.call_count == len(fleets)
+        assert Fleet.objects.filter(pk__in=has_devices | api_errors).count() == 4
+        assertContains(
+            response,
+            "Cannot delete the following fleets because they have devices linked "
+            f"to them: {linebreaks('\n'.join(sorted(has_devices.values())))}",
+        )
+        assertContains(
+            response,
+            "Cannot delete the following fleets due a TinyMDM API error: "
+            f"{linebreaks('\n'.join(sorted(api_errors.values())))}Please try again later.",
+        )
+        if partial_success:
+            assert not Fleet.objects.filter(pk__in=successful).exists()
+            assertContains(response, "Successfully deleted 2 fleets.")
+        else:
+            assertNotContains(response, "Successfully deleted ")
+
+    def test_delete_selected_no_api_credentials(self, user, client, mocker):
+        """Ensures fleets are not deleted using the delete_selected action if
+        TinyMDM API access is not configured.
+        """
+        fleets = FleetFactory.create_batch(3)
+        mock_delete_group = mocker.patch("apps.mdm.admin.delete_group")
+        data = {
+            "post": "yes",
+            "action": "delete_selected",
+            "_selected_action": [i.pk for i in fleets],
+        }
+        response = client.post(reverse("admin:mdm_fleet_changelist"), data=data, follow=True)
+
+        assert response.status_code == 200
+        mock_delete_group.assert_not_called()
+        assert Fleet.objects.filter(pk__in=[i.pk for i in fleets]).count() == 3
+        assertNotContains(response, "Successfully deleted ")
