@@ -17,24 +17,42 @@ Prerequisites:
 
 **Note:** You can test your IAM user by running an AWS command, such as ``aws s3 ls``.
 
-You may test the cluster creation by running the command below, which will output all the cluster specifications::
+You may test the cluster creation by running the command below, which will output all the cluster specifications:
 
-    eksctl create cluster --name=publish-mdm --region=us-east-1 --dry-run
+.. code-block:: shell
 
-To actually create the cluster::
+    eksctl create cluster \
+        --name=publish-mdm \
+        --region=us-east-1 \
+        --node-type=t3a.medium \
+        --nodes=2 \
+        --with-oidc \
+        --version=1.32 \
+        --dry-run
 
-    eksctl create cluster --name=publish-mdm --region=us-east-1 --node-type=t3a.medium --nodes=2
+To actually create the cluster:
 
+.. code-block:: shell
 
-You’ll know the creation process finished successfully when the command line prompt returns and you see a message along the lines of::
+    eksctl create cluster \
+        --name=publish-mdm \
+        --region=us-east-1 \
+        --node-type=t3a.medium \
+        --nodes=2 \
+        --with-oidc \
+        --version=1.32
+
+You'll know the creation process finished successfully when the command line prompt returns and you see a message along the lines of::
 
     2025-04-15 11:19:29 [✔]  created 1 managed nodegroup(s) in cluster "publish-mdm"
     2025-04-15 11:19:30 [ℹ]  kubectl command should work with "/Users/ronardluna/.kube/config", try 'kubectl get nodes'
     2025-04-15 11:19:30 [✔]  EKS cluster "publish-mdm" in "us-east-1" region is ready
 
-**Note:** It’s good always to specify the node type, otherwise AWS will default to massive nodes.
+**Note:** It's good always to specify the node type, otherwise AWS will default to massive nodes.
 
-Your new cluster should be “Active” in EKS. You can add it to you Kubernetes config with::
+Your new cluster should be “Active” in EKS. You can add it to you Kubernetes config with:
+
+.. code-block:: shell
 
     aws eks --region us-east-1 update-kubeconfig --name publish-mdm
 
@@ -47,7 +65,7 @@ If you need to use a PersitentVolume you’ll need to add the Amazon VPC CNI add
 2. Install Dependencies
 -----------------------
 
-You’ll install the following dependencies using `Helm <https://helm.sh/docs/intro/install/>`_ charts:
+You'll install the following dependencies using `Helm <https://helm.sh/docs/intro/install/>`_ charts:
 
 - `Nginx Ingress Controller <https://github.com/kubernetes/ingress-nginx>`_
 - `Cert Manager <https://cert-manager.io/>`_
@@ -56,45 +74,59 @@ You’ll install the following dependencies using `Helm <https://helm.sh/docs/in
 2.1. Installing the Nginx Ingress Controller
 ++++++++++++++++++++++++++++++++++++++++++++
 
-First add its repository to Helm::
+First add its repository to Helm:
+
+.. code-block:: shell
 
     helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
     helm repo update
 
-Run the following command to install the Nginx Ingress Controller, name the Helm release "nginx-ingress", and set the ``publishService`` parameter to ``true``::
+Run the following command to install the Nginx Ingress Controller, name the Helm release "nginx-ingress", and set the ``publishService`` parameter to ``true``:
 
-    helm install nginx-ingress ingress-nginx/ingress-nginx --set controller.publishService.enabled=true
+.. code-block:: shell
 
-Run this command to watch the Load Balancer become available::
+    helm install nginx-ingress ingress-nginx/ingress-nginx \
+        --set controller.publishService.enabled=true
 
-    kubectl --namespace default get services -o wide -w nginx-ingress-ingress-nginx-controller
+Run this command to watch the Load Balancer become available:
+
+.. code-block:: shell
+
+    kubectl --namespace default get services \
+        -o wide \
+        -w nginx-ingress-ingress-nginx-controller
 
 While waiting for the Load Balancer to become available, the above command will show ``<pending>`` in the ``EXTERNAL-IP`` column.
 
-Next, you’ll need to ensure that your domain is pointed to the Load Balancer via your domain's A record. This should be done through your DNS provider.
+Next, you'll need to ensure that your domain is pointed to the Load Balancer via your domain's A record. This should be done through your DNS provider.
 
 2.2. Installing Cert-Manager
 ++++++++++++++++++++++++++++
 
-To secure your Ingress Resources, you’ll install Cert-Manager, which you'll use to provision TLS certificates for the cluster.
+To secure your Ingress Resources, you'll install Cert-Manager, which you'll use to provision TLS certificates for the cluster.
 
-First, create a namespace for it::
+Then add the `Jetstack Helm repository <https://charts.jetstack.io/>`_ to Helm, which hosts the Cert-Manager chart:
 
-    kubectl create namespace cert-manager
-
-Then add the `Jetstack Helm repository <https://charts.jetstack.io/>`_ to Helm, which hosts the Cert-Manager chart::
+.. code-block:: shell
 
     helm repo add jetstack https://charts.jetstack.io
     helm repo update
 
 Finally, install Cert-Manager into the cert-manager namespace. We'll also set the ``crds.enabled`` parameter to ``true``
-in order to install cert-manager ``CustomResourceDefinition`` manifests::
+in order to install cert-manager ``CustomResourceDefinition`` manifests:
 
-    helm install cert-manager jetstack/cert-manager --namespace cert-manager --set crds.enabled=true
+.. code-block:: shell
+
+    helm install cert-manager jetstack/cert-manager \
+        --namespace cert-manager \
+        --create-namespace \
+        --set crds.enabled=true
 
 Next, you need to set up an Issuer to issue TLS certificates. To create one that issues
-Let’s Encrypt certificates, create a file named ``production_issuer.yaml`` with these contents
-(replace ``your_email_address`` with your email address to receive any notices regarding your certificates)::
+Let's Encrypt certificates, create a file named ``production_issuer.yaml`` with these contents
+(replace ``your_email_address`` with your email address to receive any notices regarding your certificates):
+
+.. code-block:: yaml
 
     apiVersion: cert-manager.io/v1
     kind: ClusterIssuer
@@ -114,10 +146,11 @@ Let’s Encrypt certificates, create a file named ``production_issuer.yaml`` wit
             ingress:
               class: nginx
 
-Apply the configuration::
+Apply the configuration:
+
+.. code-block:: shell
 
     kubectl apply -f production_issuer.yaml
-
 
 2.3. Installing a PostgreSQL Helm Chart
 +++++++++++++++++++++++++++++++++++++++
@@ -131,11 +164,56 @@ Apply the configuration::
 To host the PostgreSQL database within your cluster, you can install the
 `PostgreSQL Helm Chart from Bitnami <https://github.com/bitnami/charts/tree/main/bitnami/postgresql>`_.
 
-First, create a namespace for it::
+As mentioned earlier, you will need to have the Amazon EBS CSI driver installed in your cluster
+to use Persistent Volumes. If you haven't done so already, you can install it using `eksctl`:
 
-    kubectl create namespace publish-mdm-db
+.. code-block:: shell
 
-Add the Bitnami repository::
+    # Create the role and service account for the EBS CSI driver
+    eksctl create iamserviceaccount \
+        --name ebs-csi-controller-sa \
+        --namespace kube-system \
+        --cluster publish-mdm \
+        --region us-east-1 \
+        --role-name AmazonEKS_EBS_CSI_DriverRole \
+        --role-only \
+        --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+        --approve
+
+    # Install the EBS CSI driver addon
+    export AWS_ACCOUNT_ID=$(aws sts get-caller-identity | jq --raw-output ".Account")
+    eksctl create addon \
+        --cluster publish-mdm \
+        --region us-east-1 \
+        --name aws-ebs-csi-driver \
+        --service-account-role-arn arn:aws:iam::${AWS_ACCOUNT_ID}:role/AmazonEKS_EBS_CSI_DriverRole \
+        --force
+
+And create the StorageClass that will be used for the Persistent Volumes in ``sc.yaml``:
+
+.. code-block:: yaml
+
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+        name: auto-ebs-sc
+        annotations:
+            storageclass.kubernetes.io/is-default-class: "true"
+    provisioner: ebs.csi.eks.amazonaws.com
+    volumeBindingMode: WaitForFirstConsumer
+    parameters:
+        type: gp3
+        encrypted: "true"
+
+Apply the StorageClass configuration:
+
+.. code-block:: shell
+
+    kubectl apply -f sc.yaml
+
+Next, add the Bitnami repository:
+
+.. code-block:: shell
 
     helm repo add bitnami https://charts.bitnami.com/bitnami
     helm repo update
@@ -143,10 +221,15 @@ Add the Bitnami repository::
 Then install the Helm chart within the namespace you created. We will install version 15.5.38 as it's
 the last version that supports PostgreSQL 16 and the Publish MDM Docker container currently does not work well
 with PostgreSQL 17. You can update the ``auth.*`` values below as necessary,
-and set any `other parameters <https://github.com/bitnami/charts/tree/main/bitnami/postgresql#parameters>`_ you may need::
+and set any `other parameters <https://github.com/bitnami/charts/tree/main/bitnami/postgresql#parameters>`_ you may need:
+
+.. code-block:: shell
 
     helm install publish-mdm-db bitnami/postgresql --version 15.5.38 \
         --namespace publish-mdm-db \
+        --create-namespace \
+        --set global.defaultStorageClass=auto-ebs-sc \
+        --set persistence.storageClass=auto-ebs-sc \
         --set auth.database=publish_mdm \
         --set auth.password=A3Or4uW2vIPoZfJF \
         --set auth.username=publish_mdm \
@@ -166,18 +249,18 @@ values from above -- to create the ``DATABASE_URL`` environment variable in the 
 
 Now you'll install Publish MDM using its `Helm chart <https://github.com/caktus/helm-charts/tree/main/charts/publish-mdm>`_.
 
-First, create a namespace for it::
+Then add the `Caktus repository <https://caktus.github.io/helm-charts>`_ to Helm:
 
-    kubectl create namespace publish-mdm
-
-Then add the `Caktus repository <https://caktus.github.io/helm-charts>`_ to Helm::
+.. code-block:: shell
 
     helm repo add caktus https://caktus.github.io/helm-charts
     helm repo update
 
 Create a file named ``chart_values.yaml`` with your values for the Helm chart.
 All the possible values are documented in the `README file for the Helm chart <https://github.com/caktus/helm-charts/blob/main/charts/publish-mdm/README.md#configuration>`_.
-Below is a sample ``chart_values.yaml`` file that will create only one deployment for both WSGI and ASGI. Replace ``your_domain_name`` and update ``environmentVariables`` appropriately::
+Below is a sample ``chart_values.yaml`` file that will create only one deployment for both WSGI and ASGI. Replace ``your_domain_name`` and update ``environmentVariables`` appropriately:
+
+.. code-block:: yaml
 
     publish-mdm:
       publishDomain: your_domain_name
@@ -226,12 +309,26 @@ Below is a sample ``chart_values.yaml`` file that will create only one deploymen
           - your_domain_name
           secretName: publish-mdm-tls
 
-Finally, install Publish MDM into the namespace you created earlier, using the values from the ``chart_values.yaml`` file to override the Helm chart's default values::
+Finally, install Publish MDM into the namespace you created earlier, using the values from the ``chart_values.yaml`` file to override the Helm chart's default values:
 
-    helm install publish-mdm caktus/publish-mdm -f chart_values.yaml --namespace publish-mdm
+.. code-block:: shell
 
-Confirm if all the necessary resources have been created successfully::
+    helm install publish-mdm caktus/publish-mdm \
+        -f chart_values.yaml \
+        --namespace publish-mdm \
+        --create-namespace
+
+Confirm if all the necessary resources have been created successfully:
+
+.. code-block:: shell
 
     kubectl get all -n publish-mdm
 
 That's it! The Publish MDM web application should now be available at ``https://your_domain_name``
+
+Next Steps
+----------
+
+A few next steps you may want to consider:
+- Create and configure S3 buckets for media and static files.
+- Configure Infisical for managing secrets and environment variables.
