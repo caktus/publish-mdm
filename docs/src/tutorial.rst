@@ -38,7 +38,7 @@ Development <local-development/index>` guide to run Publish MDM locally.
      To get the API key, `create it in your Google Cloud dashboard <https://developers.google.com/drive/picker/guides/overview#setup>`_.
      The ``GOOGLE_APP_ID`` is the "Project number" in the `Google Cloud dashboard <https://console.cloud.google.com/home/dashboard>`_.
 
-   - ``INFISICAL_HOST``, ``INFISICAL_TOKEN``, and ``INFISICAL_PROJECT_ID``: See :doc:`infisical`.
+   - ``INFISICAL_API_URL``, ``INFISICAL_TOKEN``, and ``INFISICAL_KMS_PROJECT_ID``: See :doc:`infisical`.
 
 2. Start the Publish MDM server, login with your Google account, and make
    yourself an admin.
