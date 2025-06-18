@@ -10,6 +10,8 @@ start if you're new to Publish MDM.
    :caption: Contents:
 
    introduction
+   form_templates
+   large_entity_lists
    mdm
    vpn
    security
