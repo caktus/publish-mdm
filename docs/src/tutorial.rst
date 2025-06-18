@@ -6,7 +6,7 @@ Publish.
 
 
 1. Setup ODK Central
---------------
+--------------------
 
 Create or access an existing ODK Central instance. You can use `ODK Cloud`_, a
 :doc:`local Docker-based instance <local-development/odk-central>`, or your own

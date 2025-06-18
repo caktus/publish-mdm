@@ -11,7 +11,7 @@ Prerequisites
 - `Docker <https://docs.docker.com/get-docker/>`_ and `Docker Compose <https://docs.docker.com/compose/install/>`_
 - Credentials to access an ODK Central server, such as `ODK Cloud <https://getodk.org/>`_
 - A Google Cloud Platform project with the `Google Drive <https://console.developers.google.com/apis/library/drive.googleapis.com>`_
-  and `Google Picker <https://console.developers.google.com/apis/library/picker.googleapis.com>`_ APIs enabled.
+  and `Google Picker API <https://console.developers.google.com/apis/library/picker.googleapis.com>`_ enabled.
 
 
 Google OAuth Client ID
