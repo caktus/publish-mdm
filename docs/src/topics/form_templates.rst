@@ -11,6 +11,23 @@ MDM solves this with **Publish MDM Templates and Template Variables**, allowing
 you to design a single, generic form that gets populated with App User-specific
 data upon publishing.
 
+.. mermaid::
+
+  ---
+  title: Template Variables
+  ---
+  flowchart TD
+      subgraph Publish MDM
+        clinic_form[[template:
+        location_name]]
+      end
+      subgraph ODK Central
+        clinic_form_north[You're submitting from North Clinic!]
+        clinic_form_south[You're submitting from South Clinic!]
+        clinic_form-->|location_name=North Clinic|clinic_form_north
+        clinic_form-->|location_name=South Clinic|clinic_form_south
+      end
+
 This guide explains how to use these variables to create dynamic, personalized
 forms.
 
