@@ -21,6 +21,7 @@ interface for publishing form versions.
    :maxdepth: 2
    :caption: Contents:
 
+   src/topics/index
    src/docker-compose
    src/tutorial
    src/local-development/index
