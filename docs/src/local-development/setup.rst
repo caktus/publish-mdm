@@ -3,7 +3,7 @@ Publish MDM
 
 This guide will walk you through setting up Publish MDM locally with a Postgres database
 running on your development machine (or another host accessible from your machine). If you'd
-rather use Docker, see :doc:`/src/docker-compose`.
+rather use Docker, see :doc:`../running/docker-compose`.
 
 1. Install `direnv <https://direnv.net/docs/installation.html>`_ and hook it into your shell.
 
@@ -36,7 +36,7 @@ Update the environment variables as needed for your local setup. You may need to
 add a ``PGPASSWORD`` variable if your database expects a password. If the database
 does not exist yet, create it with the ``createdb`` `command <https://www.postgresql.org/docs/current/app-createdb.html>`_.
 
-See :doc:`the tutorial </src/tutorial>` for more details on the Google and ODK Central variables.
+See :doc:`the tutorial <../running/tutorial>` for more details on the Google and ODK Central variables.
 
 3. Install the required dependencies.
 

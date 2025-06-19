@@ -9,6 +9,7 @@ Publish, and optionally ODK Central.
    :maxdepth: 2
    :caption: Contents:
 
-   odk-central
    setup
+   odk-central
    dagster
+   infisical

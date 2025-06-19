@@ -4,7 +4,7 @@ Infrastructure and Security
 Publish MDM is designed to be deployed as a cloud-based service that integrates with various external systems. This document outlines the infrastructure components, requirements, and deployment options for running Publish MDM.
 
 Architecture Overview
---------------------
+---------------------
 
 Publish MDM uses a modern architecture with the following core components:
 
@@ -86,10 +86,10 @@ Infisical provides secure secrets management for:
 * TinyMDM API keys
 
 External Service Integrations
-----------------------------
+-----------------------------
 
 Google Cloud Platform
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
 
 Publish MDM integrates with several Google services:
 

@@ -22,11 +22,9 @@ interface for publishing form versions.
    :caption: Contents:
 
    src/topics/index
-   src/docker-compose
-   src/tutorial
+   src/running/index
    src/local-development/index
    src/contributing
-   src/infisical
 
 Contributors:
 

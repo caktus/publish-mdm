@@ -9,7 +9,7 @@ Publish.
 --------------------
 
 Create or access an existing ODK Central instance. You can use `ODK Cloud`_, a
-:doc:`local Docker-based instance <local-development/odk-central>`, or your own
+:doc:`local Docker-based instance <../local-development/odk-central>`, or your own
 deployment.
 
 1. Create an admin user for Publish MDM to use. This user will be used to
@@ -23,8 +23,8 @@ deployment.
 2. Setup Publish MDM
 --------------------
 
-Follow the :doc:`Quickstart with Docker <docker-compose>` or :doc:`Local
-Development <local-development/index>` guide to run Publish MDM locally.
+Follow the :doc:`Quickstart with Docker <../running/docker-compose>` or :doc:`Local
+Development <../local-development/index>` guide to run Publish MDM locally.
 
 1. Configure Publish MDM environment variables. You will need to set the
    following environment variables:
@@ -38,7 +38,7 @@ Development <local-development/index>` guide to run Publish MDM locally.
      To get the API key, `create it in your Google Cloud dashboard <https://developers.google.com/drive/picker/guides/overview#setup>`_.
      The ``GOOGLE_APP_ID`` is the "Project number" in the `Google Cloud dashboard <https://console.cloud.google.com/home/dashboard>`_.
 
-   - ``INFISICAL_API_URL``, ``INFISICAL_TOKEN``, and ``INFISICAL_KMS_PROJECT_ID``: See :doc:`infisical`.
+   - ``INFISICAL_API_URL``, ``INFISICAL_TOKEN``, and ``INFISICAL_KMS_PROJECT_ID``: See :doc:`../local-development/infisical`.
 
 2. Start the Publish MDM server, login with your Google account, and make
    yourself an admin.
