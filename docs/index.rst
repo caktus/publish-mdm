@@ -24,7 +24,6 @@ for publishing form versions.
    src/topics/index
    src/running/index
    src/local-development/index
-   src/helm-chart
    src/contributing
 
 Contributors:
