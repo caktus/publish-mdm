@@ -107,32 +107,8 @@ ODK Central Project
     and can be created either locally or by syncing from existing ODK Central
     projects.
 
-Publish MDM Concepts
---------------------
-
-Publish MDM extends the ODK Central concepts in the following ways:
-
-API Integration
-    Publish MDM uses the `pyODK`_ library to interact with ODK Central's REST
-    API, providing:
-
-    - Authentication and session management
-    - Project and form CRUD operations
-    - App user management
-    - Form publishing and assignment
-    - Real-time synchronization
-
-Publish MDM QR Code
-    Automatic generation of QR codes for each app user containing:
-
-    - Server URL and authentication token
-    - Project-specific settings
-    - App user assignments
-    - Language and display preferences
-    - Admin password (if configured)
-
-    QR codes are generated as PNG images and can be downloaded or displayed
-    for manual device configuration.
+Publish MDM extends the ODK Central concepts, as well as introduces new concepts
+to support its features. See the following sections for more information.
 
 .. _ODK Central: https://docs.getodk.org/central-intro/
 .. _ODK Collect: https://docs.getodk.org/collect-intro/

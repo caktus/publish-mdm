@@ -14,4 +14,4 @@ start if you're new to Publish MDM.
    large_entity_lists
    mdm
    vpn
-   security
+   infrastructure
