@@ -15,6 +15,7 @@ from pygments.lexers.data import JsonLexer
 from pytest_django.asserts import (
     assertContains,
     assertNotContains,
+    assertQuerySetEqual,
     assertRedirects,
     assertTemplateNotUsed,
 )
@@ -39,9 +40,12 @@ from apps.publish_mdm.etl.template import VariableTransform
 from apps.publish_mdm.forms import (
     AppUserForm,
     AppUserTemplateVariableFormSet,
+    BYODDeviceEnrollmentForm,
+    DeviceEnrollmentQRCodeForm,
     CentralServerFrontendForm,
     FleetAddForm,
     FleetEditForm,
+    FormTemplateForm,
     OrganizationForm,
     OrganizationInviteForm,
     ProjectForm,
@@ -267,7 +271,13 @@ class TestAddFormTemplate(ViewTestBase):
             kwargs={"organization_slug": project.organization.slug, "odk_project_pk": project.pk},
         )
 
-    def test_get(self, client, url, user):
+    @pytest.fixture
+    def project_app_users(self, project):
+        return AppUserFactory.create_batch(3, project=project)
+
+    def test_get(self, client, url, user, project_app_users):
+        # Create some app users not linked to the current project
+        AppUserFactory.create_batch(2)
         response = client.get(url)
         assert response.status_code == 200
         # Ensure the context includes the variables required for the Google Picker JS
@@ -279,42 +289,62 @@ class TestAddFormTemplate(ViewTestBase):
         # Ensure the 'Cross-Origin-Opener-Policy' header has the value required
         # for the Google Picker popup to work correctly
         assert response.headers["Cross-Origin-Opener-Policy"] == "same-origin-allow-popups"
+        # Ensure the form only includes the current project's app users in the
+        # app_users field
+        form = response.context["form"]
+        assert isinstance(form, FormTemplateForm)
+        assertQuerySetEqual(form.fields["app_users"].queryset, project_app_users, ordered=False)
 
-    def test_post(self, client, url, user, project):
+    def test_post(self, client, url, user, project, project_app_users):
         data = {
             "title_base": "Test template",
             "form_id_base": "testing",
             "template_url": "https://docs.google.com/spreadsheets/d/1/edit",
             "template_url_user": user.id,
+            "app_users": [i.pk for i in project_app_users[:2]],
         }
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
         # Ensure a new FormTemplate was created with the expected values
         assert FormTemplate.objects.count() == 1
-        form_template_values = FormTemplate.objects.values("project", *data.keys()).get()
-        assert form_template_values.pop("project") == project.id
-        assert form_template_values == data
+        form_template = FormTemplate.objects.get()
+        assert form_template.project_id == project.id
+        assert form_template.template_url_user_id == user.id
+        for field in ("title_base", "form_id_base", "template_url"):
+            assert data[field] == getattr(form_template, field)
+        assertQuerySetEqual(
+            AppUser.objects.filter(app_user_forms__form_template=form_template),
+            project_app_users[:2],
+            ordered=False,
+        )
         # Ensure the view redirects to the form templates list page
         assert response.redirect_chain == [
             (
                 reverse(
-                    "publish_mdm:form-template-list", args=[project.organization.slug, project.id]
+                    "publish_mdm:form-template-detail",
+                    args=[project.organization.slug, project.id, form_template.pk],
                 ),
                 302,
             )
         ]
         # Ensure there is a success message
-        assert (
-            f"Successfully added {form_template_values['title_base']}." in response.content.decode()
-        )
+        assert f"Successfully added {form_template.title_base}." in response.content.decode()
 
 
 class TestEditFormTemplate(ViewTestBase):
     """Test the editing a form template."""
 
     @pytest.fixture
-    def form_template(self, project):
-        return FormTemplateFactory(project=project)
+    def project_app_users(self, project):
+        return AppUserFactory.create_batch(3, project=project)
+
+    @pytest.fixture
+    def form_template(self, project, project_app_users):
+        form_template = FormTemplateFactory(project=project)
+        # Assign the first 2 app users to the form template
+        for app_user in project_app_users[:2]:
+            form_template.app_user_forms.create(app_user=app_user)
+        return form_template
 
     @pytest.fixture
     def url(self, form_template):
@@ -327,7 +357,9 @@ class TestEditFormTemplate(ViewTestBase):
             },
         )
 
-    def test_get(self, client, url, user):
+    def test_get(self, client, url, user, project_app_users):
+        # Create some app users not linked to the current project
+        AppUserFactory.create_batch(2)
         response = client.get(url)
         assert response.status_code == 200
         # Ensure the context includes the variables required for the Google Picker JS
@@ -339,37 +371,52 @@ class TestEditFormTemplate(ViewTestBase):
         # Ensure the 'Cross-Origin-Opener-Policy' header has the value required
         # for the Google Picker popup to work correctly
         assert response.headers["Cross-Origin-Opener-Policy"] == "same-origin-allow-popups"
+        # Ensure the form only includes the current project's app users in the
+        # app_users field
+        form = response.context["form"]
+        assert isinstance(form, FormTemplateForm)
+        assertQuerySetEqual(form.fields["app_users"].queryset, project_app_users, ordered=False)
+        assertQuerySetEqual(form.fields["app_users"].initial, project_app_users[:2], ordered=False)
 
-    def test_post(self, client, url, user, form_template):
+    def test_post(self, client, url, user, form_template, project, project_app_users):
         data = {
             "title_base": "Test template",
             "form_id_base": "testing",
             "template_url": "https://docs.google.com/spreadsheets/d/1/edit",
             "template_url_user": user.id,
+            # Remove one user, add one user, and one user is unchanged
+            "app_users": [i.pk for i in project_app_users[1:]],
         }
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
         # Ensure the FormTemplate was edited with the expected values
         assert FormTemplate.objects.count() == 1
-        form_template_values = FormTemplate.objects.values("id", "project", *data.keys()).get()
-        assert form_template_values.pop("id") == form_template.id
-        assert form_template_values.pop("project") == form_template.project_id
-        assert form_template_values == data
+        form_template.refresh_from_db()
+        assert form_template.project_id == project.id
+        assert form_template.template_url_user_id == user.id
+        for field in ("title_base", "form_id_base", "template_url"):
+            assert data[field] == getattr(form_template, field)
+        assertQuerySetEqual(
+            AppUser.objects.filter(app_user_forms__form_template=form_template),
+            project_app_users[1:],
+            ordered=False,
+        )
         # Ensure the view redirects to the form templates list page
         assert response.redirect_chain == [
             (
                 reverse(
-                    "publish_mdm:form-template-list",
-                    args=[form_template.project.organization.slug, form_template.project_id],
+                    "publish_mdm:form-template-detail",
+                    args=[
+                        form_template.project.organization.slug,
+                        form_template.project_id,
+                        form_template.pk,
+                    ],
                 ),
                 302,
             )
         ]
         # Ensure there is a success message
-        assert (
-            f"Successfully edited {form_template_values['title_base']}."
-            in response.content.decode()
-        )
+        assert f"Successfully edited {form_template.title_base}." in response.content.decode()
 
 
 class TestFormTemplateDetail(ViewTestBase):
@@ -1988,6 +2035,64 @@ class TestDevicesList(ViewTestBase):
         # Ensure the correct template is used for htmx requests
         if htmx:
             assertTemplateNotUsed(response, "publish_mdm/devices_list.html")
+        # Ensure the forms for enrolling devices are included in the context
+        assert isinstance(response.context.get("enroll_form"), DeviceEnrollmentQRCodeForm)
+        assert isinstance(response.context.get("byod_form"), BYODDeviceEnrollmentForm)
+
+    def test_sync(self, client, url, user, organization, mocker, set_tinymdm_env_vars):
+        """Ensure syncing calls sync_fleet for all the fleets in an organization
+        and the updated device list is included in the response.
+        """
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        fleets = FleetFactory.create_batch(3, organization=organization)
+        devices = DeviceFactory.create_batch(3, fleet=fleets[0])
+
+        # Mock sync_fleet. It will add one new Device for each Fleet
+        def side_effect(session, fleet, push_config):
+            devices.append(DeviceFactory(fleet=fleet))
+
+        mock_sync_fleet = mocker.patch("apps.publish_mdm.views.sync_fleet", side_effect=side_effect)
+
+        response = client.post(url, data={"sync": 1})
+
+        # Ensure the expected sync_fleet calls have been made
+        assert mock_sync_fleet.call_count == len(fleets)
+        assert {
+            (call.args[1], call.kwargs["push_config"]) for call in mock_sync_fleet.mock_calls
+        } == {(fleet, False) for fleet in fleets}
+        # Ensure the expected devices list is included in the response
+        table = response.context.get("table")
+        assert isinstance(table, Table)
+        rows = table.as_values()
+        next(rows)
+        assert {row[0] for row in rows} == {device.device_id for device in devices}
+        assert len(devices) == 6
+        assertContains(response, table.as_html(response.wsgi_request))
+        # Ensure a success message is displayed
+        assertContains(
+            response, "Successfully synced devices from MDM. The devices list has been updated."
+        )
+
+    def test_sync_no_api_credentials(self, client, url, user, organization, mocker):
+        """Ensure syncing is not attempted if the TinyMDM API is not configured
+        and a message is shown to the user that syncing failed.
+        """
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        mock_sync_fleet = mocker.patch("apps.publish_mdm.views.sync_fleet")
+        fleets = FleetFactory.create_batch(3, organization=organization)
+        devices = DeviceFactory.create_batch(3, fleet=fleets[0])
+        response = client.post(url, data={"sync": 1})
+
+        mock_sync_fleet.assert_not_called()
+        # Ensure the expected devices list is included in the response
+        table = response.context.get("table")
+        assert isinstance(table, Table)
+        rows = table.as_values()
+        next(rows)
+        assert {row[0] for row in rows} == {device.device_id for device in devices}
+        assertContains(response, table.as_html(response.wsgi_request))
+        # Ensure an error message is displayed
+        assertContains(response, "Unable to sync. Please try again later.")
 
 
 class TestFleetsList(ViewTestBase):
@@ -2326,3 +2431,105 @@ class TestFleetQRCode(ViewTestBase):
         response = client.post(url, data=data)
         mock_get_enrollment_qr_code.assert_called_once()
         assertContains(response, "QR CODE NOT FOUND")
+
+
+class TestBYODDeviceEnrollment(ViewTestBase):
+    """Test the view for enrolling a BYOD device."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("publish_mdm:add-byod-device", args=[organization.slug])
+
+    def test_success(self, client, url, user, organization, mocker, set_tinymdm_env_vars):
+        """Ensure the user is shown the expected success message if a TinyMDM
+        user is successfully created.
+        """
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        fleet = FleetFactory(organization=organization)
+        data = {
+            "byod-fleet": fleet.id,
+            "byod-name": fake.name(),
+            "byod-email": fake.email(),
+        }
+        mock_create_user = mocker.patch("apps.publish_mdm.views.create_user")
+        response = client.post(url, data=data)
+
+        mock_create_user.assert_called_once()
+        assertContains(response, "Please check your email for a link to download the TinyMDM app.")
+        assert isinstance(response.context.get("form"), BYODDeviceEnrollmentForm)
+
+    def test_no_api_credentials(self, client, url, user, organization, mocker):
+        """Ensure the user is shown the expected error message if TinyMDM API access
+        is not correctly configured.
+        """
+        fleet = FleetFactory(organization=organization)
+        data = {
+            "byod-fleet": fleet.id,
+            "byod-name": fake.name(),
+            "byod-email": fake.email(),
+        }
+        mock_create_user = mocker.patch("apps.publish_mdm.views.create_user")
+        response = client.post(url, data=data)
+
+        mock_create_user.assert_not_called()
+        assertContains(
+            response, "Sorry, we cannot enroll you at this time. Please try again later."
+        )
+        assert isinstance(response.context.get("form"), BYODDeviceEnrollmentForm)
+
+    @pytest.mark.parametrize("status_code", [409, 500])
+    def test_create_user_api_error(
+        self,
+        client,
+        url,
+        user,
+        organization,
+        mocker,
+        requests_mock,
+        set_tinymdm_env_vars,
+        status_code,
+    ):
+        """Ensure the user is shown the expected error message in case of an API
+        error response.
+        """
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        fleet = FleetFactory(organization=organization)
+        data = {
+            "byod-fleet": fleet.id,
+            "byod-name": fake.name(),
+            "byod-email": fake.email(),
+        }
+        create_user_request = requests_mock.post(
+            "https://www.tinymdm.net/api/v1/users", status_code=status_code
+        )
+        response = client.post(url, data=data)
+
+        assert create_user_request.called_once
+        if status_code == 409:
+            assertContains(
+                response, "Another MDM user exists with that email. Please enter another email."
+            )
+        else:
+            assertContains(
+                response, "Sorry, we cannot enroll you at this time. Please try again later."
+            )
+        assert isinstance(response.context.get("form"), BYODDeviceEnrollmentForm)
+
+    def test_form_error(self, client, url, user, organization, mocker):
+        """Ensure form errors are displayed to the user."""
+        data = {
+            "byod-fleet": "",
+            "byod-name": "",
+            "byod-email": "",
+        }
+        mock_create_user = mocker.patch("apps.publish_mdm.views.create_user")
+        response = client.post(url, data=data)
+
+        mock_create_user.assert_not_called()
+        form = response.context.get("form")
+        assert isinstance(form, BYODDeviceEnrollmentForm)
+        assert form.errors == {
+            "fleet": ["This field is required."],
+            "name": ["This field is required."],
+            "email": ["This field is required."],
+        }

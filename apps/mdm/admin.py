@@ -1,8 +1,17 @@
 import structlog
 from django.contrib import admin, messages
+from django.contrib.admin import helpers
+from django.contrib.admin.decorators import action
+from django.contrib.admin.exceptions import DisallowedModelAdminToField
+from django.contrib.admin.options import IS_POPUP_VAR, TO_FIELD_VAR
+from django.contrib.admin.utils import model_ngettext, unquote
+from django.core.exceptions import PermissionDenied
 from django.db import transaction, models
 from django.db.models.functions import Collate
-from django.utils.html import mark_safe
+from django.shortcuts import redirect
+from django.template.response import TemplateResponse
+from django.utils.html import linebreaks, mark_safe
+from django.utils.translation import gettext as _
 from import_export.admin import ImportExportMixin
 from import_export.forms import ExportForm
 from requests.exceptions import RequestException
@@ -12,7 +21,7 @@ from apps.mdm.forms import DeviceConfirmImportForm, DeviceImportForm
 
 from .import_export import DeviceResource
 from .models import Device, DeviceSnapshot, DeviceSnapshotApp, FirmwareSnapshot, Fleet, Policy
-from .tasks import add_group_to_policy, get_tinymdm_session
+from .tasks import add_group_to_policy, delete_group, get_tinymdm_session
 
 logger = structlog.getLogger(__name__)
 
@@ -28,6 +37,7 @@ class FleetAdmin(admin.ModelAdmin):
     list_display = ("name", "organization", "mdm_group_id", "policy", "project")
     search_fields = ("name", "organization__name", "policy__name", "project__name", "mdm_group_id")
     list_filter = ("organization", "policy", "project")
+    actions = ["delete_selected"]
 
     def save_model(self, request, obj, form, change):
         # Always sync with MDM when saving a Fleet in the admin
@@ -52,6 +62,217 @@ class FleetAdmin(admin.ModelAdmin):
                         f"<br><code>{e}</code>"
                     ),
                 )
+
+    def _delete_view(self, request, object_id, extra_context):
+        """This is an exact copy of the builtin _delete_view(), except it will
+        not delete a Fleet if it has devices either in the database or in TinyMDM.
+        We could not use the delete_model() method as it "isn't meant for veto
+        purposes" (https://docs.djangoproject.com/en/5.2/ref/contrib/admin/#modeladmin-methods):
+        a deletion would still be logged in LogEntry and a success message would
+        still be shown.
+        """
+        app_label = self.opts.app_label
+
+        to_field = request.POST.get(TO_FIELD_VAR, request.GET.get(TO_FIELD_VAR))
+        if to_field and not self.to_field_allowed(request, to_field):
+            raise DisallowedModelAdminToField("The field %s cannot be referenced." % to_field)
+
+        obj = self.get_object(request, unquote(object_id), to_field)
+
+        if not self.has_delete_permission(request, obj):
+            raise PermissionDenied
+
+        if obj is None:
+            return self._get_obj_does_not_exist_redirect(request, self.opts, object_id)
+
+        # Populate deleted_objects, a data structure of all related objects that
+        # will also be deleted.
+        (
+            deleted_objects,
+            model_count,
+            perms_needed,
+            protected,
+        ) = self.get_deleted_objects([obj], request)
+
+        if request.POST and not protected:  # The user has confirmed the deletion.
+            if perms_needed:
+                raise PermissionDenied
+
+            # BEGIN ADDED CODE
+            # Delete the TinyMDM group first. Won't delete anything if the fleet
+            # is linked to devices either in the database or in TinyMDM.
+            error = None
+            if session := get_tinymdm_session():
+                try:
+                    if not delete_group(session, obj):
+                        error = "Cannot delete the fleet because it has devices linked to it."
+                except RequestException:
+                    error = (
+                        "Cannot delete the fleet due a TinyMDM API error. Please try again later."
+                    )
+            else:
+                error = "Cannot delete the fleet. Please try again later."
+
+            if error:
+                messages.error(request, error)
+                return redirect("admin:mdm_fleet_changelist")
+            # END ADDED CODE
+
+            obj_display = str(obj)
+            attr = str(to_field) if to_field else self.opts.pk.attname
+            obj_id = obj.serializable_value(attr)
+            self.log_deletions(request, [obj])
+            self.delete_model(request, obj)
+
+            return self.response_delete(request, obj_display, obj_id)
+
+        object_name = str(self.opts.verbose_name)
+
+        if perms_needed or protected:
+            title = _("Cannot delete %(name)s") % {"name": object_name}
+        else:
+            title = _("Delete")
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": title,
+            "subtitle": None,
+            "object_name": object_name,
+            "object": obj,
+            "deleted_objects": deleted_objects,
+            "model_count": dict(model_count).items(),
+            "perms_lacking": perms_needed,
+            "protected": protected,
+            "opts": self.opts,
+            "app_label": app_label,
+            "preserved_filters": self.get_preserved_filters(request),
+            "is_popup": IS_POPUP_VAR in request.POST or IS_POPUP_VAR in request.GET,
+            "to_field": to_field,
+            **(extra_context or {}),
+        }
+
+        return self.render_delete_form(request, context)
+
+    @action(permissions=["delete"], description="Delete selected fleets")
+    def delete_selected(self, request, queryset):
+        """This is an exact copy of the builtin delete_selected action, except it
+        won't delete a Fleet if it has devices either in the database or in TinyMDM.
+        We could not use the delete_queryset() method because a deletion would still
+        be logged in LogEntry even for fleets that are not deleted, and a success
+        message would always be shown saying that the total number of fleets that
+        was originally selected has been successfully deleted.
+        """
+        opts = self.model._meta
+        app_label = opts.app_label
+
+        # Populate deletable_objects, a data structure of all related objects that
+        # will also be deleted.
+        (
+            deletable_objects,
+            model_count,
+            perms_needed,
+            protected,
+        ) = self.get_deleted_objects(queryset, request)
+
+        # The user has already confirmed the deletion.
+        # Do the deletion and return None to display the change list view again.
+        if request.POST.get("post") and not protected:
+            if perms_needed:
+                raise PermissionDenied
+            n = len(queryset)
+            if n:
+                # BEGIN ADDED CODE
+                # Delete the TinyMDM groups first. Won't delete a fleet if it
+                # is linked to devices either in the database or in TinyMDM.
+                if not (session := get_tinymdm_session()):
+                    messages.error(request, "Cannot delete fleets. Please try again later.")
+                    return
+
+                has_devices = []
+                api_errors = []
+                successful = []
+
+                for fleet in queryset:
+                    try:
+                        if delete_group(session, fleet):
+                            successful.append(fleet.pk)
+                        else:
+                            has_devices.append(fleet.name)
+                    except RequestException:
+                        api_errors.append(fleet.name)
+
+                if has_devices:
+                    messages.error(
+                        request,
+                        mark_safe(
+                            "Cannot delete the following fleets because they have "
+                            f"devices linked to them: {linebreaks('\n'.join(sorted(has_devices)))}"
+                        ),
+                    )
+
+                if api_errors:
+                    messages.error(
+                        request,
+                        mark_safe(
+                            "Cannot delete the following fleets due a TinyMDM API error: "
+                            f"{linebreaks('\n'.join(sorted(api_errors)))}Please try again later."
+                        ),
+                    )
+
+                n = len(successful)
+
+                if not n:
+                    return
+
+                queryset = queryset.filter(pk__in=successful)
+                # END ADDED CODE
+
+                self.log_deletions(request, queryset)
+                self.delete_queryset(request, queryset)
+                self.message_user(
+                    request,
+                    _("Successfully deleted %(count)d %(items)s.")
+                    % {"count": n, "items": model_ngettext(self.opts, n)},
+                    messages.SUCCESS,
+                )
+            # Return None to display the change list page again.
+            return None
+
+        objects_name = model_ngettext(queryset)
+
+        if perms_needed or protected:
+            title = _("Cannot delete %(name)s") % {"name": objects_name}
+        else:
+            title = _("Delete multiple objects")
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": title,
+            "subtitle": None,
+            "objects_name": str(objects_name),
+            "deletable_objects": [deletable_objects],
+            "model_count": dict(model_count).items(),
+            "queryset": queryset,
+            "perms_lacking": perms_needed,
+            "protected": protected,
+            "opts": opts,
+            "action_checkbox_name": helpers.ACTION_CHECKBOX_NAME,
+            "media": self.media,
+        }
+
+        request.current_app = self.admin_site.name
+
+        # Display the confirmation page
+        return TemplateResponse(
+            request,
+            self.delete_selected_confirmation_template
+            or [
+                "admin/{}/{}/delete_selected_confirmation.html".format(app_label, opts.model_name),
+                "admin/%s/delete_selected_confirmation.html" % app_label,
+                "admin/delete_selected_confirmation.html",
+            ],
+            context,
+        )
 
 
 @admin.register(Device)

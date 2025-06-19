@@ -350,3 +350,92 @@ class TestTasks:
         assert download_qr_code_request.called_once
         assert fleet.enroll_qr_code is not None
         assert fleet.enroll_qr_code.read() == qr_code
+
+    def test_delete_group_successful(self, fleet, requests_mock, set_tinymdm_env_vars):
+        """Ensure deleting a group succeeds if it's not linked to devices in the
+        database and in TinyMDM.
+        """
+        get_group_devices_request = requests_mock.get(
+            f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}/devices",
+            json={"results": []},
+        )
+        delete_device_request = requests_mock.delete(
+            f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}", status_code=204
+        )
+        session = tasks.get_tinymdm_session()
+        result = tasks.delete_group(session, fleet)
+
+        assert result
+        assert get_group_devices_request.called_once
+        assert delete_device_request.called_once
+
+    def test_delete_group_fails_if_devices_in_db(self, fleet, requests_mock, set_tinymdm_env_vars):
+        """Ensure deleting a group fails if it's linked to devices in the database."""
+        DeviceFactory(fleet=fleet)
+        session = tasks.get_tinymdm_session()
+        result = tasks.delete_group(session, fleet)
+
+        assert not result
+
+    def test_delete_group_fails_if_devices_in_tinymdm(
+        self, fleet, requests_mock, set_tinymdm_env_vars
+    ):
+        """Ensure deleting a group fails if it's linked to devices in TinyMDM."""
+        get_group_devices_request = requests_mock.get(
+            f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}/devices",
+            json={"results": [{"id": "somedevice"}]},
+        )
+        session = tasks.get_tinymdm_session()
+        result = tasks.delete_group(session, fleet)
+
+        assert not result
+        assert get_group_devices_request.called_once
+
+    def test_delete_group_succeeds_if_does_not_exist_in_tinymdm(
+        self, fleet, requests_mock, set_tinymdm_env_vars
+    ):
+        """Ensure delete_group() returns True if a group with the Fleet's mdm_group_id
+        does not exist in TinyMDM.
+        """
+        get_group_devices_request = requests_mock.get(
+            f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}/devices", status_code=404
+        )
+        session = tasks.get_tinymdm_session()
+        result = tasks.delete_group(session, fleet)
+
+        assert result
+        assert get_group_devices_request.called_once
+
+    def test_create_user(self, fleet, requests_mock, set_tinymdm_env_vars):
+        """Ensures create_user() makes the expected API requests to create a user
+        and add them to a group.
+        """
+        name = fake.name()
+        email = fake.email()
+        user_response = {
+            "id": fake.pystr(),
+            "name": name,
+            "email": email,
+            "enrollment_token": fake.pystr(),
+            "is_anonymous": False,
+            "policy_id": None,
+            "group_id": None,
+        }
+        create_user_request = requests_mock.post(
+            "https://www.tinymdm.net/api/v1/users", json=user_response
+        )
+        add_to_group_request = requests_mock.post(
+            f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}/users/{user_response['id']}"
+        )
+        session = tasks.get_tinymdm_session()
+        tasks.create_user(session, name, email, fleet)
+
+        assert create_user_request.called_once
+        assert create_user_request.last_request.json() == {
+            "name": name,
+            "is_anonymous": False,
+            "email": email,
+            "send_email": True,
+        }
+        assert add_to_group_request.called_once
+        assert not add_to_group_request.last_request.body

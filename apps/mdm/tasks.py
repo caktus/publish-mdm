@@ -332,3 +332,68 @@ def get_enrollment_qr_code(session: Session, fleet: Fleet):
     response.raise_for_status()
     # Update the enroll_qr_code field. Do not call Fleet.save()
     fleet.enroll_qr_code.save(f"{fleet}.png", ContentFile(response.content), save=False)
+
+
+def delete_group(session: Session, fleet: Fleet) -> bool:
+    """Delete a TinyMDM group. If the group has devices either in the database or
+    in TinyMDM, it will not be deleted.
+    """
+    logger.debug("Deleting TinyMDM group", fleet=fleet, group_id=fleet.mdm_group_id)
+    if fleet.devices.exists():
+        # Fleet has devices in DB. Don't delete
+        logger.debug(
+            "Cannot delete TinyMDM group because it has devices linked to it in the database",
+            fleet=fleet,
+            group_id=fleet.mdm_group_id,
+        )
+        return False
+    response = session.get(f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}/devices")
+    if response.status_code in (400, 404):
+        # Invalid group ID or the group was not found
+        logger.debug(
+            "Invalid or non-existent TinyMDM group ID",
+            fleet=fleet,
+            group_id=fleet.mdm_group_id,
+            response=response.content,
+            status_code=response.status_code,
+        )
+        return True
+    response.raise_for_status()
+    if response.json()["results"]:
+        # Fleet has devices in TinyMDM. Don't delete
+        logger.debug(
+            "Cannot delete TinyMDM group because it has devices linked to it in TinyMDM",
+            fleet=fleet,
+            group_id=fleet.mdm_group_id,
+        )
+        return False
+    # Delete the group in TinyMDM
+    response = session.delete(f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}")
+    response.raise_for_status()
+    return True
+
+
+def create_user(session: Session, name: str, email: str, fleet: Fleet):
+    """Creates a TinyMDM user and adds them to the provided fleet's TinyMDM group."""
+    logger.info("Creating a TinyMDM user", name=name, email=email)
+    data = {
+        "name": name,
+        "is_anonymous": False,
+        "email": email,
+        "send_email": True,
+    }
+    response = session.post("https://www.tinymdm.net/api/v1/users", json=data)
+    response.raise_for_status()
+    logger.info("Successfully created a TinyMDM user", user=response.content)
+    user_id = response.json()["id"]
+    logger.info(
+        "Adding new TinyMDM user to a group",
+        user_id=user_id,
+        fleet=fleet,
+        group_id=fleet.mdm_group_id,
+    )
+    response = session.post(
+        f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}/users/{user_id}",
+        headers={"content-type": "application/json"},
+    )
+    response.raise_for_status()

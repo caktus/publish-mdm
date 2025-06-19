@@ -33,8 +33,10 @@ from apps.mdm.models import Device, FirmwareSnapshot, Fleet, Policy
 from apps.mdm.tasks import (
     add_group_to_policy,
     create_group,
+    create_user,
     get_enrollment_qr_code,
     get_tinymdm_session,
+    sync_fleet,
 )
 from apps.tailscale.models import Device as TailscaleDevice
 
@@ -61,9 +63,17 @@ from .forms import (
     FleetEditForm,
     CentralServerFrontendForm,
     DeviceEnrollmentQRCodeForm,
+    BYODDeviceEnrollmentForm,
 )
 from .import_export import AppUserResource
-from .models import FormTemplateVersion, FormTemplate, AppUser, Project, CentralServer
+from .models import (
+    FormTemplateVersion,
+    FormTemplate,
+    AppUser,
+    Project,
+    CentralServer,
+    AppUserFormTemplate,
+)
 from .nav import Breadcrumbs
 from .tables import (
     CentralServerTable,
@@ -371,11 +381,38 @@ def change_form_template(
     form = FormTemplateForm(request.POST or None, instance=form_template)
     if request.method == "POST" and form.is_valid():
         form_template = form.save()
+        current_app_users = set(form.fields["app_users"].initial or [])
+        new_app_users = set(form.cleaned_data["app_users"])
+        # Create AppUserFormTemplates for new app users
+        to_add = new_app_users - current_app_users
+        if to_add:
+            logger.info(
+                "Assigning form template to app users",
+                form_template=form_template,
+                app_users=to_add,
+            )
+            AppUserFormTemplate.objects.bulk_create(
+                [
+                    AppUserFormTemplate(app_user=app_user, form_template=form_template)
+                    for app_user in to_add
+                ]
+            )
+        # Delete AppUserFormTemplates for removed app users
+        to_remove = current_app_users - new_app_users
+        if to_remove:
+            logger.info(
+                "Unassigning form template for app users",
+                form_template=form_template,
+                app_users=to_remove,
+            )
+            form_template.app_user_forms.filter(app_user__in=to_remove).delete()
         messages.success(
             request,
             f"Successfully {'edit' if form_template_id else 'add'}ed {form_template.title_base}.",
         )
-        return redirect("publish_mdm:form-template-list", organization_slug, odk_project_pk)
+        return redirect(
+            "publish_mdm:form-template-detail", organization_slug, odk_project_pk, form_template.pk
+        )
     if form_template_id:
         crumbs = [
             (form_template.title_base, "form-template-detail", [form_template_id]),
@@ -713,6 +750,27 @@ def change_central_server(request: HttpRequest, organization_slug, central_serve
 @login_required
 def devices_list(request: HttpRequest, organization_slug):
     """List all MDM devices linked to the current Organization."""
+    devices_list_messages = []
+
+    if "sync" in request.POST:
+        # Sync devices from the MDM
+        if session := get_tinymdm_session():
+            fleets = request.organization.fleets.all()
+            logger.info(
+                "Syncing MDM devices from the Devices list page",
+                organization=request.organization,
+                fleets=list(fleets),
+            )
+            for fleet in fleets:
+                sync_fleet(session, fleet, push_config=False)
+            message = messages.Message(
+                messages.SUCCESS,
+                "Successfully synced devices from MDM. The devices list has been updated.",
+            )
+        else:
+            message = messages.Message(messages.ERROR, "Unable to sync. Please try again later.")
+        devices_list_messages.append(message)
+
     devices = (
         Device.objects.filter(fleet__organization=request.organization)
         .annotate(
@@ -746,11 +804,14 @@ def devices_list(request: HttpRequest, organization_slug):
             items=[("Devices", "devices-list")],
         ),
         "enroll_form": DeviceEnrollmentQRCodeForm(request.organization),
+        "byod_form": BYODDeviceEnrollmentForm(request.organization, prefix="byod"),
+        "devices_list_messages": devices_list_messages,
     }
+
+    template = "publish_mdm/devices_list.html"
     if request.htmx:
-        template = "patterns/tables/table-partial.html"
-    else:
-        template = "publish_mdm/devices_list.html"
+        template += "#devices-list-partial"
+
     return render(request, template, context)
 
 
@@ -922,4 +983,44 @@ def fleet_qr_code(request: HttpRequest, organization_slug):
         not_found = True
     return render(
         request, "includes/mdm_enroll_qr_code.html", {"fleet": fleet, "not_found": not_found}
+    )
+
+
+@login_required
+def add_byod_device(request: HttpRequest, organization_slug):
+    """Create a TinyMDM user and add them to the TinyMDM group of the selected
+    Fleet. If successful, the user should receive an email from TinyMDM with
+    instructions on how to enroll a device.
+    """
+    form = BYODDeviceEnrollmentForm(request.organization, request.POST or None, prefix="byod")
+    enrollment_messages = []
+    if form.is_valid():
+        success = False
+        error = None
+        if session := get_tinymdm_session():
+            try:
+                create_user(session, **form.cleaned_data)
+            except RequestException as e:
+                if (
+                    hasattr(e.request, "url")
+                    and e.request.url.endswith("/users")
+                    and getattr(e.response, "status_code", None) == 409
+                ):
+                    error = "Another MDM user exists with that email. Please enter another email."
+            else:
+                success = True
+        if success:
+            message = messages.Message(
+                messages.SUCCESS, "Please check your email for a link to download the TinyMDM app."
+            )
+        else:
+            message = messages.Message(
+                messages.ERROR,
+                error or "Sorry, we cannot enroll you at this time. Please try again later.",
+            )
+        enrollment_messages.append(message)
+    return render(
+        request,
+        "includes/device_enrollment_form.html",
+        {"form": form, "enrollment_messages": enrollment_messages},
     )

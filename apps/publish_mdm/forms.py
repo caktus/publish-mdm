@@ -253,6 +253,14 @@ class AppUserConfirmImportForm(import_export_forms.ConfirmImportForm):
 
 
 class FormTemplateForm(PlatformFormMixin, forms.ModelForm):
+    app_users = forms.ModelMultipleChoiceField(
+        # The queryset will be set to the current project's app users in __init__()
+        queryset=None,
+        required=False,
+        widget=CheckboxSelectMultiple,
+        help_text="The App Users this form template will be assigned to.",
+    )
+
     class Meta:
         model = FormTemplate
         exclude = ["project"]
@@ -264,6 +272,14 @@ class FormTemplateForm(PlatformFormMixin, forms.ModelForm):
             ),
             "template_url_user": forms.HiddenInput,
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["app_users"].queryset = self.instance.project.app_users.all()
+        if self.instance.pk:
+            self.fields["app_users"].initial = AppUser.objects.filter(
+                app_user_forms__form_template=self.instance
+            )
 
 
 class AppUserForm(PlatformFormMixin, forms.ModelForm):
@@ -592,3 +608,20 @@ class DeviceEnrollmentQRCodeForm(PlatformFormMixin, forms.Form):
         self.fields["fleet"].widget.attrs["hx-post"] = reverse_lazy(
             "publish_mdm:fleet-qr-code", args=[organization.slug]
         )
+
+
+class BYODDeviceEnrollmentForm(PlatformFormMixin, forms.Form):
+    """A form for enrolling a BYOD device in the Device list page."""
+
+    fleet = forms.ModelChoiceField(
+        # The queryset will be updated based on the current organization in __init__()
+        queryset=None,
+        widget=Select,
+        empty_label="Select a Fleet to join",
+    )
+    name = forms.CharField(widget=TextInput, label="Your name")
+    email = forms.EmailField(widget=EmailInput, label="Your email")
+
+    def __init__(self, organization, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["fleet"].queryset = organization.fleets.all()

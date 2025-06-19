@@ -8,6 +8,7 @@ from requests.exceptions import ConnectionError
 
 from apps.patterns.widgets import BaseEmailInput
 from apps.publish_mdm.forms import (
+    BYODDeviceEnrollmentForm,
     CentralServerForm,
     CentralServerFrontendForm,
     DeviceEnrollmentQRCodeForm,
@@ -378,7 +379,7 @@ class TestFleetForm:
 
 
 @pytest.mark.django_db
-class TestDeviceQRCodeForm:
+class TestDeviceEnrollmentForm:
     @pytest.fixture
     def organization(self):
         return OrganizationFactory()
@@ -387,11 +388,12 @@ class TestDeviceQRCodeForm:
     def fleets(self, organization):
         return FleetFactory.create_batch(3, organization=organization)
 
-    def test_fleet_choices(self, organization, fleets):
+    @pytest.mark.parametrize("form_class", [DeviceEnrollmentQRCodeForm, BYODDeviceEnrollmentForm])
+    def test_fleet_choices(self, organization, fleets, form_class):
         """Ensures the choices for the fleet field are the current organization's
         fleets only.
         """
         # Create some fleets in another organization
         FleetFactory.create_batch(2, organization=OrganizationFactory())
-        form = DeviceEnrollmentQRCodeForm(organization=organization)
+        form = form_class(organization=organization)
         assertQuerySetEqual(form.fields["fleet"].queryset, fleets, ordered=False)
