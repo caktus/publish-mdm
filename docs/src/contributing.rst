@@ -1,11 +1,15 @@
 Contributing
 ============
 
+This contributing guide is currently a work in progress. For now, please visit
+our `GitHub repository <https://github.com/caktus/publish-mdm>`_ for the most
+up-to-date information about contributing to this project.
+
 Setup
 -----
 
-Docs
-~~~~
+Documentation
+~~~~~~~~~~~~~
 
 The documentation is built using Sphinx.
 

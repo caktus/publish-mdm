@@ -3,4 +3,5 @@ sphinx-autobuild
 sphinx-contributors
 sphinx-copybutton
 sphinxcontrib-mermaid
+sphinxcontrib-googleanalytics
 shibuya

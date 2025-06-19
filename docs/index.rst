@@ -6,10 +6,10 @@
 Publish MDM
 ===========
 
-Publish MDM is a proof-of-concept open-source tool to publish XLSForm templates
-from Google Sheets to `ODK Central <https://getodk.org/>`_. It offers support
-for single sign-on with Google, project template variables, and a user-friendly
-interface for publishing form versions.
+Publish MDM is a open-source tool to publish XLSForm templates from Google
+Sheets to `ODK Central <https://getodk.org/>`_. It offers support for single
+sign-on with Google, project template variables, and a user-friendly interface
+for publishing form versions.
 
 .. figure:: _static/publish.gif
    :alt: Publish MDM screenshot
@@ -21,12 +21,10 @@ interface for publishing form versions.
    :maxdepth: 2
    :caption: Contents:
 
-   src/docker-compose
-   src/tutorial
+   src/topics/index
+   src/running/index
    src/local-development/index
-   src/helm-chart
    src/contributing
-   src/infisical
 
 Contributors:
 
