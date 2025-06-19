@@ -19,9 +19,9 @@ Publish MDM uses a modern architecture with the following core components:
         service dagster(server)[Dagster Data Orchestrator Platform] in publishmdm
         service secrets(database)[Infisical Secrets Storage] in publishmdm
 
-        web:R -- L:db 
+        web:R -- L:db
         web:L -- R:storage
-        web:B -- T:secrets 
+        web:B -- T:secrets
         web:T -- B:dagster
 
         service tinymdm(internet)[TinyMDM]
