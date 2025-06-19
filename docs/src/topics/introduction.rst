@@ -96,7 +96,7 @@ ODK Central Server
     credentials that are encrypted and stored securely.
 
 ODK Central App User
-    App Users interact with the ODK Central through the `ODK Collect`_ app. They
+    App Users interact with ODK Central through the `ODK Collect`_ app. They
     are granted limited access to specific forms within a project.
 
     .. tip::
