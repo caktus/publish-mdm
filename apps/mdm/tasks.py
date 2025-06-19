@@ -332,3 +332,29 @@ def get_enrollment_qr_code(session: Session, fleet: Fleet):
     response.raise_for_status()
     # Update the enroll_qr_code field. Do not call Fleet.save()
     fleet.enroll_qr_code.save(f"{fleet}.png", ContentFile(response.content), save=False)
+
+
+def create_user(session: Session, name: str, email: str, fleet: Fleet):
+    """Creates a TinyMDM user and adds them to the provided fleet's TinyMDM group."""
+    logger.info("Creating a TinyMDM user", name=name, email=email)
+    data = {
+        "name": name,
+        "is_anonymous": False,
+        "email": email,
+        "send_email": True,
+    }
+    response = session.post("https://www.tinymdm.net/api/v1/users", json=data)
+    response.raise_for_status()
+    logger.info("Successfully created a TinyMDM user", user=response.content)
+    user_id = response.json()["id"]
+    logger.info(
+        "Adding new TinyMDM user to a group",
+        user_id=user_id,
+        fleet=fleet,
+        group_id=fleet.mdm_group_id,
+    )
+    response = session.post(
+        f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}/users/{user_id}",
+        headers={"content-type": "application/json"},
+    )
+    response.raise_for_status()

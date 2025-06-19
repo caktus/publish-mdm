@@ -39,6 +39,8 @@ from apps.publish_mdm.etl.template import VariableTransform
 from apps.publish_mdm.forms import (
     AppUserForm,
     AppUserTemplateVariableFormSet,
+    BYODDeviceEnrollmentForm,
+    DeviceEnrollmentQRCodeForm,
     CentralServerFrontendForm,
     FleetAddForm,
     FleetEditForm,
@@ -1988,6 +1990,9 @@ class TestDevicesList(ViewTestBase):
         # Ensure the correct template is used for htmx requests
         if htmx:
             assertTemplateNotUsed(response, "publish_mdm/devices_list.html")
+        # Ensure the forms for enrolling devices are included in the context
+        assert isinstance(response.context.get("enroll_form"), DeviceEnrollmentQRCodeForm)
+        assert isinstance(response.context.get("byod_form"), BYODDeviceEnrollmentForm)
 
 
 class TestFleetsList(ViewTestBase):
@@ -2326,3 +2331,105 @@ class TestFleetQRCode(ViewTestBase):
         response = client.post(url, data=data)
         mock_get_enrollment_qr_code.assert_called_once()
         assertContains(response, "QR CODE NOT FOUND")
+
+
+class TestBYODDeviceEnrollment(ViewTestBase):
+    """Test the view for enrolling a BYOD device."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("publish_mdm:add-byod-device", args=[organization.slug])
+
+    def test_success(self, client, url, user, organization, mocker, set_tinymdm_env_vars):
+        """Ensure the user is shown the expected success message if a TinyMDM
+        user is successfully created.
+        """
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        fleet = FleetFactory(organization=organization)
+        data = {
+            "byod-fleet": fleet.id,
+            "byod-name": fake.name(),
+            "byod-email": fake.email(),
+        }
+        mock_create_user = mocker.patch("apps.publish_mdm.views.create_user")
+        response = client.post(url, data=data)
+
+        mock_create_user.assert_called_once()
+        assertContains(response, "Please check your email for a link to download the TinyMDM app.")
+        assert isinstance(response.context.get("form"), BYODDeviceEnrollmentForm)
+
+    def test_no_api_credentials(self, client, url, user, organization, mocker):
+        """Ensure the user is shown the expected error message if TinyMDM API access
+        is not correctly configured.
+        """
+        fleet = FleetFactory(organization=organization)
+        data = {
+            "byod-fleet": fleet.id,
+            "byod-name": fake.name(),
+            "byod-email": fake.email(),
+        }
+        mock_create_user = mocker.patch("apps.publish_mdm.views.create_user")
+        response = client.post(url, data=data)
+
+        mock_create_user.assert_not_called()
+        assertContains(
+            response, "Sorry, we cannot enroll you at this time. Please try again later."
+        )
+        assert isinstance(response.context.get("form"), BYODDeviceEnrollmentForm)
+
+    @pytest.mark.parametrize("status_code", [409, 500])
+    def test_create_user_api_error(
+        self,
+        client,
+        url,
+        user,
+        organization,
+        mocker,
+        requests_mock,
+        set_tinymdm_env_vars,
+        status_code,
+    ):
+        """Ensure the user is shown the expected error message in case of an API
+        error response.
+        """
+        mocker.patch("apps.mdm.tasks.pull_devices")
+        fleet = FleetFactory(organization=organization)
+        data = {
+            "byod-fleet": fleet.id,
+            "byod-name": fake.name(),
+            "byod-email": fake.email(),
+        }
+        create_user_request = requests_mock.post(
+            "https://www.tinymdm.net/api/v1/users", status_code=status_code
+        )
+        response = client.post(url, data=data)
+
+        assert create_user_request.called_once
+        if status_code == 409:
+            assertContains(
+                response, "Another MDM user exists with that email. Please enter another email."
+            )
+        else:
+            assertContains(
+                response, "Sorry, we cannot enroll you at this time. Please try again later."
+            )
+        assert isinstance(response.context.get("form"), BYODDeviceEnrollmentForm)
+
+    def test_form_error(self, client, url, user, organization, mocker):
+        """Ensure form errors are displayed to the user."""
+        data = {
+            "byod-fleet": "",
+            "byod-name": "",
+            "byod-email": "",
+        }
+        mock_create_user = mocker.patch("apps.publish_mdm.views.create_user")
+        response = client.post(url, data=data)
+
+        mock_create_user.assert_not_called()
+        form = response.context.get("form")
+        assert isinstance(form, BYODDeviceEnrollmentForm)
+        assert form.errors == {
+            "fleet": ["This field is required."],
+            "name": ["This field is required."],
+            "email": ["This field is required."],
+        }
