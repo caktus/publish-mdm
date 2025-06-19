@@ -28,6 +28,11 @@ services:
       - 8888:8080
     environment:
       - NODE_ENV=production
+    healthcheck:
+      test: "curl -fs http://localhost:8080/api/status | grep -iw Ok || exit 1"
+      interval: 5s
+      timeout: 10s
+      retries: 10
 
   infisical-redis:
     image: redis

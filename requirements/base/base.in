@@ -28,6 +28,7 @@ Pillow
 PyJWT
 # Form attachments update for Central v2025.1 (see https://github.com/getodk/pyodk/pull/116)
 pyodk @ git+https://github.com/getodk/pyodk.git@c20fbd36622fe3a309292b7f646bd7347858aaa6
+python-dotenv
 psycopg
 requests
 requests-ratelimiter

@@ -17,6 +17,7 @@ from pathlib import Path
 
 import dj_database_url
 import structlog
+from dotenv import dotenv_values
 from import_export.formats import base_formats
 from ..import_export_formats import XLSX
 
@@ -411,9 +412,9 @@ DEFAULT_APP_LANGUAGE = "en"
 FORMS_URLFIELD_ASSUME_HTTPS = True
 
 # Infisical settings
-INFISICAL_HOST = os.getenv("INFISICAL_HOST")
+INFISICAL_API_URL = os.getenv("INFISICAL_API_URL")
 INFISICAL_TOKEN = os.getenv("INFISICAL_TOKEN")
-INFISICAL_PROJECT_ID = os.getenv("INFISICAL_PROJECT_ID")
+INFISICAL_KMS_PROJECT_ID = os.getenv("INFISICAL_KMS_PROJECT_ID")
 
 # The TinyMDM ID of the default policy. If a different policy is marked as the default
 # in the Policy model it will be considered the default instead.
@@ -421,3 +422,8 @@ TINYMDM_DEFAULT_POLICY = os.getenv("TINYMDM_DEFAULT_POLICY")
 
 # Dagster settings
 DAGSTER_URL = os.getenv("DAGSTER_URL", "")
+
+if os.getenv("SECRETS_FILE"):
+    SECRETS = dotenv_values(os.getenv("SECRETS_FILE"))
+else:
+    SECRETS = {}
