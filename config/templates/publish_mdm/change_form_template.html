@@ -25,15 +25,15 @@
                 <div class="flex items-center space-x-4">
                     <button type="submit" class="btn btn-outline btn-primary">
                         {% if form_template.id %}
+                            {% url 'publish_mdm:form-template-detail' request.organization.slug request.odk_project.pk form_template.id as cancel_url %}
                             Save
                         {% else %}
+                            {% url 'publish_mdm:form-template-list' request.organization.slug request.odk_project.pk as cancel_url %}
                             Add
                         {% endif %}
                         form template
                     </button>
-                    <a type="button"
-                       class="btn btn-outline"
-                       href="{% url 'publish_mdm:form-template-list' request.organization.slug request.odk_project.pk %}">Cancel</a>
+                    <a type="button" class="btn btn-outline" href="{{ cancel_url }}">Cancel</a>
                 </div>
             </div>
         </form>

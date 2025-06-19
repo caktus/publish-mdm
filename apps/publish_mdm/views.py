@@ -407,7 +407,9 @@ def change_form_template(
             request,
             f"Successfully {'edit' if form_template_id else 'add'}ed {form_template.title_base}.",
         )
-        return redirect("publish_mdm:form-template-list", organization_slug, odk_project_pk)
+        return redirect(
+            "publish_mdm:form-template-detail", organization_slug, odk_project_pk, form_template.pk
+        )
     if form_template_id:
         crumbs = [
             (form_template.title_base, "form-template-detail", [form_template_id]),

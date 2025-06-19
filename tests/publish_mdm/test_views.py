@@ -319,7 +319,8 @@ class TestAddFormTemplate(ViewTestBase):
         assert response.redirect_chain == [
             (
                 reverse(
-                    "publish_mdm:form-template-list", args=[project.organization.slug, project.id]
+                    "publish_mdm:form-template-detail",
+                    args=[project.organization.slug, project.id, form_template.pk],
                 ),
                 302,
             )
@@ -402,8 +403,12 @@ class TestEditFormTemplate(ViewTestBase):
         assert response.redirect_chain == [
             (
                 reverse(
-                    "publish_mdm:form-template-list",
-                    args=[form_template.project.organization.slug, form_template.project_id],
+                    "publish_mdm:form-template-detail",
+                    args=[
+                        form_template.project.organization.slug,
+                        form_template.project_id,
+                        form_template.pk,
+                    ],
                 ),
                 302,
             )
