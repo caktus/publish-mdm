@@ -22,6 +22,9 @@ looks like this:
 
 .. mermaid::
 
+    ---
+    title: ODK Central Form Design Workflow
+    ---
     sequenceDiagram
         autonumber
         loop Repeat to fix errors
@@ -58,6 +61,9 @@ to download the form to your desktop and upload it to ODK Central.
 
 .. mermaid::
 
+    ---
+    title: Publish MDM Form Design Workflow
+    ---
     sequenceDiagram
         autonumber
         loop Repeat to fix errors
