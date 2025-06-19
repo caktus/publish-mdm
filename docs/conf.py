@@ -16,6 +16,7 @@ release = "2025"
 
 extensions = [
     "sphinxcontrib.mermaid",
+    "sphinxcontrib.googleanalytics",
     "sphinx_copybutton",
     "sphinx_contributors",
 ]
@@ -34,3 +35,6 @@ html_theme_options = {
     "accent_color": "grass",
     "github_url": "https://github.com/caktus/publish-mdm",
 }
+
+# -- Google Analytics --------------------------------------------------------
+googleanalytics_id = "G-14L02MHWV2"
