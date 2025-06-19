@@ -147,4 +147,9 @@ urlpatterns = [
         views.fleet_qr_code,
         name="fleet-qr-code",
     ),
+    path(
+        "o/<slug:organization_slug>/add-byod-device/",
+        views.add_byod_device,
+        name="add-byod-device",
+    ),
 ]

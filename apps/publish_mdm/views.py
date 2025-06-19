@@ -33,6 +33,7 @@ from apps.mdm.models import Device, FirmwareSnapshot, Fleet, Policy
 from apps.mdm.tasks import (
     add_group_to_policy,
     create_group,
+    create_user,
     get_enrollment_qr_code,
     get_tinymdm_session,
     sync_fleet,
@@ -62,6 +63,7 @@ from .forms import (
     FleetEditForm,
     CentralServerFrontendForm,
     DeviceEnrollmentQRCodeForm,
+    BYODDeviceEnrollmentForm,
 )
 from .import_export import AppUserResource
 from .models import (
@@ -802,6 +804,7 @@ def devices_list(request: HttpRequest, organization_slug):
             items=[("Devices", "devices-list")],
         ),
         "enroll_form": DeviceEnrollmentQRCodeForm(request.organization),
+        "byod_form": BYODDeviceEnrollmentForm(request.organization, prefix="byod"),
         "devices_list_messages": devices_list_messages,
     }
 
@@ -980,4 +983,44 @@ def fleet_qr_code(request: HttpRequest, organization_slug):
         not_found = True
     return render(
         request, "includes/mdm_enroll_qr_code.html", {"fleet": fleet, "not_found": not_found}
+    )
+
+
+@login_required
+def add_byod_device(request: HttpRequest, organization_slug):
+    """Create a TinyMDM user and add them to the TinyMDM group of the selected
+    Fleet. If successful, the user should receive an email from TinyMDM with
+    instructions on how to enroll a device.
+    """
+    form = BYODDeviceEnrollmentForm(request.organization, request.POST or None, prefix="byod")
+    enrollment_messages = []
+    if form.is_valid():
+        success = False
+        error = None
+        if session := get_tinymdm_session():
+            try:
+                create_user(session, **form.cleaned_data)
+            except RequestException as e:
+                if (
+                    hasattr(e.request, "url")
+                    and e.request.url.endswith("/users")
+                    and getattr(e.response, "status_code", None) == 409
+                ):
+                    error = "Another MDM user exists with that email. Please enter another email."
+            else:
+                success = True
+        if success:
+            message = messages.Message(
+                messages.SUCCESS, "Please check your email for a link to download the TinyMDM app."
+            )
+        else:
+            message = messages.Message(
+                messages.ERROR,
+                error or "Sorry, we cannot enroll you at this time. Please try again later.",
+            )
+        enrollment_messages.append(message)
+    return render(
+        request,
+        "includes/device_enrollment_form.html",
+        {"form": form, "enrollment_messages": enrollment_messages},
     )

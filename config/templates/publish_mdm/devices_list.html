@@ -81,15 +81,62 @@
                                 <span class="sr-only">Close modal</span>
                             </button>
                         </div>
-                        <form method="post"
-                              class="p-4 md:p-5 space-y-4 flex flex-col items-center justify-center mb-4">
-                            {% csrf_token %}
-                            <div class="flex w-full flex-row justify-center items-center space-x-2">
-                                <label for="id_fleet" class="font-medium text-gray-900 dark:text-white">Fleet:</label>
-                                {{ enroll_form.fleet }}
+                        <div x-data="{device: null}" class="p-4 md:p-5">
+                            <div class="flex w-full flex-col md:flex-row justify-center items-center space-x-0 md:space-x-2">
+                                <label class="font-medium text-gray-900 dark:text-white">Select a device type:</label>
+                                <div class="flex items-center">
+                                    <label class="dark:text-white">
+                                        <input type="radio"
+                                               x-model="device"
+                                               value="byod"
+                                               autocomplete="off"
+                                               class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 selectable">
+                                        BYOD
+                                    </label>
+                                </div>
+                                <div class="flex items-center">
+                                    <label class="dark:text-white">
+                                        <input type="radio"
+                                               x-model="device"
+                                               value="corporate"
+                                               autocomplete="off"
+                                               class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 selectable">
+                                        Corporate-owned
+                                    </label>
+                                </div>
                             </div>
-                            {% include "includes/mdm_enroll_qr_code.html" %}
-                        </form>
+                            <form method="post"
+                                  x-show="device == 'byod'"
+                                  x-cloak
+                                  hx-post="{% url 'publish_mdm:add-byod-device' request.organization.slug %}"
+                                  hx-target="#byod"
+                                  hx-swap="innerHTML"
+                                  hx-disabled-elt="#byod-button"
+                                  class="mt-4">
+                                {% csrf_token %}
+                                <p class="mb-4 dark:text-gray-400">
+                                    Please fill in the form below and you will receive instructions on how to enroll your device.
+                                </p>
+                                <div id="byod">{% include "includes/device_enrollment_form.html" with form=byod_form %}</div>
+                                <div class="w-full mt-6">
+                                    <button id="byod-button"
+                                            class="btn btn-outline btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
+                                        Submit
+                                    </button>
+                                </div>
+                            </form>
+                            <form method="post"
+                                  x-show="device == 'corporate'"
+                                  x-cloak
+                                  class="space-y-4 flex flex-col items-center justify-center mt-4">
+                                {% csrf_token %}
+                                <div class="flex w-full flex-row justify-center items-center space-x-2">
+                                    <label for="id_fleet" class="font-medium text-gray-900 dark:text-white">Fleet:</label>
+                                    {{ enroll_form.fleet }}
+                                </div>
+                                {% include "includes/mdm_enroll_qr_code.html" %}
+                            </form>
+                        </div>
                     </div>
                 </div>
             </div>

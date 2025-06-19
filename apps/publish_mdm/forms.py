@@ -608,3 +608,20 @@ class DeviceEnrollmentQRCodeForm(PlatformFormMixin, forms.Form):
         self.fields["fleet"].widget.attrs["hx-post"] = reverse_lazy(
             "publish_mdm:fleet-qr-code", args=[organization.slug]
         )
+
+
+class BYODDeviceEnrollmentForm(PlatformFormMixin, forms.Form):
+    """A form for enrolling a BYOD device in the Device list page."""
+
+    fleet = forms.ModelChoiceField(
+        # The queryset will be updated based on the current organization in __init__()
+        queryset=None,
+        widget=Select,
+        empty_label="Select a Fleet to join",
+    )
+    name = forms.CharField(widget=TextInput, label="Your name")
+    email = forms.EmailField(widget=EmailInput, label="Your email")
+
+    def __init__(self, organization, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["fleet"].queryset = organization.fleets.all()

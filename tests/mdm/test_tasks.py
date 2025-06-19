@@ -405,3 +405,37 @@ class TestTasks:
 
         assert result
         assert get_group_devices_request.called_once
+
+    def test_create_user(self, fleet, requests_mock, set_tinymdm_env_vars):
+        """Ensures create_user() makes the expected API requests to create a user
+        and add them to a group.
+        """
+        name = fake.name()
+        email = fake.email()
+        user_response = {
+            "id": fake.pystr(),
+            "name": name,
+            "email": email,
+            "enrollment_token": fake.pystr(),
+            "is_anonymous": False,
+            "policy_id": None,
+            "group_id": None,
+        }
+        create_user_request = requests_mock.post(
+            "https://www.tinymdm.net/api/v1/users", json=user_response
+        )
+        add_to_group_request = requests_mock.post(
+            f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}/users/{user_response['id']}"
+        )
+        session = tasks.get_tinymdm_session()
+        tasks.create_user(session, name, email, fleet)
+
+        assert create_user_request.called_once
+        assert create_user_request.last_request.json() == {
+            "name": name,
+            "is_anonymous": False,
+            "email": email,
+            "send_email": True,
+        }
+        assert add_to_group_request.called_once
+        assert not add_to_group_request.last_request.body

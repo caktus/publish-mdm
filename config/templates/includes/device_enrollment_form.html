@@ -1,0 +1,10 @@
+{% include "includes/messages.html" with messages=enrollment_messages id_prefix="byod-device-alert" %}
+<div class="grid grid-cols-1 gap-4">
+    {% for field in form.visible_fields %}
+        <div id="id_{{ field.name }}_container">
+            {{ field.label_tag }}
+            {{ field }}
+            {{ field.errors }}
+        </div>
+    {% endfor %}
+</div>
