@@ -77,7 +77,10 @@ database and `Infisical <https://infisical.com/>`_, which is used for secrets ma
       ports:
         - "8000:8000"
       depends_on:
-        - db
+        infisical:
+          condition: service_healthy
+        db:
+          condition: service_started
 
   volumes:
     dev_pgdata:
@@ -101,9 +104,12 @@ If you do not have values for the ``INFISICAL_*`` variables yet, you will update
   GOOGLE_APP_ID="your-app-id-from-above"
 
   # Infisical
-  INFISICAL_HOST=http://localhost:8888
+  INFISICAL_API_URL=http://localhost:8888
   INFISICAL_TOKEN="your-infisical-access-token"
-  INFISICAL_PROJECT_ID="your-infisical-project-id"
+  INFISICAL_KMS_PROJECT_ID="your-infisical-kms-project-id"
+  # Set these if you're going to use Infisical to inject secrets as environment variables
+  INFISICAL_SECRETS_PROJECT_ID="your-infisical-secrets-project-id"
+  INFISICAL_SECRETS_ENV="your-infisical-secrets-environment-slug"
 
 4. Run the following command to start the application and login:
 
@@ -119,9 +125,16 @@ Visit http://localhost:8000 in your browser and log in with your Google account.
 
    docker compose exec app python manage.py shell -c "from apps.users.models import User; User.objects.all().update(is_staff=True, is_superuser=True)"
 
-6. Infisical should be running at http://localhost:8888.
-:ref:`Set up a project and an access token <infisical:setup>`, update the ``INFISICAL_*``
-variables in the ``.env`` file, then re-run step 4.
+6. Infisical should be running at http://localhost:8888. You can now
+:ref:`set up a KMS project and an access token <infisical:setup>`. If you want
+``infisical run`` to inject secrets as environment variables, you'll also need to:
+
+- :ref:`set up a Secrets project <infisical:setup_secrets>` and add your secrets to it.
+- Update the ``docker-compose.yml`` file to change the command for the ``app`` service
+  to ``infisical run --projectId $INFISICAL_SECRETS_PROJECT_ID --env $INFISICAL_SECRETS_ENV --silent -- daphne config.asgi:application -b 0.0.0.0 -p 8000``.
+  For further details on ``infisical run``, see `Infisical's docs <https://infisical.com/docs/cli/commands/run>`_.
+
+Update the ``INFISICAL_*`` variables in the ``.env`` file, then re-run step 4.
 
 Local development
 -----------------

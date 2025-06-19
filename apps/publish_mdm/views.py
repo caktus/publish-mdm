@@ -35,6 +35,7 @@ from apps.mdm.tasks import (
     create_group,
     get_enrollment_qr_code,
     get_tinymdm_session,
+    sync_fleet,
 )
 from apps.tailscale.models import Device as TailscaleDevice
 
@@ -63,7 +64,14 @@ from .forms import (
     DeviceEnrollmentQRCodeForm,
 )
 from .import_export import AppUserResource
-from .models import FormTemplateVersion, FormTemplate, AppUser, Project, CentralServer
+from .models import (
+    FormTemplateVersion,
+    FormTemplate,
+    AppUser,
+    Project,
+    CentralServer,
+    AppUserFormTemplate,
+)
 from .nav import Breadcrumbs
 from .tables import (
     CentralServerTable,
@@ -371,11 +379,38 @@ def change_form_template(
     form = FormTemplateForm(request.POST or None, instance=form_template)
     if request.method == "POST" and form.is_valid():
         form_template = form.save()
+        current_app_users = set(form.fields["app_users"].initial or [])
+        new_app_users = set(form.cleaned_data["app_users"])
+        # Create AppUserFormTemplates for new app users
+        to_add = new_app_users - current_app_users
+        if to_add:
+            logger.info(
+                "Assigning form template to app users",
+                form_template=form_template,
+                app_users=to_add,
+            )
+            AppUserFormTemplate.objects.bulk_create(
+                [
+                    AppUserFormTemplate(app_user=app_user, form_template=form_template)
+                    for app_user in to_add
+                ]
+            )
+        # Delete AppUserFormTemplates for removed app users
+        to_remove = current_app_users - new_app_users
+        if to_remove:
+            logger.info(
+                "Unassigning form template for app users",
+                form_template=form_template,
+                app_users=to_remove,
+            )
+            form_template.app_user_forms.filter(app_user__in=to_remove).delete()
         messages.success(
             request,
             f"Successfully {'edit' if form_template_id else 'add'}ed {form_template.title_base}.",
         )
-        return redirect("publish_mdm:form-template-list", organization_slug, odk_project_pk)
+        return redirect(
+            "publish_mdm:form-template-detail", organization_slug, odk_project_pk, form_template.pk
+        )
     if form_template_id:
         crumbs = [
             (form_template.title_base, "form-template-detail", [form_template_id]),
@@ -713,6 +748,27 @@ def change_central_server(request: HttpRequest, organization_slug, central_serve
 @login_required
 def devices_list(request: HttpRequest, organization_slug):
     """List all MDM devices linked to the current Organization."""
+    devices_list_messages = []
+
+    if "sync" in request.POST:
+        # Sync devices from the MDM
+        if session := get_tinymdm_session():
+            fleets = request.organization.fleets.all()
+            logger.info(
+                "Syncing MDM devices from the Devices list page",
+                organization=request.organization,
+                fleets=list(fleets),
+            )
+            for fleet in fleets:
+                sync_fleet(session, fleet, push_config=False)
+            message = messages.Message(
+                messages.SUCCESS,
+                "Successfully synced devices from MDM. The devices list has been updated.",
+            )
+        else:
+            message = messages.Message(messages.ERROR, "Unable to sync. Please try again later.")
+        devices_list_messages.append(message)
+
     devices = (
         Device.objects.filter(fleet__organization=request.organization)
         .annotate(
@@ -746,11 +802,13 @@ def devices_list(request: HttpRequest, organization_slug):
             items=[("Devices", "devices-list")],
         ),
         "enroll_form": DeviceEnrollmentQRCodeForm(request.organization),
+        "devices_list_messages": devices_list_messages,
     }
+
+    template = "publish_mdm/devices_list.html"
     if request.htmx:
-        template = "patterns/tables/table-partial.html"
-    else:
-        template = "publish_mdm/devices_list.html"
+        template += "#devices-list-partial"
+
     return render(request, template, context)
 
 

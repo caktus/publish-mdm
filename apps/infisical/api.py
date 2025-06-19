@@ -17,7 +17,7 @@ class InfisicalKMS:
         """Create an Infisical API client."""
         # First ensure all the settings needed for API access are available
         missing_settings = []
-        for setting in ("INFISICAL_HOST", "INFISICAL_TOKEN", "INFISICAL_PROJECT_ID"):
+        for setting in ("INFISICAL_API_URL", "INFISICAL_TOKEN", "INFISICAL_KMS_PROJECT_ID"):
             if not getattr(settings, setting, None):
                 missing_settings.append(setting)
         if missing_settings:
@@ -25,18 +25,18 @@ class InfisicalKMS:
                 f'{get_text_list(missing_settings, "and")} must be defined in settings.'
             )
         # Create the client
-        return InfisicalSDKClient(settings.INFISICAL_HOST, settings.INFISICAL_TOKEN)
+        return InfisicalSDKClient(settings.INFISICAL_API_URL, settings.INFISICAL_TOKEN)
 
     @cache
     def get_key(self, key_name: str, can_create: bool = True) -> KmsKey:
         """Get or create a key with the provided name."""
         try:
-            return self.client.kms.get_key_by_name(key_name, settings.INFISICAL_PROJECT_ID)
+            return self.client.kms.get_key_by_name(key_name, settings.INFISICAL_KMS_PROJECT_ID)
         except APIError as e:
             if e.status_code == 404 and can_create:
                 # The key does not exist. Create it
                 return self.client.kms.create_key(
-                    key_name, settings.INFISICAL_PROJECT_ID, SymmetricEncryption.AES_GCM_256
+                    key_name, settings.INFISICAL_KMS_PROJECT_ID, SymmetricEncryption.AES_GCM_256
                 )
             raise
 

@@ -10,8 +10,6 @@ anyio==3.7.1
     #   httpx
     #   jupyter-server
     #   watchfiles
-appnope==0.1.4
-    # via ipykernel
 argon2-cffi==25.1.0
     # via jupyter-server
 argon2-cffi-bindings==21.2.0
@@ -42,11 +40,11 @@ black==25.1.0
     # via -r requirements/dev/dev.in
 bleach==6.2.0
     # via nbconvert
-boto3==1.38.30
+boto3==1.38.35
     # via
     #   -c requirements/dev/../base/base.txt
     #   moto
-botocore==1.38.30
+botocore==1.38.35
     # via
     #   -c requirements/dev/../base/base.txt
     #   boto3
@@ -78,9 +76,9 @@ colorama==0.4.6
     # via djlint
 comm==0.2.2
     # via ipykernel
-coverage==7.8.2
+coverage==7.9.0
     # via pytest-cov
-cryptography==45.0.3
+cryptography==45.0.4
     # via
     #   -c requirements/dev/../base/base.txt
     #   moto
@@ -110,7 +108,7 @@ django-watchfiles==1.1.0
     # via -r requirements/dev/dev.in
 djlint==1.36.4
     # via -r requirements/dev/dev.in
-editorconfig==0.17.0
+editorconfig==0.17.1
     # via
     #   cssbeautifier
     #   jsbeautifier
@@ -118,7 +116,7 @@ executing==2.2.0
     # via stack-data
 factory-boy==3.3.3
     # via -r requirements/dev/dev.in
-faker==37.3.0
+faker==37.4.0
     # via factory-boy
 fastjsonschema==2.21.1
     # via nbformat
@@ -279,7 +277,9 @@ platformdirs==4.3.8
     #   jupyter-core
     #   virtualenv
 pluggy==1.6.0
-    # via pytest
+    # via
+    #   pytest
+    #   pytest-cov
 pre-commit==4.2.0
     # via -r requirements/dev/dev.in
 prometheus-client==0.22.1
@@ -315,7 +315,7 @@ pytest==8.4.0
     #   pytest-cov
     #   pytest-django
     #   pytest-mock
-pytest-cov==6.1.1
+pytest-cov==6.2.1
     # via -r requirements/dev/dev.in
 pytest-django==4.11.1
     # via -r requirements/dev/dev.in
