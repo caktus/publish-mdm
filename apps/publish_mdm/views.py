@@ -1000,13 +1000,15 @@ def add_byod_device(request: HttpRequest, organization_slug):
         if session := get_tinymdm_session():
             try:
                 create_user(session, **form.cleaned_data)
-            except RequestException as e:
-                if (
-                    hasattr(e.request, "url")
-                    and e.request.url.endswith("/users")
-                    and getattr(e.response, "status_code", None) == 409
-                ):
+            except RequestException:
+                _, api_url, status_code, error_data = session.api_errors.pop()
+                if api_url.endswith("/users") and status_code == 409:
                     error = "Another MDM user exists with that email. Please enter another email."
+                elif error_data:
+                    error = mark_safe(
+                        "The following TinyMDM API error occurred. Please try again later:"
+                        f'<code class="block text-xs mt-2">{error_data}</code>'
+                    )
             else:
                 success = True
         if success:

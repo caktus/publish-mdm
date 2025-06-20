@@ -2477,7 +2477,9 @@ class TestBYODDeviceEnrollment(ViewTestBase):
         )
         assert isinstance(response.context.get("form"), BYODDeviceEnrollmentForm)
 
-    @pytest.mark.parametrize("status_code", [409, 500])
+    @pytest.mark.parametrize(
+        "api_error", [(409, None), (500, None), (499, {"error": {"message": "Reason"}})]
+    )
     def test_create_user_api_error(
         self,
         client,
@@ -2487,7 +2489,7 @@ class TestBYODDeviceEnrollment(ViewTestBase):
         mocker,
         requests_mock,
         set_tinymdm_env_vars,
-        status_code,
+        api_error,
     ):
         """Ensure the user is shown the expected error message in case of an API
         error response.
@@ -2499,8 +2501,9 @@ class TestBYODDeviceEnrollment(ViewTestBase):
             "byod-name": fake.name(),
             "byod-email": fake.email(),
         }
+        status_code, response_json = api_error
         create_user_request = requests_mock.post(
-            "https://www.tinymdm.net/api/v1/users", status_code=status_code
+            "https://www.tinymdm.net/api/v1/users", status_code=status_code, json=response_json
         )
         response = client.post(url, data=data)
 
@@ -2508,6 +2511,12 @@ class TestBYODDeviceEnrollment(ViewTestBase):
         if status_code == 409:
             assertContains(
                 response, "Another MDM user exists with that email. Please enter another email."
+            )
+        elif response_json:
+            assertContains(
+                response,
+                "The following TinyMDM API error occurred. Please try again later:"
+                f'<code class="block text-xs mt-2">{response_json}</code>',
             )
         else:
             assertContains(
