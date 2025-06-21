@@ -1,4 +1,5 @@
 import json
+import re
 
 import faker
 import pytest
@@ -2219,22 +2220,24 @@ class TestAddFleet(ViewTestBase):
             "name": "My Fleet",
             "project": project.id,
         }
-        create_group_error = HTTPError("error")
-        mock_create_group = mocker.patch(
-            "apps.publish_mdm.views.create_group", side_effect=create_group_error
+        response_json = {"error": {"message": "Reason"}}
+        mock_create_group_request = requests_mock.post(
+            "https://www.tinymdm.net/api/v1/groups",
+            status_code=499,
+            json={"error": {"message": "Reason"}},
         )
         mock_add_group_to_policy = mocker.patch("apps.publish_mdm.views.add_group_to_policy")
         PolicyFactory(default_policy=True)
 
         response = client.post(url, data=data, follow=True)
         assert not organization.fleets.exists()
-        mock_create_group.assert_called_once()
+        assert mock_create_group_request.called_once
         mock_add_group_to_policy.assert_not_called()
         assertContains(
             response,
             "The fleet has not been saved because its TinyMDM group "
             "could not be created due to the following error:"
-            f'<code class="block text-xs mt-2">{create_group_error}</code>',
+            f'<code class="block text-xs mt-2">Status 499: {response_json}</code>',
         )
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
 
@@ -2254,9 +2257,11 @@ class TestAddFleet(ViewTestBase):
             "https://www.tinymdm.net/api/v1/groups", json={"id": group_id}, status_code=201
         )
         mock_get_enrollment_qr_code = mocker.patch("apps.publish_mdm.views.get_enrollment_qr_code")
-        add_group_to_policy_error = HTTPError("error")
-        mock_add_group_to_policy = mocker.patch(
-            "apps.publish_mdm.views.add_group_to_policy", side_effect=add_group_to_policy_error
+        response_json = {"error": {"message": "Reason"}}
+        mock_add_group_to_policy_request = requests_mock.post(
+            re.compile(r"https://www.tinymdm.net/api/v1/policies/\w+/members/\w+"),
+            status_code=499,
+            json={"error": {"message": "Reason"}},
         )
         mocker.patch("apps.mdm.tasks.pull_devices")
         PolicyFactory(default_policy=True)
@@ -2266,14 +2271,14 @@ class TestAddFleet(ViewTestBase):
         assert fleet.mdm_group_id == group_id
         assert fleet.name == data["name"]
         assert fleet.project_id == data["project"]
-        mock_add_group_to_policy.assert_called_once()
+        assert mock_add_group_to_policy_request.called_once
         mock_get_enrollment_qr_code.assert_called_once()
         assertContains(response, f"Successfully added {fleet}.")
         assertContains(
             response,
             "The fleet has been saved but it could not be added to the "
             f"{fleet.policy.name} policy in TinyMDM due to the following error:"
-            f'<code class="block text-xs mt-2">{add_group_to_policy_error}</code>',
+            f'<code class="block text-xs mt-2">Status 499: {response_json}</code>',
         )
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
 
@@ -2292,10 +2297,11 @@ class TestAddFleet(ViewTestBase):
         requests_mock.post(
             "https://www.tinymdm.net/api/v1/groups", json={"id": group_id}, status_code=201
         )
-        get_enrollment_qr_code_error = HTTPError("error")
-        mock_get_enrollment_qr_code = mocker.patch(
-            "apps.publish_mdm.views.get_enrollment_qr_code",
-            side_effect=get_enrollment_qr_code_error,
+        response_json = {"error": {"message": "Reason"}}
+        mock_get_enrollment_qr_code_request = requests_mock.get(
+            re.compile(r"https://www.tinymdm.net/api/v1/groups/\w+/enrollment_qr_code"),
+            status_code=499,
+            json={"error": {"message": "Reason"}},
         )
         mock_add_group_to_policy = mocker.patch("apps.publish_mdm.views.add_group_to_policy")
         mocker.patch("apps.mdm.tasks.pull_devices")
@@ -2307,13 +2313,13 @@ class TestAddFleet(ViewTestBase):
         assert fleet.name == data["name"]
         assert fleet.project_id == data["project"]
         mock_add_group_to_policy.assert_called_once()
-        mock_get_enrollment_qr_code.assert_called_once()
+        assert mock_get_enrollment_qr_code_request.called_once
         assertContains(response, f"Successfully added {fleet}.")
         assertContains(
             response,
             "The fleet has been saved but we could not get its TinyMDM "
             "enrollment QR code due to the following error:"
-            f'<code class="block text-xs mt-2">{get_enrollment_qr_code_error}</code>',
+            f'<code class="block text-xs mt-2">Status 499: {response_json}</code>',
         )
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
 
@@ -2402,8 +2408,8 @@ class TestFleetQRCode(ViewTestBase):
         response = client.post(url, data=data)
         assertContains(response, "QR CODE NOT FOUND")
 
-    def test_not_found_no_api_credentials(self, client, url, user, organization, mocker):
-        """Ensure 'not found' is shown if there is no QR code saved and we could
+    def test_no_api_credentials(self, client, url, user, organization, mocker):
+        """Ensure an error message is shown if there is no QR code saved and we could
         not get it using the TinyMDM API because there are no API credentials.
         """
         fleet = FleetFactory(organization=organization, enroll_qr_code=None)
@@ -2411,12 +2417,21 @@ class TestFleetQRCode(ViewTestBase):
             "fleet": fleet.id,
         }
         response = client.post(url, data=data)
-        assertContains(response, "QR CODE NOT FOUND")
+        assertContains(response, "Cannot get the QR code at this time. Please try again later.")
 
-    def test_not_found_api_error(
-        self, client, url, user, organization, mocker, set_tinymdm_env_vars
+    @pytest.mark.parametrize("api_error", [(500, None), (499, {"error": {"message": "Reason"}})])
+    def test_api_error(
+        self,
+        client,
+        url,
+        user,
+        organization,
+        mocker,
+        set_tinymdm_env_vars,
+        requests_mock,
+        api_error,
     ):
-        """Ensure 'not found' is shown if there is no QR code saved and we could
+        """Ensure an error message is shown if there is no QR code saved and we could
         not get it using the TinyMDM API because there was an API error.
         """
         mocker.patch("apps.mdm.tasks.pull_devices")
@@ -2424,13 +2439,22 @@ class TestFleetQRCode(ViewTestBase):
         data = {
             "fleet": fleet.id,
         }
-        mock_get_enrollment_qr_code = mocker.patch(
-            "apps.publish_mdm.views.get_enrollment_qr_code",
-            side_effect=HTTPError("error"),
+        status_code, response_json = api_error
+        get_qr_code_request = requests_mock.get(
+            f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}/enrollment_qr_code",
+            status_code=status_code,
+            json=response_json,
         )
         response = client.post(url, data=data)
-        mock_get_enrollment_qr_code.assert_called_once()
-        assertContains(response, "QR CODE NOT FOUND")
+        assert get_qr_code_request.called_once
+        error_str = f"Status {status_code}"
+        if response_json:
+            error_str += f": {response_json}"
+        assertContains(
+            response,
+            "The following TinyMDM API error occurred. Please try again later:"
+            f'<code class="block text-xs mt-2">{error_str}</code>',
+        )
 
 
 class TestBYODDeviceEnrollment(ViewTestBase):
@@ -2512,15 +2536,14 @@ class TestBYODDeviceEnrollment(ViewTestBase):
             assertContains(
                 response, "Another MDM user exists with that email. Please enter another email."
             )
-        elif response_json:
+        else:
+            error_str = f"Status {status_code}"
+            if response_json:
+                error_str += f": {response_json}"
             assertContains(
                 response,
                 "The following TinyMDM API error occurred. Please try again later:"
-                f'<code class="block text-xs mt-2">{response_json}</code>',
-            )
-        else:
-            assertContains(
-                response, "Sorry, we cannot enroll you at this time. Please try again later."
+                f'<code class="block text-xs mt-2">{error_str}</code>',
             )
         assert isinstance(response.context.get("form"), BYODDeviceEnrollmentForm)
 

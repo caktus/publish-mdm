@@ -6,9 +6,11 @@ import structlog
 from django.core.files.base import ContentFile
 from django.db.models import Q, Subquery, OuterRef, F
 from django.utils import timezone
+from pydantic import BaseModel
 from requests import Session
 from requests.adapters import HTTPAdapter
 from requests_ratelimiter import LimiterSession
+from typing import Any
 from urllib3.util.retry import Retry
 
 from apps.mdm.models import Device, DeviceSnapshot, DeviceSnapshotApp, Fleet
@@ -21,6 +23,19 @@ class TinyMDMSession(LimiterSession):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.api_errors = []
+
+
+class APIError(BaseModel):
+    method: str
+    url: str
+    status_code: int | None = None
+    error_data: Any = None
+
+    def __str__(self):
+        error = f"Status {self.status_code}"
+        if self.error_data:
+            error += f": {self.error_data}"
+        return error
 
 
 def get_tinymdm_session() -> TinyMDMSession:
@@ -65,14 +80,9 @@ def request(session: TinyMDMSession, method: str, url: str, *args, **kwargs):
         except requests.exceptions.JSONDecodeError:
             error_data = None
         status_code = getattr(e.response, "status_code", None)
-        logger.debug(
-            "TinyMDM API error",
-            method=method,
-            url=url,
-            status_code=status_code,
-            error_data=error_data,
-        )
-        session.api_errors.append((method, url, status_code, error_data))
+        api_error = APIError(method=method, url=url, status_code=status_code, error_data=error_data)
+        logger.debug("TinyMDM API error", api_error=api_error)
+        session.api_errors.append(api_error)
         if raise_for_status:
             raise
     return response
