@@ -82,9 +82,10 @@ def request(session: TinyMDMSession, method: str, url: str, *args, **kwargs):
         status_code = getattr(e.response, "status_code", None)
         api_error = APIError(method=method, url=url, status_code=status_code, error_data=error_data)
         logger.debug("TinyMDM API error", api_error=api_error)
-        session.api_errors.append(api_error)
         if raise_for_status:
+            e.api_error = api_error
             raise
+        session.api_errors.append(api_error)
     return response
 
 

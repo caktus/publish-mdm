@@ -556,7 +556,7 @@ def create_organization(request: HttpRequest):
                 mark_safe(
                     "The organization was created but its default TinyMDM group "
                     "could not be created due to the following error:"
-                    f'<code class="block text-xs mt-2">{e}</code>'
+                    f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
                 ),
             )
         return redirect("publish_mdm:organization-home", organization.slug)
@@ -762,7 +762,23 @@ def devices_list(request: HttpRequest, organization_slug):
                 fleets=list(fleets),
             )
             for fleet in fleets:
-                sync_fleet(session, fleet, push_config=False)
+                try:
+                    sync_fleet(session, fleet, push_config=False)
+                except RequestException as e:
+                    logger.debug(
+                        "Unable to sync fleet",
+                        fleet=fleet,
+                        organization=request.organization,
+                        exc_info=True,
+                    )
+                    messages.error(
+                        request,
+                        mark_safe(
+                            f"Unable to sync the devices in the {fleet.name} fleet "
+                            "due to the following error:"
+                            f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
+                        ),
+                    )
             message = messages.Message(
                 messages.SUCCESS,
                 "Successfully synced devices from MDM. The devices list has been updated.",
@@ -859,20 +875,19 @@ def add_fleet(request: HttpRequest, organization_slug):
         # Create a group in TinyMDM and set the mdm_group_id field
         try:
             create_group(session, fleet)
-        except RequestException:
+        except RequestException as e:
             logger.debug(
                 "Unable to create TinyMDM group",
                 fleet=fleet,
                 organization=request.organization,
                 exc_info=True,
             )
-            api_error = session.api_errors.pop()
             messages.error(
                 request,
                 mark_safe(
                     "The fleet has not been saved because its TinyMDM group "
                     "could not be created due to the following error:"
-                    f'<code class="block text-xs mt-2">{api_error}</code>'
+                    f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
                 ),
             )
             return redirect("publish_mdm:fleets-list", organization_slug)
@@ -880,7 +895,7 @@ def add_fleet(request: HttpRequest, organization_slug):
         # Get the TinyMDM enrollment QR code for the group
         try:
             get_enrollment_qr_code(session, fleet)
-        except RequestException:
+        except RequestException as e:
             logger.debug(
                 "Unable to get the TinyMDM enrollment QR code",
                 fleet=fleet,
@@ -888,20 +903,19 @@ def add_fleet(request: HttpRequest, organization_slug):
                 policy=fleet.policy,
                 exc_info=True,
             )
-            api_error = session.api_errors.pop()
             messages.warning(
                 request,
                 mark_safe(
                     "The fleet has been saved but we could not get its TinyMDM "
                     "enrollment QR code due to the following error:"
-                    f'<code class="block text-xs mt-2">{api_error}</code>'
+                    f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
                 ),
             )
 
         # Add the TinyMDM group to the default policy
         try:
             add_group_to_policy(session, fleet)
-        except RequestException:
+        except RequestException as e:
             logger.debug(
                 "Unable to add the TinyMDM group to policy",
                 fleet=fleet,
@@ -909,13 +923,12 @@ def add_fleet(request: HttpRequest, organization_slug):
                 policy=fleet.policy,
                 exc_info=True,
             )
-            api_error = session.api_errors.pop()
             messages.warning(
                 request,
                 mark_safe(
                     "The fleet has been saved but it could not be added to the "
                     f"{fleet.policy.name} policy in TinyMDM due to the following error:"
-                    f'<code class="block text-xs mt-2">{api_error}</code>'
+                    f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
                 ),
             )
 
@@ -977,13 +990,11 @@ def fleet_qr_code(request: HttpRequest, organization_slug):
                 # The QR code is not saved. Get it via the TinyMDM API and save it
                 try:
                     get_enrollment_qr_code(session, fleet)
-                except RequestException:
-                    if session.api_errors:
-                        api_error = session.api_errors.pop()
-                        error = mark_safe(
-                            "The following TinyMDM API error occurred. Please try again later:"
-                            f'<code class="block text-xs mt-2">{api_error}</code>'
-                        )
+                except RequestException as e:
+                    error = mark_safe(
+                        "The following TinyMDM API error occurred. Please try again later:"
+                        f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
+                    )
                 else:
                     fleet.save()
             if not fleet.enroll_qr_code and not error:
@@ -1007,14 +1018,14 @@ def add_byod_device(request: HttpRequest, organization_slug):
         if session := get_tinymdm_session():
             try:
                 create_user(session, **form.cleaned_data)
-            except RequestException:
-                api_error = session.api_errors.pop()
-                if api_error.url.endswith("/users") and api_error.status_code == 409:
+            except RequestException as e:
+                api_error = getattr(e, "api_error", None)
+                if api_error and api_error.url.endswith("/users") and api_error.status_code == 409:
                     error = "Another MDM user exists with that email. Please enter another email."
                 else:
                     error = mark_safe(
                         "The following TinyMDM API error occurred. Please try again later:"
-                        f'<code class="block text-xs mt-2">{api_error}</code>'
+                        f'<code class="block text-xs mt-2">{api_error or e}</code>'
                     )
             else:
                 success = True
