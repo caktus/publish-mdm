@@ -66,9 +66,11 @@ def get_tinymdm_session() -> TinyMDMSession:
 
 
 def request(session: TinyMDMSession, method: str, url: str, *args, **kwargs):
-    """Makes a TinyMDM API request and adds any error response to the session's
-    api_errors list. If a raise_for_status kwarg is passed and it's falsy, this
-    function will not raise an exception for an error response.
+    """Makes a TinyMDM API request. In case of an error response, add a api_error
+    attribute (a APIError object) to the exception raised by Response.raise_for_status().
+    If a raise_for_status kwarg is passed and it's falsy, this function will not
+    raise an exception for an error response, but will instead add an APIError
+    object to the session's api_errors list.
     """
     raise_for_status = kwargs.pop("raise_for_status", True)
     response = session.request(method, url, *args, **kwargs)

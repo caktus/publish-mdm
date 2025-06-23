@@ -251,9 +251,8 @@ class TestFleetAdmin(TestAdmin):
         """
         mocker.patch("apps.mdm.tasks.pull_devices")
         fleet = FleetFactory()
-        mock_delete_group = mocker.patch(
-            "apps.mdm.admin.delete_group", side_effect=HTTPError("error")
-        )
+        api_error = HTTPError("error")
+        mock_delete_group = mocker.patch("apps.mdm.admin.delete_group", side_effect=api_error)
         response = client.post(
             reverse("admin:mdm_fleet_delete", args=[fleet.id]), data={"post": "yes"}, follow=True
         )
@@ -261,7 +260,10 @@ class TestFleetAdmin(TestAdmin):
         assert response.status_code == 200
         mock_delete_group.assert_called_once()
         assertContains(
-            response, "Cannot delete the fleet due a TinyMDM API error. Please try again later."
+            response,
+            "Cannot delete the fleet due to the following TinyMDM API error:"
+            f"<br><code>{api_error}</code><br>"
+            "Please try again later.",
         )
         assert Fleet.objects.filter(pk=fleet.pk).exists()
         assertNotContains(response, f"The fleet “{fleet}” was deleted successfully.")
@@ -299,12 +301,13 @@ class TestFleetAdmin(TestAdmin):
         has_devices = {i.pk: i.name for i in fleets[:2]}
         api_errors = {i.pk: i.name for i in fleets[2:4]}
         successful = [i.pk for i in fleets[4:]]
+        api_error = HTTPError("error")
 
         def delete_group(session, fleet):
             if fleet.pk in has_devices:
                 return False
             if fleet.pk in api_errors:
-                raise HTTPError("error")
+                raise api_error
             return True
 
         mock_delete_group = mocker.patch("apps.mdm.admin.delete_group", side_effect=delete_group)
@@ -323,11 +326,13 @@ class TestFleetAdmin(TestAdmin):
             "Cannot delete the following fleets because they have devices linked "
             f"to them: {linebreaks('\n'.join(sorted(has_devices.values())))}",
         )
-        assertContains(
-            response,
-            "Cannot delete the following fleets due a TinyMDM API error: "
-            f"{linebreaks('\n'.join(sorted(api_errors.values())))}Please try again later.",
-        )
+        for name in api_errors.values():
+            assertContains(
+                response,
+                f"Could not delete {name} due the following TinyMDM API error:"
+                f"<br><code>{api_error}</code><br>"
+                "Please try again later.",
+            )
         if partial_success:
             assert not Fleet.objects.filter(pk__in=successful).exists()
             assertContains(response, "Successfully deleted 2 fleets.")
