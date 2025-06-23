@@ -2040,16 +2040,25 @@ class TestDevicesList(ViewTestBase):
         assert isinstance(response.context.get("enroll_form"), DeviceEnrollmentQRCodeForm)
         assert isinstance(response.context.get("byod_form"), BYODDeviceEnrollmentForm)
 
-    def test_sync(self, client, url, user, organization, mocker, set_tinymdm_env_vars):
+    @pytest.mark.parametrize("num_successful_fleets", [0, 1, 2])
+    def test_sync(
+        self, client, url, user, organization, mocker, set_tinymdm_env_vars, num_successful_fleets
+    ):
         """Ensure syncing calls sync_fleet for all the fleets in an organization
         and the updated device list is included in the response.
         """
         mocker.patch("apps.mdm.tasks.pull_devices")
-        fleets = FleetFactory.create_batch(3, organization=organization)
-        devices = DeviceFactory.create_batch(3, fleet=fleets[0])
+        num_fleets = 2
+        num_devices_before = 3
+        fleets = FleetFactory.create_batch(num_fleets, organization=organization)
+        devices = DeviceFactory.create_batch(num_devices_before, fleet=fleets[0])
+        api_error_fleets = fleets[num_successful_fleets:num_fleets]
+        api_error = HTTPError("error")
 
-        # Mock sync_fleet. It will add one new Device for each Fleet
+        # Mock sync_fleet. It will either add one new Device or raise an API error
         def side_effect(session, fleet, push_config):
+            if fleet in api_error_fleets:
+                raise api_error
             devices.append(DeviceFactory(fleet=fleet))
 
         mock_sync_fleet = mocker.patch("apps.publish_mdm.views.sync_fleet", side_effect=side_effect)
@@ -2067,12 +2076,20 @@ class TestDevicesList(ViewTestBase):
         rows = table.as_values()
         next(rows)
         assert {row[0] for row in rows} == {device.device_id for device in devices}
-        assert len(devices) == 6
+        assert len(devices) == (num_devices_before + num_successful_fleets)
         assertContains(response, table.as_html(response.wsgi_request))
-        # Ensure a success message is displayed
-        assertContains(
-            response, "Successfully synced devices from MDM. The devices list has been updated."
-        )
+        for fleet in api_error_fleets:
+            assertContains(
+                response,
+                f"The following error occurred while syncing devices in the {fleet.name} fleet:"
+                f'<code class="block text-xs mt-2">{api_error}</code>',
+            )
+        success_message = "Successfully synced devices from MDM. The devices list has been updated."
+        if num_successful_fleets:
+            # Ensure a success message is displayed
+            assertContains(response, success_message)
+        else:
+            assertNotContains(response, success_message)
 
     def test_sync_no_api_credentials(self, client, url, user, organization, mocker):
         """Ensure syncing is not attempted if the TinyMDM API is not configured

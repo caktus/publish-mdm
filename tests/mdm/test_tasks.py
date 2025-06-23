@@ -1,6 +1,8 @@
 import json
 import pytest
 import faker
+from requests import Response
+from requests.exceptions import HTTPError
 from requests.sessions import Session
 
 from apps.mdm import tasks
@@ -439,3 +441,30 @@ class TestTasks:
         }
         assert add_to_group_request.called_once
         assert not add_to_group_request.last_request.body
+
+    @pytest.mark.parametrize("api_error", [(500, None), (499, {"error": {"message": "Reason"}})])
+    @pytest.mark.parametrize("raise_for_status", [None, True, False])
+    def test_request(self, requests_mock, set_tinymdm_env_vars, api_error, raise_for_status):
+        """Test handling of API errors in the request() function."""
+        url = "https://www.tinymdm.net/api/v1/some-endpoint"
+        status_code, response_json = api_error
+        requests_mock.get(url, status_code=status_code, json=response_json)
+        session = tasks.get_tinymdm_session()
+        kwargs = {}
+        if raise_for_status is not None:
+            kwargs["raise_for_status"] = raise_for_status
+        expected_api_error = tasks.APIError(
+            method="GET", url=url, status_code=status_code, error_data=response_json
+        )
+
+        if raise_for_status or raise_for_status is None:
+            # Should raise an exception with its api_error attribute set to an APIError object
+            with pytest.raises(HTTPError) as exc:
+                tasks.request(session, "GET", url, **kwargs)
+            assert exc.value.api_error == expected_api_error
+        else:
+            response = tasks.request(session, "GET", url, **kwargs)
+            assert isinstance(response, Response)
+            assert expected_api_error in session.api_errors
+            if response_json is not None:
+                assert response.json() == response_json

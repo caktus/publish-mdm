@@ -139,6 +139,35 @@ class TestDeviceAdmin(TestAdmin):
             in response_content
         )
 
+    @pytest.mark.parametrize("api_error", [None, HTTPError("error")])
+    def test_device_save(self, client, user, mocker, set_tinymdm_env_vars, api_error):
+        """Ensures push_device_config() is called when saving a Device in Admin
+        and if there is a TinyMDM API error it is displayed to the user.
+        """
+        mock_push_device_config = mocker.patch(
+            "apps.mdm.tasks.push_device_config", side_effect=api_error
+        )
+        device = DeviceFactory()
+        data = {
+            "fleet": device.fleet_id,
+            "serial_number": device.serial_number,
+            "app_user_name": f"edited_{device.app_user_name}",
+        }
+        response = client.post(
+            reverse("admin:mdm_device_change", args=[device.id]), data=data, follow=True
+        )
+
+        assert response.status_code == 200
+        mock_push_device_config.assert_called_once()
+        device.refresh_from_db()
+        assert device.app_user_name == data["app_user_name"]
+        if api_error:
+            assertContains(
+                response,
+                "Unable to update the device in TinyMDM due to the following error:"
+                f"<br><code>{api_error}</code>",
+            )
+
 
 class TestFleetAdmin(TestAdmin):
     @pytest.mark.parametrize("api_error", [None, HTTPError("error")])
