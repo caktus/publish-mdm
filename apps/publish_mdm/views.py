@@ -761,6 +761,7 @@ def devices_list(request: HttpRequest, organization_slug):
                 organization=request.organization,
                 fleets=list(fleets),
             )
+            synced = 0
             for fleet in fleets:
                 try:
                     sync_fleet(session, fleet, push_config=False)
@@ -771,21 +772,28 @@ def devices_list(request: HttpRequest, organization_slug):
                         organization=request.organization,
                         exc_info=True,
                     )
-                    messages.error(
-                        request,
-                        mark_safe(
-                            f"Unable to sync the devices in the {fleet.name} fleet "
-                            "due to the following error:"
-                            f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
+                    devices_list_messages.append(
+                        messages.Message(
+                            messages.ERROR,
+                            mark_safe(
+                                f"The following error occurred while syncing devices in the {fleet.name} fleet:"
+                                f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
+                            ),
                         ),
                     )
-            message = messages.Message(
-                messages.SUCCESS,
-                "Successfully synced devices from MDM. The devices list has been updated.",
-            )
+                else:
+                    synced += 1
+            if synced:
+                devices_list_messages.append(
+                    messages.Message(
+                        messages.SUCCESS,
+                        "Successfully synced devices from MDM. The devices list has been updated.",
+                    )
+                )
         else:
-            message = messages.Message(messages.ERROR, "Unable to sync. Please try again later.")
-        devices_list_messages.append(message)
+            devices_list_messages.append(
+                messages.Message(messages.ERROR, "Unable to sync. Please try again later.")
+            )
 
     devices = (
         Device.objects.filter(fleet__organization=request.organization)
