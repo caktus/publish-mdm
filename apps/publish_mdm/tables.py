@@ -33,6 +33,7 @@ class FormTemplateVersionTable(tables.Table):
 
     version = tables.Column(verbose_name="Version number")
     modified_at = tables.DateColumn(verbose_name="Date published")
+    app_users = tables.TemplateColumn(template_name="includes/form_version_app_users.html")
     published_by = tables.Column(accessor="user__get_full_name")
 
     class Meta:

@@ -4,6 +4,7 @@ import structlog
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.postgres.aggregates import ArrayAgg
 from django.db import models, transaction
 from django.db.models import OuterRef, Q, Subquery, Value
 from django.db.models.functions import Lower, NullIf
@@ -162,13 +163,17 @@ def form_template_list(request: HttpRequest, organization_slug, odk_project_pk):
 def form_template_detail(
     request: HttpRequest, organization_slug, odk_project_pk: int, form_template_id: int
 ):
+    app_user_name_field = "app_user_form_templates__app_user_form_template__app_user__name"
     form_template: FormTemplate = get_object_or_404(
         request.odk_project.form_templates.annotate(
             app_user_count=models.Count("app_user_forms"),
         ).prefetch_related(
             models.Prefetch(
                 "versions",
-                queryset=FormTemplateVersion.objects.order_by("-modified_at"),
+                queryset=FormTemplateVersion.objects.order_by("-modified_at").annotate(
+                    app_user_count=models.Count("app_user_form_templates"),
+                    app_user_names=ArrayAgg(app_user_name_field, order_by=app_user_name_field),
+                ),
                 to_attr="latest_version",
             )
         ),
