@@ -59,7 +59,7 @@ class FleetAdmin(admin.ModelAdmin):
                     mark_safe(
                         "The fleet has been saved but it could not be added to the "
                         f"{obj.policy.name} policy in TinyMDM due to the following error:"
-                        f"<br><code>{e}</code>"
+                        f"<br><code>{getattr(e, 'api_error', e)}</code>"
                     ),
                 )
 
@@ -106,9 +106,11 @@ class FleetAdmin(admin.ModelAdmin):
                 try:
                     if not delete_group(session, obj):
                         error = "Cannot delete the fleet because it has devices linked to it."
-                except RequestException:
-                    error = (
-                        "Cannot delete the fleet due a TinyMDM API error. Please try again later."
+                except RequestException as e:
+                    error = mark_safe(
+                        "Cannot delete the fleet due to the following TinyMDM API error:"
+                        f"<br><code>{getattr(e, 'api_error', e)}</code><br>"
+                        "Please try again later."
                     )
             else:
                 error = "Cannot delete the fleet. Please try again later."
@@ -189,7 +191,6 @@ class FleetAdmin(admin.ModelAdmin):
                     return
 
                 has_devices = []
-                api_errors = []
                 successful = []
 
                 for fleet in queryset:
@@ -198,8 +199,15 @@ class FleetAdmin(admin.ModelAdmin):
                             successful.append(fleet.pk)
                         else:
                             has_devices.append(fleet.name)
-                    except RequestException:
-                        api_errors.append(fleet.name)
+                    except RequestException as e:
+                        messages.error(
+                            request,
+                            mark_safe(
+                                f"Could not delete {fleet.name} due the following TinyMDM API error:"
+                                f"<br><code>{getattr(e, 'api_error', e)}</code><br>"
+                                "Please try again later."
+                            ),
+                        )
 
                 if has_devices:
                     messages.error(
@@ -207,15 +215,6 @@ class FleetAdmin(admin.ModelAdmin):
                         mark_safe(
                             "Cannot delete the following fleets because they have "
                             f"devices linked to them: {linebreaks('\n'.join(sorted(has_devices)))}"
-                        ),
-                    )
-
-                if api_errors:
-                    messages.error(
-                        request,
-                        mark_safe(
-                            "Cannot delete the following fleets due a TinyMDM API error: "
-                            f"{linebreaks('\n'.join(sorted(api_errors)))}Please try again later."
                         ),
                     )
 
@@ -295,7 +294,16 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         """Always push to MDM when saving a Device in the admin."""
-        obj.save(push_to_mdm=True)
+        try:
+            obj.save(push_to_mdm=True)
+        except RequestException as e:
+            messages.error(
+                request,
+                mark_safe(
+                    "Unable to update the device in TinyMDM due to the following error:"
+                    f"<br><code>{getattr(e, 'api_error', e)}</code>"
+                ),
+            )
 
     def get_queryset(self, request: HttpRequest) -> models.QuerySet[Device]:
         return (
@@ -326,7 +334,9 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
                     messages.error(
                         request,
                         mark_safe(
-                            f"Row {row.number}: {error.error!r}<br><pre>{error.traceback}</pre>"
+                            f"Row {row.number}: <code>{error.error.api_error}</code>"
+                            if hasattr(error.error, "api_error")
+                            else f"Row {row.number}: {error.error!r}<br><pre>{error.traceback}</pre>"
                         ),
                     )
             for row in result.invalid_rows:

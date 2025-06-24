@@ -556,7 +556,7 @@ def create_organization(request: HttpRequest):
                 mark_safe(
                     "The organization was created but its default TinyMDM group "
                     "could not be created due to the following error:"
-                    f'<code class="block text-xs mt-2">{e}</code>'
+                    f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
                 ),
             )
         return redirect("publish_mdm:organization-home", organization.slug)
@@ -761,15 +761,39 @@ def devices_list(request: HttpRequest, organization_slug):
                 organization=request.organization,
                 fleets=list(fleets),
             )
+            synced = 0
             for fleet in fleets:
-                sync_fleet(session, fleet, push_config=False)
-            message = messages.Message(
-                messages.SUCCESS,
-                "Successfully synced devices from MDM. The devices list has been updated.",
-            )
+                try:
+                    sync_fleet(session, fleet, push_config=False)
+                except RequestException as e:
+                    logger.debug(
+                        "Unable to sync fleet",
+                        fleet=fleet,
+                        organization=request.organization,
+                        exc_info=True,
+                    )
+                    devices_list_messages.append(
+                        messages.Message(
+                            messages.ERROR,
+                            mark_safe(
+                                f"The following error occurred while syncing devices in the {fleet.name} fleet:"
+                                f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
+                            ),
+                        ),
+                    )
+                else:
+                    synced += 1
+            if synced:
+                devices_list_messages.append(
+                    messages.Message(
+                        messages.SUCCESS,
+                        "Successfully synced devices from MDM. The devices list has been updated.",
+                    )
+                )
         else:
-            message = messages.Message(messages.ERROR, "Unable to sync. Please try again later.")
-        devices_list_messages.append(message)
+            devices_list_messages.append(
+                messages.Message(messages.ERROR, "Unable to sync. Please try again later.")
+            )
 
     devices = (
         Device.objects.filter(fleet__organization=request.organization)
@@ -871,7 +895,7 @@ def add_fleet(request: HttpRequest, organization_slug):
                 mark_safe(
                     "The fleet has not been saved because its TinyMDM group "
                     "could not be created due to the following error:"
-                    f'<code class="block text-xs mt-2">{e}</code>'
+                    f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
                 ),
             )
             return redirect("publish_mdm:fleets-list", organization_slug)
@@ -892,7 +916,7 @@ def add_fleet(request: HttpRequest, organization_slug):
                 mark_safe(
                     "The fleet has been saved but we could not get its TinyMDM "
                     "enrollment QR code due to the following error:"
-                    f'<code class="block text-xs mt-2">{e}</code>'
+                    f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
                 ),
             )
 
@@ -912,7 +936,7 @@ def add_fleet(request: HttpRequest, organization_slug):
                 mark_safe(
                     "The fleet has been saved but it could not be added to the "
                     f"{fleet.policy.name} policy in TinyMDM due to the following error:"
-                    f'<code class="block text-xs mt-2">{e}</code>'
+                    f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
                 ),
             )
 
@@ -966,24 +990,26 @@ def fleet_qr_code(request: HttpRequest, organization_slug):
     """Get the HTML for displaying the enrollment QR code for one Fleet."""
     form = DeviceEnrollmentQRCodeForm(request.organization, request.POST or None)
     fleet = None
-    not_found = False
+    error = None
     if form.is_valid():
         fleet = form.cleaned_data["fleet"]
-        if fleet:
-            if not fleet.enroll_qr_code and (session := get_tinymdm_session()):
+        if fleet and not fleet.enroll_qr_code:
+            if session := get_tinymdm_session():
                 # The QR code is not saved. Get it via the TinyMDM API and save it
                 try:
                     get_enrollment_qr_code(session, fleet)
-                except RequestException:
-                    pass
+                except RequestException as e:
+                    error = mark_safe(
+                        "The following TinyMDM API error occurred. Please try again later:"
+                        f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
+                    )
                 else:
                     fleet.save()
-            not_found = not fleet.enroll_qr_code
+            if not fleet.enroll_qr_code and not error:
+                error = "Cannot get the QR code at this time. Please try again later."
     else:
-        not_found = True
-    return render(
-        request, "includes/mdm_enroll_qr_code.html", {"fleet": fleet, "not_found": not_found}
-    )
+        error = "QR CODE NOT FOUND"
+    return render(request, "includes/mdm_enroll_qr_code.html", {"fleet": fleet, "error": error})
 
 
 @login_required
@@ -1001,12 +1027,14 @@ def add_byod_device(request: HttpRequest, organization_slug):
             try:
                 create_user(session, **form.cleaned_data)
             except RequestException as e:
-                if (
-                    hasattr(e.request, "url")
-                    and e.request.url.endswith("/users")
-                    and getattr(e.response, "status_code", None) == 409
-                ):
+                api_error = getattr(e, "api_error", None)
+                if api_error and api_error.url.endswith("/users") and api_error.status_code == 409:
                     error = "Another MDM user exists with that email. Please enter another email."
+                else:
+                    error = mark_safe(
+                        "The following TinyMDM API error occurred. Please try again later:"
+                        f'<code class="block text-xs mt-2">{api_error or e}</code>'
+                    )
             else:
                 success = True
         if success:

@@ -6,9 +6,11 @@ import structlog
 from django.core.files.base import ContentFile
 from django.db.models import Q, Subquery, OuterRef, F
 from django.utils import timezone
+from pydantic import BaseModel
 from requests import Session
 from requests.adapters import HTTPAdapter
 from requests_ratelimiter import LimiterSession
+from typing import Any
 from urllib3.util.retry import Retry
 
 from apps.mdm.models import Device, DeviceSnapshot, DeviceSnapshotApp, Fleet
@@ -17,12 +19,31 @@ from apps.publish_mdm.utils import get_secret
 logger = structlog.getLogger(__name__)
 
 
-def get_tinymdm_session() -> Session:
+class TinyMDMSession(LimiterSession):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.api_errors = []
+
+
+class APIError(BaseModel):
+    method: str
+    url: str
+    status_code: int | None = None
+    error_data: Any = None
+
+    def __str__(self):
+        error = f"Status {self.status_code}"
+        if self.error_data:
+            error += f": {self.error_data}"
+        return error
+
+
+def get_tinymdm_session() -> TinyMDMSession:
     """
     Creates a requests session suitable for use with the TinyMDM API. Should be
     shared across all requests during a to avoid hitting the rate limit.
     """
-    session = LimiterSession(per_second=5)
+    session = TinyMDMSession(per_second=5)
 
     headers = {
         # TODO: Move these to secure credential store
@@ -42,6 +63,32 @@ def get_tinymdm_session() -> Session:
     session.mount("https://", HTTPAdapter(max_retries=retries))
 
     return session
+
+
+def request(session: TinyMDMSession, method: str, url: str, *args, **kwargs):
+    """Makes a TinyMDM API request. In case of an error response, add a api_error
+    attribute (a APIError object) to the exception raised by Response.raise_for_status().
+    If a raise_for_status kwarg is passed and it's falsy, this function will not
+    raise an exception for an error response, but will instead add an APIError
+    object to the session's api_errors list.
+    """
+    raise_for_status = kwargs.pop("raise_for_status", True)
+    response = session.request(method, url, *args, **kwargs)
+    try:
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        try:
+            error_data = e.response.json() if e.response is not None else None
+        except requests.exceptions.JSONDecodeError:
+            error_data = None
+        status_code = getattr(e.response, "status_code", None)
+        api_error = APIError(method=method, url=url, status_code=status_code, error_data=error_data)
+        logger.debug("TinyMDM API error", api_error=api_error)
+        if raise_for_status:
+            e.api_error = api_error
+            raise
+        session.api_errors.append(api_error)
+    return response
 
 
 def update_existing_devices(fleet: Fleet, mdm_devices: list[dict]):
@@ -145,8 +192,7 @@ def create_device_snapshots(session: Session, fleet: Fleet, mdm_devices: list[di
     app_snapshots: list[DeviceSnapshotApp] = []
     for snapshot in snapshots:
         url = f"https://www.tinymdm.net/api/v1/devices/{snapshot.device_id}/apps"
-        response = session.request("GET", url)
-        response.raise_for_status()
+        response = request(session, "GET", url)
         apps = response.json()["results"]
         logger.debug("Creating app snapshots", app_count=len(apps), device_id=snapshot.device_id)
         app_snapshots.extend(
@@ -172,8 +218,7 @@ def pull_devices(session: Session, fleet: Fleet):
     url = "https://www.tinymdm.net/api/v1/devices"
     querystring = {"group_id": fleet.mdm_group_id, "per_page": 1000}
     logger.info("Pulling devices from TinyMDM", url=url, querystring=querystring)
-    response = session.request("GET", url, params=querystring)
-    response.raise_for_status()
+    response = request(session, "GET", url, params=querystring)
     mdm_devices = response.json()["results"]
     create_device_snapshots(session=session, fleet=fleet, mdm_devices=mdm_devices)
     our_devices = update_existing_devices(fleet, mdm_devices)
@@ -233,15 +278,13 @@ def push_device_config(session: Session, device: Device):
         "custom_field_1": qr_code_data,
     }
     logger.debug("Updating user", url=url, user_id=user_id, data=data)
-    response = session.request("PUT", url, json=data)
-    response.raise_for_status()
+    request(session, "PUT", url, json=data)
     # Add the user to the MDM group
     url = f"https://www.tinymdm.net/api/v1/groups/{device.fleet.mdm_group_id}/users/{user_id}"
     logger.debug(
         "Adding user to group", url=url, user_id=user_id, group_id=device.fleet.mdm_group_id
     )
-    response = session.post(url, headers={"content-type": "application/json"})
-    response.raise_for_status()
+    request(session, "POST", url, headers={"content-type": "application/json"})
     if qr_code_data:
         # Send a message to the user to inform them of the update and trigger a policy reload
         url = "https://www.tinymdm.net/api/v1/actions/message"
@@ -256,8 +299,7 @@ def push_device_config(session: Session, device: Device):
             "title": "Project Update",
             "devices": [device.device_id],
         }
-        response = session.request("POST", url, json=data)
-        response.raise_for_status()
+        request(session, "POST", url, json=data)
 
 
 def sync_fleet(session: Session, fleet: Fleet, push_config: bool = True):
@@ -293,10 +335,9 @@ def create_group(session: Session, fleet: Fleet):
         policy=fleet.policy,
         group_name=fleet.group_name,
     )
-    response = session.post(
-        "https://www.tinymdm.net/api/v1/groups", json={"name": fleet.group_name}
+    response = request(
+        session, "POST", "https://www.tinymdm.net/api/v1/groups", json={"name": fleet.group_name}
     )
-    response.raise_for_status()
     # Update the Fleet.mdm_group_id field
     fleet.mdm_group_id = response.json()["id"]
 
@@ -306,11 +347,12 @@ def add_group_to_policy(session: Session, fleet: Fleet):
     policy it will be moved to the new policy.
     """
     logger.info("Adding the TinyMDM group to its policy", fleet=fleet, policy=fleet.policy)
-    response = session.post(
+    request(
+        session,
+        "POST",
         f"https://www.tinymdm.net/api/v1/policies/{fleet.policy.policy_id}/members/{fleet.mdm_group_id}",
         headers={"content-type": "application/json"},
     )
-    response.raise_for_status()
 
 
 def get_enrollment_qr_code(session: Session, fleet: Fleet):
@@ -320,12 +362,13 @@ def get_enrollment_qr_code(session: Session, fleet: Fleet):
     logger.info(
         "Getting the URL for the TinyMDM enrollment QR code", fleet=fleet, policy=fleet.policy
     )
-    response = session.get(
+    response = request(
+        session,
+        "GET",
         f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}/enrollment_qr_code",
         params={"prefix_type": "SERIAL_NUMBER"},
         headers={"content-type": "application/json"},
     )
-    response.raise_for_status()
     qr_code_url = response.json()["enrollment_qr_code_url"]
     logger.info("Downloading TinyMDM enrollment QR code", fleet=fleet, url=qr_code_url)
     response = requests.get(qr_code_url, timeout=10)
@@ -347,7 +390,12 @@ def delete_group(session: Session, fleet: Fleet) -> bool:
             group_id=fleet.mdm_group_id,
         )
         return False
-    response = session.get(f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}/devices")
+    response = request(
+        session,
+        "GET",
+        f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}/devices",
+        raise_for_status=False,
+    )
     if response.status_code in (400, 404):
         # Invalid group ID or the group was not found
         logger.debug(
@@ -368,8 +416,7 @@ def delete_group(session: Session, fleet: Fleet) -> bool:
         )
         return False
     # Delete the group in TinyMDM
-    response = session.delete(f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}")
-    response.raise_for_status()
+    request(session, "DELETE", f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}")
     return True
 
 
@@ -382,8 +429,7 @@ def create_user(session: Session, name: str, email: str, fleet: Fleet):
         "email": email,
         "send_email": True,
     }
-    response = session.post("https://www.tinymdm.net/api/v1/users", json=data)
-    response.raise_for_status()
+    response = request(session, "POST", "https://www.tinymdm.net/api/v1/users", json=data)
     logger.info("Successfully created a TinyMDM user", user=response.content)
     user_id = response.json()["id"]
     logger.info(
@@ -392,8 +438,9 @@ def create_user(session: Session, name: str, email: str, fleet: Fleet):
         fleet=fleet,
         group_id=fleet.mdm_group_id,
     )
-    response = session.post(
+    request(
+        session,
+        "POST",
         f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}/users/{user_id}",
         headers={"content-type": "application/json"},
     )
-    response.raise_for_status()
