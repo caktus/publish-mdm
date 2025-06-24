@@ -170,10 +170,12 @@ def form_template_detail(
         ).prefetch_related(
             models.Prefetch(
                 "versions",
-                queryset=FormTemplateVersion.objects.order_by("-modified_at").annotate(
+                queryset=FormTemplateVersion.objects.order_by("-modified_at")
+                .annotate(
                     app_user_count=models.Count("app_user_form_templates"),
                     app_user_names=ArrayAgg(app_user_name_field, order_by=app_user_name_field),
-                ),
+                )
+                .select_related("user"),
                 to_attr="latest_version",
             )
         ),
