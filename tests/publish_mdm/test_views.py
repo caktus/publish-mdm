@@ -6,8 +6,10 @@ import pytest
 from django_tables2 import Table
 from django.urls import reverse
 from django.conf import settings
+from django.contrib.postgres.aggregates import ArrayAgg
 from django.core.files.base import ContentFile
-from django.db.models import Q
+from django.db.models import Count, Q
+from django.template.loader import render_to_string
 from django.utils.timezone import now, localtime
 from django.utils.formats import date_format
 from pygments import highlight
@@ -26,6 +28,7 @@ from tests.mdm.factories import PolicyFactory
 from tests.publish_mdm.factories import (
     AppUserFactory,
     AppUserFormTemplateFactory,
+    AppUserFormVersionFactory,
     FormTemplateFactory,
     FormTemplateVersionFactory,
     OrganizationFactory,
@@ -427,7 +430,14 @@ class TestFormTemplateDetail(ViewTestBase):
     def form_template(self, project):
         form_template = FormTemplateFactory(project=project)
         # Create 5 versions for the template
-        FormTemplateVersionFactory.create_batch(5, form_template=form_template)
+        template_versions = FormTemplateVersionFactory.create_batch(5, form_template=form_template)
+        app_users_counts = iter([1, 5, 15])
+        for version in fake.random_sample(template_versions, 3):
+            AppUserFormVersionFactory.create_batch(
+                next(app_users_counts),
+                form_template_version=version,
+                app_user_form_template__form_template=form_template,
+            )
         return form_template
 
     @pytest.fixture
@@ -448,16 +458,35 @@ class TestFormTemplateDetail(ViewTestBase):
         # expected data
         versions_table = response.context.get("versions_table")
         assert isinstance(versions_table, Table)
-        rows = response.context["versions_table"].as_values()
-        assert next(rows) == ["Version number", "Date published", "Published by"]
-        assert list(rows) == [
-            [
-                i.version,
-                date_format(localtime(i.modified_at), settings.SHORT_DATE_FORMAT),
-                i.user.get_full_name(),
-            ]
-            for i in form_template.versions.order_by("-modified_at")
+        versions_table_cols = list(versions_table.columns.iterall())
+        assert ["Version number", "Date published", "App users", "Published by"] == [
+            column.header for column in versions_table_cols
         ]
+        app_user_name_field = "app_user_form_templates__app_user_form_template__app_user__name"
+        versions = (
+            form_template.versions.order_by("-modified_at")
+            .annotate(
+                app_user_count=Count("app_user_form_templates"),
+                app_user_names=ArrayAgg(app_user_name_field, order_by=app_user_name_field),
+            )
+            .iterator()
+        )
+        for row in versions_table.rows:
+            values = [
+                (
+                    row.get_cell(column.name)
+                    if column.name == "app_users"
+                    else row.get_cell_value(column.name)
+                )
+                for column in versions_table_cols
+            ]
+            version = next(versions)
+            assert values == [
+                version.version,
+                date_format(localtime(version.modified_at), settings.SHORT_DATE_FORMAT),
+                render_to_string("includes/form_version_app_users.html", {"record": version}),
+                version.user.get_full_name(),
+            ]
         # Ensure the table is rendered in the page
         assert versions_table.as_html(response.wsgi_request) in response.content.decode()
 
