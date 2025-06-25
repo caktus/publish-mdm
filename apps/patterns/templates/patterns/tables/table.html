@@ -9,9 +9,45 @@
                                {{ table.attrs.thead.as_html }}>
                             <tr>
                                 {% for column in table.columns %}
-                                    <th {{ column.attrs.th.as_html }}
-                                        {% if table.orderable %} hx-get="{% querystring table.prefixed_order_by_field=column.order_by_alias.next %}" hx-trigger="click" hx-target="#inner-table" hx-swap="outerHTML" hx-push-url="true" hx-indicator=".progress" {% endif %}>
-                                        <span class="whitespace-nowrap {% if table.orderable %}hover:font-bold hover:text-gray-400 cursor-pointer{% endif %}">{{ column.header }}</span>
+                                    <th {{ column.attrs.th.as_html }}>
+                                        {% if column.orderable %}
+                                            <a class="block flex space-x-1 items-center hover:font-bold hover:text-gray-400 cursor-pointer"
+                                               hx-get="{% querystring table.prefixed_order_by_field=column.order_by_alias.next %}"
+                                               hx-trigger="click"
+                                               hx-target="#inner-table"
+                                               hx-swap="outerHTML"
+                                               hx-push-url="true"
+                                               hx-indicator=".progress">
+                                                <span class="whitespace-nowrap">{{ column.header }}</span>
+                                                {% if column.is_ordered %}
+                                                    <svg class="w-[16px] h-[16px] text-gray-800 dark:text-white"
+                                                         aria-hidden="true"
+                                                         xmlns="http://www.w3.org/2000/svg"
+                                                         width="24"
+                                                         height="24"
+                                                         fill="none"
+                                                         viewBox="0 0 24 24">
+                                                        {% if column.order_by_alias.is_ascending %}
+                                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v13m0-13 4 4m-4-4-4 4" />
+                                                        {% else %}
+                                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19V5m0 14-4-4m4 4 4-4" />
+                                                        {% endif %}
+                                                    </svg>
+                                                {% else %}
+                                                    <svg class="w-[16px] h-[16px] text-gray-400"
+                                                         aria-hidden="true"
+                                                         xmlns="http://www.w3.org/2000/svg"
+                                                         width="24"
+                                                         height="24"
+                                                         fill="none"
+                                                         viewBox="0 0 24 24">
+                                                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 20V7m0 13-4-4m4 4 4-4m4-12v13m0-13 4 4m-4-4-4 4" />
+                                                    </svg>
+                                                {% endif %}
+                                            </a>
+                                        {% else %}
+                                            <span class="whitespace-nowrap">{{ column.header }}</span>
+                                        {% endif %}
                                     </th>
                                 {% endfor %}
                                 {% block extra-columns %}
