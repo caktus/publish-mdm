@@ -98,6 +98,11 @@ urlpatterns = [
         name="send-invite",
     ),
     path(
+        "o/<slug:organization_slug>/request-invite/",
+        views.RequestOrganizationInvite.as_view(),
+        name="request-invite",
+    ),
+    path(
         "o/<slug:organization_slug>/users/",
         views.organization_users_list,
         name="organization-users-list",

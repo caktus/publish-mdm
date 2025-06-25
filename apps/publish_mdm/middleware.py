@@ -1,9 +1,10 @@
 import structlog
 
-from django.http import HttpRequest
+from django.http import HttpRequest, HttpResponseForbidden
 from django.urls import ResolverMatch
 from django.shortcuts import get_object_or_404
 
+from .models import Organization
 from .nav import Breadcrumbs
 
 logger = structlog.getLogger(__name__)
@@ -80,18 +81,35 @@ class OrganizationMiddleware:
         else:
             request.organizations = None
         request.organization = None
+        request.public_signup_organization = None
         # Automatically lookup the current organization
         resolver_match: ResolverMatch = request.resolver_match
+        is_public_signup_request = resolver_match.url_name == "request-invite"
+        if is_public_signup_request:
+            # Anyone can request an invite to an Organization that has public signup enabled
+            organizations = Organization.objects.filter(public_signup_enabled=True)
+        else:
+            organizations = request.organizations
         if (
             "publish_mdm" in resolver_match.namespaces
             and "organization_slug" in resolver_match.captured_kwargs
-            and request.organizations is not None
+            and organizations is not None
         ):
             organization_slug = resolver_match.captured_kwargs["organization_slug"]
-            organization = get_object_or_404(request.organizations, slug=organization_slug)
+            organization = get_object_or_404(organizations, slug=organization_slug)
             logger.debug(
                 "organization_slug detected",
                 organization_slug=organization_slug,
                 organization=organization,
             )
-            request.organization = organization
+            if is_public_signup_request:
+                request.public_signup_organization = organization
+            else:
+                request.organization = organization
+                # Users cannot access some pages in public signup organizations
+                if (
+                    organization.public_signup_enabled
+                    and resolver_match.url_name in ("send-invite", "organization-users-list")
+                    and not request.user.is_superuser
+                ):
+                    return HttpResponseForbidden()

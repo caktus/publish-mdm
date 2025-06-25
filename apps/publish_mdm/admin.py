@@ -182,7 +182,7 @@ class AppUserFormVersionAdmin(admin.ModelAdmin):
 
 @admin.register(Organization)
 class OrganizationAdmin(admin.ModelAdmin):
-    list_display = ("name", "slug", "created_at", "modified_at")
+    list_display = ("name", "slug", "created_at", "modified_at", "public_signup_enabled")
     search_fields = ("name", "slug")
     ordering = ("name",)
     filter_horizontal = ("users",)
