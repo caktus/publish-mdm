@@ -2,7 +2,7 @@ name: Docker
 
 on:
   push:
-    branches: [main]
+    branches: [main, 4669-request-org-invite]
     # Publish semver tags as releases.
     tags: ["v*.*.*"]
 
