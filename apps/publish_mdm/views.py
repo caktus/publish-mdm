@@ -668,7 +668,7 @@ class RequestOrganizationInvite(SendInvite):
         messages.success(
             self.request,
             f"You have been invited to join {form.organization}. "
-            "Pleease check your email for the link to login.",
+            "Please check your email for the link to login.",
         )
         return redirect("/")
 
