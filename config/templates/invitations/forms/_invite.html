@@ -1,6 +1,12 @@
 {% extends "base.html" %}
 {% block content %}
-    <p class="mb-4 dark:text-gray-400">Invite someone to this organization.</p>
+    <p class="mb-4 dark:text-gray-400">
+        {% if request.public_signup_organization %}
+            Request an invitation to join {{ request.public_signup_organization }}.
+        {% else %}
+            Invite someone to this organization.
+        {% endif %}
+    </p>
     <div class="mb-4 grid gap-4 sm:grid-cols-2 md:mb-8">
         {{ form.media }}
         <form method="post" class="max-w-2xl">
@@ -15,10 +21,15 @@
                     </div>
                 {% endfor %}
                 <div class="flex items-center space-x-4">
-                    <button type="submit" class="btn btn-outline btn-primary">Send invite</button>
-                    <a type="button"
-                       class="btn btn-outline"
-                       href="{{ request.organization.get_absolute_url }}">Cancel</a>
+                    {% if request.public_signup_organization %}
+                        <button type="submit" class="btn btn-outline btn-primary">Request invite</button>
+                        <a type="button" class="btn btn-outline" href="{% url 'home' %}">Cancel</a>
+                    {% else %}
+                        <button type="submit" class="btn btn-outline btn-primary">Send invite</button>
+                        <a type="button"
+                           class="btn btn-outline"
+                           href="{{ request.organization.get_absolute_url }}">Cancel</a>
+                    {% endif %}
                 </div>
             </div>
         </form>

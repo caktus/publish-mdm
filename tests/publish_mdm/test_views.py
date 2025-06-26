@@ -1356,6 +1356,15 @@ class TestOrganizationUsersList(ViewTestBase):
         # Organization users should be unchanged
         assert organization.users.count() == 1
 
+    def test_not_accessible_for_public_signup_org(self, client, url, user, organization):
+        """Ensure the page is not accessible if the organization has public
+        signup enabled.
+        """
+        organization.public_signup_enabled = True
+        organization.save()
+        response = client.get(url)
+        assert response.status_code == 403
+
 
 class TestSendOrganizationInvite(ViewTestBase):
     @pytest.fixture
@@ -1373,10 +1382,18 @@ class TestSendOrganizationInvite(ViewTestBase):
             },
         )
 
-    def test_get(self, client, url, user):
+    def test_get(self, client, url, user, organization):
         response = client.get(url)
         assert response.status_code == 200
         assert isinstance(response.context.get("form"), OrganizationInviteForm)
+        if "request-invite" in url:
+            assertContains(response, "Request an invite")
+            assertContains(response, f"Request an invitation to join {organization}.")
+            assertNotContains(response, "Send an invite")
+        else:
+            assertContains(response, "Send an invite")
+            assertContains(response, "Invite someone to this organization.")
+            assertNotContains(response, "Request an invite")
 
     def valid_form(self, client, url, user, organization, data, mailoutbox):
         response = client.post(url, data=data, follow=True)
@@ -1385,17 +1402,21 @@ class TestSendOrganizationInvite(ViewTestBase):
         qs = organization.organizationinvitation_set.filter(email=data["email"])
         assert qs.count() == 1
         invitation = qs.get()
-        assert invitation.inviter == user
+        if "request-invite" not in url:
+            assert invitation.inviter == user
         assert not invitation.accepted
         assert invitation.sent is not None
         assert not invitation.key_expired()
         # Ensure an invitation email was sent
         assert len(mailoutbox) == 1
         assert mailoutbox[0].to == [data["email"]]
-        # Ensure the user is redirected to the organization home page
+        # Ensure the user is redirected to the organization home page, or the
+        # main homepage if it's the "request invite" page
         assert response.redirect_chain == [
             (
-                reverse("publish_mdm:organization-home", args=[organization.slug]),
+                reverse("home")
+                if "request-invite" in url
+                else reverse("publish_mdm:organization-home", args=[organization.slug]),
                 302,
             )
         ]
@@ -1486,6 +1507,59 @@ class TestSendOrganizationInvite(ViewTestBase):
             mailoutbox,
         )
         assert not OrganizationInvitation.objects.exists()
+
+    def test_not_accessible_for_public_signup_org(self, client, url, user, organization):
+        """Ensure the page is not accessible if the organization has public
+        signup enabled.
+        """
+        organization.public_signup_enabled = True
+        organization.save()
+        response = client.get(url)
+        assert response.status_code == 403
+
+
+@pytest.mark.parametrize("user", [False, True], indirect=True)
+class TestRequestOrganizationInvite(TestSendOrganizationInvite):
+    @pytest.fixture
+    def user(self, request, client):
+        if request.param:
+            user = UserFactory()
+            user.save()
+            client.force_login(user=user)
+            return user
+
+    @pytest.fixture
+    def organization(self):
+        return OrganizationFactory(public_signup_enabled=True)
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse(
+            "publish_mdm:request-invite",
+            kwargs={
+                "organization_slug": organization.slug,
+            },
+        )
+
+    def test_login_required(self, client, url, user):
+        """Ensure login is NOT required, but even logged in users can access
+        the page.
+        """
+        response = client.get(url)
+        assert response.status_code == 200
+
+    def test_not_accessible_for_public_signup_org(self, user):
+        # Override the test from the parent class, which is not needed here
+        pass
+
+    def test_not_accessible_for_non_public_signup_org(self, client, url, user, organization):
+        """Ensure the page is not accessible if the organization does not have public
+        signup enabled.
+        """
+        organization.public_signup_enabled = False
+        organization.save()
+        response = client.get(url)
+        assert response.status_code == 404
 
 
 @pytest.mark.django_db

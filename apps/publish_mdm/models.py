@@ -51,6 +51,10 @@ class Organization(AbstractBaseModel):
     name = models.CharField(max_length=255)
     slug = models.SlugField(max_length=255, unique=True)
     users = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="organizations")
+    public_signup_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable a public sign-up page, where anyone can enter an email address to receive an invite.",
+    )
 
     def __str__(self):
         return self.name

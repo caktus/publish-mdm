@@ -642,6 +642,37 @@ class SendOrganizationInvite(SendInvite):
         return redirect(invitation.organization.get_absolute_url())
 
 
+class RequestOrganizationInvite(SendInvite):
+    def dispatch(self, request, *args, **kwargs):
+        # Login not required
+        return super(SendInvite, self).dispatch(request, *args, **kwargs)
+
+    def get_form_kwargs(self):
+        # Add the current organization to the form kwargs. Will be used during form validation
+        return super().get_form_kwargs() | {"organization": self.request.public_signup_organization}
+
+    def get_context_data(self, **kwargs):
+        # Add breadcrumbs to the context data
+        return super().get_context_data(**kwargs) | {
+            "breadcrumbs": Breadcrumbs.from_items(
+                request=self.request,
+                items=[("Request an invite", "request-invite")],
+            )
+        }
+
+    def form_valid(self, form):
+        # Create the OrganizationInvitation object and send out the email
+        email = form.cleaned_data["email"]
+        invitation = Invitation.create(email=email, organization=form.organization)
+        invitation.send_invitation(self.request)
+        messages.success(
+            self.request,
+            f"You have been invited to join {form.organization}. "
+            "Please check your email for the link to login.",
+        )
+        return redirect("/")
+
+
 class AcceptOrganizationInvite(AcceptInvite):
     """Accept an invitation to join an Organization."""
 
