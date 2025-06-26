@@ -665,7 +665,11 @@ class RequestOrganizationInvite(SendInvite):
         email = form.cleaned_data["email"]
         invitation = Invitation.create(email=email, organization=form.organization)
         invitation.send_invitation(self.request)
-        messages.success(self.request, f"You have been invited to join {form.organization}.")
+        messages.success(
+            self.request,
+            f"You have been invited to join {form.organization}. "
+            "Pleease check your email for the link to login.",
+        )
         return redirect("/")
 
 
