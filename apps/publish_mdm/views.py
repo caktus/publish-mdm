@@ -158,7 +158,13 @@ def form_template_list(request: HttpRequest, organization_slug, odk_project_pk):
             items=[("Form Templates", "form-template-list")],
         ),
     }
-    return render(request, "publish_mdm/form_template_list.html", context)
+
+    if request.htmx:
+        template = "patterns/tables/table-partial.html"
+    else:
+        template = "publish_mdm/form_template_list.html"
+
+    return render(request, template, context)
 
 
 @login_required
@@ -200,6 +206,11 @@ def form_template_detail(
         ),
         "versions_table": versions_table,
     }
+
+    if request.htmx:
+        # A HTMX request from clicking pagination buttons in the Version History table
+        return render(request, "patterns/tables/table-partial.html", {"table": versions_table})
+
     return render(request, "publish_mdm/form_template_detail.html", context)
 
 
@@ -748,7 +759,13 @@ def central_servers_list(request: HttpRequest, organization_slug):
             items=[("Central Servers", "central-servers-list")],
         ),
     }
-    return render(request, "publish_mdm/central_servers_list.html", context)
+
+    if request.htmx:
+        template = "patterns/tables/table-partial.html"
+    else:
+        template = "publish_mdm/central_servers_list.html"
+
+    return render(request, template, context)
 
 
 @login_required
@@ -882,7 +899,7 @@ def devices_list(request: HttpRequest, organization_slug):
         ),
         "enroll_form": DeviceEnrollmentQRCodeForm(request.organization),
         "byod_form": BYODDeviceEnrollmentForm(request.organization, prefix="byod"),
-        "devices_list_messages": devices_list_messages,
+        "table_messages": devices_list_messages,
         "filter": filter_,
         "search_form": search_form,
     }
