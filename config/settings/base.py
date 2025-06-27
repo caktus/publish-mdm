@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "import_export",
     "template_partials",
     "invitations",
+    "slippers",
     # Local
     "apps.publish_mdm",
     "apps.mdm",
