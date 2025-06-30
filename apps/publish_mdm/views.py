@@ -12,7 +12,6 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.html import mark_safe
 from django.utils.timezone import localdate
-from django.views.decorators.cache import cache_page
 from django_tables2.config import RequestConfig
 from import_export.results import RowResult
 from import_export.tmp_storages import MediaStorage
@@ -1094,7 +1093,6 @@ def add_byod_device(request: HttpRequest, organization_slug):
     )
 
 
-@cache_page(60 * 60)
 @login_required
 def check_mdm_license_limit(request: HttpRequest):
     """Checks if the TinyMDM account's device limit has been reached. If it has
