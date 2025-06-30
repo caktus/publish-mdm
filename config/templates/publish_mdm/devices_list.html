@@ -20,7 +20,9 @@
                     <button type="button"
                             class="btn btn-outline btn-primary flex items-center justify-center text-sm px-4 py-2"
                             data-modal-target="qr-codes-modal"
-                            data-modal-toggle="qr-codes-modal">
+                            data-modal-toggle="qr-codes-modal"
+                            hx-get="{% url 'publish_mdm:check-mdm-license-limit' %}"
+                            hx-target="#license-limit-messages">
                         <svg class="w-[20px] h-[20px] mr-2"
                              aria-hidden="true"
                              xmlns="http://www.w3.org/2000/svg"
@@ -82,6 +84,7 @@
                             </button>
                         </div>
                         <div x-data="{device: null}" class="p-4 md:p-5">
+                            <div id="license-limit-messages"></div>
                             <div class="flex w-full flex-col md:flex-row justify-center items-center space-x-0 md:space-x-2">
                                 <label class="font-medium text-gray-900 dark:text-white">Select a device type:</label>
                                 <div class="flex items-center">

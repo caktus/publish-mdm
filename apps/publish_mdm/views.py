@@ -12,6 +12,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.html import mark_safe
 from django.utils.timezone import localdate
+from django.views.decorators.cache import cache_page
 from django_tables2.config import RequestConfig
 from import_export.results import RowResult
 from import_export.tmp_storages import MediaStorage
@@ -33,6 +34,7 @@ from requests.exceptions import RequestException
 from apps.mdm.models import Device, FirmwareSnapshot, Fleet, Policy
 from apps.mdm.tasks import (
     add_group_to_policy,
+    check_license_limit,
     create_group,
     create_user,
     get_enrollment_qr_code,
@@ -1090,3 +1092,32 @@ def add_byod_device(request: HttpRequest, organization_slug):
         "includes/device_enrollment_form.html",
         {"form": form, "enrollment_messages": enrollment_messages},
     )
+
+
+@cache_page(60 * 60)
+@login_required
+def check_mdm_license_limit(request: HttpRequest):
+    """Checks if the TinyMDM account's device limit has been reached. If it has
+    been reached, returns HTML for displaying an error message.
+    """
+    message = None
+    if session := get_tinymdm_session():
+        try:
+            limit, enrolled = check_license_limit(session)
+        except RequestException as e:
+            message = mark_safe(
+                "The following TinyMDM API error occurred while checking if the "
+                "TinyMDM license limit has been reached:"
+                f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
+            )
+        else:
+            if enrolled >= limit:
+                message = "The TinyMDM account's license limit has been reached."
+    else:
+        message = "Unable to check if the TinyMDM license limit has been reached."
+    if message:
+        message = messages.Message(messages.ERROR, message)
+        return render(
+            request, "includes/messages.html", {"messages": [message], "id_prefix": "license-limit"}
+        )
+    return HttpResponse()

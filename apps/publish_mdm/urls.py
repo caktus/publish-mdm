@@ -157,4 +157,9 @@ urlpatterns = [
         views.add_byod_device,
         name="add-byod-device",
     ),
+    path(
+        "check-mdm-license-limit/",
+        views.check_mdm_license_limit,
+        name="check-mdm-license-limit",
+    ),
 ]

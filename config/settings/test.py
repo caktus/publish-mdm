@@ -10,3 +10,9 @@ CELERY_TASK_EAGER_PROPAGATES = True
 MEDIA_ROOT = os.path.join(BASE_DIR, "test_media")  # noqa
 
 STORAGES["default"] = {"BACKEND": "django.core.files.storage.FileSystemStorage"}  # noqa
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.dummy.DummyCache",
+    }
+}

@@ -468,3 +468,23 @@ class TestTasks:
             assert expected_api_error in session.api_errors
             if response_json is not None:
                 assert response.json() == response_json
+
+    def test_check_license_limit(self, requests_mock, set_tinymdm_env_vars):
+        """Ensures check_license_limit() makes the expected API requests and
+        returns a tuple with the devices limit and the number of enrolled devices.
+        """
+        limit = 10
+        enrolled = 8
+        account_info_request = requests_mock.get(
+            "https://www.tinymdm.net/api/v1/enterprise/info", json={"paid_licence": limit}
+        )
+        devices_request = requests_mock.get(
+            "https://www.tinymdm.net/api/v1/devices",
+            json={"count": 8},
+        )
+        session = tasks.get_tinymdm_session()
+        result = tasks.check_license_limit(session)
+
+        assert account_info_request.called_once
+        assert devices_request.called_once
+        assert result == (limit, enrolled)
