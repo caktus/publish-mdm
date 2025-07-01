@@ -594,7 +594,7 @@ class DeviceEnrollmentQRCodeForm(PlatformFormMixin, forms.Form):
             attrs={
                 "hx-trigger": "change",
                 "hx-target": "#qr-code",
-                "hx-swap": "outerHTML",
+                "hx-swap": "innerHTML",
                 "hx-indicator": ".loading",
             }
         ),

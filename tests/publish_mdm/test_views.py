@@ -2685,3 +2685,47 @@ class TestBYODDeviceEnrollment(ViewTestBase):
             "name": ["This field is required."],
             "email": ["This field is required."],
         }
+
+
+class TestCheckMDMLicenseLimit(ViewTestBase):
+    """Test the check_mdm_license_limit view."""
+
+    @pytest.fixture
+    def url(self):
+        return reverse("publish_mdm:check-mdm-license-limit")
+
+    def test_limit_reached(self, client, url, user, mocker, set_tinymdm_env_vars):
+        mock_check_license_limit = mocker.patch(
+            "apps.publish_mdm.views.check_license_limit", return_value=(5, 5)
+        )
+        response = client.get(url)
+        mock_check_license_limit.assert_called_once()
+        assertContains(response, "The TinyMDM account's license limit has been reached.", html=True)
+
+    def test_limit_not_reached(self, client, url, user, mocker, set_tinymdm_env_vars):
+        mock_check_license_limit = mocker.patch(
+            "apps.publish_mdm.views.check_license_limit", return_value=(5, 4)
+        )
+        response = client.get(url)
+        mock_check_license_limit.assert_called_once()
+        assert response.content == b""
+
+    def test_api_error(self, client, url, user, mocker, set_tinymdm_env_vars):
+        api_error = HTTPError("error")
+        mock_check_license_limit = mocker.patch(
+            "apps.publish_mdm.views.check_license_limit", side_effect=api_error
+        )
+        response = client.get(url)
+        mock_check_license_limit.assert_called_once()
+        assertContains(
+            response,
+            "The following TinyMDM API error occurred while checking if the "
+            "TinyMDM license limit has been reached:"
+            f'<code class="block text-xs mt-2">{api_error}</code>',
+        )
+
+    def test_no_api_credentials(self, client, url, user, mocker):
+        mock_check_license_limit = mocker.patch("apps.publish_mdm.views.check_license_limit")
+        response = client.get(url)
+        mock_check_license_limit.assert_not_called()
+        assertContains(response, "Unable to check if the TinyMDM license limit has been reached.")
