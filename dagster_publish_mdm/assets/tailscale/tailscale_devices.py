@@ -82,19 +82,23 @@ def tailscale_insert_and_update_devices(context: dg.AssetExecutionContext) -> tu
     )
     return updated_devices, new_devices
 
+
 @dg.asset(
     group_name="tailscale_device_prunning_assets",
     deps=["tailscale_device_snapshot"],
     description="Prunes devices with no activity for over 90 days",
 )
 def stale_tailscale_devices(
-    context: dg.AssetExecutionContext, tailscale_device_snapshot: dict) -> list:
+    context: dg.AssetExecutionContext, tailscale_device_snapshot: dict
+) -> list:
     """Scan for old tailscale devices"""
 
     context.log.info("Scanning for stale devices...")
 
     now = datetime.now(timezone.utc)
-    time_delta = now - timedelta(minutes=10) # Currently set to 10 minutes to enable testing. will be set to days=90 in prod
+    time_delta = now - timedelta(
+        minutes=10
+    )  # Currently set to 10 minutes to enable testing. will be set to days=90 in prod
     stale_devices = []
 
     for device in tailscale_device_snapshot["devices"]:
@@ -113,15 +117,15 @@ def stale_tailscale_devices(
     context.add_output_metadata({"Stale Devices Preview": stale_devices[:2]})
     return stale_devices
 
+
 @dg.asset(
     group_name="tailscale_device_prunning_assets",
     deps=["stale_tailscale_devices"],
     description="Prunes devices with no activity for over 90 days",
 )
 def pruned_stale_tailscale_devices(
-    context: dg.AssetExecutionContext, 
-    stale_tailscale_devices: list,
-    tailscale: TailscaleResource) -> None:
+    context: dg.AssetExecutionContext, stale_tailscale_devices: list, tailscale: TailscaleResource
+) -> None:
     """Prunes old tailscale devices"""
 
     if not stale_tailscale_devices:
@@ -139,6 +143,8 @@ def pruned_stale_tailscale_devices(
             if response.status_code == 200:
                 context.log.info(f"Deleted device: {hostname} (ID: {device_id}) for user: {user}")
             else:
-                context.log.warning(f"Failed to delete {hostname}: (ID: {device_id}) {response.status_code} - {response.text}")
+                context.log.warning(
+                    f"Failed to delete {hostname}: (ID: {device_id}) {response.status_code} - {response.text}"
+                )
         except Exception as e:
             context.log.error(f"Error deleting device {hostname}: (ID: {device_id}) {e}")
