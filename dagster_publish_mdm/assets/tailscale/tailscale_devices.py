@@ -94,7 +94,7 @@ def stale_tailscale_devices(
     context.log.info("Scanning for stale devices...")
 
     now = datetime.now(timezone.utc)
-    time_delta = now - timedelta(minutes=10)
+    time_delta = now - timedelta(minutes=10) # Currently set to 10 minutes to enable testing. will be set to days=90 in prod
     stale_devices = []
 
     for device in tailscale_device_snapshot["devices"]:

@@ -22,7 +22,7 @@ tinymdm_job = dg.define_asset_job(name="tinymdm_job", selection="push_tinymdm_de
 tailscale_device_deletion_schedule = dg.ScheduleDefinition(
     name="tailscale_device_deletion_schedule",
     target=dg.AssetSelection.groups("tailscale_device_prunning_assets") | dg.AssetSelection.assets("tailscale_device_snapshot"),
-    cron_schedule="*/10 * * * *",
+    cron_schedule="*/10 * * * *", # Currently set to every 10 minutes for testing. Will be set to 0 2 * * * in prod
     execution_timezone="Africa/Tripoli",
     default_status=dg.DefaultScheduleStatus.RUNNING,
 )
