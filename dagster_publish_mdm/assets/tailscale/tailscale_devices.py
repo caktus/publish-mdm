@@ -4,6 +4,7 @@ import dagster as dg
 import django
 
 from dagster_publish_mdm.resources.tailscale import TailscaleResource
+from datetime import datetime, timedelta, timezone
 
 django.setup()
 
@@ -80,3 +81,64 @@ def tailscale_insert_and_update_devices(context: dg.AssetExecutionContext) -> tu
         f"Updated {updated_devices} and inserted {new_devices} devices into tailscale_device"
     )
     return updated_devices, new_devices
+
+@dg.asset(
+    group_name="tailscale_device_prunning_assets",
+    deps=["tailscale_device_snapshot"],
+    description="Prunes devices with no activity for over 90 days",
+)
+def stale_tailscale_devices(
+    context: dg.AssetExecutionContext, tailscale_device_snapshot: dict) -> list:
+    """Scan for old tailscale devices"""
+
+    context.log.info("Scanning for stale devices...")
+
+    now = datetime.now(timezone.utc)
+    time_delta = now - timedelta(minutes=10)
+    stale_devices = []
+
+    for device in tailscale_device_snapshot["devices"]:
+        last_seen = device.get("lastSeen")
+        hostname = device.get("hostname")
+        device_id = device.get("id")
+
+        try:
+            seen_time = datetime.fromisoformat(last_seen.replace("Z", "+00:00"))
+            if seen_time < time_delta:
+                context.log.info(f"Device {hostname} last seen at {seen_time} — marking as stale.")
+                stale_devices.append(device)
+        except Exception as e:
+            context.log.warning(f"Failed to process device {hostname}: (ID: {device_id}) {e}")
+
+    context.add_output_metadata({"Stale Devices Preview": stale_devices[:2]})
+    return stale_devices
+
+@dg.asset(
+    group_name="tailscale_device_prunning_assets",
+    deps=["stale_tailscale_devices"],
+    description="Prunes devices with no activity for over 90 days",
+)
+def pruned_stale_tailscale_devices(
+    context: dg.AssetExecutionContext, 
+    stale_tailscale_devices: list,
+    tailscale: TailscaleResource) -> None:
+    """Prunes old tailscale devices"""
+
+    if not stale_tailscale_devices:
+        context.log.info("No stale devices to prune.")
+        return
+
+    context.log.info(f"Pruning {len(stale_tailscale_devices)} devices")
+
+    for device in stale_tailscale_devices:
+        device_id = device.get("id")
+        hostname = device.get("hostname")
+        user = device.get("user")
+        try:
+            response = tailscale.delete(path=f"device/{device_id}")
+            if response.status_code == 200:
+                context.log.info(f"Deleted device: {hostname} (ID: {device_id}) for user: {user}")
+            else:
+                context.log.warning(f"Failed to delete {hostname}: (ID: {device_id}) {response.status_code} - {response.text}")
+        except Exception as e:
+            context.log.error(f"Error deleting device {hostname}: (ID: {device_id}) {e}")
