@@ -19,6 +19,14 @@ tinymdm_schedule = dg.ScheduleDefinition(
 )
 tinymdm_job = dg.define_asset_job(name="tinymdm_job", selection="push_tinymdm_device_config")
 
+tailscale_device_deletion_schedule = dg.ScheduleDefinition(
+    name="tailscale_device_deletion_schedule",
+    target=dg.AssetSelection.groups("tailscale_device_prunning_assets") | dg.AssetSelection.assets("tailscale_device_snapshot"),
+    cron_schedule="*/10 * * * *",
+    execution_timezone="Africa/Tripoli",
+    default_status=dg.DefaultScheduleStatus.RUNNING,
+)
+
 defs = dg.Definitions(
     assets=all_assets,
     resources={
@@ -28,6 +36,6 @@ defs = dg.Definitions(
             tailnet=dg.EnvVar("TAILSCALE_TAILNET"),
         ),
     },
-    schedules=[tailscale_schedule, tinymdm_schedule],
+    schedules=[tailscale_schedule, tinymdm_schedule, tailscale_device_deletion_schedule],
     jobs=[tinymdm_job],
 )
