@@ -86,7 +86,7 @@ def tailscale_insert_and_update_devices(context: dg.AssetExecutionContext) -> tu
 @dg.asset(
     group_name="tailscale_device_prunning_assets",
     deps=["tailscale_device_snapshot"],
-    description="Prunes devices with no activity for over 90 days",
+    description="Scans devices with no activity for over 90 days",
 )
 def stale_tailscale_devices(
     context: dg.AssetExecutionContext, tailscale_device_snapshot: dict
@@ -97,8 +97,8 @@ def stale_tailscale_devices(
 
     now = datetime.now(timezone.utc)
     time_delta = now - timedelta(
-        minutes=10
-    )  # Currently set to 10 minutes to enable testing. will be set to days=90 in prod
+        minutes=30
+    )  # Currently set to 30 minutes to enable testing. will be set to days=90 in prod
     stale_devices = []
 
     for device in tailscale_device_snapshot["devices"]:
