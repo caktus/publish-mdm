@@ -51,6 +51,12 @@ class AndroidEnterprise(MDM):
         )
 
     def execute(self, resource_method, raise_for_status=True):
+        """Executes an API request. In case of an error response, add a api_error
+        attribute (a MDMAPIError object) to the exception raised by the execute()
+        call. If raise_for_status is passed and it's falsy, this function will not
+        raise an exception for an error response, but will instead add an MDMAPIError
+        object to the api_errors list.
+        """
         try:
             return resource_method.execute()
         except HttpError as e:
@@ -66,6 +72,11 @@ class AndroidEnterprise(MDM):
             self.api_errors.append(api_error)
 
     def get_devices(self):
+        """Gets all the devices enrolled in the enterprise. It's not possible to
+        request devices for a specific policy or fleet.
+        """
+        # We cache the devices, mostly so that we don't make repeated API requests
+        # when calling sync_fleets
         if hasattr(self, "_devices"):
             logger.info("Returning cached devices")
             return self._devices
@@ -86,7 +97,8 @@ class AndroidEnterprise(MDM):
         self._devices = devices
         return devices
 
-    def get_devices_for_fleet(self, fleet):
+    def get_devices_for_fleet(self, fleet: Fleet):
+        """Gets the devices linked to a Fleet."""
         current_fleet_device_ids = set()
         other_fleets_device_ids = set()
         for device_id, fleet_id in Device.objects.values_list("device_id", "fleet"):
@@ -98,10 +110,14 @@ class AndroidEnterprise(MDM):
         for device in self.get_devices():
             device["id"] = device["name"].split("/")[-1]
             if device["id"] in current_fleet_device_ids:
+                # The device is currently linked to this Fleet in the DB
                 fleet_devices.append(device)
             elif device["id"] not in other_fleets_device_ids and (
                 enrollment_token_data := device.get("enrollmentTokenData")
             ):
+                # The device has not been assigned to another Fleet in the DB.
+                # Check if it enrolled using an enrollment token created for
+                # this Fleet
                 try:
                     enrollment_token_data = json.loads(enrollment_token_data)
                 except json.JSONDecodeError:
@@ -113,7 +129,10 @@ class AndroidEnterprise(MDM):
                     fleet_devices.append(device)
         return fleet_devices
 
-    def create_enrollment_token(self, fleet):
+    def create_enrollment_token(self, fleet: Fleet):
+        """Creates an enrollment token. A device that enrolls using this token
+        will be added to the specified Fleet when we save it for the first time.
+        """
         if not fleet.pk:
             # We need a Fleet ID to set in the enrollment token's additional data.
             # It will be used to determine which Fleet a Device should be added

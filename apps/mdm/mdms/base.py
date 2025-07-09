@@ -7,6 +7,8 @@ from apps.mdm.models import Device, Fleet
 
 
 class MDM(ABC):
+    """Abstract base class for MDM implementations."""
+
     @abstractproperty
     def name(self):
         pass
