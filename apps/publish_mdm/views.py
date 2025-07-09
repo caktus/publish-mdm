@@ -8,11 +8,12 @@ from django.contrib.postgres.aggregates import ArrayAgg
 from django.db import models, transaction
 from django.db.models import OuterRef, Q, Subquery, Value
 from django.db.models.functions import Lower, NullIf
-from django.http import HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.html import mark_safe
 from django.utils.timezone import localdate
 from django_tables2.config import RequestConfig
+from googleapiclient.errors import Error as GoogleAPIClientError
 from import_export.results import RowResult
 from import_export.tmp_storages import MediaStorage
 from invitations.adapters import get_invitations_adapter
@@ -30,15 +31,8 @@ from pygments.lexers.data import JsonLexer
 from pyodk.errors import PyODKError
 from requests.exceptions import RequestException
 
+from apps.mdm.mdms import get_active_mdm_instance
 from apps.mdm.models import Device, FirmwareSnapshot, Fleet, Policy
-from apps.mdm.tasks import (
-    add_group_to_policy,
-    create_group,
-    create_user,
-    get_enrollment_qr_code,
-    get_tinymdm_session,
-    sync_fleet,
-)
 from apps.tailscale.models import Device as TailscaleDevice
 
 from .etl.load import (
@@ -554,15 +548,15 @@ def create_organization(request: HttpRequest):
         # Create the default fleet
         try:
             organization.create_default_fleet()
-        except RequestException as e:
+        except (GoogleAPIClientError, RequestException) as e:
             logger.debug(
                 "Unable to create the default fleet", organization=organization, exc_info=True
             )
             messages.warning(
                 request,
                 mark_safe(
-                    "The organization was created but its default TinyMDM group "
-                    "could not be created due to the following error:"
+                    f"The organization was created but the following {settings.ACTIVE_MDM['name']} "
+                    "API error occurred while setting up its default Fleet:"
                     f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
                 ),
             )
@@ -792,7 +786,7 @@ def devices_list(request: HttpRequest, organization_slug):
 
     if "sync" in request.POST:
         # Sync devices from the MDM
-        if session := get_tinymdm_session():
+        if active_mdm := get_active_mdm_instance():
             fleets = request.organization.fleets.all()
             logger.info(
                 "Syncing MDM devices from the Devices list page",
@@ -802,8 +796,8 @@ def devices_list(request: HttpRequest, organization_slug):
             synced = 0
             for fleet in fleets:
                 try:
-                    sync_fleet(session, fleet, push_config=False)
-                except RequestException as e:
+                    active_mdm.sync_fleet(fleet, push_config=False)
+                except (GoogleAPIClientError, RequestException) as e:
                     logger.debug(
                         "Unable to sync fleet",
                         fleet=fleet,
@@ -866,9 +860,11 @@ def devices_list(request: HttpRequest, organization_slug):
             items=[("Devices", "devices-list")],
         ),
         "enroll_form": DeviceEnrollmentQRCodeForm(request.organization),
-        "byod_form": BYODDeviceEnrollmentForm(request.organization, prefix="byod"),
         "devices_list_messages": devices_list_messages,
     }
+
+    if settings.ACTIVE_MDM["name"] == "TinyMDM":
+        context["byod_form"] = BYODDeviceEnrollmentForm(request.organization, prefix="byod")
 
     template = "publish_mdm/devices_list.html"
     if request.htmx:
@@ -900,12 +896,12 @@ def fleets_list(request: HttpRequest, organization_slug):
 def add_fleet(request: HttpRequest, organization_slug):
     """Add a Fleet."""
     default_policy = Policy.get_default()
-    session = get_tinymdm_session()
+    active_mdm = get_active_mdm_instance()
 
-    if not default_policy or not session:
+    if not default_policy or not active_mdm:
         logger.warning(
-            "Cannot create Fleets. Please set up a default TinyMDM policy "
-            f"({default_policy=}) and/or credentials ({session=})."
+            f"Cannot create Fleets. Please set up a default {active_mdm} policy "
+            f"({default_policy=}) and/or credentials ({active_mdm.is_configured=})."
         )
         messages.error(
             request, "Sorry, cannot create a fleet at this time. Please try again later."
@@ -918,12 +914,12 @@ def add_fleet(request: HttpRequest, organization_slug):
     if request.method == "POST" and form.is_valid():
         fleet = form.save(commit=False)
 
-        # Create a group in TinyMDM and set the mdm_group_id field
+        # Create a group in the MDM and set the mdm_group_id field
         try:
-            create_group(session, fleet)
+            active_mdm.create_group(fleet)
         except RequestException as e:
             logger.debug(
-                "Unable to create TinyMDM group",
+                f"Unable to create {active_mdm} group",
                 fleet=fleet,
                 organization=request.organization,
                 exc_info=True,
@@ -931,19 +927,19 @@ def add_fleet(request: HttpRequest, organization_slug):
             messages.error(
                 request,
                 mark_safe(
-                    "The fleet has not been saved because its TinyMDM group "
+                    f"The fleet has not been saved because its {active_mdm} group "
                     "could not be created due to the following error:"
                     f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
                 ),
             )
             return redirect("publish_mdm:fleets-list", organization_slug)
 
-        # Get the TinyMDM enrollment QR code for the group
+        # Get the MDM enrollment QR code for the fleet
         try:
-            get_enrollment_qr_code(session, fleet)
-        except RequestException as e:
+            active_mdm.get_enrollment_qr_code(fleet)
+        except (GoogleAPIClientError, RequestException) as e:
             logger.debug(
-                "Unable to get the TinyMDM enrollment QR code",
+                f"Unable to get the {active_mdm} enrollment QR code",
                 fleet=fleet,
                 organization=request.organization,
                 policy=fleet.policy,
@@ -952,18 +948,18 @@ def add_fleet(request: HttpRequest, organization_slug):
             messages.warning(
                 request,
                 mark_safe(
-                    "The fleet has been saved but we could not get its TinyMDM "
+                    f"The fleet has been saved but we could not get its {active_mdm} "
                     "enrollment QR code due to the following error:"
                     f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
                 ),
             )
 
-        # Add the TinyMDM group to the default policy
+        # Add the MDM group to the default policy
         try:
-            add_group_to_policy(session, fleet)
+            active_mdm.add_group_to_policy(fleet)
         except RequestException as e:
             logger.debug(
-                "Unable to add the TinyMDM group to policy",
+                f"Unable to add the {active_mdm} group to policy",
                 fleet=fleet,
                 organization=request.organization,
                 policy=fleet.policy,
@@ -973,7 +969,7 @@ def add_fleet(request: HttpRequest, organization_slug):
                 request,
                 mark_safe(
                     "The fleet has been saved but it could not be added to the "
-                    f"{fleet.policy.name} policy in TinyMDM due to the following error:"
+                    f"{fleet.policy.name} policy in {active_mdm} due to the following error:"
                     f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
                 ),
             )
@@ -1031,14 +1027,14 @@ def fleet_qr_code(request: HttpRequest, organization_slug):
     error = None
     if form.is_valid():
         fleet = form.cleaned_data["fleet"]
-        if fleet and not fleet.enroll_qr_code:
-            if session := get_tinymdm_session():
-                # The QR code is not saved. Get it via the TinyMDM API and save it
+        if fleet and (not fleet.enroll_qr_code or fleet.enroll_token_expired):
+            if active_mdm := get_active_mdm_instance():
+                # The QR code is not saved. Get it from the MDM and save it
                 try:
-                    get_enrollment_qr_code(session, fleet)
-                except RequestException as e:
+                    active_mdm.get_enrollment_qr_code(fleet)
+                except (RequestException, GoogleAPIClientError) as e:
                     error = mark_safe(
-                        "The following TinyMDM API error occurred. Please try again later:"
+                        f"The following {active_mdm} API error occurred. Please try again later:"
                         f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
                     )
                 else:
@@ -1056,14 +1052,16 @@ def add_byod_device(request: HttpRequest, organization_slug):
     Fleet. If successful, the user should receive an email from TinyMDM with
     instructions on how to enroll a device.
     """
+    if settings.ACTIVE_MDM["name"] != "TinyMDM":
+        raise Http404
     form = BYODDeviceEnrollmentForm(request.organization, request.POST or None, prefix="byod")
     enrollment_messages = []
     if form.is_valid():
         success = False
         error = None
-        if session := get_tinymdm_session():
+        if active_mdm := get_active_mdm_instance():
             try:
-                create_user(session, **form.cleaned_data)
+                active_mdm.create_user(**form.cleaned_data)
             except RequestException as e:
                 api_error = getattr(e, "api_error", None)
                 if api_error and api_error.url.endswith("/users") and api_error.status_code == 409:

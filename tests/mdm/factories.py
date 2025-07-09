@@ -2,6 +2,7 @@ import datetime as dt
 
 import factory
 import faker
+from django.conf import settings
 
 from apps.mdm.models import Device, DeviceSnapshot, FirmwareSnapshot, Fleet, Policy
 from tests.publish_mdm.factories import OrganizationFactory, ProjectFactory
@@ -15,6 +16,7 @@ class PolicyFactory(factory.django.DjangoModelFactory):
 
     name = factory.Faker("word")
     policy_id = factory.Faker("word")
+    mdm = factory.LazyAttribute(lambda _: settings.ACTIVE_MDM["name"])
 
 
 class FleetFactory(factory.django.DjangoModelFactory):
@@ -36,8 +38,16 @@ class DeviceFactory(factory.django.DjangoModelFactory):
     fleet = factory.SubFactory(FleetFactory)
     serial_number = factory.Faker("word")
     app_user_name = factory.Faker("word")
-    name = factory.Faker("word")
-    device_id = factory.Sequence(lambda _: fake.unique.word())
+    name = factory.LazyAttribute(
+        lambda obj: f"enterprises/test/devices/{fake.unique.pystr()}"
+        if obj.fleet.policy.mdm == "Android Enterprise"
+        else fake.word()
+    )
+    device_id = factory.LazyAttribute(
+        lambda obj: obj.name.split("/")[-1]
+        if obj.fleet.policy.mdm == "Android Enterprise"
+        else fake.unique.word()
+    )
 
 
 class DeviceSnapshotFactory(factory.django.DjangoModelFactory):

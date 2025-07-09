@@ -4,13 +4,14 @@ import requests
 
 django.setup()
 
+from apps.mdm.mdms import get_active_mdm_instance  # noqa: E402
 from apps.mdm.models import Device  # noqa: E402
-from apps.mdm.tasks import get_tinymdm_session, push_device_config, sync_fleets  # noqa: E402
 
 
 @dg.asset(description="Get a list of devices from TinyMDM", group_name="tinymdm_assets")
 def tinymdm_device_snapshot():
-    sync_fleets(push_config=False)
+    active_mdm = get_active_mdm_instance()
+    active_mdm.sync_fleets(push_config=False)
 
 
 class DeviceConfig(dg.Config):
@@ -27,11 +28,11 @@ def push_tinymdm_device_config(context: dg.AssetExecutionContext, config: Device
     )
     if not devices.exists():
         raise ValueError(f"Devices with IDs {config.device_pks} not found.")
-    if session := get_tinymdm_session():
+    if active_mdm := get_active_mdm_instance():
         failed_pks = []
         for device in devices:
             try:
-                push_device_config(session=session, device=device)
+                active_mdm.push_device_config(device=device)
                 context.log.info(f"Configuration pushed for device {device.device_id}")
             except requests.exceptions.RequestException as e:
                 try:

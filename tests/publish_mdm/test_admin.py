@@ -5,6 +5,7 @@ from pytest_django.asserts import assertContains
 from requests.exceptions import HTTPError
 
 from apps.publish_mdm.models import CentralServer, Organization, Project
+from tests.mdm import TestAllMDMsNoAutouse
 from tests.publish_mdm.factories import (
     CentralServerFactory,
     FormTemplateFactory,
@@ -16,7 +17,7 @@ from tests.publish_mdm.factories import (
 
 
 @pytest.mark.django_db
-class BaseTestAdmin:
+class BaseTestAdmin(TestAllMDMsNoAutouse):
     @pytest.fixture
     def user(self, client):
         user = UserFactory(is_staff=True, is_superuser=True)
@@ -253,7 +254,7 @@ class TestCentralServerAdmin(BaseTestAdmin):
 
 class TestOrganizationAdmin(BaseTestAdmin):
     @pytest.mark.parametrize("api_error", [None, HTTPError("error")])
-    def test_new_organization(self, user, client, mocker, api_error):
+    def test_new_organization(self, user, client, mocker, api_error, all_mdms):
         """Ensures the create_default_fleet() method is called when creating a
         new organization.
         """
@@ -277,8 +278,8 @@ class TestOrganizationAdmin(BaseTestAdmin):
             assertContains(
                 response,
                 (
-                    "The organization was created but its default TinyMDM group "
-                    f"could not be created due to the following error:<br><code>{api_error}</code>"
+                    f"The organization was created but the following {settings.ACTIVE_MDM['name']} "
+                    f"API error occurred while setting up its default Fleet:<br><code>{api_error}</code>"
                 ),
             )
 
