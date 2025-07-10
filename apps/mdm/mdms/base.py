@@ -58,7 +58,7 @@ class MDM(ABC):
 
 class MDMAPIError(BaseModel):
     method: str | None = None
-    url: str
+    url: str | None = None
     status_code: int | None = None
     error_data: Any = None
 

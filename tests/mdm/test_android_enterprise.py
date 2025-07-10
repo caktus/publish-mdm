@@ -2,9 +2,12 @@ import datetime as dt
 import json
 
 import faker
+import httplib2
 import pytest
+from googleapiclient.errors import HttpError
+from googleapiclient.http import RequestMockBuilder
 
-from apps.mdm.mdms import AndroidEnterprise
+from apps.mdm.mdms import AndroidEnterprise, MDMAPIError
 from apps.mdm.models import Device
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from tests.mdm import TestAndroidEnterpriseOnly
@@ -44,18 +47,15 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
                 "androidVersion": fake.android_platform_token(),
             }
         if fake.pybool():
+            event_type = fake.random_element(["BATTERY_LEVEL_COLLECTED", "ANOTHER_TYPE"])
             data["powerManagementEvents"] = [
                 {
                     "createTime": "2025-07-09T00:48:50.346Z",
+                    "eventType": event_type,
                     **(
-                        {
-                            "eventType": "BATTERY_LEVEL_COLLECTED",
-                            "batteryLevel": fake.pyint(0, 100),
-                        }
-                        if fake.pybool()
-                        else {
-                            "eventType": "ANOTHER_TYPE",
-                        }
+                        {"batteryLevel": fake.pyint(0, 100)}
+                        if event_type == "BATTERY_LEVEL_COLLECTED"
+                        else {}
                     ),
                 }
             ]
@@ -130,7 +130,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         active_mdm = AndroidEnterprise()
         assert not active_mdm.is_configured
         assert not active_mdm
-        assert active_mdm.enterprise_name == f"enterprises/{active_mdm.enterprise_id}"
+        assert not active_mdm.api
 
     def test_env_variables_set(self, set_mdm_env_vars):
         """Ensure AndroidEnterprise.is_configured property returns True if the
@@ -139,6 +139,27 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         active_mdm = AndroidEnterprise()
         assert active_mdm.is_configured
         assert active_mdm
+        assert active_mdm.api
+        assert active_mdm.enterprise_name == f"enterprises/{active_mdm.enterprise_id}"
+
+    def get_mock_request_builder(self, method_id, response_content=None, response=None):
+        """Creates a RequestMockBuilder that can be used to mock API responses
+        in the Google API Client. The `method_id` should be without the
+        'androidmanagement.enterprises.' prefix. The `response` should be a
+        httplib2.Response object, but can be None for a 200 response.
+        """
+        if response_content:
+            response_content = json.dumps(response_content)
+        else:
+            response_content = ""
+        return RequestMockBuilder(
+            {
+                f"androidmanagement.enterprises.{method_id}": (
+                    response,
+                    response_content.encode(),
+                ),
+            }
+        )
 
     def test_pull_devices(
         self,
@@ -147,8 +168,9 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         fleets,
         devices,
         set_mdm_env_vars,
-        mocker,
+        monkeypatch,
     ):
+        """Ensures calling pull_devices() updates and creates Devices as expected."""
         active_mdm = AndroidEnterprise()
 
         # Existing devices in another fleet should not be updated
@@ -169,7 +191,12 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
                 data["enrollmentTokenData"] = "[]"
             not_in_fleet.append(data)
 
-        mocker.patch.object(active_mdm, "get_devices", return_value=devices_response + not_in_fleet)
+        full_devices_response = {"devices": devices_response + not_in_fleet}
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder("devices.list", full_devices_response),
+        )
         active_mdm.pull_devices(fleet)
 
         assert fleet.devices.count() == 10
@@ -178,7 +205,9 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         # Ensure the devices have the expected data from the API response
         db_devices = Device.objects.in_bulk(field_name="device_id")
         for device in devices_response:
-            db_device = db_devices[device["id"]]
+            expected_device_id = device["name"].split("/")[-1]
+            db_device = db_devices.get(expected_device_id)
+            assert db_device
             assert db_device.serial_number == device["hardwareInfo"]["serialNumber"]
             assert db_device.name == device["name"]
             assert db_device.raw_mdm_device == device
@@ -191,6 +220,47 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             assert snapshot.serial_number == device["hardwareInfo"]["serialNumber"]
             assert snapshot.name == device["name"]
             assert snapshot.last_sync == dt.datetime.fromisoformat(device["lastPolicySyncTime"])
+            assert snapshot.manufacturer == device["hardwareInfo"]["manufacturer"]
+            assert snapshot.enrollment_type == device["managementMode"]
+
+            if sofware_info := device.get("softwareInfo"):
+                assert snapshot.os_version == sofware_info["androidVersion"]
+
+            if power_events := device.get("powerManagementEvents"):
+                assert snapshot.battery_level == power_events[0].get("batteryLevel")
+
+            if apps := device.get("applicationReports"):
+                # Ensure the apps have been saved with the expected data
+                assert {
+                    tuple(i.values()) for i in apps if i.pop("userFacingType") == "USER_FACING"
+                } == set(
+                    snapshot.apps.values_list(
+                        "package_name", "app_name", "version_code", "version_name"
+                    )
+                )
+            else:
+                assert not snapshot.apps.exists()
+
+    def test_get_devices(self, mocker, monkeypatch, set_mdm_env_vars):
+        """Ensures calling get_devices() downloads device data as expected."""
+        active_mdm = AndroidEnterprise()
+        full_devices_response = {"devices": [self.get_raw_mdm_device(DeviceFactory.build())]}
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder("devices.list", full_devices_response),
+        )
+        mock_execute = mocker.patch.object(active_mdm, "execute", wraps=active_mdm.execute)
+        assert not hasattr(active_mdm, "_devices")
+
+        devices = active_mdm.get_devices()
+
+        # Ensure the caching works as expected
+        # Subsequent get_devices() calls should not make an API request
+        assert active_mdm._devices == devices
+        active_mdm.get_devices()
+        active_mdm.get_devices()
+        mock_execute.assert_called_once()
 
     def test_sync_fleet(self, fleet, devices, mocker, set_mdm_env_vars):
         """Ensure calling sync_fleet() calls pull_devices() for the specified fleet
@@ -278,3 +348,30 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
 
         DeviceFactory(fleet=fleet)
         assert not active_mdm.delete_group(fleet)
+
+    @pytest.mark.parametrize("api_error", [(500, None), (499, {"error": {"message": "Reason"}})])
+    @pytest.mark.parametrize("raise_exception", [True, False])
+    def test_execute(self, monkeypatch, set_mdm_env_vars, api_error, raise_exception):
+        """Test handling of API errors in the execute() function."""
+        active_mdm = AndroidEnterprise()
+        status_code, response_json = api_error
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                "devices.list", response_json, httplib2.Response({"status": 400})
+            ),
+        )
+        resource_method = (
+            active_mdm.api.enterprises().devices().list(parent=active_mdm.enterprise_name)
+        )
+        expected_api_error = MDMAPIError(status_code=400, error_data=response_json)
+
+        if raise_exception:
+            # Should raise an exception with its api_error attribute set to an MDMAPIError object
+            with pytest.raises(HttpError) as exc:
+                active_mdm.execute(resource_method, raise_exception)
+            assert exc.value.api_error == expected_api_error
+        else:
+            active_mdm.execute(resource_method, raise_exception)
+            assert expected_api_error in active_mdm.api_errors

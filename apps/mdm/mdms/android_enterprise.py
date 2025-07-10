@@ -19,6 +19,14 @@ logger = structlog.getLogger(__name__)
 SCOPES = ["https://www.googleapis.com/auth/androidmanagement"]
 
 
+class MDMDevice(dict):
+    """A dict for storing device data gotten from the MDM."""
+
+    # This attr will be used to store the device ID extracted from the device name.
+    # It avoids updating the raw data dict gotten via the API
+    id = None
+
+
 class AndroidEnterprise(MDM):
     name = "Android Enterprise"
 
@@ -50,10 +58,10 @@ class AndroidEnterprise(MDM):
             and os.path.isfile(self.service_account_file)
         )
 
-    def execute(self, resource_method, raise_for_status=True):
+    def execute(self, resource_method, raise_exception=True):
         """Executes an API request. In case of an error response, add a api_error
         attribute (a MDMAPIError object) to the exception raised by the execute()
-        call. If raise_for_status is passed and it's falsy, this function will not
+        call. If raise_exception is passed and it's falsy, this function will not
         raise an exception for an error response, but will instead add an MDMAPIError
         object to the api_errors list.
         """
@@ -66,7 +74,7 @@ class AndroidEnterprise(MDM):
                 error_data = None
             api_error = MDMAPIError(url=e.uri, status_code=e.status_code, error_data=error_data)
             logger.debug("Android Enterprise API error", api_error=api_error)
-            if raise_for_status:
+            if raise_exception:
                 e.api_error = api_error
                 raise
             self.api_errors.append(api_error)
@@ -108,11 +116,12 @@ class AndroidEnterprise(MDM):
                 other_fleets_device_ids.add(device_id)
         fleet_devices = []
         for device in self.get_devices():
-            device["id"] = device["name"].split("/")[-1]
-            if device["id"] in current_fleet_device_ids:
+            device = MDMDevice(device)
+            device.id = device["name"].split("/")[-1]
+            if device.id in current_fleet_device_ids:
                 # The device is currently linked to this Fleet in the DB
                 fleet_devices.append(device)
-            elif device["id"] not in other_fleets_device_ids and (
+            elif device.id not in other_fleets_device_ids and (
                 enrollment_token_data := device.get("enrollmentTokenData")
             ):
                 # The device has not been assigned to another Fleet in the DB.
@@ -157,7 +166,7 @@ class AndroidEnterprise(MDM):
         Updates existing devices in our database based on the full list
         of mdm_devices returned from the Android Enterprise API.
         """
-        devices_by_id = {device["id"]: device for device in mdm_devices}
+        devices_by_id = {device.id: device for device in mdm_devices}
         devices_by_serial = {
             device["hardwareInfo"]["serialNumber"]: device for device in mdm_devices
         }
@@ -182,7 +191,7 @@ class AndroidEnterprise(MDM):
                 mdm_device=mdm_device,
             )
             our_device.serial_number = mdm_device["hardwareInfo"]["serialNumber"]
-            our_device.device_id = mdm_device["id"]
+            our_device.device_id = mdm_device.id
             our_device.name = mdm_device["name"]
             our_device.raw_mdm_device = mdm_device
 
@@ -202,7 +211,7 @@ class AndroidEnterprise(MDM):
             Device(
                 fleet=fleet,
                 serial_number=mdm_device["hardwareInfo"]["serialNumber"],
-                device_id=mdm_device["id"],
+                device_id=mdm_device.id,
                 name=mdm_device["name"],
                 raw_mdm_device=mdm_device,
             )
@@ -236,7 +245,7 @@ class AndroidEnterprise(MDM):
                     break
             snapshots.append(
                 DeviceSnapshot(
-                    device_id=mdm_device["id"],
+                    device_id=mdm_device.id,
                     name=mdm_device["name"],
                     serial_number=hardware_info["serialNumber"],
                     manufacturer=hardware_info["manufacturer"],
@@ -291,7 +300,7 @@ class AndroidEnterprise(MDM):
         our_devices = self.update_existing_devices(fleet, mdm_devices)
         our_device_ids = {device.device_id for device in our_devices}
         mdm_devices_to_create = [
-            mdm_device for mdm_device in mdm_devices if mdm_device["id"] not in our_device_ids
+            mdm_device for mdm_device in mdm_devices if mdm_device.id not in our_device_ids
         ]
         self.create_new_devices(fleet, mdm_devices_to_create)
         # Link snapshots to devices
