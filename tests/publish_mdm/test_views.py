@@ -41,6 +41,7 @@ from tests.publish_mdm.factories import (
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
 from apps.publish_mdm.etl.template import VariableTransform
+from apps.publish_mdm.filters import DeviceFilter
 from apps.publish_mdm.forms import (
     AppUserForm,
     AppUserTemplateVariableFormSet,
@@ -55,6 +56,7 @@ from apps.publish_mdm.forms import (
     ProjectForm,
     ProjectSyncForm,
     ProjectTemplateVariableFormSet,
+    SearchForm,
     TemplateVariableFormSet,
 )
 from apps.publish_mdm.models import (
@@ -2034,7 +2036,8 @@ class TestDevicesList(ViewTestBase):
     def test_get(self, client, url, user, organization, htmx):
         # Set up some devices in 2 fleets linked to the current organization
         organization_devices = []
-        for fleet in FleetFactory.create_batch(2, organization=organization):
+        fleets = FleetFactory.create_batch(2, organization=organization)
+        for fleet in fleets:
             # Some devices with values for serial_number and app_user_name
             for device in DeviceFactory.build_batch(5, fleet=fleet):
                 # serial_number and device_id with mixed cases to test matching
@@ -2078,6 +2081,9 @@ class TestDevicesList(ViewTestBase):
 
         # Some devices in another organization. Should not be included in the list
         DeviceFactory.create_batch(3, fleet__organization=OrganizationFactory())
+        # Fleets in the current organization but without devices. Should not be
+        # included in the fleets filter
+        FleetFactory.create_batch(2, organization=organization)
 
         def get_last_seen_vpn(device):
             # The last_seen from the most recent Tailscale Device (by last_seen)
@@ -2132,8 +2138,8 @@ class TestDevicesList(ViewTestBase):
         }
         # All columns are sortable
         assert table.orderable
-        # Not paginated
-        assert not hasattr(table, "paginator")
+        # Is paginated
+        assert hasattr(table, "paginator")
         # Ensure the table is rendered in the page
         assert table.as_html(response.wsgi_request) in response.content.decode()
         # Ensure the correct template is used for htmx requests
@@ -2142,6 +2148,14 @@ class TestDevicesList(ViewTestBase):
         # Ensure the forms for enrolling devices are included in the context
         assert isinstance(response.context.get("enroll_form"), DeviceEnrollmentQRCodeForm)
         assert isinstance(response.context.get("byod_form"), BYODDeviceEnrollmentForm)
+        # Ensure the search form and django-filter Filterset is in the context
+        assert isinstance(response.context.get("search_form"), SearchForm)
+        assert isinstance(response.context.get("filter"), DeviceFilter)
+        # The Fleet choices in the filter should only be the ones with devices
+        filter = response.context["filter"]
+        assert set(filter.form["fleet"].field.choices) == {
+            (fleet.id, f"{fleet.name} (10)") for fleet in fleets
+        }
 
     @pytest.mark.parametrize("num_successful_fleets", [0, 1, 2])
     def test_sync(
@@ -2214,6 +2228,63 @@ class TestDevicesList(ViewTestBase):
         assertContains(response, table.as_html(response.wsgi_request))
         # Ensure an error message is displayed
         assertContains(response, "Unable to sync. Please try again later.")
+
+    def check_list_after_searching_or_filtering(self, response, matching_devices):
+        assert response.status_code == 200
+        # Ensure the devices table is included in the context and it has the
+        # expected devices
+        table = response.context.get("table")
+        assert isinstance(table, Table)
+        rows = table.as_values()
+        next(rows)
+        rows = {tuple(i[:3]) for i in rows}
+        assert len(rows) == len(matching_devices)
+        assert rows == {
+            (
+                i.device_id or None,
+                i.serial_number or None,
+                i.app_user_name or None,
+            )
+            for i in matching_devices
+        }
+
+    @pytest.mark.parametrize("include_fleet_filter", [False, True])
+    def test_search(self, client, url, user, organization, include_fleet_filter):
+        """Ensure searching only lists the matching devices."""
+        fleets = FleetFactory.create_batch(3, organization=organization)
+        matching_devices = []
+        search_term = "xyz123"
+        query_params = {"search": search_term}
+
+        if include_fleet_filter:
+            # We'll also filter by the first fleet
+            query_params["fleet"] = fleets[0].id
+
+        for index, fleet in enumerate(fleets):
+            for field in ["name", "serial_number", "device_id", "app_user_name"]:
+                value = f"{field} {search_term} {index}"
+                device = DeviceFactory(fleet=fleet, **{field: value})
+                if include_fleet_filter and index:
+                    continue
+                matching_devices.append(device)
+            DeviceFactory.create_batch(2, fleet=fleet)
+
+        response = client.get(url, query_params=query_params)
+        self.check_list_after_searching_or_filtering(response, matching_devices)
+
+    def test_filtering(self, client, url, user, organization):
+        """Ensure filtering by fleet only lists the matching devices."""
+        fleets = FleetFactory.create_batch(4, organization=organization)
+        filter_fleet_ids = [i.id for i in fake.random_sample(fleets, 2)]
+        matching_devices = []
+
+        for fleet in fleets:
+            devices = DeviceFactory.create_batch(2, fleet=fleet)
+            if fleet.pk in filter_fleet_ids:
+                matching_devices += devices
+
+        response = client.get(url, query_params={"fleet": filter_fleet_ids})
+        self.check_list_after_searching_or_filtering(response, matching_devices)
 
 
 class TestFleetsList(ViewTestBase):

@@ -1,6 +1,80 @@
 {% load render_table from django_tables2 %}
+{% load querystring from django_tables2 %}
 <div id="inner-table">
     {% block table-header %}
+        {% include "includes/messages.html" with messages=table_messages id_prefix="table-alert" %}
+        {% if search_form or filter or table_header_buttons %}
+            <div class="flex flex-col items-center justify-between mb-4 space-y-3 md:flex-row md:space-y-0 md:space-x-4">
+                {% if search_form %}
+                    <div class="w-full md:w-1/2">
+                        <form class="flex items-center"
+                              hx-get="{% querystring without 'search' 'page' %}"
+                              hx-target="#inner-table"
+                              hx-swap="outerHTML"
+                              hx-push-url="true"
+                              hx-indicator=".progress">
+                            <label for="{{ search_form.search.auto_id }}" class="sr-only">Search</label>
+                            <div class="relative w-full *:[input]:pl-10">
+                                <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                    <svg aria-hidden="true"
+                                         class="w-5 h-5 text-gray-500 dark:text-gray-400"
+                                         fill="currentColor"
+                                         viewbox="0 0 20 20"
+                                         xmlns="http://www.w3.org/2000/svg">
+                                        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                {{ search_form.search }}
+                            </div>
+                        </form>
+                    </div>
+                {% endif %}
+                {% if filter or table_header_buttons %}
+                    <div class="w-full md:w-auto flex flex-col md:flex-row space-y-2 md:space-y-0 items-stretch md:items-center justify-end md:space-x-3 flex-shrink-0">
+                        {{ table_header_buttons }}
+                        {% if filter %}
+                            <div id="filterDropdown"
+                                 class="z-10 hidden min-w-40 p-3 pb-1 bg-white rounded-lg shadow dark:bg-gray-700">
+                                {% for field in filter.form %}
+                                    <h6 class="mb-3 text-gray-900 dark:text-white text-sm font-medium">{{ field.label }}</h6>
+                                    <form hx-trigger="change"
+                                          hx-get="{% querystring without field.name 'page' %}"
+                                          hx-target="#inner-table"
+                                          hx-swap="outerHTML"
+                                          hx-push-url="true"
+                                          hx-indicator=".progress"
+                                          class="space-y-2 text-sm font-medium **:[input]:mr-1">
+                                        {{ field }}
+                                    </form>
+                                {% endfor %}
+                            </div>
+                            <button id="filterDropdownButton"
+                                    data-dropdown-toggle="filterDropdown"
+                                    class="btn btn-outline btn-primary flex items-center justify-center text-sm px-4 py-2"
+                                    type="button">
+                                <svg class="w-[20px] h-[20px] mr-2"
+                                     aria-hidden="true"
+                                     xmlns="http://www.w3.org/2000/svg"
+                                     width="24"
+                                     height="24"
+                                     fill="currentColor"
+                                     viewBox="0 0 24 24">
+                                    <path d="M5.05 3C3.291 3 2.352 5.024 3.51 6.317l5.422 6.059v4.874c0 .472.227.917.613 1.2l3.069 2.25c1.01.742 2.454.036 2.454-1.2v-7.124l5.422-6.059C21.647 5.024 20.708 3 18.95 3H5.05Z" />
+                                </svg>
+                                Filter
+                                <svg class="-mr-1 ml-1.5 w-5 h-5"
+                                     fill="currentColor"
+                                     viewbox="0 0 20 20"
+                                     xmlns="http://www.w3.org/2000/svg"
+                                     aria-hidden="true">
+                                    <path clip-rule="evenodd" fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                                </svg>
+                            </button>
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
     {% endblock table-header %}
     <div class="bg-white sm:rounded-md overflow-x-auto">
         {# Progress indicator #}
@@ -9,4 +83,7 @@
         </div>
         {% render_table table %}
     </div>
+    {% block table-footer %}
+        {{ table_footer }}
+    {% endblock table-footer %}
 </div>
