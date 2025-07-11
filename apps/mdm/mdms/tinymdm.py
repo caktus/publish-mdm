@@ -1,5 +1,4 @@
 import datetime as dt
-import json
 from functools import cached_property
 
 import requests
@@ -253,18 +252,9 @@ class TinyMDM(MDM):
             logger.debug("New device. Cannot sync", device=device)
             return
         logger.debug("Syncing device", device=device)
-        if (
-            device.app_user_name
-            and device.fleet.project
-            and (
-                app_user := device.fleet.project.app_users.filter(name=device.app_user_name).first()
-            )
-        ):
-            qr_code_data = json.dumps(app_user.qr_code_data, separators=(",", ":"))
-        else:
-            qr_code_data = ""
         user_id = device.raw_mdm_device["user_id"]
         url = f"https://www.tinymdm.net/api/v1/users/{user_id}"
+        qr_code_data = device.get_odk_collect_qr_code_string()
         data = {
             "name": f"{device.app_user_name} - {device.device_id}",
             "custom_field_1": qr_code_data,

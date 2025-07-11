@@ -1,7 +1,11 @@
+import json
+
 import structlog
 from django.db import models
 from django.conf import settings
 from django.core.validators import RegexValidator
+from django.template import Context, Template
+from django.utils.html import mark_safe
 from django.utils.timezone import now
 
 logger = structlog.get_logger()
@@ -26,6 +30,12 @@ class Policy(models.Model):
     )
     default_policy = models.BooleanField(default=False)
     mdm = models.CharField(max_length=50, choices=MDMChoices, verbose_name="MDM")
+    json_template = models.TextField(
+        blank=True,
+        verbose_name="JSON template",
+        help_text="A JSON template (using Django template syntax) that can be used "
+        "to create this policy and its child policies.",
+    )
 
     objects = PolicyManager()
     all_mdms = models.Manager()
@@ -60,6 +70,20 @@ class Policy(models.Model):
                 defaults={"name": "Default", "default_policy": True},
             )[0]
         return policy
+
+    def get_policy_data(self, **kwargs):
+        """Generates policy data that can be used to create/update this policy
+        or its child policies in the MDM.
+        """
+        if self.json_template:
+            template = Template(self.json_template)
+            context = Context(kwargs)
+            policy = template.render(context)
+            try:
+                return json.loads(policy)
+            except json.JSONDecodeError:
+                pass
+        return None
 
 
 def enroll_qr_code_path(fleet, filename):
@@ -227,6 +251,26 @@ class Device(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.device_id})"
+
+    def get_odk_collect_qr_code_string(self):
+        """Gets a QR code string that can be used to update the managed configuration
+        for ODK Collect in the MDM.
+        """
+        if (
+            self.app_user_name
+            and self.fleet.project
+            and (app_user := self.fleet.project.app_users.filter(name=self.app_user_name).first())
+        ):
+            return json.dumps(app_user.qr_code_data, separators=(",", ":"))
+        return ""
+
+    @property
+    def odk_collect_qr_code(self):
+        """Gets a ODK Collect QR code string that is safe to insert in the JSON
+        template for creating or updating a policy in the MDM.
+        """
+        # Need to pass the string through dumps() again so the string is properly escaped
+        return mark_safe(json.dumps(self.get_odk_collect_qr_code_string()))
 
 
 class DeviceSnapshotManager(models.Manager):

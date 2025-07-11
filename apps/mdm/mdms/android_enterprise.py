@@ -328,8 +328,61 @@ class AndroidEnterprise(MDM):
         logger.debug("Set latest_snapshot_id on devices")
 
     def push_device_config(self, device: Device):
+        """Create or update a device-specific policy in the MDM based on the
+        json_template of the device's Policy.
+        """
+        if not device.raw_mdm_device:
+            logger.debug("New device. Cannot sync", device=device)
+            return
         logger.debug("Syncing device", device=device)
-        # TODO Simon: Implement syncing device
+        policy_data = device.fleet.policy.get_policy_data(
+            device=device, tailscale_auth_key=os.getenv("TAILSCALE_AUTH_KEY")
+        )
+        if not policy_data:
+            logger.debug(
+                "Could not generate policy data. Cannot sync",
+                device=device,
+                fleet=device.fleet,
+                policy=device.fleet.policy,
+            )
+            return
+        # Create or update a device-specific policy
+        policy_name = f"{self.enterprise_name}/policies/fleet{device.fleet_id}_{device.device_id}"
+        logger.debug(
+            "Create/update policy for device",
+            device=device,
+            policy_name=policy_name,
+            fleet=device.fleet,
+            policy=device.fleet.policy,
+        )
+        self.execute(self.api.enterprises().policies().patch(name=policy_name, body=policy_data))
+        logger.debug("Checking the current policyName for device", device=device)
+        mdm_device = self.execute(self.api.enterprises().devices().get(name=device.name))
+        current_policy_name = mdm_device["policyName"]
+        if current_policy_name != policy_name:
+            # Update the policyName for the device
+            logger.debug(
+                "Updating the policyName for device",
+                device=device,
+                new_policy_name=policy_name,
+                current_policy_name=current_policy_name,
+            )
+            self.execute(
+                self.api.enterprises()
+                .devices()
+                .patch(
+                    name=device.name,
+                    updateMask="policyName",
+                    body={"policyName": policy_name},
+                )
+            )
+            if current_policy_name.endswith(device.device_id):
+                logger.debug(
+                    "Deleting the previous device-specific policy",
+                    device=device,
+                    previous_policy_name=current_policy_name,
+                )
+                self.execute(self.api.enterprises().policies().delete(name=current_policy_name))
 
     def sync_fleet(self, fleet: Fleet, push_config: bool = True):
         """

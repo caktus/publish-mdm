@@ -82,4 +82,13 @@ class Migration(migrations.Migration):
                 verbose_name="MDM Group ID",
             ),
         ),
+        migrations.AddField(
+            model_name="policy",
+            name="json_template",
+            field=models.TextField(
+                blank=True,
+                help_text="A JSON template (using Django template syntax) that can be used to create this policy and its child policies.",
+                verbose_name="JSON template",
+            ),
+        ),
     ]
