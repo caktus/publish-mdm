@@ -473,3 +473,23 @@ class TestTinyMDM(TestTinyMDMOnly):
             assert expected_api_error in active_mdm.api_errors
             if response_json is not None:
                 assert response.json() == response_json
+
+    def test_check_license_limit(self, requests_mock, set_mdm_env_vars):
+        """Ensures check_license_limit() makes the expected API requests and
+        returns a tuple with the devices limit and the number of enrolled devices.
+        """
+        limit = 10
+        enrolled = 8
+        account_info_request = requests_mock.get(
+            "https://www.tinymdm.net/api/v1/enterprise/info", json={"paid_licence": limit}
+        )
+        devices_request = requests_mock.get(
+            "https://www.tinymdm.net/api/v1/devices",
+            json={"count": 8},
+        )
+        active_mdm = TinyMDM()
+        result = active_mdm.check_license_limit()
+
+        assert account_info_request.called_once
+        assert devices_request.called_once
+        assert result == (limit, enrolled)

@@ -594,7 +594,7 @@ class DeviceEnrollmentQRCodeForm(PlatformFormMixin, forms.Form):
             attrs={
                 "hx-trigger": "change",
                 "hx-target": "#qr-code",
-                "hx-swap": "outerHTML",
+                "hx-swap": "innerHTML",
                 "hx-indicator": ".loading",
             }
         ),
@@ -625,3 +625,7 @@ class BYODDeviceEnrollmentForm(PlatformFormMixin, forms.Form):
     def __init__(self, organization, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["fleet"].queryset = organization.fleets.all()
+
+
+class SearchForm(PlatformFormMixin, forms.Form):
+    search = forms.CharField(widget=TextInput(attrs={"placeholder": "Search"}), required=False)

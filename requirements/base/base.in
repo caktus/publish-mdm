@@ -37,6 +37,7 @@ requests
 requests-ratelimiter
 segno
 sentry-sdk
+slippers
 whitenoise
 pygments
 # Dagster

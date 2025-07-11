@@ -414,3 +414,28 @@ class TinyMDM(MDM):
             f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}/users/{user_id}",
             headers={"content-type": "application/json"},
         )
+
+    def check_license_limit(self):
+        """Gets the devices limit as per the TinyMDM account's license and the number
+        of devices currently enrolled.
+        """
+        logger.info("Checking TinyMDM license limit")
+        response = self.request(
+            "GET",
+            "https://www.tinymdm.net/api/v1/enterprise/info",
+            headers={"content-type": "application/json"},
+        )
+        limit = response.json()["paid_licence"]
+        response = self.request(
+            "GET",
+            "https://www.tinymdm.net/api/v1/devices",
+            headers={"content-type": "application/json"},
+        )
+        enrolled = response.json()["count"]
+        logger.info(
+            "TinyMDM license limit check done",
+            limit=limit,
+            enrolled=enrolled,
+            limit_reached=(enrolled >= limit),
+        )
+        return limit, enrolled
