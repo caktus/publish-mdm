@@ -33,6 +33,56 @@ class PolicyAdmin(admin.ModelAdmin):
     list_display = ("name", "policy_id", "default_policy")
     search_fields = ("name", "policy_id")
 
+    def save_model(self, request, obj, form, change):
+        obj.save()
+        if (
+            "json_template" in form.changed_data
+            and obj.json_template
+            and (active_mdm := get_active_mdm_instance())
+            and hasattr(active_mdm, "create_or_update_policy")
+        ):
+            try:
+                active_mdm.create_or_update_policy(obj)
+            except (GoogleAPIClientError, RequestException) as e:
+                logger.debug(
+                    f"Unable to update the policy in {active_mdm}",
+                    policy=obj,
+                    exc_info=True,
+                )
+                messages.warning(
+                    request,
+                    mark_safe(
+                        f"Could not update the policy in {active_mdm} due to "
+                        "the following error:"
+                        f"<br><code>{getattr(e, 'api_error', e)}</code>"
+                    ),
+                )
+            if change:
+                # Update the policies for all related Devices that have a child
+                # policy (generated using this policy's json_template)
+                devices = Device.objects.filter(
+                    fleet__policy=obj, raw_mdm_device__policyName__endswith=models.F("device_id")
+                )
+                logger.debug("Updating child policies", count=len(devices))
+                for device in devices:
+                    try:
+                        active_mdm.push_device_config(device)
+                    except (GoogleAPIClientError, RequestException) as e:
+                        logger.debug(
+                            f"Unable to update the policy for {device} in {active_mdm}",
+                            device=device,
+                            policy=obj,
+                            exc_info=True,
+                        )
+                        messages.warning(
+                            request,
+                            mark_safe(
+                                f"Could not update the policy for {device} in "
+                                f"{active_mdm} due to the following error:"
+                                f"<br><code>{getattr(e, 'api_error', e)}</code>"
+                            ),
+                        )
+
 
 @admin.register(Fleet)
 class FleetAdmin(admin.ModelAdmin):

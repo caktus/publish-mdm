@@ -10,7 +10,7 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from apps.mdm.models import Device, DeviceSnapshot, DeviceSnapshotApp, Fleet
+from apps.mdm.models import Device, DeviceSnapshot, DeviceSnapshotApp, Fleet, Policy
 from apps.publish_mdm.utils import create_qr_code
 
 from .base import MDM, MDMAPIError
@@ -22,9 +22,12 @@ SCOPES = ["https://www.googleapis.com/auth/androidmanagement"]
 class MDMDevice(dict):
     """A dict for storing device data gotten from the MDM."""
 
-    # This attr will be used to store the device ID extracted from the device name.
-    # It avoids updating the raw data dict gotten via the API
-    id = None
+    # An `id` attr will be used to store the device ID extracted from the device name.
+    # It avoids adding an "id" key in the raw data dict gotten via the API
+    def __getattr__(self, name):
+        if name == "id":
+            return self["name"].split("/")[-1]
+        raise AttributeError(name)
 
 
 class AndroidEnterprise(MDM):
@@ -117,7 +120,6 @@ class AndroidEnterprise(MDM):
         fleet_devices = []
         for device in self.get_devices():
             device = MDMDevice(device)
-            device.id = device["name"].split("/")[-1]
             if device.id in current_fleet_device_ids:
                 # The device is currently linked to this Fleet in the DB
                 fleet_devices.append(device)
@@ -182,13 +184,14 @@ class AndroidEnterprise(MDM):
                 mdm_device = devices_by_serial.get(our_device.serial_number)
             if not mdm_device:
                 # TODO: Remove the device from our database?
-                logger.debug("Skipping device in our DB but not in the API response")
+                logger.debug(
+                    "Skipping device in our DB but not in the API response", device=our_device
+                )
                 continue
             logger.debug(
                 "Updating device",
                 db_serial_number=our_device.serial_number,
                 db_device_id=our_device.device_id,
-                mdm_device=mdm_device,
             )
             our_device.serial_number = mdm_device["hardwareInfo"]["serialNumber"]
             our_device.device_id = mdm_device.id
@@ -376,6 +379,15 @@ class AndroidEnterprise(MDM):
                     body={"policyName": policy_name},
                 )
             )
+            # Pull the latest info for the device, to make sure the policyName
+            # in the raw_mdm_device field stays in sync
+            logger.debug("Pulling device", device=device)
+            mdm_device = MDMDevice(
+                self.execute(self.api.enterprises().devices().get(name=device.name))
+            )
+            self.create_device_snapshots(device.fleet, [mdm_device])
+            self.update_existing_devices(device.fleet, [mdm_device])
+            # Delete the current policy if it's also device-specific
             if current_policy_name.endswith(device.device_id):
                 logger.debug(
                     "Deleting the previous device-specific policy",
@@ -442,3 +454,18 @@ class AndroidEnterprise(MDM):
             )
             return False
         return True
+
+    def create_or_update_policy(self, policy: Policy):
+        """Creates or updates a policy in the MDM based on the template in the
+        Policy.json_template field.
+        """
+        logger.debug("Create/update policy", policy=policy)
+        policy_data = policy.get_policy_data(tailscale_auth_key=os.getenv("TAILSCALE_AUTH_KEY"))
+        if not policy_data:
+            logger.debug(
+                "Could not generate policy data. Cannot create/update the policy",
+                policy=policy,
+            )
+            return
+        policy_name = f"{self.enterprise_name}/policies/{policy.policy_id}"
+        self.execute(self.api.enterprises().policies().patch(name=policy_name, body=policy_data))

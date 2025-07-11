@@ -256,7 +256,7 @@ class TinyMDM(MDM):
         url = f"https://www.tinymdm.net/api/v1/users/{user_id}"
         qr_code_data = device.get_odk_collect_qr_code_string()
         data = {
-            "name": f"{device.app_user_name} - {device.device_id}",
+            "name": device.username,
             "custom_field_1": qr_code_data,
         }
         logger.debug("Updating user", url=url, user_id=user_id, data=data)

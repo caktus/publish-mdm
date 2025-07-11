@@ -272,6 +272,10 @@ class Device(models.Model):
         # Need to pass the string through dumps() again so the string is properly escaped
         return mark_safe(json.dumps(self.get_odk_collect_qr_code_string()))
 
+    @property
+    def username(self):
+        return f"{self.app_user_name} - {self.device_id}"
+
 
 class DeviceSnapshotManager(models.Manager):
     def get_queryset(self):
