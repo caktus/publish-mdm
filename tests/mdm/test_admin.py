@@ -4,7 +4,6 @@ from django.urls import reverse
 from django.utils.html import linebreaks
 from import_export.tmp_storages import TempFolderStorage
 from pytest_django.asserts import assertContains, assertNotContains, assertRedirects
-from requests.exceptions import HTTPError
 
 from apps.mdm.import_export import DeviceResource
 from apps.mdm.mdms import get_active_mdm_class
@@ -145,14 +144,14 @@ class TestDeviceAdmin(TestAdmin):
             in response_content
         )
 
-    @pytest.mark.parametrize("api_error", [None, HTTPError("error")])
-    def test_device_save(self, client, user, mocker, set_mdm_env_vars, api_error):
+    @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
+    def test_device_save(self, client, user, mocker, set_mdm_env_vars, mdm_api_error):
         """Ensures push_device_config() is called when saving a Device in Admin
         and if there is an MDM API error it is displayed to the user.
         """
         MDM = get_active_mdm_class()
         mock_push_device_config = mocker.patch.object(
-            MDM, "push_device_config", side_effect=api_error
+            MDM, "push_device_config", side_effect=mdm_api_error
         )
         device = DeviceFactory()
         data = {
@@ -168,17 +167,17 @@ class TestDeviceAdmin(TestAdmin):
         mock_push_device_config.assert_called_once()
         device.refresh_from_db()
         assert device.app_user_name == data["app_user_name"]
-        if api_error:
+        if mdm_api_error:
             assertContains(
                 response,
-                f"Unable to update the device in {settings.ACTIVE_MDM['name']} due to the following error:"
-                f"<br><code>{api_error}</code>",
+                f"Unable to update the device in {MDM.name} due to the following error:"
+                f"<br><code>{mdm_api_error}</code>",
             )
 
 
 class TestFleetAdmin(TestAdmin):
-    @pytest.mark.parametrize("api_error", [None, HTTPError("error")])
-    def test_new_fleet(self, user, client, mocker, set_mdm_env_vars, api_error):
+    @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
+    def test_new_fleet(self, user, client, mocker, set_mdm_env_vars, mdm_api_error):
         """Ensures the add_group_to_policy() function is called for a new fleet."""
         organization = OrganizationFactory()
         fleet = FleetFactory.build(organization=organization, policy=PolicyFactory())
@@ -190,7 +189,7 @@ class TestFleetAdmin(TestAdmin):
         }
         MDM = get_active_mdm_class()
         mock_add_group_to_policy = mocker.patch.object(
-            MDM, "add_group_to_policy", side_effect=api_error
+            MDM, "add_group_to_policy", side_effect=mdm_api_error
         )
         mocker.patch.object(MDM, "pull_devices")
         response = client.post(reverse("admin:mdm_fleet_add"), data=data, follow=True)
@@ -198,13 +197,13 @@ class TestFleetAdmin(TestAdmin):
         assert response.status_code == 200
         mock_add_group_to_policy.assert_called_once()
         assert organization.fleets.count() == 1
-        if api_error:
+        if mdm_api_error:
             assertContains(
                 response,
                 (
                     "The fleet has been saved but it could not be added to the "
-                    f"{fleet.policy.name} policy in {settings.ACTIVE_MDM['name']} due to the following error:"
-                    f"<br><code>{api_error}</code>"
+                    f"{fleet.policy.name} policy in {MDM.name} due to the following error:"
+                    f"<br><code>{mdm_api_error}</code>"
                 ),
             )
 
@@ -286,14 +285,16 @@ class TestFleetAdmin(TestAdmin):
         assertNotContains(response, f"The fleet “{fleet}” was deleted successfully.")
         assertRedirects(response, reverse("admin:mdm_fleet_changelist"))
 
-    def test_delete_fleet_api_error(self, user, client, mocker, set_mdm_env_vars):
+    def test_delete_fleet_api_error(
+        self, user, client, mocker, set_mdm_env_vars, mdm_api_error_class
+    ):
         """Ensures a Fleet is not deleted if an API error occurs when deleting the
         group in the MDM.
         """
         MDM = get_active_mdm_class()
         mocker.patch.object(MDM, "pull_devices")
         fleet = FleetFactory()
-        api_error = HTTPError("error")
+        api_error = mdm_api_error_class("error")
         mock_delete_group = mocker.patch.object(MDM, "delete_group", side_effect=api_error)
         response = client.post(
             reverse("admin:mdm_fleet_delete", args=[fleet.id]), data={"post": "yes"}, follow=True
@@ -303,7 +304,7 @@ class TestFleetAdmin(TestAdmin):
         mock_delete_group.assert_called_once()
         assertContains(
             response,
-            f"Cannot delete the fleet due to the following {settings.ACTIVE_MDM['name']} API error:"
+            f"Cannot delete the fleet due to the following {MDM.name} API error:"
             f"<br><code>{api_error}</code><br>"
             "Please try again later.",
         )
@@ -332,7 +333,7 @@ class TestFleetAdmin(TestAdmin):
 
     @pytest.mark.parametrize("partial_success", [True, False])
     def test_delete_selected_failures(
-        self, user, client, mocker, set_mdm_env_vars, partial_success
+        self, user, client, mocker, set_mdm_env_vars, partial_success, mdm_api_error_class
     ):
         """Ensures fleets are not deleted using the delete_selected action if
         they are linked to devices either in the database or in the MDM.
@@ -345,7 +346,7 @@ class TestFleetAdmin(TestAdmin):
         has_devices = {i.pk: i.name for i in fleets[:2]}
         api_errors = {i.pk: i.name for i in fleets[2:4]}
         successful = [i.pk for i in fleets[4:]]
-        api_error = HTTPError("error")
+        api_error = mdm_api_error_class("error")
 
         def delete_group(fleet):
             if fleet.pk in has_devices:
@@ -373,7 +374,7 @@ class TestFleetAdmin(TestAdmin):
         for name in api_errors.values():
             assertContains(
                 response,
-                f"Could not delete {name} due the following {settings.ACTIVE_MDM['name']} API error:"
+                f"Could not delete {name} due the following {MDM.name} API error:"
                 f"<br><code>{api_error}</code><br>"
                 "Please try again later.",
             )
@@ -401,3 +402,110 @@ class TestFleetAdmin(TestAdmin):
         mock_delete_group.assert_not_called()
         assert Fleet.objects.filter(pk__in=[i.pk for i in fleets]).count() == 3
         assertNotContains(response, "Successfully deleted ")
+
+
+class TestPolicyAdmin(TestAdmin):
+    @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
+    def test_new_policy(self, user, client, mocker, set_mdm_env_vars, mdm_api_error):
+        """Ensures the create_or_update_policy() method is called for a new Policy
+        if json_template is set and the active MDM has the method.
+        """
+        MDM = get_active_mdm_class()
+        data = {
+            "name": "New policy",
+            "policy_id": "policy",
+            "mdm": MDM.name,
+            "json_template": "{}",
+        }
+        mdm_has_method = hasattr(MDM, "create_or_update_policy")
+        if mdm_has_method:
+            mock_create_or_update_policy = mocker.patch.object(
+                MDM, "create_or_update_policy", side_effect=mdm_api_error
+            )
+        mock_push_device_config = mocker.patch.object(MDM, "push_device_config")
+        response = client.post(reverse("admin:mdm_policy_add"), data=data, follow=True)
+
+        assert response.status_code == 200
+        if mdm_has_method:
+            mock_create_or_update_policy.assert_called_once()
+            if mdm_api_error:
+                assertContains(
+                    response,
+                    (
+                        f"Could not update the policy in {MDM.name} due to "
+                        "the following error:"
+                        f"<br><code>{mdm_api_error}</code>"
+                    ),
+                )
+        mock_push_device_config.assert_not_called()
+
+    @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
+    def test_existing_policy(
+        self, user, client, mocker, set_mdm_env_vars, mdm_api_error, mdm_api_error_class
+    ):
+        """Ensures the create_or_update_policy() method is called when editing a Policy
+        if json_template is changed and the active MDM has the method.
+        """
+        policy = PolicyFactory(json_template="")
+        data = {
+            "name": policy.name,
+            "policy_id": policy.policy_id,
+            "mdm": policy.mdm,
+            "json_template": "{}",
+        }
+        MDM = get_active_mdm_class()
+        mdm_has_method = hasattr(MDM, "create_or_update_policy")
+        if mdm_has_method:
+            mock_create_or_update_policy = mocker.patch.object(
+                MDM, "create_or_update_policy", side_effect=mdm_api_error
+            )
+            device_api_error = mdm_api_error_class("error")
+            devices_to_push = []
+            fleet = FleetFactory(policy=policy)
+            for device in DeviceFactory.build_batch(2, fleet=fleet):
+                device.raw_mdm_device = {
+                    "policyName": f"enterprises/test/policies/fleet{device.fleet_id}_{device.device_id}"
+                }
+                device.save()
+                devices_to_push.append(device)
+            DeviceFactory.create_batch(
+                2,
+                fleet=fleet,
+                raw_mdm_device={"policyName": f"enterprises/test/policies/{policy.policy_id}"},
+            )
+            mock_push_device_config = mocker.patch.object(
+                MDM, "push_device_config", side_effect=[None, device_api_error]
+            )
+        else:
+            mock_push_device_config = mocker.patch.object(MDM, "push_device_config")
+        response = client.post(
+            reverse("admin:mdm_policy_change", args=[policy.id]), data=data, follow=True
+        )
+
+        assert response.status_code == 200
+        if mdm_has_method:
+            mock_create_or_update_policy.assert_called_once()
+            if mdm_api_error:
+                assertContains(
+                    response,
+                    (
+                        f"Could not update the policy in {MDM.name} due to "
+                        "the following error:"
+                        f"<br><code>{mdm_api_error}</code>"
+                    ),
+                )
+            assert mock_push_device_config.call_count == 2
+            mock_push_device_config.assert_has_calls(
+                [mocker.call(device) for device in devices_to_push],
+                any_order=True,
+            )
+            assertContains(
+                response,
+                (
+                    f"Could not update the policy for {devices_to_push[1]} in "
+                    f"{MDM.name} due to the following error:"
+                    f"<br><code>{device_api_error}</code>"
+                ),
+            )
+        else:
+            mock_push_device_config.assert_not_called()

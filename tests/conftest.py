@@ -1,5 +1,7 @@
 import os
 import pytest
+from googleapiclient.errors import Error as GoogleAPIClientError
+from requests.exceptions import HTTPError
 
 ENV_VARS = {
     "TinyMDM": ("TINYMDM_APIKEY_PUBLIC", "TINYMDM_APIKEY_SECRET", "TINYMDM_ACCOUNT_ID"),
@@ -28,3 +30,16 @@ def set_mdm_env_vars(monkeypatch, settings):
         else:
             value = "test"
         monkeypatch.setenv(var, value)
+
+
+@pytest.fixture
+def mdm_api_error_class(settings):
+    if settings.ACTIVE_MDM["name"] == "Android Enterprise":
+        return GoogleAPIClientError
+    return HTTPError
+
+
+@pytest.fixture
+def mdm_api_error(request, mdm_api_error_class):
+    if getattr(request, "param", True):
+        return mdm_api_error_class("error")

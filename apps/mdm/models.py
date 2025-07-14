@@ -73,7 +73,7 @@ class Policy(models.Model):
 
     def get_policy_data(self, **kwargs):
         """Generates policy data that can be used to create/update this policy
-        or its child policies in the MDM.
+        and its child policies in the MDM.
         """
         if self.json_template:
             template = Template(self.json_template)

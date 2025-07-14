@@ -951,7 +951,7 @@ def add_fleet(request: HttpRequest, organization_slug):
         # Create a group in the MDM and set the mdm_group_id field
         try:
             active_mdm.create_group(fleet)
-        except RequestException as e:
+        except (GoogleAPIClientError, RequestException) as e:
             logger.debug(
                 f"Unable to create {active_mdm} group",
                 fleet=fleet,
@@ -991,7 +991,7 @@ def add_fleet(request: HttpRequest, organization_slug):
         # Add the MDM group to the default policy
         try:
             active_mdm.add_group_to_policy(fleet)
-        except RequestException as e:
+        except (GoogleAPIClientError, RequestException) as e:
             logger.debug(
                 f"Unable to add the {active_mdm} group to policy",
                 fleet=fleet,

@@ -2,7 +2,6 @@ import pytest
 from django.urls import reverse
 from django.conf import settings
 from pytest_django.asserts import assertContains
-from requests.exceptions import HTTPError
 
 from apps.publish_mdm.models import CentralServer, Organization, Project
 from tests.mdm import TestAllMDMsNoAutouse
@@ -253,8 +252,8 @@ class TestCentralServerAdmin(BaseTestAdmin):
 
 
 class TestOrganizationAdmin(BaseTestAdmin):
-    @pytest.mark.parametrize("api_error", [None, HTTPError("error")])
-    def test_new_organization(self, user, client, mocker, api_error, all_mdms):
+    @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
+    def test_new_organization(self, user, client, mocker, all_mdms, mdm_api_error):
         """Ensures the create_default_fleet() method is called when creating a
         new organization.
         """
@@ -265,7 +264,7 @@ class TestOrganizationAdmin(BaseTestAdmin):
             "users": [user.id],
         }
         mock_create_default_fleet = mocker.patch.object(
-            Organization, "create_default_fleet", side_effect=api_error
+            Organization, "create_default_fleet", side_effect=mdm_api_error
         )
         response = client.post(
             reverse("admin:publish_mdm_organization_add"), data=data, follow=True
@@ -274,12 +273,12 @@ class TestOrganizationAdmin(BaseTestAdmin):
         assert response.status_code == 200
         mock_create_default_fleet.assert_called_once()
         assert Organization.objects.count() == 1
-        if api_error:
+        if mdm_api_error:
             assertContains(
                 response,
                 (
                     f"The organization was created but the following {settings.ACTIVE_MDM['name']} "
-                    f"API error occurred while setting up its default Fleet:<br><code>{api_error}</code>"
+                    f"API error occurred while setting up its default Fleet:<br><code>{mdm_api_error}</code>"
                 ),
             )
 

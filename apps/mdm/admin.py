@@ -35,15 +35,17 @@ class PolicyAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         obj.save()
+        # Update the policy in the MDM if the json_template has changed.
+        # Currently only implemented for Android Enterprise MDM
         if (
-            "json_template" in form.changed_data
+            settings.ACTIVE_MDM["name"] == "Android Enterprise"
+            and "json_template" in form.changed_data
             and obj.json_template
             and (active_mdm := get_active_mdm_instance())
-            and hasattr(active_mdm, "create_or_update_policy")
         ):
             try:
                 active_mdm.create_or_update_policy(obj)
-            except (GoogleAPIClientError, RequestException) as e:
+            except GoogleAPIClientError as e:
                 logger.debug(
                     f"Unable to update the policy in {active_mdm}",
                     policy=obj,
@@ -67,7 +69,7 @@ class PolicyAdmin(admin.ModelAdmin):
                 for device in devices:
                     try:
                         active_mdm.push_device_config(device)
-                    except (GoogleAPIClientError, RequestException) as e:
+                    except GoogleAPIClientError as e:
                         logger.debug(
                             f"Unable to update the policy for {device} in {active_mdm}",
                             device=device,
@@ -107,9 +109,9 @@ class FleetAdmin(admin.ModelAdmin):
         if "policy" in form.changed_data and (active_mdm := get_active_mdm_instance()):
             try:
                 active_mdm.add_group_to_policy(obj)
-            except RequestException as e:
+            except (GoogleAPIClientError, RequestException) as e:
                 logger.debug(
-                    f"Unable to add the {settings.ACTIVE_MDM['name']} group to policy",
+                    f"Unable to add the {active_mdm} group to policy",
                     fleet=obj,
                     organization=obj.organization,
                     policy=obj.policy,
@@ -119,7 +121,7 @@ class FleetAdmin(admin.ModelAdmin):
                     request,
                     mark_safe(
                         "The fleet has been saved but it could not be added to the "
-                        f"{obj.policy.name} policy in {settings.ACTIVE_MDM['name']} "
+                        f"{obj.policy.name} policy in {active_mdm} "
                         "due to the following error:"
                         f"<br><code>{getattr(e, 'api_error', e)}</code>"
                     ),
@@ -168,9 +170,9 @@ class FleetAdmin(admin.ModelAdmin):
                 try:
                     if not active_mdm.delete_group(obj):
                         error = "Cannot delete the fleet because it has devices linked to it."
-                except RequestException as e:
+                except (GoogleAPIClientError, RequestException) as e:
                     error = mark_safe(
-                        f"Cannot delete the fleet due to the following {settings.ACTIVE_MDM['name']} API error:"
+                        f"Cannot delete the fleet due to the following {active_mdm} API error:"
                         f"<br><code>{getattr(e, 'api_error', e)}</code><br>"
                         "Please try again later."
                     )
@@ -261,11 +263,11 @@ class FleetAdmin(admin.ModelAdmin):
                             successful.append(fleet.pk)
                         else:
                             has_devices.append(fleet.name)
-                    except RequestException as e:
+                    except (GoogleAPIClientError, RequestException) as e:
                         messages.error(
                             request,
                             mark_safe(
-                                f"Could not delete {fleet.name} due the following {settings.ACTIVE_MDM['name']} API error:"
+                                f"Could not delete {fleet.name} due the following {active_mdm} API error:"
                                 f"<br><code>{getattr(e, 'api_error', e)}</code><br>"
                                 "Please try again later."
                             ),
