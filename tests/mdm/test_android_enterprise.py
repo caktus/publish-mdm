@@ -1,5 +1,6 @@
 import datetime as dt
 import json
+from collections import namedtuple
 
 import faker
 import httplib2
@@ -11,11 +12,16 @@ from apps.mdm.mdms import AndroidEnterprise, MDMAPIError
 from apps.mdm.models import Device
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from tests.mdm import TestAndroidEnterpriseOnly
-from tests.publish_mdm.factories import AppUserFactory
+from tests.publish_mdm.factories import AppUserFactory, ProjectFactory
 
-from .factories import DeviceFactory, FleetFactory
+from .factories import DeviceFactory, FleetFactory, PolicyFactory
 
 fake = faker.Faker()
+MockAPIResponse = namedtuple(
+    "MockAPIResponse",
+    ["method_id", "content", "status_code", "expected_request_body"],
+    defaults=[None, None, None],
+)
 
 
 @pytest.mark.django_db
@@ -142,24 +148,29 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         assert active_mdm.api
         assert active_mdm.enterprise_name == f"enterprises/{active_mdm.enterprise_id}"
 
-    def get_mock_request_builder(self, method_id, response_content=None, response=None):
+    def get_mock_request_builder(self, *responses):
         """Creates a RequestMockBuilder that can be used to mock API responses
-        in the Google API Client. The `method_id` should be without the
-        'androidmanagement.enterprises.' prefix. The `response` should be a
-        httplib2.Response object, but can be None for a 200 response.
+        in the Google API Client. Takes MockAPIResponse objects as args, where
+        the `method_id` should be without the 'androidmanagement.enterprises.'
+        prefix.
         """
-        if response_content:
-            response_content = json.dumps(response_content)
-        else:
-            response_content = ""
-        return RequestMockBuilder(
-            {
-                f"androidmanagement.enterprises.{method_id}": (
-                    response,
-                    response_content.encode(),
-                ),
-            }
-        )
+        responses_dict = {}
+        for response in responses:
+            if response.content:
+                response_content = json.dumps(response.content)
+            else:
+                response_content = ""
+            if response.status_code:
+                response_obj = httplib2.Response({"status": response.status_code})
+            else:
+                # None results in a 200 response
+                response_obj = None
+            value = [response_obj, response_content.encode()]
+            if response.expected_request_body is not None:
+                # Will raise an error if the actual request body does not match exactly
+                value.append(response.expected_request_body)
+            responses_dict[f"androidmanagement.enterprises.{response.method_id}"] = value
+        return RequestMockBuilder(responses_dict, check_unexpected=True)
 
     def test_pull_devices(
         self,
@@ -195,7 +206,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         monkeypatch.setattr(
             active_mdm.api,
             "_requestBuilder",
-            self.get_mock_request_builder("devices.list", full_devices_response),
+            self.get_mock_request_builder(MockAPIResponse("devices.list", full_devices_response)),
         )
         active_mdm.pull_devices(fleet)
 
@@ -248,7 +259,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         monkeypatch.setattr(
             active_mdm.api,
             "_requestBuilder",
-            self.get_mock_request_builder("devices.list", full_devices_response),
+            self.get_mock_request_builder(MockAPIResponse("devices.list", full_devices_response)),
         )
         mock_execute = mocker.patch.object(active_mdm, "execute", wraps=active_mdm.execute)
         assert not hasattr(active_mdm, "_devices")
@@ -306,12 +317,31 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         for call in mock_sync_fleet.call_list_args:
             assert call.args[0] in fleets
 
-    def test_get_enrollment_qr_code(self, fleet, set_mdm_env_vars, mocker):
+    @pytest.mark.parametrize("new_fleet", [True, False])
+    def test_get_enrollment_qr_code(self, set_mdm_env_vars, monkeypatch, new_fleet):
         """Ensures get_enrollment_qr_code() makes the expected API request and updates
-        the fleet's enroll_qr_code field if successful.
+        the fleet's enroll_qr_code, enroll_token_expires_at, and enroll_token_value
+        if successful.
         """
         active_mdm = AndroidEnterprise()
-        fleet = FleetFactory.build(enroll_qr_code=None)
+        if new_fleet:
+            project = ProjectFactory()
+            fleet = FleetFactory.build(
+                enroll_qr_code=None,
+                project=project,
+                organization=project.organization,
+                policy=PolicyFactory(),
+            )
+            # We don't have a Fleet ID yet to set in additionalData, so we won't
+            # check the request body
+            expected_request_body = None
+        else:
+            fleet = FleetFactory(enroll_qr_code=None)
+            expected_request_body = {
+                "policyName": f"{active_mdm.enterprise_name}/policies/{fleet.policy.policy_id}",
+                "additionalData": json.dumps({"fleet": fleet.pk}),
+                "duration": f"{24 * 60 * 60}s",
+            }
         value = fake.pystr()
         expiry = fake.date_time(tzinfo=dt.UTC).replace(microsecond=0)
         qr_code = {
@@ -328,13 +358,21 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             "expirationTimestamp": expiry.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "qrCode": json.dumps(qr_code),
         }
-        mock_create_enrollment_token = mocker.patch.object(
-            active_mdm, "create_enrollment_token", return_value=enrollment_token_response
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse(
+                    "enrollmentTokens.create",
+                    enrollment_token_response,
+                    None,
+                    expected_request_body,
+                )
+            ),
         )
 
         active_mdm.get_enrollment_qr_code(fleet)
 
-        mock_create_enrollment_token.assert_called_once()
         assert fleet.enroll_qr_code is not None
         assert fleet.enroll_token_expires_at == expiry
         assert fleet.enroll_token_value == value
@@ -359,13 +397,13 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             active_mdm.api,
             "_requestBuilder",
             self.get_mock_request_builder(
-                "devices.list", response_json, httplib2.Response({"status": 400})
+                MockAPIResponse("devices.list", response_json, status_code),
             ),
         )
         resource_method = (
             active_mdm.api.enterprises().devices().list(parent=active_mdm.enterprise_name)
         )
-        expected_api_error = MDMAPIError(status_code=400, error_data=response_json)
+        expected_api_error = MDMAPIError(status_code=status_code, error_data=response_json)
 
         if raise_exception:
             # Should raise an exception with its api_error attribute set to an MDMAPIError object
@@ -375,3 +413,122 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         else:
             active_mdm.execute(resource_method, raise_exception)
             assert expected_api_error in active_mdm.api_errors
+
+    def test_create_or_update_policy(self, set_mdm_env_vars, monkeypatch, mocker):
+        """Ensure create_or_update_policy() makes the expected API request."""
+        active_mdm = AndroidEnterprise()
+        policy = PolicyFactory()
+        mock_execute = mocker.patch.object(active_mdm, "execute", wraps=active_mdm.execute)
+
+        # If Policy.get_policy_data() returns None, an API request to update the
+        # policy should not be made
+        mock_get_policy_data = mocker.patch.object(policy, "get_policy_data", return_value=None)
+        active_mdm.create_or_update_policy(policy)
+        mock_get_policy_data.assert_called_once()
+        mock_execute.assert_not_called()
+
+        policy_data = {
+            "deviceOwnerLockScreenInfo": {
+                "localizedMessages": {"en": fake.word()},
+                "defaultMessage": fake.word(),
+            }
+        }
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse("policies.patch", expected_request_body=policy_data)
+            ),
+        )
+        mock_get_policy_data = mocker.patch.object(
+            policy, "get_policy_data", return_value=policy_data
+        )
+        active_mdm.create_or_update_policy(policy)
+        mock_get_policy_data.assert_called_once()
+        mock_execute.assert_called_once()
+
+    @pytest.mark.parametrize("current_device_policy", ["own", "base", "other_fleet"])
+    def test_push_device_config(
+        self, fleet, set_mdm_env_vars, monkeypatch, mocker, current_device_policy
+    ):
+        """Ensures push_device_config() makes the expected API requests."""
+        device = DeviceFactory.build(fleet=fleet)
+        expected_policy_name = f"enterprises/test/policies/fleet{fleet.id}_{device.device_id}"
+        if current_device_policy == "own":
+            current_policy_name = expected_policy_name
+        elif current_device_policy == "other_fleet":
+            current_policy_name = (
+                f"enterprises/test/policies/fleet{fleet.id + 1}_{device.device_id}"
+            )
+        else:
+            current_policy_name = f"enterprises/test/policies/{fleet.policy.policy_id}"
+        device.raw_mdm_device = {
+            "policyName": current_policy_name,
+            **self.get_raw_mdm_device(device),
+        }
+        device.save()
+        active_mdm = AndroidEnterprise()
+        mock_execute = mocker.patch.object(active_mdm, "execute", wraps=active_mdm.execute)
+        policy_data = {
+            "deviceOwnerLockScreenInfo": {
+                "localizedMessages": {"en": fake.word()},
+                "defaultMessage": fake.word(),
+            }
+        }
+        mock_get_policy_data = mocker.patch.object(
+            device.fleet.policy, "get_policy_data", return_value=policy_data
+        )
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse("policies.patch", expected_request_body=policy_data),
+                MockAPIResponse(
+                    "devices.patch",
+                    device.raw_mdm_device | {"policyName": expected_policy_name},
+                    expected_request_body={"policyName": expected_policy_name},
+                ),
+                MockAPIResponse("policies.delete"),
+            ),
+        )
+        active_mdm.push_device_config(device)
+
+        mock_get_policy_data.assert_called_once()
+
+        if current_device_policy == "own":
+            # Only one API request expected, to update the policy
+            assert mock_execute.call_count == 1
+        elif current_device_policy == "base":
+            # Two API requests expected:
+            # 1. create the policy
+            # 2. update the device's policy name
+            assert mock_execute.call_count == 2
+        elif current_device_policy == "other_fleet":
+            # One additional API request expected, to delete the current policy
+            assert mock_execute.call_count == 3
+
+        device.refresh_from_db()
+        assert device.raw_mdm_device["policyName"] == expected_policy_name
+
+    def test_push_device_config_no_api_requests(self, fleet, set_mdm_env_vars, mocker):
+        """Ensures push_device_config() does not make any API requests if
+        Device.raw_mdm_device is not set (Device hasn't been pulled before)
+        or policy data is not available.
+        """
+        device = DeviceFactory(fleet=fleet)
+        active_mdm = AndroidEnterprise()
+        mock_get_policy_data = mocker.patch.object(
+            fleet.policy, "get_policy_data", return_value=None
+        )
+        mock_execute = mocker.patch.object(active_mdm, "execute")
+
+        active_mdm.push_device_config(device)
+        mock_get_policy_data.assert_not_called()
+        mock_execute.assert_not_called()
+
+        device.raw_mdm_device = self.get_raw_mdm_device(device)
+        device.save()
+
+        active_mdm.push_device_config(device)
+        mock_get_policy_data.assert_called_once()
+        mock_execute.assert_not_called()

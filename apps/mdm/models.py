@@ -360,7 +360,8 @@ class DeviceSnapshotApp(models.Model):
     """
     An app installed on a device enrolled in the MDM.
 
-    https://www.tinymdm.net/mobile-device-management/api/#get-/devices/-id-/apps
+    For TinyMDM: https://www.tinymdm.net/mobile-device-management/api/#get-/devices/-id-/apps
+    For Android Enterprise: https://developers.google.com/android/management/reference/rest/v1/enterprises.devices#Device.FIELDS.application_reports
     """
 
     device_snapshot = models.ForeignKey(

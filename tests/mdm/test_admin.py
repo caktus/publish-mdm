@@ -403,6 +403,35 @@ class TestFleetAdmin(TestAdmin):
         assert Fleet.objects.filter(pk__in=[i.pk for i in fleets]).count() == 3
         assertNotContains(response, "Successfully deleted ")
 
+    @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
+    def test_fleet_save(self, client, user, mocker, set_mdm_env_vars, mdm_api_error):
+        """Ensures pull_devices() is called when saving a Fleet in Admin
+        and if there is an MDM API error it is displayed to the user.
+        """
+        MDM = get_active_mdm_class()
+        mock_pull_devices = mocker.patch.object(MDM, "pull_devices", side_effect=mdm_api_error)
+        fleet = FleetFactory()
+        data = {
+            "organization": fleet.organization_id,
+            "name": f"edited {fleet.name}",
+            "mdm_group_id": fleet.mdm_group_id,
+            "policy": fleet.policy_id,
+        }
+        response = client.post(
+            reverse("admin:mdm_fleet_change", args=[fleet.id]), data=data, follow=True
+        )
+
+        assert response.status_code == 200
+        mock_pull_devices.assert_called_once()
+        fleet.refresh_from_db()
+        assert fleet.name == data["name"]
+        if mdm_api_error:
+            assertContains(
+                response,
+                f"Unable to pull the fleet's devices from {MDM.name} due to "
+                f"the following error:<br><code>{mdm_api_error}</code>",
+            )
+
 
 class TestPolicyAdmin(TestAdmin):
     @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)

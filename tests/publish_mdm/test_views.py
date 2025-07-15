@@ -2362,7 +2362,7 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         assert form_instance.organization == organization
         assert form_instance.policy == default_policy
 
-    def test_get_no_tinymdm_credentials(self, client, url, user, organization, all_mdms):
+    def test_get_no_mdm_credentials(self, client, url, user, organization, all_mdms):
         """Ensures a warning message that a fleet cannot be created is shown if
         API credentials are not configured for the active MDM.
         """

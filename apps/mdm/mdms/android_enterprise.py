@@ -337,7 +337,6 @@ class AndroidEnterprise(MDM):
         if not device.raw_mdm_device:
             logger.debug("New device. Cannot sync", device=device)
             return
-        logger.debug("Syncing device", device=device)
         policy_data = device.fleet.policy.get_policy_data(
             device=device, tailscale_auth_key=os.getenv("TAILSCALE_AUTH_KEY")
         )
@@ -349,6 +348,7 @@ class AndroidEnterprise(MDM):
                 policy=device.fleet.policy,
             )
             return
+        logger.debug("Syncing device", device=device)
         # Create or update a device-specific policy
         policy_name = f"{self.enterprise_name}/policies/fleet{device.fleet_id}_{device.device_id}"
         logger.debug(
@@ -359,9 +359,7 @@ class AndroidEnterprise(MDM):
             policy=device.fleet.policy,
         )
         self.execute(self.api.enterprises().policies().patch(name=policy_name, body=policy_data))
-        logger.debug("Checking the current policyName for device", device=device)
-        mdm_device = self.execute(self.api.enterprises().devices().get(name=device.name))
-        current_policy_name = mdm_device["policyName"]
+        current_policy_name = device.raw_mdm_device["policyName"]
         if current_policy_name != policy_name:
             # Update the policyName for the device
             logger.debug(
@@ -370,7 +368,7 @@ class AndroidEnterprise(MDM):
                 new_policy_name=policy_name,
                 current_policy_name=current_policy_name,
             )
-            self.execute(
+            mdm_device = self.execute(
                 self.api.enterprises()
                 .devices()
                 .patch(
@@ -379,12 +377,9 @@ class AndroidEnterprise(MDM):
                     body={"policyName": policy_name},
                 )
             )
-            # Pull the latest info for the device, to make sure the policyName
+            # Update the Device with the latest info, to make sure the policyName
             # in the raw_mdm_device field stays in sync
-            logger.debug("Pulling device", device=device)
-            mdm_device = MDMDevice(
-                self.execute(self.api.enterprises().devices().get(name=device.name))
-            )
+            mdm_device = MDMDevice(mdm_device)
             self.create_device_snapshots(device.fleet, [mdm_device])
             self.update_existing_devices(device.fleet, [mdm_device])
             # Delete the current policy if it's also device-specific
