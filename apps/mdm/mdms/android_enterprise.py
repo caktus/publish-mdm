@@ -24,10 +24,9 @@ class MDMDevice(dict):
 
     # An `id` attr will be used to store the device ID extracted from the device name.
     # It avoids adding an "id" key in the raw data dict gotten via the API
-    def __getattr__(self, name):
-        if name == "id":
-            return self["name"].split("/")[-1]
-        raise AttributeError(name)
+    @cached_property
+    def id(self):
+        return self["name"].split("/")[-1]
 
 
 class AndroidEnterprise(MDM):
