@@ -39,14 +39,18 @@ class DeviceFactory(factory.django.DjangoModelFactory):
     serial_number = factory.Faker("word")
     app_user_name = factory.Faker("word")
     name = factory.LazyAttribute(
-        lambda obj: f"enterprises/test/devices/{fake.unique.pystr()}"
-        if obj.fleet.policy.mdm == "Android Enterprise"
-        else fake.word()
+        lambda obj: (
+            f"enterprises/test/devices/{fake.unique.pystr()}"
+            if obj.fleet.policy.mdm == "Android Enterprise"
+            else fake.word()
+        )
     )
     device_id = factory.LazyAttribute(
-        lambda obj: obj.name.split("/")[-1]
-        if obj.fleet.policy.mdm == "Android Enterprise"
-        else fake.unique.word()
+        lambda obj: (
+            obj.name.split("/")[-1]
+            if obj.fleet.policy.mdm == "Android Enterprise"
+            else fake.unique.word()
+        )
     )
 
 

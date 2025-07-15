@@ -24,7 +24,7 @@ class MDM(ABC):
         return self.name
 
     @abstractmethod
-    def pull_devices(self, fleet: Fleet, **kwargs):
+    def pull_devices(self, fleet: Fleet):
         pass
 
     @abstractmethod
