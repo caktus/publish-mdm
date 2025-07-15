@@ -6,7 +6,7 @@
 #
 aenum==3.1.16
     # via infisicalsdk
-alembic==1.16.2
+alembic==1.16.4
     # via dagster
 amqp==5.3.1
     # via kombu
@@ -20,7 +20,7 @@ anyio==3.7.1
     #   gql
     #   starlette
     #   watchfiles
-asgiref==3.8.1
+asgiref==3.9.1
     # via
     #   channels
     #   daphne
@@ -42,11 +42,11 @@ beautifulsoup4==4.13.4
     # via -r requirements/base/base.in
 billiard==4.2.1
     # via celery
-boto3==1.38.45
+boto3==1.39.4
     # via
     #   -r requirements/base/base.in
     #   infisicalsdk
-botocore==1.38.45
+botocore==1.39.4
     # via
     #   boto3
     #   infisicalsdk
@@ -58,7 +58,7 @@ celery==5.5.3
     #   -r requirements/base/base.in
     #   django-celery-beat
     #   django-structlog
-certifi==2025.6.15
+certifi==2025.7.9
     # via
     #   kubernetes
     #   requests
@@ -90,35 +90,35 @@ constantly==23.10.4
     # via twisted
 cron-descriptor==1.4.5
     # via django-celery-beat
-cryptography==45.0.4
+cryptography==45.0.5
     # via
     #   autobahn
     #   pyopenssl
     #   service-identity
-dagster==1.11.0
+dagster==1.11.2
     # via
     #   -r requirements/base/base.in
     #   dagster-graphql
     #   dagster-k8s
     #   dagster-postgres
     #   dagster-webserver
-dagster-graphql==1.11.0
+dagster-graphql==1.11.2
     # via dagster-webserver
-dagster-k8s==0.27.0
+dagster-k8s==0.27.2
     # via -r requirements/base/base.in
-dagster-pipes==1.11.0
+dagster-pipes==1.11.2
     # via dagster
-dagster-postgres==0.27.0
+dagster-postgres==0.27.2
     # via -r requirements/base/base.in
-dagster-shared==1.11.0
+dagster-shared==1.11.2
     # via dagster
-dagster-webserver==1.11.0
+dagster-webserver==1.11.2
     # via -r requirements/base/base.in
-daphne==4.2.0
+daphne==4.2.1
     # via -r requirements/base/base.in
 diff-match-patch==20241021
     # via django-import-export
-dj-database-url==3.0.0
+dj-database-url==3.0.1
     # via -r requirements/base/base.in
 django==5.2.2
     # via
@@ -137,7 +137,7 @@ django==5.2.2
     #   django-template-partials
     #   django-timezone-field
     #   slippers
-django-allauth==65.9.0
+django-allauth==65.10.0
     # via -r requirements/base/base.in
 django-celery-beat==2.8.1
     # via -r requirements/base/base.in
@@ -175,14 +175,28 @@ filelock==3.18.0
     # via dagster
 fsspec==2025.5.1
     # via universal-pathlib
+google-api-core==2.25.1
+    # via google-api-python-client
+google-api-python-client==2.176.0
+    # via -r requirements/base/base.in
 google-auth==2.40.3
     # via
+    #   -r requirements/base/base.in
     #   dagster-k8s
+    #   google-api-core
+    #   google-api-python-client
+    #   google-auth-httplib2
     #   google-auth-oauthlib
     #   gspread
     #   kubernetes
+google-auth-httplib2==0.2.0
+    # via
+    #   -r requirements/base/base.in
+    #   google-api-python-client
 google-auth-oauthlib==1.2.2
     # via gspread
+googleapis-common-protos==1.70.0
+    # via google-api-core
 gql==3.5.3
     # via dagster-graphql
 graphene==3.4.3
@@ -200,7 +214,7 @@ grpcio==1.73.1
     # via
     #   dagster
     #   grpcio-health-checking
-grpcio-health-checking==1.71.0
+grpcio-health-checking==1.71.2
     # via dagster
 gspread==6.2.1
     # via -r requirements/base/base.in
@@ -208,6 +222,10 @@ gunicorn==23.0.0
     # via -r requirements/base/base.in
 h11==0.16.0
     # via uvicorn
+httplib2==0.22.0
+    # via
+    #   google-api-python-client
+    #   google-auth-httplib2
 httptools==0.6.4
     # via uvicorn
 humanfriendly==10.0
@@ -249,7 +267,7 @@ markupsafe==3.0.2
     #   mako
 mdurl==0.1.2
     # via markdown-it-py
-multidict==6.6.0
+multidict==6.6.3
     # via yarl
 newrelic==10.14.0
     # via -r requirements/base/base.in
@@ -267,16 +285,21 @@ packaging==25.0
     #   dagster-shared
     #   gunicorn
     #   kombu
-pillow==11.2.1
+pillow==11.3.0
     # via -r requirements/base/base.in
 prompt-toolkit==3.0.51
     # via click-repl
 propcache==0.3.2
     # via yarl
+proto-plus==1.26.1
+    # via google-api-core
 protobuf==5.29.5
     # via
     #   dagster
+    #   google-api-core
+    #   googleapis-common-protos
     #   grpcio-health-checking
+    #   proto-plus
 psycopg==3.2.9
     # via -r requirements/base/base.in
 psycopg2-binary==2.9.10
@@ -308,6 +331,8 @@ pyodk @ git+https://github.com/getodk/pyodk.git@c20fbd36622fe3a309292b7f646bd734
     # via -r requirements/base/base.in
 pyopenssl==25.1.0
     # via twisted
+pyparsing==3.2.3
+    # via httplib2
 pyrate-limiter==2.10.0
     # via requests-ratelimiter
 python-crontab==3.2.0
@@ -342,6 +367,7 @@ requests==2.32.3
     #   -r requirements/base/base.in
     #   dagster
     #   dagster-graphql
+    #   google-api-core
     #   gql
     #   infisicalsdk
     #   kubernetes
@@ -415,12 +441,11 @@ txaio==25.6.1
     # via autobahn
 typeguard==2.13.3
     # via slippers
-typing-extensions==4.14.0
+typing-extensions==4.14.1
     # via
     #   alembic
     #   beautifulsoup4
     #   dagster-shared
-    #   dj-database-url
     #   graphene
     #   psycopg
     #   pydantic
@@ -436,13 +461,15 @@ tzdata==2025.2
     #   kombu
 universal-pathlib==0.2.6
     # via dagster
+uritemplate==4.2.0
+    # via google-api-python-client
 urllib3==2.5.0
     # via
     #   botocore
     #   kubernetes
     #   requests
     #   sentry-sdk
-uvicorn==0.34.3
+uvicorn==0.35.0
     # via dagster-webserver
 uvloop==0.21.0
     # via uvicorn

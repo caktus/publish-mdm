@@ -5,11 +5,11 @@ import zlib
 import structlog
 from pathlib import Path
 
-import segno
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from .constants import DEFAULT_COLLECT_SETTINGS
 from .publish import ProjectAppUserAssignment
+from apps.publish_mdm.utils import create_qr_code
 
 
 logger = structlog.getLogger(__name__)
@@ -64,9 +64,7 @@ def create_app_user_qrcode(
 
     # Generate QR code with segno
     qr_data = base64.b64encode(zlib.compress(json.dumps(collect_settings).encode("utf-8")))
-    code = segno.make(qr_data, micro=False)
-    code_buffer = io.BytesIO()
-    code.save(code_buffer, scale=4, kind="png")
+    code_buffer = create_qr_code(qr_data)
 
     # Add text to QR code with PIL
     png = Image.open(code_buffer)

@@ -1,14 +1,10 @@
 import structlog
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from requests.exceptions import RequestException
 
+from apps.mdm.mdms import TinyMDM
 from apps.mdm.models import Fleet
-from apps.mdm.tasks import (
-    add_group_to_policy,
-    create_group,
-    get_enrollment_qr_code,
-    get_tinymdm_session,
-)
 
 logger = structlog.getLogger(__name__)
 
@@ -17,7 +13,7 @@ class Command(BaseCommand):
     help = "Create groups in TinyMDM for any Fleets whose mdm_group_id is not set."
 
     def handle(self, *args, **options):
-        if not (session := get_tinymdm_session()):
+        if not (settings.ACTIVE_MDM["name"] == "TinyMDM" and (active_mdm := TinyMDM())):
             return
 
         fleets = Fleet.objects.filter(mdm_group_id__isnull=True).select_related()
@@ -25,7 +21,7 @@ class Command(BaseCommand):
 
         for fleet in fleets:
             try:
-                create_group(session, fleet)
+                active_mdm.create_group(fleet)
             except RequestException:
                 logger.debug(
                     "Unable to create TinyMDM group",
@@ -37,7 +33,7 @@ class Command(BaseCommand):
                 )
 
             try:
-                get_enrollment_qr_code(session, fleet)
+                active_mdm.get_enrollment_qr_code(fleet)
             except RequestException:
                 logger.debug(
                     "TinyMDM group created but unable to get the enrollment QR code",
@@ -52,7 +48,7 @@ class Command(BaseCommand):
             fleet.save()
 
             try:
-                add_group_to_policy(session, fleet)
+                active_mdm.add_group_to_policy(fleet)
             except RequestException:
                 logger.debug(
                     "TinyMDM group created but unable to add it to policy",

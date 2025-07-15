@@ -417,9 +417,9 @@ INFISICAL_API_URL = os.getenv("INFISICAL_API_URL")
 INFISICAL_TOKEN = os.getenv("INFISICAL_TOKEN")
 INFISICAL_KMS_PROJECT_ID = os.getenv("INFISICAL_KMS_PROJECT_ID")
 
-# The TinyMDM ID of the default policy. If a different policy is marked as the default
+# The MDM ID of the default policy. If a different policy is marked as the default
 # in the Policy model it will be considered the default instead.
-TINYMDM_DEFAULT_POLICY = os.getenv("TINYMDM_DEFAULT_POLICY")
+MDM_DEFAULT_POLICY = os.getenv("MDM_DEFAULT_POLICY")
 
 # Dagster settings
 DAGSTER_URL = os.getenv("DAGSTER_URL", "")
@@ -428,3 +428,9 @@ if os.getenv("SECRETS_FILE"):
     SECRETS = dotenv_values(os.getenv("SECRETS_FILE"))
 else:
     SECRETS = {}
+
+# The currently active MDM. Defaults to TinyMDM
+ACTIVE_MDM = {
+    "name": os.getenv("ACTIVE_MDM_NAME", "TinyMDM"),
+    "class": os.getenv("ACTIVE_MDM_CLASS", "apps.mdm.mdms.TinyMDM"),
+}

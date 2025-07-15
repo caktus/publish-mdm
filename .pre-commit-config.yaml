@@ -42,6 +42,8 @@ repos:
       - id: check-merge-conflict
       - id: debug-statements
       - id: detect-private-key
+        # Exclude test service account file downloaded from https://github.com/googleapis/google-api-python-client/blob/main/tests/data/service_account.json
+        exclude: tests/mdm/android_enterprise_service_account.json
   - repo: https://github.com/asottile/pyupgrade
     rev: v3.19.1
     hooks:

@@ -18,6 +18,9 @@ django-tables2
 django-template-partials
 django-widget-tweaks
 dj-database-url
+google-auth
+google-auth-httplib2
+google-api-python-client
 gspread
 gunicorn
 infisicalsdk

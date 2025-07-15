@@ -24,12 +24,7 @@ from apps.infisical.fields import EncryptedCharField, EncryptedEmailField
 from apps.infisical.managers import EncryptedManager
 from apps.users.models import User
 from apps.mdm.models import Fleet, Policy
-from apps.mdm.tasks import (
-    add_group_to_policy,
-    create_group,
-    get_enrollment_qr_code,
-    get_tinymdm_session,
-)
+from apps.mdm.mdms import get_active_mdm_instance
 
 from .etl import template
 from .etl.google import download_user_google_sheet
@@ -63,14 +58,14 @@ class Organization(AbstractBaseModel):
         return reverse("publish_mdm:organization-home", args=[self.slug])
 
     def create_default_fleet(self):
-        """Create a default MDM Fleet for the organization if the TinyMDM API is
+        """Create a default MDM Fleet for the organization if the active MDM's API is
         configured and a default Policy exists.
         """
-        if (session := get_tinymdm_session()) and (default_policy := Policy.get_default()):
+        if (active_mdm := get_active_mdm_instance()) and (default_policy := Policy.get_default()):
             fleet = Fleet(organization=self, name="Default", policy=default_policy)
-            create_group(session, fleet)
-            add_group_to_policy(session, fleet)
-            get_enrollment_qr_code(session, fleet)
+            active_mdm.create_group(fleet)
+            active_mdm.add_group_to_policy(fleet)
+            active_mdm.get_enrollment_qr_code(fleet)
             fleet.save()
             return fleet
 
