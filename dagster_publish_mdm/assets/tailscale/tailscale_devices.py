@@ -2,9 +2,9 @@ import datetime as dt
 
 import dagster as dg
 import django
+import os
 
 from dagster_publish_mdm.resources.tailscale import TailscaleResource
-from datetime import datetime, timedelta, timezone
 
 django.setup()
 
@@ -95,10 +95,15 @@ def stale_tailscale_devices(
 
     context.log.info("Scanning for stale devices...")
 
-    now = datetime.now(timezone.utc)
-    time_delta = now - timedelta(
-        minutes=30
-    )  # Currently set to 30 minutes to enable testing. will be set to days=90 in prod
+    now = dt.datetime.now(dt.timezone.utc)
+    time_delta = now - dt.timedelta(
+        minutes=int(
+            os.getenv(
+                "TAILSCALE_DEVICE_STALE_MINUTES",
+                default=129600,  # 60 minutes * 24 hours * 90 days
+            )
+        )
+    )
     stale_devices = []
 
     for device in tailscale_device_snapshot["devices"]:
@@ -107,7 +112,7 @@ def stale_tailscale_devices(
         device_id = device.get("id")
 
         try:
-            seen_time = datetime.fromisoformat(last_seen.replace("Z", "+00:00"))
+            seen_time = dt.datetime.fromisoformat(last_seen.replace("Z", "+00:00"))
             if seen_time < time_delta:
                 context.log.info(f"Device {hostname} last seen at {seen_time} — marking as stale.")
                 stale_devices.append(device)
