@@ -68,3 +68,23 @@ snapshots from your tailnet.
 
 .. _Tailscale OAuth clients: https://tailscale.com/kb/1215/oauth-clients
 .. _Setting up an OAuth client: https://tailscale.com/kb/1215/oauth-clients#setting-up-an-oauth-client
+
+
+OAuth client for Deletion of Inactive Tailscale Devices
+----------------------------------------------------------
+
+Deletion of tailscale devices requires an OAuth client with write access for the ``devices:core`` scope.
+To create this, do as follows:
+
+1. Login to the tailscale admin console UI and navigate to the ``Settings`` tab.
+2. Go to the ``OAuth clients``.
+3. Click ``Generate OAuth client``
+4. Select the ``devices:core`` scope and check the ``write`` checkbox.
+5. Select a tag as it is required for the write scope.
+   If a tag doesn't exist, go to the the Access Controls tab in the UI console and update policy file. For instance to create a tag named ``app``, add to the tagOwners code block and nest it to a parent tag as shown below::
+
+        "tagOwners": {
+                "tag:admin": ["autogroup:admin"],
+                "tag:app":   ["tag:admin"],
+        }
+6. Click `Save` and copy the generated Client ID and Client Secret.
