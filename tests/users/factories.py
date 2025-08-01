@@ -58,3 +58,5 @@ class SocialTokenFactory(factory.django.DjangoModelFactory):
         model = SocialToken
 
     account = factory.SubFactory(SocialAccountFactory)
+    token = factory.Faker("pystr")
+    token_secret = factory.Faker("pystr")

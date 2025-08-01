@@ -67,9 +67,7 @@ class TestPublishFormTemplate:
         )
         project = ProjectFactory(central_server__base_url="https://central", central_id=2)
         user = UserFactory()
-        form_template = FormTemplateFactory(
-            project=project, form_id_base="staff_registration", template_url_user=user
-        )
+        form_template = FormTemplateFactory(project=project, form_id_base="staff_registration")
         # Create 2 app users
         user_form1 = AppUserFormTemplateFactory(form_template=form_template, app_user__name="user1")
         user_form2 = AppUserFormTemplateFactory(form_template=form_template, app_user__name="user2")
