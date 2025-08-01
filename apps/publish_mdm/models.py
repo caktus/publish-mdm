@@ -109,6 +109,17 @@ class CentralServer(AbstractBaseModel):
                 value = kms_api.decrypt("centralserver", value)
                 setattr(self, field, value)
 
+    @property
+    def masked_username(self):
+        """If a username is set, partially hide it."""
+        if self.username:
+            mask = "*" * 5
+            if "@" in self.username:
+                name, rest = self.username.split("@", 1)
+                return f"{name[0]}{mask}@{rest}"
+            return f"{self.username[0]}{mask}"
+        return self.username
+
 
 class TemplateVariable(AbstractBaseModel):
     """A variable that can be used in a FormTemplate."""
