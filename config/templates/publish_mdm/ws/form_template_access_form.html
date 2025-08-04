@@ -1,0 +1,45 @@
+{% load socialaccount %}
+{% load static %}
+<div id="form-access-error" class="mb-1">
+    <p class="mb-1">
+        Unfortunately, we could not access the form in Google Sheets. Click the button below to grant us access.
+    </p>
+    <button type="button"
+            class="btn btn-outline px-2 py-1"
+            onclick="createPicker()">Grant access</button>
+</div>
+{% get_social_accounts user as accounts %}
+{# Start Google Picker code #}
+<script>
+    let googlePickerConfig = {
+        accessToken: "{{ accounts.google.0.socialtoken_set.all.0.token }}",
+        clientId: "{{ google_client_id }}",
+        scopes: "{{ google_scopes }}",
+        apiKey: "{{ google_api_key }}",
+        appId: "{{ google_app_id }}",
+        preselectedFileId: "{{ google_sheet_id }}",
+        filePickedCallback: function() {
+            document.getElementById("form-access-error").innerHTML = `
+            <div class="alert flex items-center py-2 px-3 mb-2 rounded-lg text-primary-700 bg-primary-100 dark:bg-gray-800 dark:text-primary-300" role="alert">
+              <svg class="flex-shrink-0 w-4 h-4 dark:text-gray-300" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 .5a9.5 9.5 0 1 0 9.5 9.5A9.51 9.51 0 0 0 10 .5ZM9.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM12 15H8a1 1 0 0 1 0-2h1v-3H8a1 1 0 0 1 0-2h2a1 1 0 0 1 1 1v4h1a1 1 0 0 1 0 2Z" />
+              </svg>
+              <span class="sr-only">Success</span>
+              <div class="ms-3 text-sm font-medium">
+                You have successfully given us access to the file! Please try publishing again by clicking on the "Publish" button.
+              </div>
+            </div>`;
+        }
+    }
+</script>
+<script src="{% static 'js/google_picker.js' %}"></script>
+<!-- Load the Google API Loader script. -->
+<script async
+        defer
+        src="https://apis.google.com/js/api.js"
+        onload="onApiLoad()"></script>
+<script async
+        defer
+        src="https://accounts.google.com/gsi/client"
+        onload="gisLoaded()"></script>
+{# End Google Picker code #}

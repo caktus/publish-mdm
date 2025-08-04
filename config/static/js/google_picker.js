@@ -40,7 +40,8 @@ function createPicker() {
           .setMode(google.picker.DocsViewMode.LIST)
           // Exclude Excel files stored in Google Drive (https://drive.google.com/file/... URLs)
           // which gspread won't be able to open (raises gspread.exceptions.NoValidUrlKeyFound)
-          .setMimeTypes("application/vnd.google-apps.spreadsheet"),
+          .setMimeTypes("application/vnd.google-apps.spreadsheet")
+          .setFileIds(googlePickerConfig.preselectedFileId || ""),
       )
       .enableFeature(google.picker.Feature.NAV_HIDDEN)
       .setOAuthToken(accessToken)
@@ -73,10 +74,14 @@ function createPicker() {
 // Callback called when the user selects a spreadsheet in the Google Picker dialog
 function pickerCallback(data) {
   if (data[google.picker.Response.ACTION] == google.picker.Action.PICKED) {
-    const doc = data[google.picker.Response.DOCUMENTS][0];
-    url = doc[google.picker.Document.URL];
-    document.querySelector(googlePickerConfig.urlInputSelector).value = url;
-    document.querySelector(googlePickerConfig.userInputSelector).value =
-      googlePickerConfig.user;
+    if (googlePickerConfig.filePickedCallback) {
+      googlePickerConfig.filePickedCallback();
+    } else {
+      const doc = data[google.picker.Response.DOCUMENTS][0];
+      url = doc[google.picker.Document.URL];
+      document.querySelector(googlePickerConfig.urlInputSelector).value = url;
+      document.querySelector(googlePickerConfig.userInputSelector).value =
+        googlePickerConfig.user;
+    }
   }
 }

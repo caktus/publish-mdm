@@ -260,7 +260,10 @@ def form_template_publish(
             ],
         ),
     }
-    return render(request, template, context)
+    response = render(request, template, context)
+    # Needed for the Google Picker popup to work
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    return response
 
 
 @login_required
