@@ -10,6 +10,8 @@
     {% translate "Or use a third-party" %}
 {% endelement %}
 {% endif %}
-{% include "socialaccount/snippets/provider_list.html" with process="login" %}
+{% with auth_params=request.GET.auth_params %}
+    {% include "socialaccount/snippets/provider_list.html" with process="login" auth_params=auth_params %}
+{% endwith %}
 {% include "socialaccount/snippets/login_extra.html" %}
 {% endif %}

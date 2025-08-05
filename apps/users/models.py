@@ -8,7 +8,12 @@ class User(AbstractUser):
 
     def get_google_social_token(self) -> SocialToken | None:
         """Return the user's Google social token for use with the Google Sheets API."""
-        return SocialToken.objects.filter(account__user=self, account__provider="google").first()
+        # Prefer a SocialToken that has a token_secret (refresh token)
+        return (
+            SocialToken.objects.filter(account__user=self, account__provider="google")
+            .order_by("-token_secret")
+            .first()
+        )
 
     def get_organizations(self):
         from apps.publish_mdm.models import Organization
