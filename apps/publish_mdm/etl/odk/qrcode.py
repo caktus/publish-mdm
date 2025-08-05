@@ -27,7 +27,7 @@ def build_collect_settings(
     collect_settings = DEFAULT_COLLECT_SETTINGS.copy()
 
     if admin_pw:
-        collect_settings.setdefault("admin_pw", {})["admin_pw"] = str(admin_pw)
+        collect_settings["admin"]["admin_pw"] = admin_pw
 
     # Customize settings
     url = f"{base_url.rstrip("/")}/key/{app_user.token}/projects/{project_id}"
@@ -49,8 +49,6 @@ def create_app_user_qrcode(
     language: str = "en",
 ) -> tuple[io.BytesIO, dict]:
     """Generate a QR code as a PNG for the given app user."""
-
-    admin_pw = str(admin_pw) if admin_pw else ""
 
     # Build app user settings
     collect_settings = build_collect_settings(
