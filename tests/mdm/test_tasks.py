@@ -488,3 +488,49 @@ class TestTasks:
         assert account_info_request.called_once
         assert devices_request.called_once
         assert result == (limit, enrolled)
+
+    @pytest.mark.parametrize("status_code", (429, 500))
+    @pytest.mark.parametrize("method", ("GET", "POST"))
+    def test_max_request_retries(self, responses, set_tinymdm_env_vars, method, status_code):
+        """Ensure POSTs are retried only on 429 responses. GETs (and others that are retried
+        by default) will be retried on 429, 500, 502, 503, or 504 responses.
+        """
+        url = "https://www.tinymdm.net/api/v1/some-endpoint"
+        responses.add(method, url, status=status_code)
+        session = tasks.get_tinymdm_session()
+        response = tasks.request(session, method, url, raise_for_status=False)
+
+        if method == "POST" and status_code != 429:
+            # No retries
+            expected_request_count = 1
+        else:
+            # Expect 6 total requests: initial request + 5 retries
+            expected_request_count = 6
+
+        assert responses.assert_call_count(url, expected_request_count)
+        assert response.status_code == status_code
+
+    @pytest.mark.parametrize("status_code", (429, 500))
+    @pytest.mark.parametrize("method", ("GET", "POST"))
+    def test_request_retries_until_success(
+        self, responses, set_tinymdm_env_vars, method, status_code
+    ):
+        """Like test_max_request_retries above, but we eventually get a successful
+        response before reaching the max allowed requests.
+        """
+        url = "https://www.tinymdm.net/api/v1/some-endpoint"
+        # The third request returns a 200 response
+        responses.add(method, url, status=status_code)
+        responses.add(method, url, status=status_code)
+        responses.add(method, url, status=200)
+        session = tasks.get_tinymdm_session()
+        response = tasks.request(session, method, url, raise_for_status=False)
+
+        if method == "POST" and status_code != 429:
+            # No retries
+            responses.assert_call_count(url, 1)
+            assert response.status_code == status_code
+            responses.assert_all_requests_are_fired = False
+        else:
+            responses.assert_call_count(url, 3)
+            assert response.status_code == 200
