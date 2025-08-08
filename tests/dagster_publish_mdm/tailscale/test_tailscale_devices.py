@@ -11,6 +11,7 @@ from unittest.mock import MagicMock
 
 TAILSCALE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
+
 @pytest.fixture
 def devices() -> dict:
     return {
@@ -145,6 +146,7 @@ def test_dev_stale_tailscale_devices(monkeypatch):
     )
     assert len(result) == 1
 
+
 def test_stale_tailscale_devices(monkeypatch):
     """
     Ensure default 90-day cutoff is used when TAILSCALE_DEVICE_STALE_MINUTES is unset.
@@ -166,7 +168,9 @@ def test_stale_tailscale_devices(monkeypatch):
             {
                 "id": "2",
                 "hostname": "device-2",
-                "lastSeen": (now - dt.timedelta(days=89, hours=23, minutes=59, seconds=58)).strftime(
+                "lastSeen": (
+                    now - dt.timedelta(days=89, hours=23, minutes=59, seconds=58)
+                ).strftime(
                     TAILSCALE_FORMAT
                 ),  # Device inactive for 89 days, 23:59:58 — just under 90 days by 2 secs. Should NOT be deleted.
             },
