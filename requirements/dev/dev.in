@@ -13,5 +13,6 @@ pytest
 pytest-cov
 pytest-django
 pytest-mock
+pytest-responses
 requests-mock
 moto[s3]

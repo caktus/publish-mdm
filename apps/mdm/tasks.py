@@ -38,6 +38,14 @@ class APIError(BaseModel):
         return error
 
 
+class TinyMDMRetry(Retry):
+    def is_retry(self, method: str, status_code: int, has_retry_after: bool = False) -> bool:
+        """Retry POSTs only on 429 responses."""
+        if method.upper() == "POST" and status_code == 429:
+            return True
+        return super().is_retry(method, status_code, has_retry_after)
+
+
 def get_tinymdm_session() -> TinyMDMSession:
     """
     Creates a requests session suitable for use with the TinyMDM API. Should be
@@ -56,9 +64,13 @@ def get_tinymdm_session() -> TinyMDMSession:
         return None
     session.headers.update(headers)
 
-    retries = Retry(
+    retries = TinyMDMRetry(
         total=5,
         backoff_factor=0.1,
+        status_forcelist=[429, 500, 502, 503, 504],
+        # Don't raise a MaxRetryError if retries are exhausted due to status code;
+        # we'll raise a HTTPError using response.raise_for_status() if necessary
+        raise_on_status=False,
     )
     session.mount("https://", HTTPAdapter(max_retries=retries))
 
