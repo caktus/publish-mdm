@@ -7,7 +7,6 @@ from dagster_publish_mdm.resources.tailscale import TailscaleResource
 
 from apps.tailscale.models import DeviceSnapshot
 from tests.tailscale.factories import DeviceSnapshotFactory
-from unittest.mock import MagicMock
 
 TAILSCALE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
