@@ -71,7 +71,7 @@ snapshots from your tailnet.
 
 
 OAuth client for Deletion of Inactive Tailscale Devices
-----------------------------------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Deletion of tailscale devices requires an OAuth client with write access for the ``devices:core`` scope.
 To create this, do as follows:
