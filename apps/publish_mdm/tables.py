@@ -52,10 +52,11 @@ class CentralServerTable(tables.Table):
         args=[tables.A("organization__slug"), tables.A("pk")],
         attrs={"a": {"class": "text-primary-600 hover:underline"}},
     )
+    username = tables.Column(accessor="masked_username")
 
     class Meta:
         model = CentralServer
-        fields = ["base_url", "created_at"]
+        fields = ["base_url", "username", "created_at"]
         template_name = "patterns/tables/table.html"
         attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
         orderable = False
