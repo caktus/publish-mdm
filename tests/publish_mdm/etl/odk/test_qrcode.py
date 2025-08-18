@@ -50,6 +50,7 @@ class TestCollectSettings:
 
         assert qr_code.getvalue()[:4] == b"\x89PNG"
         assert collect_settings == build_collect_settings(**kwargs)
+        assert collect_settings["admin"]["admin_pw"] == kwargs["admin_pw"]
 
     @pytest.mark.django_db
     @pytest.mark.parametrize("app_language", ["", "ar"])
