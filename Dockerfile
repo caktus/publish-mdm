@@ -10,7 +10,17 @@ COPY config/templates config/templates
 COPY apps/patterns/templates apps/patterns/templates
 RUN npm run build
 
-FROM python:3.12-slim-bookworm AS base
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm AS base
+
+# Enable bytecode compilation
+ENV UV_COMPILE_BYTECODE=1
+
+# Copy from the cache instead of linking since it's a mounted volume
+ENV UV_LINK_MODE=copy
+
+# Use a custom VIRTUAL_ENV with uv to avoid conflicts with local developer's
+# .venv/ while running tests in Docker
+ENV VIRTUAL_ENV=/venv
 
 # Install packages needed to run your application (not build deps):
 #   mime-support -- for mime types when serving static files
@@ -41,21 +51,25 @@ RUN set -ex \
     # Clean up package lists cache
     && rm -rf /var/lib/apt/lists/*
 
-ADD requirements /requirements
-
-# Install build deps, then run `pip install`, then remove unneeded build deps all in a single step.
-# Correct the path to your production requirements file, if needed.
-RUN set -ex \
+# Install build deps and Python deps, then remove unneeded build deps all in a single step.
+ARG UV_OPTS="--no-dev"
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    set -ex \
     && BUILD_DEPS=" \
     build-essential \
     git-core \
     libpq-dev \
     " \
     && apt-get update && apt-get install -y --no-install-recommends $BUILD_DEPS \
-    && pip install -U -q pip-tools \
-    && pip-sync --pip-args="--no-cache-dir" requirements/base/base.txt \
+    && uv venv $VIRTUAL_ENV \
+    && uv sync --active --locked --no-install-project $UV_OPTS \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false $BUILD_DEPS \
     && rm -rf /var/lib/apt/lists/*
+
+# Add uv venv to PATH
+ENV PATH="/venv/bin:$PATH"
 
 # Copy your application code to the container (make sure you create a .dockerignore file if any large files or directories should be excluded)
 RUN mkdir /code/
