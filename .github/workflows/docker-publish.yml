@@ -2,7 +2,7 @@ name: Docker
 
 on:
   push:
-    branches: [main, 4752-switch-to-uv]
+    branches: [main]
     # Publish semver tags as releases.
     tags: ["v*.*.*"]
 
