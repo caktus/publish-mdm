@@ -10,7 +10,7 @@ COPY config/templates config/templates
 COPY apps/patterns/templates apps/patterns/templates
 RUN npm run build
 
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm AS base
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS base
 
 # Enable bytecode compilation
 ENV UV_COMPILE_BYTECODE=1

@@ -61,7 +61,7 @@ name = "publish-mdm"
 version = "0.1.0"
 description = "Publish MDM is an open-source tool to manage devices and publish XLSForm templates from Google Sheets to ODK Central."
 readme = "README.md"
-requires-python = "~=3.12"
+requires-python = "~=3.12.0"
 dependencies = [
     "anyio<4",
     "beautifulsoup4==4.13.4",

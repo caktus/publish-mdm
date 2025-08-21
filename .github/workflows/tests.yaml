@@ -39,6 +39,6 @@ jobs:
       - name: Run pre-commit
         run: uv run pre-commit run --all-files
       - name: Run tests
-        run: pytest
+        run: uv run pytest
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
