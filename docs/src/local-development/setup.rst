@@ -5,14 +5,19 @@ This guide will walk you through setting up Publish MDM locally with a Postgres 
 running on your development machine (or another host accessible from your machine). If you'd
 rather use Docker, see :doc:`../running/docker-compose`.
 
-1. Install `direnv <https://direnv.net/docs/installation.html>`_ and hook it into your shell.
+1. Install these applications:
+  - `uv <https://docs.astral.sh/uv/getting-started/installation/>`_
+  - `direnv <https://direnv.net/docs/installation.html>`_ (and hook it into your shell)
 
 2. Configure your environment by creating a ``.envrc`` file with these contents:
 
 .. code-block:: bash
 
-    # use Python 3.12
-    layout python python3.12
+    # set up Python and other requirements using uv
+    uv sync --locked
+
+    # add uv's venv to the PATH
+    PATH_add .venv/bin
 
     # use Node.js 22
     use node 22
@@ -43,7 +48,6 @@ See :doc:`the tutorial <../running/tutorial>` for more details on the Google and
 .. code-block:: bash
 
     direnv allow
-    make setup
     npm install
 
 
