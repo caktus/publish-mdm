@@ -8,6 +8,8 @@ from dagster_publish_mdm.resources.tailscale import TailscaleResource
 from apps.tailscale.models import DeviceSnapshot
 from tests.tailscale.factories import DeviceSnapshotFactory
 
+TAILSCALE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+
 
 @pytest.fixture
 def devices() -> dict:
@@ -102,3 +104,85 @@ def test_tailscale_insert_and_update_devices(devices):
     )
     assert updated_devices == 0
     assert new_devices == 1
+
+
+def test_dev_stale_tailscale_devices(monkeypatch):
+    """
+    Ensure TAILSCALE_DEVICE_STALE_MINUTES is used when set and function correctly
+    identifies stale devices.
+    """
+
+    monkeypatch.setenv("TAILSCALE_DEVICE_STALE_MINUTES", "60")
+    now = dt.datetime.now(dt.timezone.utc)
+
+    snapshot = {
+        "devices": [
+            {
+                "id": "1",
+                "hostname": "device-1",
+                "lastSeen": (now - dt.timedelta(minutes=60, seconds=1)).strftime(
+                    TAILSCALE_FORMAT
+                ),  # Device inactive for 60 mins + 1 sec. Should be deleted
+            },
+            {
+                "id": "2",
+                "hostname": "device-2",
+                "lastSeen": (now - dt.timedelta(minutes=59, seconds=58)).strftime(
+                    TAILSCALE_FORMAT
+                ),  # Device inactive for 59 mins 58 sec. Should NOT be deleted
+            },
+            {
+                "id": "3",
+                "hostname": "device-3",
+                "lastSeen": (now - dt.timedelta(minutes=30)).strftime(
+                    TAILSCALE_FORMAT
+                ),  # Device inactive for 30 mins. Should NOT be deleted
+            },
+        ]
+    }
+    result = assets.stale_tailscale_devices(
+        dg.build_asset_context(), tailscale_device_snapshot=snapshot
+    )
+    assert len(result) == 1
+
+
+def test_stale_tailscale_devices(monkeypatch):
+    """
+    Ensure default 90-day cutoff is used when TAILSCALE_DEVICE_STALE_MINUTES is unset.
+    """
+
+    now = dt.datetime.now(dt.timezone.utc)
+    monkeypatch.delenv("TAILSCALE_DEVICE_STALE_MINUTES", raising=False)
+
+    # Only one device: device-3, should be marked stale.
+    snapshot = {
+        "devices": [
+            {
+                "id": "1",
+                "hostname": "device-1",
+                "lastSeen": (now - dt.timedelta(days=70)).strftime(
+                    TAILSCALE_FORMAT
+                ),  # Device inactive for exactly 70 days. Should NOT be deleted.
+            },
+            {
+                "id": "2",
+                "hostname": "device-2",
+                "lastSeen": (
+                    now - dt.timedelta(days=89, hours=23, minutes=59, seconds=58)
+                ).strftime(
+                    TAILSCALE_FORMAT
+                ),  # Device inactive for 89 days, 23:59:58 — just under 90 days by 2 secs. Should NOT be deleted.
+            },
+            {
+                "id": "3",
+                "hostname": "device-3",
+                "lastSeen": (now - dt.timedelta(days=90, seconds=1)).strftime(
+                    TAILSCALE_FORMAT
+                ),  # Device inactive for 90 days + 1 sec. Should be deleted.
+            },
+        ]
+    }
+    result = assets.stale_tailscale_devices(
+        dg.build_asset_context(), tailscale_device_snapshot=snapshot
+    )
+    assert len(result) == 1
