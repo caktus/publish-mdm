@@ -321,11 +321,9 @@ class FormTemplate(AbstractBaseModel):
             q &= models.Q(app_user_forms__app_user__name__in=names)
         return AppUser.objects.filter(q)
 
-    def download_user_google_sheet(self, name: str) -> SimpleUploadedFile:
+    def download_user_google_sheet(self, user: User, name: str) -> SimpleUploadedFile:
         """Download the Google Sheet Excel file for this form template."""
-        if not self.template_url_user:
-            raise ValueError("The user who gave access to the Google Sheet is not known.")
-        social_token = self.template_url_user.get_google_social_token()
+        social_token = user.get_google_social_token()
         if social_token is None:
             raise ValueError("User does not have a Google social token.")
         return download_user_google_sheet(

@@ -1,15 +1,18 @@
 import json
+from urllib.parse import urlencode
 
 import structlog
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import logout, REDIRECT_FIELD_NAME
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.views import redirect_to_login
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.db import models, transaction
 from django.db.models import OuterRef, Q, Subquery, Value
 from django.db.models.functions import Collate, Lower, NullIf
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect, render, resolve_url
 from django.utils.html import mark_safe
 from django.utils.timezone import localdate
 from django_tables2.config import RequestConfig
@@ -220,6 +223,17 @@ def form_template_publish(
     request: HttpRequest, organization_slug, odk_project_pk: int, form_template_id: int
 ):
     """Publish a FormTemplate to ODK Central."""
+    if request.method == "GET" and not (
+        (social_token := request.user.get_google_social_token()) and social_token.token_secret
+    ):
+        # The user does not have a Google refresh token. Send them through the
+        # OAuth consent flow again
+        logout(request)
+        messages.error(request, "Sorry, you need to log in again to be able to publish.")
+        querystring = urlencode({"auth_params": "prompt=select_account consent"})
+        login_url = f"{resolve_url(settings.LOGIN_URL)}?{querystring}"
+        return redirect_to_login(request.path, login_url, REDIRECT_FIELD_NAME)
+
     form_template: FormTemplate = get_object_or_404(
         request.odk_project.form_templates, pk=form_template_id
     )
@@ -246,7 +260,10 @@ def form_template_publish(
             ],
         ),
     }
-    return render(request, template, context)
+    response = render(request, template, context)
+    # Needed for the Google Picker popup to work
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    return response
 
 
 @login_required

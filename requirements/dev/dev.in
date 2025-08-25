@@ -10,6 +10,7 @@ factory-boy
 jupyterlab
 pre-commit
 pytest
+pytest-asyncio
 pytest-cov
 pytest-django
 pytest-mock
