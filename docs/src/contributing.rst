@@ -13,12 +13,12 @@ Documentation
 
 The documentation is built using Sphinx.
 
-To build the documentation, run the following commands:
+To build the documentation, run the following commands (requires ``uv``, see :doc:`local setup docs <local-development/setup>`):
 
 .. code-block:: bash
 
    cd docs
-   pip install -r requirements-docs.txt
+   uv sync --locked --only-group docs
    sphinx-autobuild --port 8001 . _build/html
 
 
