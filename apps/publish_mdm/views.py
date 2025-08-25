@@ -768,7 +768,9 @@ def organization_template_variables(request, organization_slug):
 @login_required
 def central_servers_list(request: HttpRequest, organization_slug):
     """List CentralServers linked to the current organization."""
-    central_servers = request.organization.central_servers.order_by("-created_at")
+    central_servers = CentralServer.decrypted.filter(organization=request.organization).order_by(
+        "-created_at"
+    )
     table = CentralServerTable(data=central_servers, request=request, show_footer=False)
     context = {
         "table": table,

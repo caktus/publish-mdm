@@ -21,7 +21,7 @@ class EncryptedQuery(models.sql.Query):
                 # It defaults to model.TextField(), which doesn't decrypt.
                 updated_ret = []
                 for col, (sql, params), alias in ret:
-                    if isinstance(col.target, EncryptedMixin):
+                    if hasattr(col, "target") and isinstance(col.target, EncryptedMixin):
                         col = col.target.get_col(col.alias, output_field=col.target)
                     updated_ret.append((col, (sql, params), alias))
                 return updated_ret, klass_info, annotations
