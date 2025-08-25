@@ -1,14 +1,17 @@
 import json
 import re
+from urllib.parse import urlencode
 
 import faker
 import pytest
+from allauth.socialaccount.models import SocialToken
 from django_tables2 import Table
 from django.urls import reverse
 from django.conf import settings
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.core.files.base import ContentFile
 from django.db.models import Count, Q
+from django.shortcuts import resolve_url
 from django.template.loader import render_to_string
 from django.utils.timezone import now, localtime
 from django.utils.formats import date_format
@@ -147,6 +150,16 @@ class TestPublishTemplate(ViewTestBase):
         assert response.status_code == 200
         # Check that the response triggers the WebSocket connection
         assert 'hx-ws="send"' in str(response.content)
+
+    def test_no_google_refresh_token(self, client, url, user):
+        """Ensure a user gets redirected to the login page if we don't have a
+        refresh token.
+        """
+        SocialToken.objects.filter(account__user=user).update(token_secret="")
+        response = client.get(url)
+        querystring = urlencode({"auth_params": "prompt=select_account consent", "next": url})
+        login_url = f"{resolve_url(settings.LOGIN_URL)}?{querystring}"
+        assertRedirects(response, login_url)
 
 
 class TestAppUserDetail(ViewTestBase):
