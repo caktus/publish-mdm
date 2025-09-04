@@ -24,7 +24,7 @@ tailscale_device_deletion_schedule = dg.ScheduleDefinition(
     target=dg.AssetSelection.groups("tailscale_device_prunning_assets")
     | dg.AssetSelection.assets("tailscale_device_snapshot"),
     cron_schedule="0 16 * * *",  # Once a day at 4PM UTC
-    default_status=dg.DefaultScheduleStatus.RUNNING,
+    default_status=dg.DefaultScheduleStatus.STOPPED,
 )
 
 defs = dg.Definitions(
