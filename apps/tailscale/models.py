@@ -100,7 +100,9 @@ class DeviceSnapshot(models.Model):
         null=True, blank=True, help_text="The expiration date of the device's auth key."
     )
     hostname = models.CharField(max_length=255, help_text="The machine name in the admin console.")
-    last_seen = models.DateTimeField(help_text="When device was last active on the tailnet.")
+    last_seen = models.DateTimeField(
+        null=True, blank=True, help_text="When device was last active on the tailnet."
+    )
     name = models.CharField(max_length=255, help_text="The MagicDNS name of the device.")
     node_id = models.CharField(max_length=128, help_text="The preferred identifier for a device.")
     os = models.CharField(

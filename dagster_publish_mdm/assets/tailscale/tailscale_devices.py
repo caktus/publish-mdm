@@ -49,7 +49,7 @@ def tailscale_append_device_snapshot_table(
             created=device["created"],
             expires=expires,
             hostname=device["hostname"],
-            last_seen=device["lastSeen"],
+            last_seen=device.get("lastSeen"),
             name=device["name"],
             node_id=device["nodeId"],
             os=device["os"],
