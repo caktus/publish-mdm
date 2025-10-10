@@ -96,6 +96,17 @@ def test_device_no_expiration(devices):
 
 
 @pytest.mark.django_db
+def test_device_with_no_last_seen(devices):
+    """Test asset handles devices JSON with no last seen."""
+    devices["devices"][0].pop("lastSeen")
+    assets.tailscale_append_device_snapshot_table(
+        context=dg.build_asset_context(), tailscale_device_snapshot=devices
+    )
+    device = DeviceSnapshot.objects.first()
+    assert device.last_seen is None
+
+
+@pytest.mark.django_db
 def test_tailscale_insert_and_update_devices(devices):
     """Test asset inserts and updates devices."""
     DeviceSnapshotFactory(device=None)
@@ -186,3 +197,31 @@ def test_stale_tailscale_devices(monkeypatch):
         dg.build_asset_context(), tailscale_device_snapshot=snapshot
     )
     assert len(result) == 1
+
+def test_stale_tailscale_devices_with_no_last_seen(monkeypatch):
+    """Test stale devices asset handles devices with no last seen."""
+
+    now = dt.datetime.now(dt.timezone.utc)
+    monkeypatch.delenv("TAILSCALE_DEVICE_STALE_MINUTES", raising=False)
+
+    # Only one device: device-3, should be marked stale.
+    snapshot = {
+        "devices": [
+            {
+                "id": "1",
+                "hostname": "device-1"
+            }, # Device with no last seen, meaning its connected. Should NOT be deleted.
+            {
+                "id": "2",
+                "hostname": "device-2",
+                "lastSeen": (now - dt.timedelta(days=90, seconds=1)).strftime(
+                    TAILSCALE_FORMAT
+                ),  # Device inactive for 90 days + 1 sec. Should be deleted.
+            },
+        ]
+    }
+    result = assets.stale_tailscale_devices(
+        dg.build_asset_context(), tailscale_device_snapshot=snapshot
+    )
+    assert len(result) == 1
+
