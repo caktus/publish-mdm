@@ -198,6 +198,7 @@ def test_stale_tailscale_devices(monkeypatch):
     )
     assert len(result) == 1
 
+
 def test_stale_tailscale_devices_with_no_last_seen(monkeypatch):
     """Test stale devices asset handles devices with no last seen."""
 
@@ -209,8 +210,8 @@ def test_stale_tailscale_devices_with_no_last_seen(monkeypatch):
         "devices": [
             {
                 "id": "1",
-                "hostname": "device-1"
-            }, # Device with no last seen, meaning its connected. Should NOT be deleted.
+                "hostname": "device-1",
+            },  # Device with no last seen, meaning its connected. Should NOT be deleted.
             {
                 "id": "2",
                 "hostname": "device-2",
@@ -224,4 +225,3 @@ def test_stale_tailscale_devices_with_no_last_seen(monkeypatch):
         dg.build_asset_context(), tailscale_device_snapshot=snapshot
     )
     assert len(result) == 1
-

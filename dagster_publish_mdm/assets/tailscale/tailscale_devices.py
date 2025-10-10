@@ -115,7 +115,9 @@ def stale_tailscale_devices(
             try:
                 seen_time = dt.datetime.fromisoformat(last_seen.replace("Z", "+00:00"))
                 if seen_time < time_delta:
-                    context.log.info(f"Device {hostname} last seen at {seen_time} — marking as stale.")
+                    context.log.info(
+                        f"Device {hostname} last seen at {seen_time} — marking as stale."
+                    )
                     stale_devices.append(device)
             except Exception as e:
                 context.log.warning(f"Failed to process device {hostname}: (ID: {device_id}) {e}")
