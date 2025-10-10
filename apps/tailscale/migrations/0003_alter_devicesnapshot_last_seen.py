@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("tailscale", "0002_devicesnapshot_device_alter_device_latest_snapshot"),
     ]
