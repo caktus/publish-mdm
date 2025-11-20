@@ -1,18 +1,16 @@
 import json
-from urllib.parse import urlencode
 
 import structlog
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import logout, REDIRECT_FIELD_NAME
+from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.views import redirect_to_login
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.db import models, transaction
 from django.db.models import OuterRef, Q, Subquery, Value
 from django.db.models.functions import Collate, Lower, NullIf
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import get_object_or_404, redirect, render, resolve_url
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.html import mark_safe
 from django.utils.timezone import localdate
 from django_tables2.config import RequestConfig
@@ -89,6 +87,7 @@ from .tables import (
     FormTemplateTable,
     FormTemplateVersionTable,
 )
+from .utils import get_login_url
 
 
 logger = structlog.getLogger(__name__)
@@ -230,9 +229,7 @@ def form_template_publish(
         # OAuth consent flow again
         logout(request)
         messages.error(request, "Sorry, you need to log in again to be able to publish.")
-        querystring = urlencode({"auth_params": "prompt=select_account consent"})
-        login_url = f"{resolve_url(settings.LOGIN_URL)}?{querystring}"
-        return redirect_to_login(request.path, login_url, REDIRECT_FIELD_NAME)
+        return redirect(get_login_url(request.path))
 
     form_template: FormTemplate = get_object_or_404(
         request.odk_project.form_templates, pk=form_template_id
