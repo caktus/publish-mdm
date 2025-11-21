@@ -123,10 +123,15 @@ class PublishTemplateConsumer(WebsocketConsumer):
                 # Display instructions on how to confirm if they have access
                 error_message = (
                     "Unfortunately, we could not access the form in Google Sheets. "
-                    'Click the button below to access the Spreadsheet, click "Share" '
-                    "(or ask someone with permission to do so), and confirm the "
-                    f'Google user "{self.scope["user"].email}" appears in the list of '
-                    "people with access."
+                    'Click the button below to open the spreadsheet and request access.'
+                    '<br><br>'
+                    'Within the spreadsheet, you or someone else with access will need to click '
+                    '<strong>Share</strong> and confirm the Google user '
+                    f'<strong>{self.scope["user"].email}</strong> appears in the list of '
+                    'people with access.'
+                    '<br><br>'
+                    "When done, return to this page and click "
+                    "<strong>Publish next version</strong> again."
                 )
                 form_template = FormTemplate.objects.get(id=event_data.get("form_template"))
                 button = {"href": form_template.template_url, "text": "Open spreadsheet"}
