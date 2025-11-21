@@ -99,9 +99,15 @@ class TestPublishTemplateConsumer:
         assert error_summary
         assert (
             "Unfortunately, we could not access the form in Google Sheets. "
-            'Click the button below to access the Spreadsheet, click "Share" '
-            "(or ask someone with permission to do so), and confirm the "
-            f'Google user "{user.email}" appears in the list of people with access.'
+            "Click the button below to open the spreadsheet and request access."
+            "<br><br>"
+            "Within the spreadsheet, you or someone else with access will need to click "
+            "<strong>Share</strong> and confirm the Google user "
+            f"<strong>{user.email}</strong> appears in the list of "
+            "people with access."
+            "<br><br>"
+            "When done, return to this page and click "
+            "<strong>Publish next version</strong> again."
         ) in error_summary
         # A link to the Google Sheets url of the form template should also be included
         assert f'<a href="{form_template.template_url}"' in error_summary
