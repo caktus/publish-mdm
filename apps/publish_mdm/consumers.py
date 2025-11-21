@@ -1,18 +1,23 @@
 import json
 import pprint
 import traceback
+from urllib.parse import urlencode
 
 import structlog
 from channels.generic.websocket import WebsocketConsumer
 from django.conf import settings
+from django.contrib.auth import REDIRECT_FIELD_NAME
 from django.template.loader import render_to_string
-from gspread.exceptions import SpreadsheetNotFound
+from django.urls import reverse
+from google.auth.exceptions import RefreshError
+from gspread.exceptions import APIError, SpreadsheetNotFound
 from gspread.utils import extract_id_from_url
 from requests import Response
 
 from apps.publish_mdm.models import FormTemplate
 
 from .etl.load import PublishTemplateEvent, publish_form_template
+from .utils import get_login_url
 
 logger = structlog.getLogger(__name__)
 
@@ -58,14 +63,85 @@ class PublishTemplateConsumer(WebsocketConsumer):
                 logger.exception("Error publishing form")
             tbe = traceback.TracebackException.from_exception(exc=e, compact=True)
             message = "".join(tbe.format())
-            summary = None
-            if isinstance(e, SpreadsheetNotFound):
-                summary = self.get_google_picker(form_template_id=event_data.get("form_template"))
+            summary = self.get_error_summary(e, event_data)
             # If the error is from ODK Central, format the error message for easier reading
             if len(e.args) >= 2 and isinstance(e.args[1], Response):
                 data = e.args[1].json()
                 message = f"ODK Central error:\n\n{pprint.pformat(data)}\n\n{message}"
             self.send_message(message, error=True, error_summary=summary)
+
+    def get_error_summary(self, exc: Exception, event_data: dict):
+        """For some exceptions, add a helpful message or instructions that will be
+        displayed above the traceback.
+        """
+        if isinstance(exc, SpreadsheetNotFound):
+            # User has not authorized us to access the file using their credentials.
+            # Display a message to that effect and a button for them to give us access
+            # using the Google Picker
+            return self.get_google_picker(form_template_id=event_data.get("form_template"))
+
+        error_message = None
+        button = None
+
+        if (is_refresh_error := isinstance(exc, RefreshError)) or (
+            # gspread raises an APIError, catches it, then does `raise PermissionError from ...`
+            isinstance(exc, PermissionError) and isinstance(exc.__context__, APIError)
+        ):
+            if (
+                is_refresh_error
+                or "Request had insufficient authentication scopes"
+                in exc.__context__.error["message"]
+            ):
+                # Either an expired/invalid refresh token, or the user did not
+                # check the checkbox to give us access to their Google Drive files
+                # when they first logged in. Ask them to log in again
+                error_message = (
+                    "Sorry, you need to log in again to be able to publish. "
+                    "Please click the button below."
+                )
+                form_template = FormTemplate.objects.get(id=event_data.get("form_template"))
+                publish_url = reverse(
+                    "publish_mdm:form-template-publish",
+                    args=[
+                        form_template.project.organization.slug,
+                        form_template.project.id,
+                        form_template.id,
+                    ],
+                )
+                # Add a link that will log them out then redirect to the login page.
+                # User will be taken through the OAuth flow again then redirected
+                # back to the publish page
+                logout_url = reverse("account_logout")
+                login_url = get_login_url(publish_url)
+                querystring = urlencode({REDIRECT_FIELD_NAME: login_url})
+                button = {
+                    "href": f"{logout_url}?{querystring}",
+                    "text": "Log in again",
+                }
+            elif "The caller does not have permission" in exc.__context__.error["message"]:
+                # User does not have access to the file in Google Sheets.
+                # Display instructions on how to confirm if they have access
+                error_message = (
+                    "Unfortunately, we could not access the form in Google Sheets. "
+                    'Click the button below to open the spreadsheet and request access.'
+                    '<br><br>'
+                    'Within the spreadsheet, you or someone else with access will need to click '
+                    '<strong>Share</strong> and confirm the Google user '
+                    f'<strong>{self.scope["user"].email}</strong> appears in the list of '
+                    'people with access.'
+                    '<br><br>'
+                    "When done, return to this page and click "
+                    "<strong>Publish next version</strong> again."
+                )
+                form_template = FormTemplate.objects.get(id=event_data.get("form_template"))
+                button = {"href": form_template.template_url, "text": "Open spreadsheet"}
+
+        if error_message or button:
+            context = {
+                "error_message": error_message,
+                "button": button,
+            }
+            return render_to_string("publish_mdm/ws/form_template_error_summary.html", context)
 
     def publish_form_template(self, event_data: dict):
         """Publish a form template to ODK Central and stream progress to the browser."""
