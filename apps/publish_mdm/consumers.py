@@ -75,7 +75,7 @@ class PublishTemplateConsumer(WebsocketConsumer):
         displayed above the traceback.
         """
         if isinstance(exc, SpreadsheetNotFound):
-            # User does has not authorized us to access the file using their credentials.
+            # User has not authorized us to access the file using their credentials.
             # Display a message to that effect and a button for them to give us access
             # using the Google Picker
             return self.get_google_picker(form_template_id=event_data.get("form_template"))
