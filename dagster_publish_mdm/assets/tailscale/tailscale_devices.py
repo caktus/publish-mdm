@@ -49,7 +49,7 @@ def tailscale_append_device_snapshot_table(
             created=device["created"],
             expires=expires,
             hostname=device["hostname"],
-            last_seen=device["lastSeen"],
+            last_seen=device.get("lastSeen"),
             name=device["name"],
             node_id=device["nodeId"],
             os=device["os"],
@@ -111,13 +111,16 @@ def stale_tailscale_devices(
         hostname = device.get("hostname")
         device_id = device.get("id")
 
-        try:
-            seen_time = dt.datetime.fromisoformat(last_seen.replace("Z", "+00:00"))
-            if seen_time < time_delta:
-                context.log.info(f"Device {hostname} last seen at {seen_time} — marking as stale.")
-                stale_devices.append(device)
-        except Exception as e:
-            context.log.warning(f"Failed to process device {hostname}: (ID: {device_id}) {e}")
+        if last_seen:
+            try:
+                seen_time = dt.datetime.fromisoformat(last_seen.replace("Z", "+00:00"))
+                if seen_time < time_delta:
+                    context.log.info(
+                        f"Device {hostname} last seen at {seen_time} — marking as stale."
+                    )
+                    stale_devices.append(device)
+            except Exception as e:
+                context.log.warning(f"Failed to process device {hostname}: (ID: {device_id}) {e}")
 
     context.add_output_metadata({"Stale Devices Preview": stale_devices[:2]})
     return stale_devices
