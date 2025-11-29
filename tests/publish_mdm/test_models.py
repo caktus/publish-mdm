@@ -95,6 +95,13 @@ class TestCentralServer:
         assert server.password == ""
         mock_decrypt.assert_not_called()
 
+    @pytest.mark.parametrize("username", ["test@example.com", "test", ""])
+    def test_masked_username(self, mocker, username):
+        mocker.patch.object(InfisicalKMS, "decrypt", return_value=username)
+        server = CentralServerFactory(username=username, password="")
+        server = CentralServer.decrypted.get(id=server.id)
+        assert server.masked_username == username.replace("test", "t*****")
+
 
 class TestTemplateVariable:
     def test_str(self):

@@ -104,6 +104,17 @@ class CentralServer(AbstractBaseModel):
                 value = kms_api.decrypt("centralserver", value)
                 setattr(self, field, value)
 
+    @property
+    def masked_username(self):
+        """If a username is set, partially hide it."""
+        if self.username:
+            mask = "*" * 5
+            if "@" in self.username:
+                name, rest = self.username.split("@", 1)
+                return f"{name[0]}{mask}@{rest}"
+            return f"{self.username[0]}{mask}"
+        return self.username
+
 
 class TemplateVariable(AbstractBaseModel):
     """A variable that can be used in a FormTemplate."""
@@ -305,11 +316,9 @@ class FormTemplate(AbstractBaseModel):
             q &= models.Q(app_user_forms__app_user__name__in=names)
         return AppUser.objects.filter(q)
 
-    def download_user_google_sheet(self, name: str) -> SimpleUploadedFile:
+    def download_user_google_sheet(self, user: User, name: str) -> SimpleUploadedFile:
         """Download the Google Sheet Excel file for this form template."""
-        if not self.template_url_user:
-            raise ValueError("The user who gave access to the Google Sheet is not known.")
-        social_token = self.template_url_user.get_google_social_token()
+        social_token = user.get_google_social_token()
         if social_token is None:
             raise ValueError("User does not have a Google social token.")
         return download_user_google_sheet(

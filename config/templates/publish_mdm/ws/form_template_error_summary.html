@@ -1,0 +1,9 @@
+<div id="form-access-error" class="mb-1">
+    <p class="mb-1">{{ error_message|safe }}</p>
+    {% if button %}
+        <a href="{{ button.href }}"
+           type="button"
+           class="btn btn-outline px-2 py-1 inline-block"
+           {% if button.text == "Open spreadsheet" %}target="_blank"{% endif %}>{{ button.text }}</a>
+    {% endif %}
+</div>

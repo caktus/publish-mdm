@@ -4,7 +4,7 @@ from functools import cached_property
 import requests
 import structlog
 from django.core.files.base import ContentFile
-from django.db.models import Q, Subquery, OuterRef, F
+from django.db.models import F, OuterRef, Q, Subquery
 from django.utils import timezone
 from requests.adapters import HTTPAdapter
 from requests_ratelimiter import LimiterSession
@@ -16,6 +16,14 @@ from apps.publish_mdm.utils import get_secret
 from .base import MDM, MDMAPIError
 
 logger = structlog.getLogger(__name__)
+
+
+class TinyMDMRetry(Retry):
+    def is_retry(self, method: str, status_code: int, has_retry_after: bool = False) -> bool:
+        """Retry POSTs only on 429 responses."""
+        if method.upper() == "POST" and status_code == 429:
+            return True
+        return super().is_retry(method, status_code, has_retry_after)
 
 
 class TinyMDM(MDM):
@@ -43,9 +51,13 @@ class TinyMDM(MDM):
             return None
         session.headers.update(headers)
 
-        retries = Retry(
+        retries = TinyMDMRetry(
             total=5,
             backoff_factor=0.1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            # Don't raise a MaxRetryError if retries are exhausted due to status code;
+            # we'll raise a HTTPError using response.raise_for_status() if necessary
+            raise_on_status=False,
         )
         session.mount("https://", HTTPAdapter(max_retries=retries))
 

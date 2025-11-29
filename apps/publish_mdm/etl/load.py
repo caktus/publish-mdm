@@ -68,7 +68,7 @@ def publish_form_template(event: PublishTemplateEvent, user: User, send_message:
     send_message(f"Generated version: {version}")
     # Download the template from Google Sheets
     file = form_template.download_user_google_sheet(
-        name=f"{form_template.form_id_base}-{version}.xlsx"
+        user=user, name=f"{form_template.form_id_base}-{version}.xlsx"
     )
     send_message(f"Downloaded template: {file}")
     with transaction.atomic():

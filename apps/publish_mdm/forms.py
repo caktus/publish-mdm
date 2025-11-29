@@ -628,4 +628,6 @@ class BYODDeviceEnrollmentForm(PlatformFormMixin, forms.Form):
 
 
 class SearchForm(PlatformFormMixin, forms.Form):
-    search = forms.CharField(widget=TextInput(attrs={"placeholder": "Search"}), required=False)
+    search = forms.CharField(
+        widget=TextInput(attrs={"placeholder": "Search", "x-model.fill": "search"}), required=False
+    )

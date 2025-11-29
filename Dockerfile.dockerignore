@@ -2,6 +2,7 @@
 .env
 .envrc
 .direnv
+.venv
 .vault_pass
 .vscode
 .ipynb_checkpoints
@@ -39,7 +40,6 @@ tasks.py
 Dockerfile
 Dockerfile.dockerignore
 Dockerfile.env
-pyproject.toml
 *ipynb
 htmlcov/
 setup.cfg
