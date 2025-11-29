@@ -2,12 +2,14 @@ import pytest
 from tablib import Dataset
 
 from apps.mdm import import_export, models
+from apps.mdm.mdms import get_active_mdm_class
+from tests.mdm import TestAllMDMs
 
 from .factories import DeviceFactory, FleetFactory
 
 
 @pytest.mark.django_db
-class TestDeviceResource:
+class TestDeviceResource(TestAllMDMs):
     HEADERS = ["id", "fleet", "serial_number", "app_user_name", "device_id"]
 
     @pytest.fixture(autouse=True)
@@ -158,7 +160,7 @@ class TestDeviceResource:
         assert isinstance(error_list[0].error, models.Fleet.DoesNotExist)
 
     @pytest.mark.parametrize("dry_run", [True, False])
-    def test_valid_import_dry_run(self, fleet, devices, dataset, mocker, dry_run):
+    def test_valid_import_dry_run(self, fleet, devices, dataset, mocker, dry_run, set_mdm_env_vars):
         """Ensure we only push to the MDM when an import is confirmed and not
         during the dry run (preview).
         """
@@ -170,8 +172,7 @@ class TestDeviceResource:
 
         resource = import_export.DeviceResource()
         mock_device_save = mocker.patch.object(models.Device, "save", wraps=device.save)
-        mock_get_tinymdm_session = mocker.patch("apps.mdm.tasks.get_tinymdm_session")
-        mock_push_device_config = mocker.patch("apps.mdm.tasks.push_device_config")
+        mock_push_device_config = mocker.patch.object(get_active_mdm_class(), "push_device_config")
 
         # Do the import
         result = resource.import_data(dataset, dry_run=dry_run)
@@ -181,8 +182,6 @@ class TestDeviceResource:
         # if the import is not a dry run
         mock_device_save.assert_called()
         if dry_run:
-            mock_get_tinymdm_session.assert_not_called()
             mock_push_device_config.assert_not_called()
         else:
-            mock_get_tinymdm_session.assert_called()
             mock_push_device_config.assert_called()

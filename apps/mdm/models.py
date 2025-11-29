@@ -1,9 +1,24 @@
+import json
+
 import structlog
 from django.db import models
 from django.conf import settings
 from django.core.validators import RegexValidator
+from django.template import Context, Template
+from django.utils.html import mark_safe
+from django.utils.timezone import now
 
 logger = structlog.get_logger()
+
+
+class MDMChoices(models.TextChoices):
+    TINYMDM = "TinyMDM", "TinyMDM"
+    ANDROID_ENTERPRISE = "Android Enterprise", "Android Enterprise"
+
+
+class PolicyManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(mdm=settings.ACTIVE_MDM["name"])
 
 
 class Policy(models.Model):
@@ -14,12 +29,22 @@ class Policy(models.Model):
         verbose_name="Policy ID", max_length=255, help_text="The ID of the policy in the MDM."
     )
     default_policy = models.BooleanField(default=False)
+    mdm = models.CharField(max_length=50, choices=MDMChoices, verbose_name="MDM")
+    json_template = models.TextField(
+        blank=True,
+        verbose_name="JSON template",
+        help_text="A JSON template (using Django template syntax) that can be used "
+        "to create this policy and its child policies.",
+    )
+
+    objects = PolicyManager()
+    all_mdms = models.Manager()
 
     class Meta:
         verbose_name_plural = "policies"
         constraints = [
             models.UniqueConstraint(
-                fields=["default_policy"],
+                fields=["default_policy", "mdm"],
                 condition=models.Q(default_policy=True),
                 name="unique_default_policy",
                 violation_error_message="A default policy already exists.",
@@ -34,20 +59,40 @@ class Policy(models.Model):
     @classmethod
     def get_default(cls):
         """Gets the default policy. First tries to get the Policy marked as default.
-        If none exists and the TINYMDM_DEFAULT_POLICY setting is set, get or create
+        If none exists and the MDM_DEFAULT_POLICY setting is set, get or create
         a Policy with that policy_id.
         """
         policy = cls.objects.filter(default_policy=True).first()
-        if not policy and settings.TINYMDM_DEFAULT_POLICY:
+        if not policy and settings.MDM_DEFAULT_POLICY:
             policy = cls.objects.get_or_create(
-                policy_id=settings.TINYMDM_DEFAULT_POLICY,
+                policy_id=settings.MDM_DEFAULT_POLICY,
+                mdm=settings.ACTIVE_MDM["name"],
                 defaults={"name": "Default", "default_policy": True},
             )[0]
         return policy
 
+    def get_policy_data(self, **kwargs):
+        """Generates policy data that can be used to create/update this policy
+        and its child policies in the MDM.
+        """
+        if self.json_template:
+            template = Template(self.json_template)
+            context = Context(kwargs)
+            policy = template.render(context)
+            try:
+                return json.loads(policy)
+            except json.JSONDecodeError:
+                pass
+        return None
+
 
 def enroll_qr_code_path(fleet, filename):
     return f"mdm-enroll-qr-codes/{fleet.organization.slug}/{filename}"
+
+
+class FleetManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(policy__mdm=settings.ACTIVE_MDM["name"])
 
 
 class Fleet(models.Model):
@@ -66,6 +111,7 @@ class Fleet(models.Model):
         help_text="The ID of the group in the MDM.",
         unique=True,
         null=True,
+        blank=True,
     )
     policy = models.ForeignKey(
         Policy,
@@ -84,6 +130,11 @@ class Fleet(models.Model):
     enroll_qr_code = models.ImageField(
         upload_to=enroll_qr_code_path, null=True, blank=True, verbose_name="enrollment QR code"
     )
+    enroll_token_expires_at = models.DateTimeField(blank=True, null=True)
+    enroll_token_value = models.CharField(max_length=30, blank=True)
+
+    objects = FleetManager()
+    all_mdms = models.Manager()
 
     class Meta:
         constraints = [
@@ -94,16 +145,27 @@ class Fleet(models.Model):
         return self.name
 
     def save(self, *args, **kwargs):
-        from apps.mdm.tasks import get_tinymdm_session, pull_devices
+        from .mdms import get_active_mdm_instance
 
         sync_with_mdm = kwargs.pop("sync_with_mdm", False)
         super().save(*args, **kwargs)
-        if sync_with_mdm and (session := get_tinymdm_session()):
-            pull_devices(session, self)
+        if sync_with_mdm and (active_mdm := get_active_mdm_instance()):
+            active_mdm.pull_devices(self)
 
     @property
     def group_name(self):
         return f"{self.organization.name}: {self.name}"
+
+    @property
+    def enroll_token_expired(self):
+        if self.enroll_token_expires_at:
+            return now() >= self.enroll_token_expires_at
+        return False
+
+    @property
+    def enrollment_url(self):
+        if self.enroll_token_value and self.policy.mdm == "Android Enterprise":
+            return f"https://enterprise.google.com/android/enroll?et={self.enroll_token_value}"
 
 
 class PushMethodChoices(models.TextChoices):
@@ -111,6 +173,11 @@ class PushMethodChoices(models.TextChoices):
 
     NEW_AND_UPDATED = "new-and-updated", "Push New and Updated Devices Only"
     ALL = "all", "Push All Devices"
+
+
+class DeviceManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(fleet__policy__mdm=settings.ACTIVE_MDM["name"])
 
 
 class Device(models.Model):
@@ -164,8 +231,11 @@ class Device(models.Model):
         blank=True,
     )
 
+    objects = DeviceManager()
+    all_mdms = models.Manager()
+
     def save(self, *args, **kwargs):
-        from apps.mdm.tasks import get_tinymdm_session, push_device_config
+        from .mdms import get_active_mdm_instance
 
         push_to_mdm = kwargs.pop("push_to_mdm", False)
         super().save(*args, **kwargs)
@@ -176,12 +246,44 @@ class Device(models.Model):
             app_user_name=self.app_user_name,
         )
 
-        if push_to_mdm:
-            if session := get_tinymdm_session():
-                push_device_config(session, self)
+        if push_to_mdm and (active_mdm := get_active_mdm_instance()):
+            active_mdm.push_device_config(self)
 
     def __str__(self):
         return f"{self.name} ({self.device_id})"
+
+    def get_odk_collect_qr_code_string(self):
+        """Gets a QR code string that can be used to update the managed configuration
+        for ODK Collect in the MDM.
+        """
+        if (
+            self.app_user_name
+            and self.fleet.project
+            and (app_user := self.fleet.project.app_users.filter(name=self.app_user_name).first())
+        ):
+            return json.dumps(app_user.qr_code_data, separators=(",", ":"))
+        return ""
+
+    @property
+    def odk_collect_qr_code(self):
+        """Gets a ODK Collect QR code string that is safe to insert in the JSON
+        template for creating or updating a policy in the MDM.
+        """
+        # Need to pass the string through dumps() again so the string is properly escaped
+        return mark_safe(json.dumps(self.get_odk_collect_qr_code_string()))
+
+    @property
+    def username(self):
+        return f"{self.app_user_name} - {self.device_id}"
+
+
+class DeviceSnapshotManager(models.Manager):
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .filter(mdm_device__fleet__policy__mdm=settings.ACTIVE_MDM["name"])
+        )
 
 
 class DeviceSnapshot(models.Model):
@@ -200,17 +302,23 @@ class DeviceSnapshot(models.Model):
     serial_number = models.CharField(max_length=255, help_text="The serial number of the device.")
     manufacturer = models.CharField(max_length=64, help_text="The manufacturer of the device.")
     os_version = models.CharField(
-        verbose_name="OS Version", max_length=32, help_text="The version of the operating system."
+        verbose_name="OS Version",
+        max_length=32,
+        help_text="The version of the operating system.",
+        blank=True,
+        null=True,
     )
     battery_level = models.SmallIntegerField(
-        help_text="The current battery level of the device, as a percentage."
+        help_text="The current battery level of the device, as a percentage.",
+        blank=True,
+        null=True,
     )
     enrollment_type = models.CharField(
         max_length=32,
         help_text="The type of enrollment for the device.",
     )
     last_sync = models.DateTimeField(
-        help_text="Last device synchronization with TinyMDM servers.",
+        help_text="Last device synchronization with the MDM servers.",
     )
     latitude = models.FloatField(
         help_text="The last known latitude of the device.", null=True, blank=True
@@ -235,6 +343,9 @@ class DeviceSnapshot(models.Model):
     )
     synced_at = models.DateTimeField(help_text="When the device snapshot was synced.")
 
+    objects = DeviceSnapshotManager()
+    all_mdms = models.Manager()
+
     class Meta:
         indexes = [
             models.Index(fields=["last_sync"]),
@@ -249,7 +360,8 @@ class DeviceSnapshotApp(models.Model):
     """
     An app installed on a device enrolled in the MDM.
 
-    https://www.tinymdm.net/mobile-device-management/api/#get-/devices/-id-/apps
+    For TinyMDM: https://www.tinymdm.net/mobile-device-management/api/#get-/devices/-id-/apps
+    For Android Enterprise: https://developers.google.com/android/management/reference/rest/v1/enterprises.devices#Device.FIELDS.application_reports
     """
 
     device_snapshot = models.ForeignKey(
@@ -272,6 +384,11 @@ class DeviceSnapshotApp(models.Model):
 
     def __str__(self):
         return f"{self.app_name} ({self.package_name}) snapshot"
+
+
+class FirmwareSnapshotManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(device__fleet__policy__mdm=settings.ACTIVE_MDM["name"])
 
 
 class FirmwareSnapshot(models.Model):
@@ -305,6 +422,9 @@ class FirmwareSnapshot(models.Model):
         null=True,
         blank=True,
     )
+
+    objects = FirmwareSnapshotManager()
+    all_mdms = models.Manager()
 
     def __str__(self):
         return f"{self.device_id} ({self.version}) firmware snapshot"

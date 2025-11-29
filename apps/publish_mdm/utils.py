@@ -1,6 +1,8 @@
+import io
 import os
 from urllib.parse import urlsplit, urlunsplit
 
+import segno
 from django.conf import settings
 from django.contrib.auth import REDIRECT_FIELD_NAME
 from django.http import QueryDict
@@ -12,6 +14,13 @@ def get_secret(key):
     from environment variables.
     """
     return settings.SECRETS.get(key, os.getenv(key))
+
+
+def create_qr_code(data):
+    code = segno.make(data, micro=False)
+    code_buffer = io.BytesIO()
+    code.save(code_buffer, scale=4, kind="png")
+    return code_buffer
 
 
 def get_login_url(
