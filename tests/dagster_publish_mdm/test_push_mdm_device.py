@@ -3,7 +3,7 @@ import pytest
 import requests
 
 from apps.mdm.mdms import get_active_mdm_class
-from dagster_publish_mdm.assets.tinymdm_devices import DeviceConfig, push_tinymdm_device_config
+from dagster_publish_mdm.assets.mdm_devices import DeviceConfig, push_mdm_device_config
 
 from tests.mdm import TestAllMDMs, TestTinyMDMOnly
 from tests.mdm.factories import DeviceFactory
@@ -13,20 +13,20 @@ from tests.mdm.factories import DeviceFactory
 class TestPushMDMDeviceConfig(TestAllMDMs):
     """Test suite for pushing MDM device configuration."""
 
-    def test_push_tinymdm_device_config_called(self, mocker, set_mdm_env_vars):
+    def test_push_mdm_device_config_called(self, mocker, set_mdm_env_vars):
         """Test pushing MDM device configuration."""
         mock_push = mocker.patch.object(get_active_mdm_class(), "push_device_config")
         device = DeviceFactory()
-        push_tinymdm_device_config(
+        push_mdm_device_config(
             context=dg.build_asset_context(), config=DeviceConfig(device_pks=[device.pk])
         )
         mock_push.assert_called_once_with(device=device)
 
-    def test_push_tinymdm_device_config_no_devices(self, mocker, set_mdm_env_vars):
+    def test_push_mdm_device_config_no_devices(self, mocker, set_mdm_env_vars):
         """Test pushing MDM device configuration with no devices found."""
         mocker.patch.object(get_active_mdm_class(), "push_device_config")
         with pytest.raises(ValueError, match="not found"):
-            push_tinymdm_device_config(
+            push_mdm_device_config(
                 context=dg.build_asset_context(), config=DeviceConfig(device_pks=[999])
             )
 
@@ -39,7 +39,7 @@ class TestPushMDMDeviceConfig(TestAllMDMs):
         mock_push.side_effect = [requests.exceptions.RequestException(), None]
 
         with pytest.raises(ValueError, match="Failed to push configuration for devices"):
-            push_tinymdm_device_config(
+            push_mdm_device_config(
                 context=dg.build_asset_context(),
                 config=DeviceConfig(device_pks=[device1.pk, device2.pk]),
             )
@@ -62,7 +62,7 @@ class TestPushTinyMDMDeviceConfigWithError(TestTinyMDMOnly):
         )
         with pytest.raises(ValueError, match="Failed to push configuration"):
             # This will raise an error because the request fails
-            push_tinymdm_device_config(
+            push_mdm_device_config(
                 context=dg.build_asset_context(), config=DeviceConfig(device_pks=[device.pk])
             )
         captured = capsys.readouterr()

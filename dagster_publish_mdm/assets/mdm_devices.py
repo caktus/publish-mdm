@@ -8,19 +8,19 @@ from apps.mdm.mdms import get_active_mdm_instance  # noqa: E402
 from apps.mdm.models import Device  # noqa: E402
 
 
-@dg.asset(description="Get a list of devices from TinyMDM", group_name="tinymdm_assets")
-def tinymdm_device_snapshot():
-    active_mdm = get_active_mdm_instance()
-    active_mdm.sync_fleets(push_config=False)
+@dg.asset(description="Get a list of devices from the MDM", group_name="mdm_assets")
+def mdm_device_snapshot():
+    if active_mdm := get_active_mdm_instance():
+        active_mdm.sync_fleets(push_config=False)
 
 
 class DeviceConfig(dg.Config):
     device_pks: list[int]
 
 
-@dg.asset(description="Push TinyMDM device configuration")
-def push_tinymdm_device_config(context: dg.AssetExecutionContext, config: DeviceConfig):
-    """Push the device configuration to TinyMDM for the specified device PKs."""
+@dg.asset(description="Push MDM device configuration")
+def push_mdm_device_config(context: dg.AssetExecutionContext, config: DeviceConfig):
+    """Push the device configuration to the MDM for the specified device PKs."""
     devices = Device.objects.filter(pk__in=config.device_pks)
     context.log.info(
         f"Pushing configuration for {devices.count()} device(s)",
