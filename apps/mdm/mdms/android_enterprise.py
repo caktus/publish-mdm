@@ -103,7 +103,10 @@ class AndroidEnterprise(MDM):
                     pageToken=response.get("nextPageToken"),
                 )
             )
-            devices += response["devices"]
+            if response:
+                devices += response["devices"]
+            else:
+                break
         self._devices = devices
         return devices
 
