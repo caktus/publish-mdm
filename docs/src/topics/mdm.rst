@@ -8,10 +8,11 @@ organization's mobile and tablet devices.
 
 Concepts
 --------
+.. _mdm-service-provider:
 
 MDM Service Provider
-    The entity that provides MDM services. PublishMDM currently uses `TinyMDM`_
-    as its MDM service provider.
+    The entity that provides MDM services. PublishMDM can currently use either `TinyMDM`_
+    or `Android EMM`_ as its MDM service provider.
 
 MDM Device
     A device is any Android tablet or mobile device that is managed through the
@@ -44,7 +45,7 @@ MDM Policy
 .. _mdm-fleet:
 
 MDM Fleet
-    A collection of devices that are managed together. Fleets are linked to
+    A collection of devices that are managed together. When using TinyMDM as the MDM service provider, fleets are linked to
     `TinyMDM Groups`_ and `TinyMDM Policies`_ and use the `multiple enrollment
     feature`_ to manage devices in bulk.
 
@@ -58,6 +59,7 @@ Zero-Touch Enrollment
     appropriate policy.
 
 .. _TinyMDM: https://www.tinymdm.net/
+.. _Android EMM: https://www.android.com/enterprise/management
 .. _TinyMDM Groups: https://www.tinymdm.net/how-to/add-single-user/
 .. _TinyMDM Policies: https://www.tinymdm.net/how-to/create-policy/
 .. _multiple enrollment feature: https://www.tinymdm.net/how-to/enrollment-in-a-row/

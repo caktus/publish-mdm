@@ -43,7 +43,7 @@ VPN Auth Key
     connect a device to the VPN. This key is generated in Tailscale and is
     loaded automatically to the device using the :ref:`mdm-policy` managed
     configuration for the Tailscale app. See `Deploy Tailscale using TinyMDM`_
-    for more information on how this is configured.
+    for more information on how this is configured when using TinyMDM as the :ref:`mdm-service-provider`.
 
 .. _Tailscale: https://tailscale.com/
 .. _Tailnet: https://tailscale.com/kb/1136/tailnet
