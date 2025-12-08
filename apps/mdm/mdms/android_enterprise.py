@@ -121,6 +121,10 @@ class AndroidEnterprise(MDM):
                 other_fleets_device_ids.add(device_id)
         fleet_devices = []
         for device in self.get_devices():
+            if device["state"] == "PROVISIONING":
+                # Skip a device that's currently being enrolled and doesn't have a policy applied yet
+                # https://developers.google.com/android/management/reference/rest/v1/enterprises.devices#devicestate
+                continue
             device = MDMDevice(device)
             if device.id in current_fleet_device_ids:
                 # The device is currently linked to this Fleet in the DB
@@ -274,7 +278,7 @@ class AndroidEnterprise(MDM):
             if not apps:
                 logger.debug("Application reports not available", device_id=snapshot.device_id)
                 continue
-            user_facing_apps = [app for app in apps if app["userFacingType"] == "USER_FACING"]
+            user_facing_apps = [app for app in apps if app.get("userFacingType") == "USER_FACING"]
             logger.debug(
                 "Creating app snapshots",
                 app_count=len(apps),

@@ -46,6 +46,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
                 "manufacturer": fake.company(),
             },
             "managementMode": fake.random_element(["DEVICE_OWNER", "PROFILE_OWNER"]),
+            "state": "ACTIVE",
         }
         # Some values that may or may not be present depending on the policy and/or the device type
         if fake.pybool():
@@ -201,8 +202,13 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             else:
                 data["enrollmentTokenData"] = "[]"
             not_in_fleet.append(data)
+        # Devices currently still enrolling (state is "PROVISIONING") should not be created
+        # and should not raise a KeyError due to missing lastPolicySyncTime
+        provisioning_device = self.get_raw_mdm_device(DeviceFactory.build(fleet=fleet))
+        provisioning_device.update({"state": "PROVISIONING"})
+        del provisioning_device["lastPolicySyncTime"]
 
-        full_devices_response = {"devices": devices_response + not_in_fleet}
+        full_devices_response = {"devices": devices_response + not_in_fleet + [provisioning_device]}
         monkeypatch.setattr(
             active_mdm.api,
             "_requestBuilder",
