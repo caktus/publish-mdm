@@ -92,24 +92,35 @@ def set_survey_attachments(sheet: Worksheet, attachments: dict | None = None):
         header = get_header(sheet=sheet, column_name=f"media::{media_type}")
         if header:
             media_headers.append(header)
-    if not media_headers:
+    # Get CSV attachments from pulldata functions in the calculation column
+    calculation_header = get_header(sheet=sheet, column_name="calculation")
+    csv_attachments = set()
+    for name in attachments:
+        name_parts = name.rsplit(".", 1)
+        if len(name_parts) == 2 and name_parts[1].lower() == "csv":
+            if get_column_cell_by_value(
+                calculation_header, f"pulldata\\('{name_parts[0]}'", is_regex=True
+            ):
+                csv_attachments.add(name)
+    if not (csv_attachments or media_headers):
         # No media headers found, so there are no attachments in the form
         attachments.clear()
         return
     logger.debug("Found media headers", media_headers=media_headers)
     for name, file in list(attachments.items()):
-        found_attachment_name = False
-        for media_header in media_headers:
-            attachment_cell = get_column_cell_by_value(column_header=media_header, value=name)
-            if attachment_cell:
-                found_attachment_name = True
-                logger.debug(
-                    "Found attachment reference",
-                    name=name,
-                    cell=attachment_cell.coordinate,
-                    header=media_header.value,
-                )
-                break
+        found_attachment_name = name in csv_attachments
+        if not found_attachment_name:
+            for media_header in media_headers:
+                attachment_cell = get_column_cell_by_value(column_header=media_header, value=name)
+                if attachment_cell:
+                    found_attachment_name = True
+                    logger.debug(
+                        "Found attachment reference",
+                        name=name,
+                        cell=attachment_cell.coordinate,
+                        header=media_header.value,
+                    )
+                    break
         if not found_attachment_name:
             # This attachment is not being used in this form. Remove it from the dict
             del attachments[name]

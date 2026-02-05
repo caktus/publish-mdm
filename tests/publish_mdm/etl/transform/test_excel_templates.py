@@ -16,7 +16,7 @@ from apps.publish_mdm.etl.template import (
     set_survey_attachments,
     VariableTransform,
 )
-from tests.publish_mdm.factories import ProjectAttachmentFactory
+from tests.publish_mdm.factories import ProjectAttachmentFactory, ProjectFactory
 
 
 @pytest.fixture(scope="module")
@@ -96,15 +96,19 @@ class TestTemplate:
     def test_set_attachments(self, survey_sheet):
         """Test setting a static attachment."""
         # Create one attachment with the name in the in the survey sheet
-        should_detect = ProjectAttachmentFactory(name="logo.png")
+        project = ProjectFactory()
+        should_detect = [
+            ProjectAttachmentFactory(name="logo.png", project=project),
+            ProjectAttachmentFactory(name="vegetables.csv", project=project),
+        ]
         # Create 2 more attachments that are not used in the survey sheet
-        ProjectAttachmentFactory.create_batch(2, project=should_detect.project)
-        attachments = {i.name: i.file for i in should_detect.project.attachments.all()}
-        assert len(attachments) == 3
+        ProjectAttachmentFactory.create_batch(2, project=project)
+        attachments = {i.name: i.file for i in project.attachments.all()}
+        assert len(attachments) == 4
         set_survey_attachments(sheet=survey_sheet, attachments=attachments)
         # The `attachments` dictionary has been updated and only contains the
         # attachment that was detected in the form
-        assert attachments == {should_detect.name: should_detect.file}
+        assert attachments == {i.name: i.file for i in should_detect}
 
     def test_set_template_variable_not_in_sheet(self, survey_sheet):
         """Attempting to set a template variable that is not in the survey sheet
