@@ -2,7 +2,7 @@ name: Docker
 
 on:
   push:
-    branches: [main, 4653-android-emm-support]
+    branches: [main]
     # Publish semver tags as releases.
     tags: ["v*.*.*"]
 
