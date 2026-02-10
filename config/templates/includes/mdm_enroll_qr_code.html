@@ -25,4 +25,11 @@
             </svg>
         {% endif %}
     </div>
+    {% if fleet.enrollment_url %}
+        <p class="mt-2 text-sm">
+            For a BYOD device, you can also enroll by opening this link on your device:
+            <a href="{{ fleet.enrollment_url }}"
+               class="block text-primary-600 hover:underline">{{ fleet.enrollment_url }}</a>
+        </p>
+    {% endif %}
 {% endif %}

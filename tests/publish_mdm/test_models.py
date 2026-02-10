@@ -18,8 +18,10 @@ from .factories import (
 )
 from apps.infisical.api import InfisicalKMS
 from apps.infisical.fields import EncryptedMixin
+from apps.mdm.mdms import get_active_mdm_class
 from apps.publish_mdm.etl import template
 from apps.publish_mdm.models import CentralServer
+from tests.mdm import TestAllMDMs
 from tests.mdm.factories import PolicyFactory
 
 
@@ -291,19 +293,20 @@ class TestAppUser:
 
 
 @pytest.mark.django_db
-class TestOrganization:
-    def test_create_default_fleet(self, set_tinymdm_env_vars, mocker, settings):
+class TestOrganization(TestAllMDMs):
+    def test_create_default_fleet(self, set_mdm_env_vars, mocker, settings):
         """Ensures calling create_default_fleet() creates a default Fleet for an
         organization if a default policy exists.
         """
         organization = OrganizationFactory()
-        mock_create_group = mocker.patch("apps.publish_mdm.models.create_group")
-        mock_add_group_to_policy = mocker.patch("apps.publish_mdm.models.add_group_to_policy")
-        mock_get_enrollment_qr_code = mocker.patch("apps.publish_mdm.models.get_enrollment_qr_code")
-        mocker.patch("apps.mdm.tasks.pull_devices")
+        MDM = get_active_mdm_class()
+        mock_create_group = mocker.patch.object(MDM, "create_group")
+        mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
+        mock_get_enrollment_qr_code = mocker.patch.object(MDM, "get_enrollment_qr_code")
+        mocker.patch.object(MDM, "pull_devices")
 
         # No default policy. The default fleet should not be created
-        settings.TINYMDM_DEFAULT_POLICY = None
+        settings.MDM_DEFAULT_POLICY = None
         organization.create_default_fleet()
         assert not organization.fleets.exists()
         mock_create_group.assert_not_called()

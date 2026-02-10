@@ -60,10 +60,8 @@ class DeviceResource(ModelResource):
         # Trigger the Dagster job to push device configurations after import
         logger.info("Triggering Dagster job", device_pks=device_pks)
         try:
-            run_config = {
-                "ops": {"push_tinymdm_device_config": {"config": {"device_pks": device_pks}}}
-            }
-            trigger_dagster_job(job_name="tinymdm_job", run_config=run_config)
+            run_config = {"ops": {"push_mdm_device_config": {"config": {"device_pks": device_pks}}}}
+            trigger_dagster_job(job_name="mdm_job", run_config=run_config)
         except Exception as e:
             logger.error("Failed to trigger Dagster job after import", error=str(e))
             raise e

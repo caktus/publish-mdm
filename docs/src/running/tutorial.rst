@@ -40,20 +40,45 @@ Development <../local-development/index>` guide to run Publish MDM locally.
 
    - ``INFISICAL_API_URL``, ``INFISICAL_TOKEN``, and ``INFISICAL_KMS_PROJECT_ID``: See :doc:`../local-development/infisical`.
 
+   - To use Android EMM as your :ref:`mdm-service-provider`, set the following environment variables:
+
+      - ``ACTIVE_MDM_NAME="Android Enterprise"``
+      - ``ACTIVE_MDM_CLASS=apps.mdm.mdms.AndroidEnterprise``
+      - ``ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE``: The path to a Google service account file.
+        See the `Google docs <https://developers.google.com/android/management/service-account>`_ on how to create one.
+      - ``ANDROID_ENTERPRISE_ID``: The ID of an Android EMM Enterprise, without the ``enterprises/`` prefix.
+        You can create an enterprise by following `this guide <https://developers.google.com/android/management/quickstart>`_.
+        You may also need to `request an initial quota of devices <https://developers.google.com/android/management/permissible-usage#quotas_and_restrictions>`_
+        in order to successfully enroll devices in the MDM.
+
+   - To use TinyMDM as your MDM service provider (the default if ``ACTIVE_MDM_NAME`` is not set),
+     set ``TINYMDM_ACCOUNT_ID``, ``TINYMDM_APIKEY_PUBLIC``, and ``TINYMDM_APIKEY_SECRET``.
+     You can also set the ID of your default :ref:`mdm-policy` in ``MDM_DEFAULT_POLICY``, or you
+     can create a default policy in Admin once your server is up and running (see Step 5 below).
+
 2. Start the Publish MDM server, login with your Google account, and make
    yourself an admin.
 
 3. Create a Central Server using your ODK Central server's base URL and credentials.
-You can do this in Admin (``/admin/publish_mdm/centralserver/``) or on the frontend.
+   You can do this in Admin (``/admin/publish_mdm/centralserver/``) or on the frontend.
 
-If you're using the local Docker-based ODK Central instance, you can set the base
-URL to ``http://central-dev.localhost:9100``.
-Additionally, you may need to add ``central-dev.localhost`` to your
-``/etc/hosts`` so Python can resolve the lookback address.
+   If you're using the local Docker-based ODK Central instance, you can set the base
+   URL to ``http://central-dev.localhost:9100``.
+   Additionally, you may need to add ``central-dev.localhost`` to your
+   ``/etc/hosts`` so Python can resolve the lookback address.
 
 4. Sync your ODK Central project by visiting
    http://localhost:8000/odk/servers/sync/.
 
+5. Create a default MDM policy in Admin (``/admin/mdm/policy/``). If Android EMM is your MDM service provider,
+   add a JSON template for the policy, which will be used to create device-specific policies. This can be a
+   Django template which will get the following in its context:
+
+    - ``device``: A ``mdm.models.Device`` object.
+    - ``tailscale_auth_key``: The value of the ``TAILSCALE_AUTH_KEY`` environment variable, if set.
+
+   See the `Google docs <https://developers.google.com/android/management/reference/rest/v1/enterprises.policies>`_
+   for the expected JSON format.
 
 3. Setup project in Publish MDM
 -------------------------------

@@ -1,4 +1,5 @@
 import structlog
+from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin import helpers
 from django.contrib.admin.decorators import action
@@ -12,6 +13,7 @@ from django.shortcuts import redirect
 from django.template.response import TemplateResponse
 from django.utils.html import linebreaks, mark_safe
 from django.utils.translation import gettext as _
+from googleapiclient.errors import Error as GoogleAPIClientError
 from import_export.admin import ImportExportMixin
 from import_export.forms import ExportForm
 from requests.exceptions import RequestException
@@ -20,8 +22,8 @@ from apps.publish_mdm.http import HttpRequest
 from apps.mdm.forms import DeviceConfirmImportForm, DeviceImportForm
 
 from .import_export import DeviceResource
+from .mdms import get_active_mdm_instance
 from .models import Device, DeviceSnapshot, DeviceSnapshotApp, FirmwareSnapshot, Fleet, Policy
-from .tasks import add_group_to_policy, delete_group, get_tinymdm_session
 
 logger = structlog.getLogger(__name__)
 
@@ -30,6 +32,58 @@ logger = structlog.getLogger(__name__)
 class PolicyAdmin(admin.ModelAdmin):
     list_display = ("name", "policy_id", "default_policy")
     search_fields = ("name", "policy_id")
+
+    def save_model(self, request, obj, form, change):
+        obj.save()
+        # Update the policy in the MDM if the json_template has changed.
+        # Currently only implemented for Android Enterprise MDM
+        if (
+            settings.ACTIVE_MDM["name"] == "Android Enterprise"
+            and "json_template" in form.changed_data
+            and obj.json_template
+            and (active_mdm := get_active_mdm_instance())
+        ):
+            try:
+                active_mdm.create_or_update_policy(obj)
+            except GoogleAPIClientError as e:
+                logger.debug(
+                    f"Unable to update the policy in {active_mdm}",
+                    policy=obj,
+                    exc_info=True,
+                )
+                messages.warning(
+                    request,
+                    mark_safe(
+                        f"Could not update the policy in {active_mdm} due to "
+                        "the following error:"
+                        f"<br><code>{getattr(e, 'api_error', e)}</code>"
+                    ),
+                )
+            if change:
+                # Update the policies for all related Devices that have a child
+                # policy (generated using this policy's json_template)
+                devices = Device.objects.filter(
+                    fleet__policy=obj, raw_mdm_device__policyName__endswith=models.F("device_id")
+                )
+                logger.debug("Updating child policies", count=len(devices))
+                for device in devices:
+                    try:
+                        active_mdm.push_device_config(device)
+                    except GoogleAPIClientError as e:
+                        logger.debug(
+                            f"Unable to update the policy for {device} in {active_mdm}",
+                            device=device,
+                            policy=obj,
+                            exc_info=True,
+                        )
+                        messages.warning(
+                            request,
+                            mark_safe(
+                                f"Could not update the policy for {device} in "
+                                f"{active_mdm} due to the following error:"
+                                f"<br><code>{getattr(e, 'api_error', e)}</code>"
+                            ),
+                        )
 
 
 @admin.register(Fleet)
@@ -41,14 +95,23 @@ class FleetAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         # Always sync with MDM when saving a Fleet in the admin
-        obj.save(sync_with_mdm=True)
+        try:
+            obj.save(sync_with_mdm=True)
+        except (GoogleAPIClientError, RequestException) as e:
+            messages.error(
+                request,
+                mark_safe(
+                    f"Unable to pull the fleet's devices from {settings.ACTIVE_MDM['name']} due to "
+                    f"the following error:<br><code>{getattr(e, 'api_error', e)}</code>"
+                ),
+            )
         # If the policy has changed, add the group to the new policy
-        if "policy" in form.changed_data and (session := get_tinymdm_session()):
+        if "policy" in form.changed_data and (active_mdm := get_active_mdm_instance()):
             try:
-                add_group_to_policy(session, obj)
-            except RequestException as e:
+                active_mdm.add_group_to_policy(obj)
+            except (GoogleAPIClientError, RequestException) as e:
                 logger.debug(
-                    "Unable to add the TinyMDM group to policy",
+                    f"Unable to add the {active_mdm} group to policy",
                     fleet=obj,
                     organization=obj.organization,
                     policy=obj.policy,
@@ -58,14 +121,15 @@ class FleetAdmin(admin.ModelAdmin):
                     request,
                     mark_safe(
                         "The fleet has been saved but it could not be added to the "
-                        f"{obj.policy.name} policy in TinyMDM due to the following error:"
+                        f"{obj.policy.name} policy in {active_mdm} "
+                        "due to the following error:"
                         f"<br><code>{getattr(e, 'api_error', e)}</code>"
                     ),
                 )
 
     def _delete_view(self, request, object_id, extra_context):
         """This is an exact copy of the builtin _delete_view(), except it will
-        not delete a Fleet if it has devices either in the database or in TinyMDM.
+        not delete a Fleet if it has devices either in the database or in the MDM.
         We could not use the delete_model() method as it "isn't meant for veto
         purposes" (https://docs.djangoproject.com/en/5.2/ref/contrib/admin/#modeladmin-methods):
         a deletion would still be logged in LogEntry and a success message would
@@ -99,16 +163,16 @@ class FleetAdmin(admin.ModelAdmin):
                 raise PermissionDenied
 
             # BEGIN ADDED CODE
-            # Delete the TinyMDM group first. Won't delete anything if the fleet
-            # is linked to devices either in the database or in TinyMDM.
+            # Delete the MDM group first. Won't delete anything if the fleet
+            # is linked to devices either in the database or in the MDM.
             error = None
-            if session := get_tinymdm_session():
+            if active_mdm := get_active_mdm_instance():
                 try:
-                    if not delete_group(session, obj):
+                    if not active_mdm.delete_group(obj):
                         error = "Cannot delete the fleet because it has devices linked to it."
-                except RequestException as e:
+                except (GoogleAPIClientError, RequestException) as e:
                     error = mark_safe(
-                        "Cannot delete the fleet due to the following TinyMDM API error:"
+                        f"Cannot delete the fleet due to the following {active_mdm} API error:"
                         f"<br><code>{getattr(e, 'api_error', e)}</code><br>"
                         "Please try again later."
                     )
@@ -158,7 +222,7 @@ class FleetAdmin(admin.ModelAdmin):
     @action(permissions=["delete"], description="Delete selected fleets")
     def delete_selected(self, request, queryset):
         """This is an exact copy of the builtin delete_selected action, except it
-        won't delete a Fleet if it has devices either in the database or in TinyMDM.
+        won't delete a Fleet if it has devices either in the database or in the MDM.
         We could not use the delete_queryset() method because a deletion would still
         be logged in LogEntry even for fleets that are not deleted, and a success
         message would always be shown saying that the total number of fleets that
@@ -184,9 +248,9 @@ class FleetAdmin(admin.ModelAdmin):
             n = len(queryset)
             if n:
                 # BEGIN ADDED CODE
-                # Delete the TinyMDM groups first. Won't delete a fleet if it
-                # is linked to devices either in the database or in TinyMDM.
-                if not (session := get_tinymdm_session()):
+                # Delete the MDM groups first. Won't delete a fleet if it
+                # is linked to devices either in the database or in the MDM.
+                if not (active_mdm := get_active_mdm_instance()):
                     messages.error(request, "Cannot delete fleets. Please try again later.")
                     return
 
@@ -195,15 +259,15 @@ class FleetAdmin(admin.ModelAdmin):
 
                 for fleet in queryset:
                     try:
-                        if delete_group(session, fleet):
+                        if active_mdm.delete_group(fleet):
                             successful.append(fleet.pk)
                         else:
                             has_devices.append(fleet.name)
-                    except RequestException as e:
+                    except (GoogleAPIClientError, RequestException) as e:
                         messages.error(
                             request,
                             mark_safe(
-                                f"Could not delete {fleet.name} due the following TinyMDM API error:"
+                                f"Could not delete {fleet.name} due the following {active_mdm} API error:"
                                 f"<br><code>{getattr(e, 'api_error', e)}</code><br>"
                                 "Please try again later."
                             ),
@@ -296,12 +360,12 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
         """Always push to MDM when saving a Device in the admin."""
         try:
             obj.save(push_to_mdm=True)
-        except RequestException as e:
+        except (GoogleAPIClientError, RequestException) as e:
             messages.error(
                 request,
                 mark_safe(
-                    "Unable to update the device in TinyMDM due to the following error:"
-                    f"<br><code>{getattr(e, 'api_error', e)}</code>"
+                    f"Unable to update the device in {settings.ACTIVE_MDM['name']} due to "
+                    f"the following error:<br><code>{getattr(e, 'api_error', e)}</code>"
                 ),
             )
 

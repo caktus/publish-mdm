@@ -8,7 +8,7 @@ powerful data collection platform. It offers support for:
 * Form templates and variables, which can be used to create multiple versions of
   a form for different app users
 * A user-friendly interface for publishing form versions
-* MDM integration with :doc:`TinyMDM <mdm>` to automatically configure devices with the
+* MDM integration with :doc:`either TinyMDM or Android EMM <mdm>` to automatically configure devices with the
   correct forms and settings
 * VPN integration with :doc:`Tailscale <vpn>` to securely connect devices to ODK Central
 

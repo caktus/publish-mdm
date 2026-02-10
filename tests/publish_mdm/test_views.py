@@ -1,5 +1,4 @@
 import json
-import re
 from urllib.parse import urlencode
 
 import faker
@@ -41,6 +40,7 @@ from tests.publish_mdm.factories import (
     CentralServerFactory,
     TemplateVariableFactory,
 )
+from apps.mdm.mdms import get_active_mdm_class, TinyMDM
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
 from apps.publish_mdm.etl.template import VariableTransform
@@ -69,6 +69,7 @@ from apps.publish_mdm.models import (
     OrganizationInvitation,
     Project,
 )
+from tests.mdm import TestAllMDMsNoAutouse, TestTinyMDMOnly
 from tests.mdm.factories import (
     DeviceFactory,
     DeviceSnapshotFactory,
@@ -1235,12 +1236,12 @@ class TestCreateOrganization(ViewTestBase):
         assert response.status_code == 200
         assert isinstance(response.context.get("form"), OrganizationForm)
 
-    @pytest.mark.parametrize("tinymdm_api_error", [None, HTTPError("error")])
-    def test_valid_form(self, client, url, user, mocker, tinymdm_api_error):
+    @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
+    def test_valid_form(self, client, url, user, mocker, mdm_api_error):
         """Test a valid form."""
         data = {"name": "New organization", "slug": "new-org"}
         mock_create_default_fleet = mocker.patch.object(
-            Organization, "create_default_fleet", side_effect=tinymdm_api_error
+            Organization, "create_default_fleet", side_effect=mdm_api_error
         )
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
@@ -1263,13 +1264,13 @@ class TestCreateOrganization(ViewTestBase):
         assert f"Successfully created {organization}." in response.content.decode()
         # Ensure the create_default_fleet() method is called
         mock_create_default_fleet.assert_called_once()
-        if tinymdm_api_error:
+        if mdm_api_error:
             assertContains(
                 response,
                 (
-                    "The organization was created but its default TinyMDM group "
-                    "could not be created due to the following error:"
-                    f'<code class="block text-xs mt-2">{tinymdm_api_error}</code>'
+                    f"The organization was created but the following {settings.ACTIVE_MDM['name']} "
+                    "API error occurred while setting up its default Fleet:"
+                    f'<code class="block text-xs mt-2">{mdm_api_error}</code>'
                 ),
             )
 
@@ -2034,7 +2035,7 @@ class TestEditCentralServer(ViewTestBase):
             assert expected_error in response_content
 
 
-class TestDevicesList(ViewTestBase):
+class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
     """Tests the page that lists the MDM devices linked to an organization."""
 
     @pytest.fixture
@@ -2047,7 +2048,7 @@ class TestDevicesList(ViewTestBase):
         return date_format(localtime(datetime), settings.SHORT_DATETIME_FORMAT)
 
     @pytest.mark.parametrize("htmx", [True, False])
-    def test_get(self, client, url, user, organization, htmx):
+    def test_get(self, client, url, user, organization, htmx, all_mdms):
         # Set up some devices in 2 fleets linked to the current organization
         organization_devices = []
         fleets = FleetFactory.create_batch(2, organization=organization)
@@ -2161,7 +2162,10 @@ class TestDevicesList(ViewTestBase):
             assertTemplateNotUsed(response, "publish_mdm/devices_list.html")
         # Ensure the forms for enrolling devices are included in the context
         assert isinstance(response.context.get("enroll_form"), DeviceEnrollmentQRCodeForm)
-        assert isinstance(response.context.get("byod_form"), BYODDeviceEnrollmentForm)
+        if settings.ACTIVE_MDM["name"] == "TinyMDM":
+            assert isinstance(response.context.get("byod_form"), BYODDeviceEnrollmentForm)
+        else:
+            assert "byod_form" not in response.context
         # Ensure the search form and django-filter Filterset is in the context
         assert isinstance(response.context.get("search_form"), SearchForm)
         assert isinstance(response.context.get("filter"), DeviceFilter)
@@ -2173,33 +2177,42 @@ class TestDevicesList(ViewTestBase):
 
     @pytest.mark.parametrize("num_successful_fleets", [0, 1, 2])
     def test_sync(
-        self, client, url, user, organization, mocker, set_tinymdm_env_vars, num_successful_fleets
+        self,
+        client,
+        url,
+        user,
+        organization,
+        mocker,
+        all_mdms,
+        set_mdm_env_vars,
+        num_successful_fleets,
+        mdm_api_error,
     ):
         """Ensure syncing calls sync_fleet for all the fleets in an organization
         and the updated device list is included in the response.
         """
-        mocker.patch("apps.mdm.tasks.pull_devices")
+        MDM = get_active_mdm_class()
+        mocker.patch.object(MDM, "pull_devices")
         num_fleets = 2
         num_devices_before = 3
         fleets = FleetFactory.create_batch(num_fleets, organization=organization)
         devices = DeviceFactory.create_batch(num_devices_before, fleet=fleets[0])
         api_error_fleets = fleets[num_successful_fleets:num_fleets]
-        api_error = HTTPError("error")
 
         # Mock sync_fleet. It will either add one new Device or raise an API error
-        def side_effect(session, fleet, push_config):
+        def side_effect(fleet, push_config):
             if fleet in api_error_fleets:
-                raise api_error
+                raise mdm_api_error
             devices.append(DeviceFactory(fleet=fleet))
 
-        mock_sync_fleet = mocker.patch("apps.publish_mdm.views.sync_fleet", side_effect=side_effect)
+        mock_sync_fleet = mocker.patch.object(MDM, "sync_fleet", side_effect=side_effect)
 
         response = client.post(url, data={"sync": 1})
 
         # Ensure the expected sync_fleet calls have been made
         assert mock_sync_fleet.call_count == len(fleets)
         assert {
-            (call.args[1], call.kwargs["push_config"]) for call in mock_sync_fleet.mock_calls
+            (call.args[0], call.kwargs["push_config"]) for call in mock_sync_fleet.mock_calls
         } == {(fleet, False) for fleet in fleets}
         # Ensure the expected devices list is included in the response
         table = response.context.get("table")
@@ -2213,7 +2226,7 @@ class TestDevicesList(ViewTestBase):
             assertContains(
                 response,
                 f"The following error occurred while syncing devices in the {fleet.name} fleet:"
-                f'<code class="block text-xs mt-2">{api_error}</code>',
+                f'<code class="block text-xs mt-2">{mdm_api_error}</code>',
             )
         success_message = "Successfully synced devices from MDM. The devices list has been updated."
         if num_successful_fleets:
@@ -2222,12 +2235,13 @@ class TestDevicesList(ViewTestBase):
         else:
             assertNotContains(response, success_message)
 
-    def test_sync_no_api_credentials(self, client, url, user, organization, mocker):
-        """Ensure syncing is not attempted if the TinyMDM API is not configured
+    def test_sync_no_api_credentials(self, client, url, user, organization, mocker, all_mdms):
+        """Ensure syncing is not attempted if the active MDM's API is not configured
         and a message is shown to the user that syncing failed.
         """
-        mocker.patch("apps.mdm.tasks.pull_devices")
-        mock_sync_fleet = mocker.patch("apps.publish_mdm.views.sync_fleet")
+        MDM = get_active_mdm_class()
+        mocker.patch.object(MDM, "pull_devices")
+        mock_sync_fleet = mocker.patch.object(MDM, "sync_fleet")
         fleets = FleetFactory.create_batch(3, organization=organization)
         devices = DeviceFactory.create_batch(3, fleet=fleets[0])
         response = client.post(url, data={"sync": 1})
@@ -2345,17 +2359,16 @@ class TestFleetsList(ViewTestBase):
             assertTemplateNotUsed(response, "publish_mdm/fleets_list.html")
 
 
-class TestAddFleet(ViewTestBase):
+class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
     """Test creating a new Fleet for the current organization."""
 
     @pytest.fixture
     def url(self, organization):
         return reverse("publish_mdm:add-fleet", args=[organization.slug])
 
-    def test_get(self, client, url, user, organization, mocker):
+    def test_get(self, client, url, user, organization, mocker, all_mdms, set_mdm_env_vars):
         PolicyFactory.create_batch(2)
         default_policy = PolicyFactory(default_policy=True)
-        mocker.patch("apps.publish_mdm.views.get_tinymdm_session", side_effect=[True])
         response = client.get(url)
         assert response.status_code == 200
         assert isinstance(response.context.get("form"), FleetAddForm)
@@ -2363,9 +2376,9 @@ class TestAddFleet(ViewTestBase):
         assert form_instance.organization == organization
         assert form_instance.policy == default_policy
 
-    def test_get_no_tinymdm_credentials(self, client, url, user, organization):
+    def test_get_no_mdm_credentials(self, client, url, user, organization, all_mdms):
         """Ensures a warning message that a fleet cannot be created is shown if
-        there are no TinyMDM credentials configured.
+        API credentials are not configured for the active MDM.
         """
         PolicyFactory(default_policy=True)
         response = client.get(url, follow=True)
@@ -2374,11 +2387,11 @@ class TestAddFleet(ViewTestBase):
             response, "Sorry, cannot create a fleet at this time. Please try again later."
         )
 
-    def test_get_no_default_policy(self, client, url, user, organization, settings):
+    def test_get_no_default_policy(self, client, url, user, organization, settings, all_mdms):
         """Ensures a warning message that a fleet cannot be created is shown if
         there is no default policy.
         """
-        settings.TINYMDM_DEFAULT_POLICY = None
+        settings.MDM_DEFAULT_POLICY = None
         response = client.get(url, follow=True)
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
         assertContains(
@@ -2386,145 +2399,190 @@ class TestAddFleet(ViewTestBase):
         )
 
     def test_valid_form(
-        self, client, url, user, organization, project, set_tinymdm_env_vars, requests_mock, mocker
+        self, client, url, user, organization, project, all_mdms, set_mdm_env_vars, mocker
     ):
         """Ensure submitting a valid form creates a Fleet with the expected data
-        and makes the expected TinyMDM API requests.
+        and makes the expected MDM API requests.
         """
         data = {
             "name": "My Fleet",
             "project": project.id,
         }
-        group_id = fake.pystr()
-        mock_create_group_request = requests_mock.post(
-            "https://www.tinymdm.net/api/v1/groups", json={"id": group_id}, status_code=201
-        )
-        mock_add_group_to_policy = mocker.patch("apps.publish_mdm.views.add_group_to_policy")
-        mock_get_enrollment_qr_code = mocker.patch("apps.publish_mdm.views.get_enrollment_qr_code")
-        mocker.patch("apps.mdm.tasks.pull_devices")
+        MDM = get_active_mdm_class()
+
+        if MDM.name == "Android Enterprise":
+            mdm_group_id = None
+            mock_create_group = mocker.patch.object(MDM, "create_group")
+        else:
+            mdm_group_id = fake.pystr()
+
+            def create_group(fleet):
+                fleet.mdm_group_id = mdm_group_id
+
+            mock_create_group = mocker.patch.object(MDM, "create_group", side_effect=create_group)
+
+        mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
+        mock_get_enrollment_qr_code = mocker.patch.object(MDM, "get_enrollment_qr_code")
+        mocker.patch.object(MDM, "pull_devices")
         PolicyFactory(default_policy=True)
 
         response = client.post(url, data=data, follow=True)
         fleet = organization.fleets.get()
-        assert fleet.mdm_group_id == group_id
+        assert fleet.mdm_group_id == mdm_group_id
         assert fleet.name == data["name"]
         assert fleet.project_id == data["project"]
-        assert mock_create_group_request.called_once
+        mock_create_group.assert_called_once()
         mock_add_group_to_policy.assert_called_once()
         mock_get_enrollment_qr_code.assert_called_once()
         assertContains(response, f"Successfully added {fleet}.")
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
 
     def test_valid_form_but_create_group_fails(
-        self, client, url, user, organization, project, set_tinymdm_env_vars, requests_mock, mocker
+        self,
+        client,
+        url,
+        user,
+        organization,
+        project,
+        all_mdms,
+        set_mdm_env_vars,
+        mocker,
+        mdm_api_error,
     ):
         """Ensure submitting a valid form does not create a Fleet if the API request
-        to create a group in TinyMDM fails.
+        to create a group in the MDM fails.
         """
         data = {
             "name": "My Fleet",
             "project": project.id,
         }
-        response_json = {"error": {"message": "Reason"}}
-        mock_create_group_request = requests_mock.post(
-            "https://www.tinymdm.net/api/v1/groups",
-            status_code=499,
-            json={"error": {"message": "Reason"}},
-        )
-        mock_add_group_to_policy = mocker.patch("apps.publish_mdm.views.add_group_to_policy")
+        MDM = get_active_mdm_class()
+        mock_create_group = mocker.patch.object(MDM, "create_group", side_effect=mdm_api_error)
+        mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
         PolicyFactory(default_policy=True)
 
         response = client.post(url, data=data, follow=True)
         assert not organization.fleets.exists()
-        assert mock_create_group_request.called_once
+        mock_create_group.assert_called_once()
         mock_add_group_to_policy.assert_not_called()
         assertContains(
             response,
-            "The fleet has not been saved because its TinyMDM group "
+            f"The fleet has not been saved because its {MDM.name} group "
             "could not be created due to the following error:"
-            f'<code class="block text-xs mt-2">Status 499: {response_json}</code>',
+            f'<code class="block text-xs mt-2">{mdm_api_error}</code>',
         )
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
 
     def test_valid_form_but_add_group_to_policy_fails(
-        self, client, url, user, organization, project, set_tinymdm_env_vars, requests_mock, mocker
+        self,
+        client,
+        url,
+        user,
+        organization,
+        project,
+        all_mdms,
+        set_mdm_env_vars,
+        mocker,
+        mdm_api_error,
     ):
         """Ensure submitting a valid form creates a Fleet with the expected data,
-        creates a group in TinyMDM, and shows a warning message if the TinyMDM API
+        creates a group in the MDM, and shows a warning message if the MDM API
         request for adding the group to the default policy fails.
         """
         data = {
             "name": "My Fleet",
             "project": project.id,
         }
-        group_id = fake.pystr()
-        requests_mock.post(
-            "https://www.tinymdm.net/api/v1/groups", json={"id": group_id}, status_code=201
+        MDM = get_active_mdm_class()
+
+        if MDM.name == "Android Enterprise":
+            mdm_group_id = None
+            mock_create_group = mocker.patch.object(MDM, "create_group")
+        else:
+            mdm_group_id = fake.pystr()
+
+            def create_group(fleet):
+                fleet.mdm_group_id = mdm_group_id
+
+            mock_create_group = mocker.patch.object(MDM, "create_group", side_effect=create_group)
+        mock_get_enrollment_qr_code = mocker.patch.object(MDM, "get_enrollment_qr_code")
+        mock_add_group_to_policy = mocker.patch.object(
+            MDM, "add_group_to_policy", side_effect=mdm_api_error
         )
-        mock_get_enrollment_qr_code = mocker.patch("apps.publish_mdm.views.get_enrollment_qr_code")
-        response_json = {"error": {"message": "Reason"}}
-        mock_add_group_to_policy_request = requests_mock.post(
-            re.compile(r"https://www.tinymdm.net/api/v1/policies/\w+/members/\w+"),
-            status_code=499,
-            json={"error": {"message": "Reason"}},
-        )
-        mocker.patch("apps.mdm.tasks.pull_devices")
+        mocker.patch.object(MDM, "pull_devices")
         PolicyFactory(default_policy=True)
 
         response = client.post(url, data=data, follow=True)
         fleet = organization.fleets.get()
-        assert fleet.mdm_group_id == group_id
+        mock_create_group.assert_called_once()
+        assert fleet.mdm_group_id == mdm_group_id
         assert fleet.name == data["name"]
         assert fleet.project_id == data["project"]
-        assert mock_add_group_to_policy_request.called_once
+        mock_add_group_to_policy.assert_called_once()
         mock_get_enrollment_qr_code.assert_called_once()
         assertContains(response, f"Successfully added {fleet}.")
         assertContains(
             response,
             "The fleet has been saved but it could not be added to the "
-            f"{fleet.policy.name} policy in TinyMDM due to the following error:"
-            f'<code class="block text-xs mt-2">Status 499: {response_json}</code>',
+            f"{fleet.policy.name} policy in {MDM.name} due to the following error:"
+            f'<code class="block text-xs mt-2">{mdm_api_error}</code>',
         )
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
 
     def test_valid_form_but_get_enrollment_qr_code_fails(
-        self, client, url, user, organization, project, set_tinymdm_env_vars, requests_mock, mocker
+        self,
+        client,
+        url,
+        user,
+        organization,
+        project,
+        all_mdms,
+        set_mdm_env_vars,
+        mocker,
+        mdm_api_error,
     ):
         """Ensure submitting a valid form creates a Fleet with the expected data
-        and shows a warning message if the TinyMDM API request for getting the
+        and shows a warning message if the MDM API request for getting the
         fleet's enrollment QR code fails.
         """
         data = {
             "name": "My Fleet",
             "project": project.id,
         }
-        group_id = fake.pystr()
-        requests_mock.post(
-            "https://www.tinymdm.net/api/v1/groups", json={"id": group_id}, status_code=201
+        MDM = get_active_mdm_class()
+
+        if MDM.name == "Android Enterprise":
+            mdm_group_id = None
+            mock_create_group = mocker.patch.object(MDM, "create_group")
+        else:
+            mdm_group_id = fake.pystr()
+
+            def create_group(fleet):
+                fleet.mdm_group_id = mdm_group_id
+
+            mock_create_group = mocker.patch.object(MDM, "create_group", side_effect=create_group)
+
+        mock_get_enrollment_qr_code = mocker.patch.object(
+            MDM, "get_enrollment_qr_code", side_effect=mdm_api_error
         )
-        response_json = {"error": {"message": "Reason"}}
-        mock_get_enrollment_qr_code_request = requests_mock.get(
-            re.compile(r"https://www.tinymdm.net/api/v1/groups/\w+/enrollment_qr_code"),
-            status_code=499,
-            json={"error": {"message": "Reason"}},
-        )
-        mock_add_group_to_policy = mocker.patch("apps.publish_mdm.views.add_group_to_policy")
-        mocker.patch("apps.mdm.tasks.pull_devices")
+        mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
+        mocker.patch.object(MDM, "pull_devices")
         PolicyFactory(default_policy=True)
 
         response = client.post(url, data=data, follow=True)
         fleet = organization.fleets.get()
-        assert fleet.mdm_group_id == group_id
+        mock_create_group.assert_called_once()
+        assert fleet.mdm_group_id == mdm_group_id
         assert fleet.name == data["name"]
         assert fleet.project_id == data["project"]
         mock_add_group_to_policy.assert_called_once()
-        assert mock_get_enrollment_qr_code_request.called_once
+        mock_get_enrollment_qr_code.assert_called_once()
         assertContains(response, f"Successfully added {fleet}.")
         assertContains(
             response,
-            "The fleet has been saved but we could not get its TinyMDM "
+            f"The fleet has been saved but we could not get its {MDM.name} "
             "enrollment QR code due to the following error:"
-            f'<code class="block text-xs mt-2">Status 499: {response_json}</code>',
+            f'<code class="block text-xs mt-2">{mdm_api_error}</code>',
         )
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
 
@@ -2558,7 +2616,7 @@ class TestEditFleet(ViewTestBase):
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
 
 
-class TestFleetQRCode(ViewTestBase):
+class TestFleetQRCode(ViewTestBase, TestAllMDMsNoAutouse):
     """Test the view for getting a Fleet's enrollment QR code."""
 
     @pytest.fixture
@@ -2574,18 +2632,21 @@ class TestFleetQRCode(ViewTestBase):
         response = client.post(url, data=data)
         assertContains(response, f'<img src="{fleet.enroll_qr_code.url}"')
 
-    def test_no_saved_qr_code(self, client, url, user, organization, mocker, set_tinymdm_env_vars):
+    def test_no_saved_qr_code(
+        self, client, url, user, organization, mocker, all_mdms, set_mdm_env_vars
+    ):
         """Ensure a the QR code is downloaded and saved if it's not saved yet,
         and an img tag with the saved QR code is included in the response.
         """
-        mocker.patch("apps.mdm.tasks.pull_devices")
+        mocker.patch.object(get_active_mdm_class(), "pull_devices")
         fleet = FleetFactory(organization=organization, enroll_qr_code=None)
 
-        def side_effect(session, fleet):
+        def side_effect(fleet):
             fleet.enroll_qr_code.save(f"{fleet}.png", ContentFile(fake.image()), save=False)
 
-        mock_get_enrollment_qr_code = mocker.patch(
-            "apps.publish_mdm.views.get_enrollment_qr_code",
+        mock_get_enrollment_qr_code = mocker.patch.object(
+            get_active_mdm_class(),
+            "get_enrollment_qr_code",
             side_effect=side_effect,
         )
         data = {
@@ -2613,9 +2674,9 @@ class TestFleetQRCode(ViewTestBase):
         response = client.post(url, data=data)
         assertContains(response, "QR CODE NOT FOUND")
 
-    def test_no_api_credentials(self, client, url, user, organization, mocker):
+    def test_no_api_credentials(self, client, url, user, organization, mocker, all_mdms):
         """Ensure an error message is shown if there is no QR code saved and we could
-        not get it using the TinyMDM API because there are no API credentials.
+        not get it from the MDM because there are no API credentials.
         """
         fleet = FleetFactory(organization=organization, enroll_qr_code=None)
         data = {
@@ -2624,7 +2685,6 @@ class TestFleetQRCode(ViewTestBase):
         response = client.post(url, data=data)
         assertContains(response, "Cannot get the QR code at this time. Please try again later.")
 
-    @pytest.mark.parametrize("api_error", [(500, None), (499, {"error": {"message": "Reason"}})])
     def test_api_error(
         self,
         client,
@@ -2632,55 +2692,58 @@ class TestFleetQRCode(ViewTestBase):
         user,
         organization,
         mocker,
-        set_tinymdm_env_vars,
-        requests_mock,
-        api_error,
+        all_mdms,
+        set_mdm_env_vars,
+        mdm_api_error,
     ):
         """Ensure an error message is shown if there is no QR code saved and we could
-        not get it using the TinyMDM API because there was an API error.
+        not get it from the MDM because there was an API error.
         """
-        mocker.patch("apps.mdm.tasks.pull_devices")
+        MDM = get_active_mdm_class()
+        mocker.patch.object(MDM, "pull_devices")
         fleet = FleetFactory(organization=organization, enroll_qr_code=None)
         data = {
             "fleet": fleet.id,
         }
-        status_code, response_json = api_error
-        get_qr_code_request = requests_mock.get(
-            f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}/enrollment_qr_code",
-            status_code=status_code,
-            json=response_json,
+        mock_get_enrollment_qr_code = mocker.patch.object(
+            get_active_mdm_class(),
+            "get_enrollment_qr_code",
+            side_effect=mdm_api_error,
         )
         response = client.post(url, data=data)
-        assert get_qr_code_request.called_once
-        error_str = f"Status {status_code}"
-        if response_json:
-            error_str += f": {response_json}"
+        mock_get_enrollment_qr_code.assert_called_once()
         assertContains(
             response,
-            "The following TinyMDM API error occurred. Please try again later:"
-            f'<code class="block text-xs mt-2">{error_str}</code>',
+            f"The following {MDM.name} API error occurred. Please try again later:"
+            f'<code class="block text-xs mt-2">{mdm_api_error}</code>',
         )
 
 
-class TestBYODDeviceEnrollment(ViewTestBase):
-    """Test the view for enrolling a BYOD device."""
+class TestBYODDeviceEnrollment(ViewTestBase, TestTinyMDMOnly):
+    """Test the view for enrolling a BYOD device in TinyMDM."""
 
     @pytest.fixture
     def url(self, organization):
         return reverse("publish_mdm:add-byod-device", args=[organization.slug])
 
-    def test_success(self, client, url, user, organization, mocker, set_tinymdm_env_vars):
+    def test_android_enterprise(self, client, url, user, settings):
+        """The view is only accessible when TinyMDM is the active MDM."""
+        settings.ACTIVE_MDM["name"] = "Android Enterprise"
+        response = client.get(url)
+        assert response.status_code == 404
+
+    def test_success(self, client, url, user, organization, mocker, set_mdm_env_vars):
         """Ensure the user is shown the expected success message if a TinyMDM
         user is successfully created.
         """
-        mocker.patch("apps.mdm.tasks.pull_devices")
+        mocker.patch.object(TinyMDM, "pull_devices")
         fleet = FleetFactory(organization=organization)
         data = {
             "byod-fleet": fleet.id,
             "byod-name": fake.name(),
             "byod-email": fake.email(),
         }
-        mock_create_user = mocker.patch("apps.publish_mdm.views.create_user")
+        mock_create_user = mocker.patch.object(TinyMDM, "create_user")
         response = client.post(url, data=data)
 
         mock_create_user.assert_called_once()
@@ -2697,7 +2760,7 @@ class TestBYODDeviceEnrollment(ViewTestBase):
             "byod-name": fake.name(),
             "byod-email": fake.email(),
         }
-        mock_create_user = mocker.patch("apps.publish_mdm.views.create_user")
+        mock_create_user = mocker.patch.object(TinyMDM, "create_user")
         response = client.post(url, data=data)
 
         mock_create_user.assert_not_called()
@@ -2717,13 +2780,13 @@ class TestBYODDeviceEnrollment(ViewTestBase):
         organization,
         mocker,
         requests_mock,
-        set_tinymdm_env_vars,
+        set_mdm_env_vars,
         api_error,
     ):
         """Ensure the user is shown the expected error message in case of an API
         error response.
         """
-        mocker.patch("apps.mdm.tasks.pull_devices")
+        mocker.patch.object(TinyMDM, "pull_devices")
         fleet = FleetFactory(organization=organization)
         data = {
             "byod-fleet": fleet.id,
@@ -2759,7 +2822,7 @@ class TestBYODDeviceEnrollment(ViewTestBase):
             "byod-name": "",
             "byod-email": "",
         }
-        mock_create_user = mocker.patch("apps.publish_mdm.views.create_user")
+        mock_create_user = mocker.patch.object(TinyMDM, "create_user")
         response = client.post(url, data=data)
 
         mock_create_user.assert_not_called()
@@ -2772,33 +2835,38 @@ class TestBYODDeviceEnrollment(ViewTestBase):
         }
 
 
-class TestCheckMDMLicenseLimit(ViewTestBase):
+class TestCheckMDMLicenseLimit(ViewTestBase, TestTinyMDMOnly):
     """Test the check_mdm_license_limit view."""
 
     @pytest.fixture
     def url(self):
         return reverse("publish_mdm:check-mdm-license-limit")
 
-    def test_limit_reached(self, client, url, user, mocker, set_tinymdm_env_vars):
-        mock_check_license_limit = mocker.patch(
-            "apps.publish_mdm.views.check_license_limit", return_value=(5, 5)
+    def test_android_enterprise(self, client, url, user, settings):
+        """The view is only accessible when TinyMDM is the active MDM."""
+        settings.ACTIVE_MDM["name"] = "Android Enterprise"
+        response = client.get(url)
+        assert response.status_code == 404
+
+    def test_limit_reached(self, client, url, user, mocker, set_mdm_env_vars):
+        mock_check_license_limit = mocker.patch.object(
+            TinyMDM, "check_license_limit", return_value=(5, 5)
         )
         response = client.get(url)
         mock_check_license_limit.assert_called_once()
         assertContains(response, "The TinyMDM account's license limit has been reached.", html=True)
 
-    def test_limit_not_reached(self, client, url, user, mocker, set_tinymdm_env_vars):
-        mock_check_license_limit = mocker.patch(
-            "apps.publish_mdm.views.check_license_limit", return_value=(5, 4)
+    def test_limit_not_reached(self, client, url, user, mocker, set_mdm_env_vars):
+        mock_check_license_limit = mocker.patch.object(
+            TinyMDM, "check_license_limit", return_value=(5, 4)
         )
         response = client.get(url)
         mock_check_license_limit.assert_called_once()
         assert response.content == b""
 
-    def test_api_error(self, client, url, user, mocker, set_tinymdm_env_vars):
-        api_error = HTTPError("error")
-        mock_check_license_limit = mocker.patch(
-            "apps.publish_mdm.views.check_license_limit", side_effect=api_error
+    def test_api_error(self, client, url, user, mocker, set_mdm_env_vars, mdm_api_error):
+        mock_check_license_limit = mocker.patch.object(
+            TinyMDM, "check_license_limit", side_effect=mdm_api_error
         )
         response = client.get(url)
         mock_check_license_limit.assert_called_once()
@@ -2806,11 +2874,11 @@ class TestCheckMDMLicenseLimit(ViewTestBase):
             response,
             "The following TinyMDM API error occurred while checking if the "
             "TinyMDM license limit has been reached:"
-            f'<code class="block text-xs mt-2">{api_error}</code>',
+            f'<code class="block text-xs mt-2">{mdm_api_error}</code>',
         )
 
     def test_no_api_credentials(self, client, url, user, mocker):
-        mock_check_license_limit = mocker.patch("apps.publish_mdm.views.check_license_limit")
+        mock_check_license_limit = mocker.patch.object(TinyMDM, "check_license_limit")
         response = client.get(url)
         mock_check_license_limit.assert_not_called()
         assertContains(response, "Unable to check if the TinyMDM license limit has been reached.")
