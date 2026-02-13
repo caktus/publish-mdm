@@ -1,3 +1,4 @@
+import re
 import structlog
 from openpyxl.cell.cell import Cell
 from openpyxl.worksheet.worksheet import Worksheet
@@ -19,7 +20,7 @@ def get_header(sheet: Worksheet, column_name: str) -> Cell:
     return header_cell
 
 
-def get_column_cell_by_value(column_header: Cell, value: str) -> Cell:
+def get_column_cell_by_value(column_header: Cell, value: str, is_regex=False) -> Cell | None:
     """Find the cell by searching down the column for the value."""
     sheet: Worksheet = column_header.parent
     target_cell = None
@@ -30,11 +31,20 @@ def get_column_cell_by_value(column_header: Cell, value: str) -> Cell:
         max_col=column_header.column,
     ):
         for cell in row:
-            if cell.value == value:
+            if is_regex:
+                if isinstance(cell.value, (str, bytes)) and re.match(value, cell.value):
+                    target_cell = cell
+                    break
+            elif cell.value == value:
                 target_cell = cell
                 break
     if not target_cell:
-        logger.debug("Could not find value in column", column_name=column_header.value, value=value)
+        logger.debug(
+            "Could not find value in column",
+            column_name=column_header.value,
+            value=value,
+            is_regex=is_regex,
+        )
     return target_cell
 
 
