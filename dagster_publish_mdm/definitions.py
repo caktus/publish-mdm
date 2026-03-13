@@ -1,23 +1,23 @@
 import dagster as dg
 
 from dagster_publish_mdm.assets.tailscale import tailscale_devices
-from dagster_publish_mdm.assets import tinymdm_devices
+from dagster_publish_mdm.assets import mdm_devices
 from dagster_publish_mdm.resources.tailscale import TailscaleResource
 
-all_assets = dg.load_assets_from_modules([tailscale_devices, tinymdm_devices])
+all_assets = dg.load_assets_from_modules([tailscale_devices, mdm_devices])
 tailscale_schedule = dg.ScheduleDefinition(
     name="tailscale_schedule",
     target=dg.AssetSelection.groups("tailscale_assets"),
     cron_schedule="*/30 * * * *",
     default_status=dg.DefaultScheduleStatus.RUNNING,
 )
-tinymdm_schedule = dg.ScheduleDefinition(
-    name="tinymdm_schedule",
-    target=dg.AssetSelection.groups("tinymdm_assets"),
+mdm_schedule = dg.ScheduleDefinition(
+    name="mdm_schedule",
+    target=dg.AssetSelection.groups("mdm_assets"),
     cron_schedule="*/30 * * * *",
     default_status=dg.DefaultScheduleStatus.RUNNING,
 )
-tinymdm_job = dg.define_asset_job(name="tinymdm_job", selection="push_tinymdm_device_config")
+mdm_job = dg.define_asset_job(name="mdm_job", selection="push_mdm_device_config")
 
 tailscale_device_deletion_schedule = dg.ScheduleDefinition(
     name="tailscale_device_deletion_schedule",
@@ -36,6 +36,6 @@ defs = dg.Definitions(
             tailnet=dg.EnvVar("TAILSCALE_TAILNET"),
         ),
     },
-    schedules=[tailscale_schedule, tinymdm_schedule, tailscale_device_deletion_schedule],
-    jobs=[tinymdm_job],
+    schedules=[tailscale_schedule, mdm_schedule, tailscale_device_deletion_schedule],
+    jobs=[mdm_job],
 )

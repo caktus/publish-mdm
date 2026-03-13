@@ -7,10 +7,8 @@ from django.db import migrations, models
 
 def create_fleets(apps, schema_editor):
     policy_model = apps.get_model("mdm", "Policy")
-    if settings.TINYMDM_DEFAULT_POLICY:
-        default_policy = policy_model.objects.filter(
-            policy_id=settings.TINYMDM_DEFAULT_POLICY
-        ).first()
+    if settings.MDM_DEFAULT_POLICY:
+        default_policy = policy_model.objects.filter(policy_id=settings.MDM_DEFAULT_POLICY).first()
     else:
         default_policy = policy_model.objects.order_by("id").first()
     if not default_policy:

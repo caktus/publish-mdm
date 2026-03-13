@@ -37,6 +37,17 @@ rather use Docker, see :doc:`../running/docker-compose`.
     export GOOGLE_API_KEY=
     export GOOGLE_APP_ID=
 
+    # If using TinyMDM as your MDM service provider (the default)
+    export TINYMDM_ACCOUNT_ID=
+    export TINYMDM_APIKEY_PUBLIC=
+    export TINYMDM_APIKEY_SECRET=
+
+    # If using Android EMM as your MDM service provider
+    export ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE=
+    export ANDROID_ENTERPRISE_ID=
+    export ACTIVE_MDM_NAME="Android Enterprise"
+    export ACTIVE_MDM_CLASS=apps.mdm.mdms.AndroidEnterprise
+
 Update the environment variables as needed for your local setup. You may need to
 add a ``PGPASSWORD`` variable if your database expects a password. If the database
 does not exist yet, create it with the ``createdb`` `command <https://www.postgresql.org/docs/current/app-createdb.html>`_.

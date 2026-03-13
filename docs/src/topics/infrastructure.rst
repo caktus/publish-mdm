@@ -24,7 +24,7 @@ Publish MDM uses a modern architecture with the following core components:
         web:B -- T:secrets
         web:T -- B:dagster
 
-        service tinymdm(internet)[TinyMDM]
+        service mdm(internet)[MDM service provider]
         service tailscale(internet)[Tailscale VPN]
         service central(internet)[ODK Central]
         service sentry(internet)[Sentry]
@@ -112,7 +112,7 @@ Mobile Device Management (MDM)
 
 Publish MDM integrates with MDM providers for device management:
 
-* **TinyMDM**: Primary MDM provider for Android device management
+* Either **TinyMDM** or **Android EMM** for Android device management
 * Device enrollment and policy application
 * Application deployment and configuration
 * Device monitoring and compliance reporting

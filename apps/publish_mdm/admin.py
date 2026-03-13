@@ -4,6 +4,7 @@ from django.conf import settings
 from django.contrib import admin, messages
 from django.utils.html import mark_safe
 from django import forms
+from googleapiclient.errors import Error as GoogleAPIClientError
 from invitations.admin import InvitationAdmin
 from requests.exceptions import RequestException
 
@@ -192,13 +193,14 @@ class OrganizationAdmin(admin.ModelAdmin):
         if not change:
             try:
                 obj.create_default_fleet()
-            except RequestException as e:
+            except (GoogleAPIClientError, RequestException) as e:
                 logger.debug("Unable to create the default fleet", organization=obj, exc_info=True)
                 messages.warning(
                     request,
                     mark_safe(
-                        "The organization was created but its default TinyMDM group "
-                        f"could not be created due to the following error:<br><code>{e}</code>"
+                        "The organization was created but the following "
+                        f"{settings.ACTIVE_MDM['name']} API error occurred while "
+                        f"setting up its default Fleet:<br><code>{getattr(e, 'api_error', e)}</code>"
                     ),
                 )
 
