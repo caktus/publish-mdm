@@ -77,12 +77,15 @@ def set_survey_template_variables(sheet: Worksheet, variables: list[TemplateVari
 def set_survey_attachments(sheet: Worksheet, attachments: dict | None = None):
     """Detect static attachments on the survey sheet.
 
-    Attachment columns' headers are either "media::image", "media::audio", or "media::video".
+    Media attachment columns are either "media::image", "media::audio", or "media::video".
+    CSV attachments can be referenced in "pulldata" functions in the "calculation" column.
+
     The `attachments` dict should contain data from the ProjectAttachment model,
     with the values from the `name` and `file` fields as the keys and values respectively.
     The dict will be updated in place to remove attachments that are not detected in the
-    survey sheet. To detect an attachment, we will look for the key from the `attachments`
-    dict in the "media::*" columns.
+    survey sheet. To detect a media attachment, we will look for the key from the `attachments`
+    dict in the "media::*" columns. To detect CSV attachments, we will look for matching
+    "pulldata" functions in the "calculation" column.
     """
     if not attachments:
         return
@@ -97,13 +100,20 @@ def set_survey_attachments(sheet: Worksheet, attachments: dict | None = None):
     csv_attachments = set()
     for name in attachments:
         name_parts = name.rsplit(".", 1)
+        # For a CSV file named "test.csv", search for `pulldata('test'` or `pulldata("test"`
+        # in the calculation column
         if len(name_parts) == 2 and name_parts[1].lower() == "csv":
-            if get_column_cell_by_value(
-                calculation_header, f"pulldata\\('{name_parts[0]}'", is_regex=True
+            if attachment_cell := get_column_cell_by_value(
+                calculation_header, rf"pulldata\((['\"]){name_parts[0]}\1", is_regex=True
             ):
+                logger.debug(
+                    "Found CSV attachment reference",
+                    name=name,
+                    cell=attachment_cell.coordinate,
+                )
                 csv_attachments.add(name)
     if not (csv_attachments or media_headers):
-        # No media headers found, so there are no attachments in the form
+        # No media headers or CSV attachments found, so there are no attachments in the form
         attachments.clear()
         return
     logger.debug("Found media headers", media_headers=media_headers)

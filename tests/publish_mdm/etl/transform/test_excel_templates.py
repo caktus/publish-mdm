@@ -101,10 +101,11 @@ class TestTemplate:
             ProjectAttachmentFactory(name="logo.png", project=project),
             ProjectAttachmentFactory(name="vegetables.csv", project=project),
         ]
-        # Create 2 more attachments that are not used in the survey sheet
+        # Create 3 more attachments that are not used in the survey sheet
         ProjectAttachmentFactory.create_batch(2, project=project)
+        ProjectAttachmentFactory(name="unused.csv", project=project)
         attachments = {i.name: i.file for i in project.attachments.all()}
-        assert len(attachments) == 4
+        assert len(attachments) == 5
         set_survey_attachments(sheet=survey_sheet, attachments=attachments)
         # The `attachments` dictionary has been updated and only contains the
         # attachment that was detected in the form
