@@ -18,6 +18,7 @@ services:
       - DB_USER=${DB_USER:-odk}
       - DB_PASSWORD=${DB_PASSWORD}
       - DB_POOL_SIZE=${DB_POOL_SIZE:-10}
+      - DB_PORT=${DB_PORT:-5432}
       - DB_NAME=${DB_NAME:-central}
       - DB_SSL=${DB_SSL:-null}
       - EMAIL_FROM=${EMAIL_FROM:-no-reply@$DOMAIN}
@@ -43,7 +44,12 @@ services:
       - S3_BUCKET_NAME=${S3_BUCKET_NAME:-}
       - SESSION_LIFETIME=${SESSION_LIFETIME:-86400}
     command:
-      ["wait-for-it", "${DB_HOST:-postgres14}:5432", "--", "./start-odk.sh"]
+      [
+        "wait-for-it",
+        "${DB_HOST:-postgres14}:${DB_PORT:-5432}",
+        "--",
+        "./start-odk.sh",
+      ]
   nginx:
     image: ghcr.io/caktus/central-nginx:latest
     depends_on:
