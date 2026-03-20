@@ -11,7 +11,7 @@ from import_export.tmp_storages import MediaStorage
 from invitations.adapters import get_invitations_adapter
 from invitations.exceptions import AlreadyAccepted, AlreadyInvited, UserRegisteredEmail
 
-from apps.mdm.models import Fleet
+from apps.mdm.models import Device, Fleet
 from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import (
     BaseEmailInput,
@@ -625,6 +625,37 @@ class BYODDeviceEnrollmentForm(PlatformFormMixin, forms.Form):
     def __init__(self, organization, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["fleet"].queryset = organization.fleets.all()
+
+
+class DeviceAppUserForm(forms.ModelForm):
+    """Form for updating a Device's app_user_name via HTMX."""
+
+    app_user_name = forms.ChoiceField(
+        required=False,
+        choices=[("", "---")],
+        widget=Select(
+            attrs={
+                "hx-target": "closest form",
+                "hx-swap": "outerHTML",
+            }
+        ),
+    )
+
+    class Meta:
+        model = Device
+        fields = ["app_user_name"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.fleet.project:
+            self.fields["app_user_name"].choices = [
+                ("", "---"),
+                *((i.name, i.name) for i in self.instance.fleet.project.app_users.all()),
+            ]
+        self.fields["app_user_name"].widget.attrs["hx-post"] = reverse_lazy(
+            "publish_mdm:device-update-app-user",
+            args=[self.instance.fleet.organization.slug, self.instance.pk],
+        )
 
 
 class SearchForm(PlatformFormMixin, forms.Form):

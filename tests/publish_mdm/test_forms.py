@@ -11,6 +11,7 @@ from apps.publish_mdm.forms import (
     BYODDeviceEnrollmentForm,
     CentralServerForm,
     CentralServerFrontendForm,
+    DeviceAppUserForm,
     DeviceEnrollmentQRCodeForm,
     FleetAddForm,
     FleetEditForm,
@@ -18,8 +19,9 @@ from apps.publish_mdm.forms import (
     PublishTemplateForm,
 )
 from apps.publish_mdm.http import HttpRequest
-from tests.mdm.factories import FleetFactory
+from tests.mdm.factories import FleetFactory, DeviceFactory as MDMDeviceFactory
 from tests.publish_mdm.factories import (
+    AppUserFactory,
     FormTemplateFactory,
     ProjectFactory,
     AppUserFormTemplateFactory,
@@ -397,3 +399,24 @@ class TestDeviceEnrollmentForm:
         FleetFactory.create_batch(2, organization=OrganizationFactory())
         form = form_class(organization=organization)
         assertQuerySetEqual(form.fields["fleet"].queryset, fleets, ordered=False)
+
+
+@pytest.mark.django_db
+class TestDeviceAppUserForm:
+    def test_app_user_name_choices(self):
+        """Ensures the choices for the app_user_name field are gotten from the app users
+        linked to the fleet's project.
+        """
+        device = MDMDeviceFactory()
+        app_users = AppUserFactory.create_batch(10, project=device.fleet.project)
+        AppUserFactory.create_batch(2)
+        form = DeviceAppUserForm(instance=device)
+        assert form.fields["app_user_name"].choices == [
+            ("", "---"),
+            *sorted((i.name, i.name) for i in app_users),
+        ]
+
+        device.fleet.project = None
+        device.fleet.save()
+        form = DeviceAppUserForm(instance=device)
+        assert form.fields["app_user_name"].choices == [("", "---")]

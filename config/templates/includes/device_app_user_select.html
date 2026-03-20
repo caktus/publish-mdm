@@ -1,0 +1,8 @@
+<form>
+    {{ form.app_user_name }}
+    {% if form.app_user_name.errors %}
+        {% for error in form.app_user_name.errors %}
+            <p class="mt-2 text-sm text-error dark:text-brand-danger-light">{{ error }}</p>
+        {% endfor %}
+    {% endif %}
+</form>

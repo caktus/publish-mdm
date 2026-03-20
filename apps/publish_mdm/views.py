@@ -10,6 +10,7 @@ from django.db import models, transaction
 from django.db.models import OuterRef, Q, Subquery, Value
 from django.db.models.functions import Collate, Lower, NullIf
 from django.http import Http404, HttpRequest, HttpResponse
+from django.views.decorators.http import require_POST
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.html import mark_safe
 from django.utils.timezone import localdate
@@ -59,6 +60,7 @@ from .forms import (
     FleetAddForm,
     FleetEditForm,
     CentralServerFrontendForm,
+    DeviceAppUserForm,
     DeviceEnrollmentQRCodeForm,
     BYODDeviceEnrollmentForm,
     SearchForm,
@@ -884,7 +886,13 @@ def devices_list(request: HttpRequest, organization_slug):
                 .order_by("-last_seen")[:1]
             ),
         )
-        .select_related("latest_snapshot")
+        .select_related("latest_snapshot", "fleet__project", "fleet__organization")
+        .prefetch_related(
+            models.Prefetch(
+                "fleet__project__app_users",
+                queryset=AppUser.objects.order_by("name"),
+            )
+        )
     )
     search_form = SearchForm(request.GET)
 
@@ -921,6 +929,26 @@ def devices_list(request: HttpRequest, organization_slug):
         template += "#devices-list-partial"
 
     return render(request, template, context)
+
+
+@require_POST
+@login_required
+def device_update_app_user(request: HttpRequest, organization_slug, device_pk):
+    """HTMX endpoint to update a Device's app_user_name."""
+    device = get_object_or_404(
+        Device.objects.select_related("fleet__project", "fleet__organization"),
+        pk=device_pk,
+        fleet__organization=request.organization,
+    )
+    form = DeviceAppUserForm(request.POST, instance=device)
+    if form.is_valid():
+        form.save()
+
+    return render(
+        request,
+        "includes/device_app_user_select.html",
+        {"form": form},
+    )
 
 
 @login_required

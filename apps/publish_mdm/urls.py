@@ -133,6 +133,11 @@ urlpatterns = [
         name="devices-list",
     ),
     path(
+        "o/<slug:organization_slug>/devices/<int:device_pk>/update-app-user/",
+        views.device_update_app_user,
+        name="device-update-app-user",
+    ),
+    path(
         "o/<slug:organization_slug>/fleets/",
         views.fleets_list,
         name="fleets-list",
