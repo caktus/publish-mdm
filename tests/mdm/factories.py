@@ -4,7 +4,15 @@ import factory
 import faker
 from django.conf import settings
 
-from apps.mdm.models import Device, DeviceSnapshot, FirmwareSnapshot, Fleet, Policy
+from apps.mdm.models import (
+    Device,
+    DeviceSnapshot,
+    FirmwareSnapshot,
+    Fleet,
+    Policy,
+    PolicyApplication,
+    PolicyVariable,
+)
 from tests.publish_mdm.factories import OrganizationFactory, ProjectFactory
 
 fake = faker.Faker()
@@ -81,3 +89,24 @@ class FirmwareSnapshotFactory(factory.django.DjangoModelFactory):
     version = factory.Faker("word")
     raw_data = factory.LazyAttribute(lambda obj: {"serialNumber": obj.serial_number})
     device = factory.SubFactory(DeviceFactory)
+
+
+class PolicyApplicationFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PolicyApplication
+
+    policy = factory.SubFactory(PolicyFactory)
+    package_name = factory.Sequence(lambda n: f"com.example.app{n}")
+    install_type = "FORCE_INSTALLED"
+    disabled = False
+    order = factory.Sequence(lambda n: n + 1)
+
+
+class PolicyVariableFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = PolicyVariable
+
+    org = factory.SubFactory(OrganizationFactory)
+    key = factory.Sequence(lambda n: f"var_key_{n}")
+    value = factory.Faker("word")
+    scope = "org"

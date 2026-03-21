@@ -3,9 +3,7 @@
     {# ODK Collect package name override #}
     <div class="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
         <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ODK Collect (pinned — always included)</p>
-        <div id="section-odk-package">
-            {% include "publish_mdm/partials/policy_odk_package.html" with odk_package_saved=False %}
-        </div>
+        <div id="section-odk-package">{% include "mdm/partials/policy_odk_package.html" with odk_package_saved=False %}</div>
     </div>
     {# Application table #}
     <div class="overflow-x-auto mb-4">
@@ -37,7 +35,7 @@
                         </tr>
                     {% else %}
                         <tr id="app-row-{{ app.pk }}" class="border-b dark:border-gray-600">
-                            {% include "publish_mdm/partials/policy_app_row.html" with saved=False %}
+                            {% include "mdm/partials/policy_app_row.html" with saved=False %}
                         </tr>
                     {% endif %}
                 {% endfor %}
@@ -45,7 +43,7 @@
         </table>
     </div>
     {# Add app form #}
-    <form hx-post="{% url 'publish_mdm:policy-add-application' request.organization.slug policy.pk %}"
+    <form hx-post="{% url 'mdm:policy-add-application' request.organization.slug policy.pk %}"
           hx-target="#section-applications"
           hx-swap="innerHTML">
         {% csrf_token %}
@@ -86,7 +84,7 @@
                     </div>
                     {# Modal body #}
                     <div class="p-4">
-                        <div id="config-form-{{ app.pk }}">{% include "publish_mdm/partials/policy_managed_config_form.html" %}</div>
+                        <div id="config-form-{{ app.pk }}">{% include "mdm/partials/policy_managed_config_form.html" %}</div>
                     </div>
                 </div>
             </div>

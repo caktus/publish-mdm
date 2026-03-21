@@ -19,7 +19,7 @@
         <div class="flex items-center space-x-4">
             <button type="submit" class="btn btn-outline btn-primary">Add policy</button>
             <a class="btn btn-outline"
-               href="{% url 'publish_mdm:policy-list' request.organization.slug %}">Cancel</a>
+               href="{% url 'mdm:policy-list' request.organization.slug %}">Cancel</a>
         </div>
     </form>
 {% endblock content %}
