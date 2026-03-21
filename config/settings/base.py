@@ -423,7 +423,11 @@ MDM_DEFAULT_POLICY = os.getenv("MDM_DEFAULT_POLICY")
 
 # Set to True to enable the Play Store managed configurations iframe in the policy editor.
 # Requires valid AMAPI credentials and enterprise enrollment.
-MANAGED_CONFIGS_IFRAME_ENABLED = os.getenv("MANAGED_CONFIGS_IFRAME_ENABLED", "").lower() in ("true", "1", "yes")
+MANAGED_CONFIGS_IFRAME_ENABLED = os.getenv("MANAGED_CONFIGS_IFRAME_ENABLED", "").lower() in (
+    "true",
+    "1",
+    "yes",
+)
 
 # Dagster settings
 DAGSTER_URL = os.getenv("DAGSTER_URL", "")

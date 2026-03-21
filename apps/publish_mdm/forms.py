@@ -631,6 +631,3 @@ class SearchForm(PlatformFormMixin, forms.Form):
     search = forms.CharField(
         widget=TextInput(attrs={"placeholder": "Search", "x-model.fill": "search"}), required=False
     )
-
-
-# --- Policy editor forms (one per section) ---

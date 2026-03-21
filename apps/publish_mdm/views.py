@@ -33,12 +33,7 @@ from pyodk.errors import PyODKError
 from requests.exceptions import RequestException
 
 from apps.mdm.mdms import get_active_mdm_instance
-from apps.mdm.models import (
-    Device,
-    FirmwareSnapshot,
-    Fleet,
-    Policy,
-)
+from apps.mdm.models import Device, FirmwareSnapshot, Fleet, Policy
 from apps.tailscale.models import Device as TailscaleDevice
 
 from .etl.load import (
