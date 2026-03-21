@@ -137,6 +137,7 @@ classes in `apps/publish_mdm/middleware.py`:
   equal access. Additional elevated privileges are controlled via Django's site-wide
   flags: `user.is_staff` (for staff-only features) and `user.is_superuser` (e.g., access
   to all organizations and certain restricted org pages).
+
 ### Permission pattern in views
 
 All org-scoped application views use `@login_required` (or the equivalent mixin). Org
