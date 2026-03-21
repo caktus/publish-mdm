@@ -13,9 +13,18 @@
                 {{ vpn_form.vpn_package_name.errors }}
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Leave blank to disable VPN.</p>
             </div>
-            <div class="flex items-center gap-2">
-                {{ vpn_form.vpn_lockdown }}
-                {{ vpn_form.vpn_lockdown.label_tag }}
+            <div>
+                <label class="inline-flex items-center gap-3 cursor-pointer"
+                       for="{{ vpn_form.vpn_lockdown.id_for_label }}">
+                    <input type="checkbox"
+                           name="{{ vpn_form.vpn_lockdown.html_name }}"
+                           id="{{ vpn_form.vpn_lockdown.id_for_label }}"
+                           {% if vpn_form.vpn_lockdown.value %}checked{% endif %}
+                           class="sr-only peer">
+                    <div class="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600 dark:peer-checked:bg-blue-600">
+                    </div>
+                    <span class="text-sm font-medium text-gray-900 dark:text-white">{{ vpn_form.vpn_lockdown.label }}</span>
+                </label>
                 {{ vpn_form.vpn_lockdown.errors }}
             </div>
         </div>

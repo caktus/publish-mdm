@@ -3,7 +3,9 @@
     {# ODK Collect package name override #}
     <div class="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
         <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ODK Collect (pinned — always included)</p>
-        <div id="section-odk-package">{% include "publish_mdm/partials/policy_odk_package.html" with odk_package_saved=False %}</div>
+        <div id="section-odk-package">
+            {% include "publish_mdm/partials/policy_odk_package.html" with odk_package_saved=False %}
+        </div>
     </div>
     {# Application table #}
     <div class="overflow-x-auto mb-4">
@@ -13,6 +15,7 @@
                     <th class="px-3 py-2">Package Name</th>
                     <th class="px-3 py-2">Install Type</th>
                     <th class="px-3 py-2">Disabled</th>
+                    <th class="px-3 py-2">Managed Config</th>
                     <th class="px-3 py-2"></th>
                 </tr>
             </thead>
@@ -26,7 +29,10 @@
                                 <span class="text-xs text-blue-600 dark:text-blue-400">(pinned)</span>
                             </td>
                             <td class="px-3 py-2">{{ app.get_install_type_display }}</td>
-                            <td class="px-3 py-2">{{ app.disabled|yesno:"Yes,No" }}</td>
+                            <td class="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm">{{ app.disabled|yesno:"Yes,No" }}</td>
+                            <td class="px-3 py-2">
+                                <span class="text-gray-400 dark:text-gray-500 text-xs italic">auto-injected</span>
+                            </td>
                             <td class="px-3 py-2"></td>
                         </tr>
                     {% else %}
@@ -53,34 +59,34 @@
         </div>
     </form>
 </div>
-
 {# Managed configuration modals — one per non-pinned app, outside the table #}
 {% for app, app_form in app_forms %}
     {% if not app.order == 0 or app.package_name != policy.odk_collect_package %}
         <div id="config-modal-{{ app.pk }}"
              tabindex="-1"
+             aria-hidden="true"
              class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
             <div class="relative p-4 w-full max-w-2xl max-h-full">
                 <div class="relative bg-white rounded-lg shadow dark:bg-gray-700">
                     {# Modal header #}
                     <div class="flex items-center justify-between p-4 border-b dark:border-gray-600 rounded-t">
-                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                            Managed Configuration — {{ app.package_name }}
-                        </h3>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Managed Configuration — {{ app.package_name }}</h3>
                         <button type="button"
                                 data-modal-hide="config-modal-{{ app.pk }}"
                                 class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white">
-                            <svg class="w-3 h-3" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 14 14">
-                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6"/>
+                            <svg class="w-3 h-3"
+                                 aria-hidden="true"
+                                 xmlns="http://www.w3.org/2000/svg"
+                                 fill="none"
+                                 viewBox="0 0 14 14">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
                             </svg>
                             <span class="sr-only">Close modal</span>
                         </button>
                     </div>
                     {# Modal body #}
                     <div class="p-4">
-                        <div id="config-form-{{ app.pk }}">
-                            {% include "publish_mdm/partials/policy_managed_config_form.html" %}
-                        </div>
+                        <div id="config-form-{{ app.pk }}">{% include "publish_mdm/partials/policy_managed_config_form.html" %}</div>
                     </div>
                 </div>
             </div>
