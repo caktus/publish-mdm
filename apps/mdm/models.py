@@ -212,6 +212,14 @@ class PolicyApplication(models.Model):
     def __str__(self):
         return f"{self.package_name} ({self.get_install_type_display()})"
 
+    def managed_configuration_str(self):
+        """Return managed_configuration JSON as a formatted string for display."""
+        import json
+
+        if self.managed_configuration:
+            return json.dumps(self.managed_configuration, indent=2)
+        return ""
+
 
 class PolicyVariable(models.Model):
     """User-defined key/value pairs for variable interpolation at push time."""

@@ -228,4 +228,9 @@ urlpatterns = [
         views.policy_delete_variable,
         name="policy-delete-variable",
     ),
+    path(
+        "o/<slug:organization_slug>/policies/<int:policy_id>/applications/<int:app_id>/configure/",
+        views.policy_save_managed_config,
+        name="policy-save-managed-config",
+    ),
 ]

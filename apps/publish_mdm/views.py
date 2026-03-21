@@ -1249,7 +1249,7 @@ def policy_edit(request, organization_slug, policy_id):
         return redirect("publish_mdm:organization-home", organization_slug)
     policy = get_object_or_404(Policy, pk=policy_id)
     applications = policy.applications.order_by("order", "pk")
-    variables = PolicyVariable.objects.filter(org=request.organization)
+    variables = _get_org_variables(request.organization)
 
     # Build per-app forms
     app_forms = []
@@ -1507,18 +1507,50 @@ def policy_save_developer(request, organization_slug, policy_id):
     )
 
 
+def _get_org_variables(organization):
+    """Return all PolicyVariables for an org — both org-scoped and fleet-scoped."""
+    return PolicyVariable.objects.filter(
+        Q(org=organization) | Q(fleet__organization=organization)
+    ).select_related("fleet")
+
+
+@login_required
+def policy_save_managed_config(request, organization_slug, policy_id, app_id):
+    """HTMX: save managed configuration JSON for a policy application."""
+    policy = get_object_or_404(Policy, pk=policy_id)
+    app = get_object_or_404(PolicyApplication, pk=app_id, policy=policy)
+    error = None
+    saved = False
+    config_json = request.POST.get("managed_configuration", "").strip()
+    if config_json:
+        try:
+            app.managed_configuration = json.loads(config_json)
+            app.save(update_fields=["managed_configuration"])
+            saved = True
+        except json.JSONDecodeError as e:
+            error = f"Invalid JSON: {e}"
+    else:
+        app.managed_configuration = None
+        app.save(update_fields=["managed_configuration"])
+        saved = True
+    return render(
+        request,
+        "publish_mdm/partials/policy_managed_config_form.html",
+        {"policy": policy, "app": app, "saved": saved, "error": error},
+    )
+
+
 @login_required
 def policy_add_variable(request, organization_slug, policy_id):
     """HTMX: add a new policy variable."""
     policy = get_object_or_404(Policy, pk=policy_id)
     form = PolicyVariableForm(request.POST, organization=request.organization)
+    # Pre-set org so model.clean() can validate scope without raising "org required".
+    # For fleet-scope variables, model.clean() will clear org to None automatically.
+    form.instance.org = request.organization
     if form.is_valid():
-        variable = form.save(commit=False)
-        if variable.scope == "org":
-            variable.org = request.organization
-            variable.fleet = None
-        variable.save()
-        variables = PolicyVariable.objects.filter(org=request.organization)
+        form.save()
+        variables = _get_org_variables(request.organization)
         return render(
             request,
             "publish_mdm/partials/policy_variables_section.html",
@@ -1529,7 +1561,7 @@ def policy_add_variable(request, organization_slug, policy_id):
                 "saved": True,
             },
         )
-    variables = PolicyVariable.objects.filter(org=request.organization)
+    variables = _get_org_variables(request.organization)
     return render(
         request,
         "publish_mdm/partials/policy_variables_section.html",
@@ -1547,7 +1579,7 @@ def policy_delete_variable(request, organization_slug, policy_id, var_id):
     policy = get_object_or_404(Policy, pk=policy_id)
     variable = get_object_or_404(PolicyVariable, pk=var_id)
     variable.delete()
-    variables = PolicyVariable.objects.filter(org=request.organization)
+    variables = _get_org_variables(request.organization)
     return render(
         request,
         "publish_mdm/partials/policy_variables_section.html",

@@ -85,7 +85,15 @@
         </div>
         <div class="mt-3 flex items-center gap-4">
             <button type="submit" class="btn btn-outline btn-primary">Add variable</button>
-            {% if saved %}<span class="text-sm text-green-600 dark:text-green-400">Saved</span>{% endif %}
+            {% if saved %}
+                <span x-data="{ vis: true }"
+                      x-init="setTimeout(() => { vis = false }, 2500)"
+                      x-show="vis"
+                      x-transition:leave="transition-opacity duration-500"
+                      x-transition:leave-start="opacity-100"
+                      x-transition:leave-end="opacity-0"
+                      class="text-sm text-green-600 dark:text-green-400">\u2713 Saved</span>
+            {% endif %}
         </div>
     </form>
 </div>

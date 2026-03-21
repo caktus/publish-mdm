@@ -4,11 +4,12 @@
     <form hx-post="{% url 'publish_mdm:policy-save-application' request.organization.slug policy.pk app.pk %}"
           hx-target="#app-row-{{ app.pk }}"
           hx-swap="innerHTML"
-          hx-trigger="change">
+          hx-trigger="change, submit">
         {% csrf_token %}
         {{ app_form.package_name.as_hidden }}
         {% if app.disabled %}<input type="hidden" name="{{ app_form.disabled.html_name }}" value="on">{% endif %}
         {{ app_form.install_type }}
+        <button type="submit" class="sr-only" tabindex="-1">Save</button>
     </form>
 </td>
 <td class="px-3 py-2">
@@ -16,18 +17,31 @@
     <form hx-post="{% url 'publish_mdm:policy-save-application' request.organization.slug policy.pk app.pk %}"
           hx-target="#app-row-{{ app.pk }}"
           hx-swap="innerHTML"
-          hx-trigger="change">
+          hx-trigger="change, submit">
         {% csrf_token %}
         {{ app_form.package_name.as_hidden }}
         {{ app_form.install_type.as_hidden }}
         {{ app_form.disabled }}
+        <button type="submit" class="sr-only" tabindex="-1">Save</button>
     </form>
 </td>
-<td class="px-3 py-2">
+<td class="px-3 py-2 whitespace-nowrap">
+    <button type="button"
+            data-modal-target="config-modal-{{ app.pk }}"
+            data-modal-toggle="config-modal-{{ app.pk }}"
+            class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-sm mr-3">Configure</button>
     <button hx-post="{% url 'publish_mdm:policy-delete-application' request.organization.slug policy.pk app.pk %}"
             hx-target="#section-applications"
             hx-swap="innerHTML"
             hx-confirm="Remove {{ app.package_name }}?"
             class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm">Remove</button>
-    {% if saved %}<span class="text-xs text-green-600 dark:text-green-400 ml-2">Saved</span>{% endif %}
+    {% if saved %}
+        <span x-data="{ vis: true }"
+              x-init="setTimeout(() => { vis = false }, 2500)"
+              x-show="vis"
+              x-transition:leave="transition-opacity duration-500"
+              x-transition:leave-start="opacity-100"
+              x-transition:leave-end="opacity-0"
+              class="text-xs text-green-600 dark:text-green-400 ml-2">✓ Saved</span>
+    {% endif %}
 </td>
