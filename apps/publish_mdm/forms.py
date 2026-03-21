@@ -750,6 +750,37 @@ class DeveloperSettingsForm(PlatformFormMixin, forms.ModelForm):
         labels = {"developer_settings": "Developer Settings"}
 
 
+class KioskModeForm(PlatformFormMixin, forms.ModelForm):
+    """Section: Kiosk mode settings."""
+
+    class Meta:
+        model = Policy
+        fields = [
+            "kiosk_custom_launcher_enabled",
+            "kiosk_power_button_actions",
+            "kiosk_system_error_warnings",
+            "kiosk_system_navigation",
+            "kiosk_status_bar",
+            "kiosk_device_settings",
+        ]
+        widgets = {
+            "kiosk_custom_launcher_enabled": CheckboxInput,
+            "kiosk_power_button_actions": Select,
+            "kiosk_system_error_warnings": Select,
+            "kiosk_system_navigation": Select,
+            "kiosk_status_bar": Select,
+            "kiosk_device_settings": Select,
+        }
+        labels = {
+            "kiosk_custom_launcher_enabled": "Enable Kiosk Custom Launcher",
+            "kiosk_power_button_actions": "Power Button Actions",
+            "kiosk_system_error_warnings": "System Error Warnings",
+            "kiosk_system_navigation": "System Navigation",
+            "kiosk_status_bar": "Status Bar",
+            "kiosk_device_settings": "Device Settings",
+        }
+
+
 class PolicyVariableForm(PlatformFormMixin, forms.ModelForm):
     """Form for a single PolicyVariable row."""
 

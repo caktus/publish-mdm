@@ -46,6 +46,24 @@ class PolicySerializer:
         if advanced_security:
             result["advancedSecurityOverrides"] = advanced_security
 
+        # Kiosk customization
+        if self.policy.kiosk_custom_launcher_enabled:
+            result["kioskCustomLauncherEnabled"] = True
+
+        kiosk_customization = {}
+        if self.policy.kiosk_power_button_actions != "POWER_BUTTON_ACTIONS_UNSPECIFIED":
+            kiosk_customization["powerButtonActions"] = self.policy.kiosk_power_button_actions
+        if self.policy.kiosk_system_error_warnings != "SYSTEM_ERROR_WARNINGS_UNSPECIFIED":
+            kiosk_customization["systemErrorWarnings"] = self.policy.kiosk_system_error_warnings
+        if self.policy.kiosk_system_navigation != "SYSTEM_NAVIGATION_UNSPECIFIED":
+            kiosk_customization["systemNavigation"] = self.policy.kiosk_system_navigation
+        if self.policy.kiosk_status_bar != "STATUS_BAR_UNSPECIFIED":
+            kiosk_customization["statusBar"] = self.policy.kiosk_status_bar
+        if self.policy.kiosk_device_settings != "DEVICE_SETTINGS_UNSPECIFIED":
+            kiosk_customization["deviceSettings"] = self.policy.kiosk_device_settings
+        if kiosk_customization:
+            result["kioskCustomization"] = kiosk_customization
+
         # Resolve variable placeholders in all string values
         merged_vars = self._merge_variables()
         self._resolve_variables(result, merged_vars)

@@ -16,5 +16,7 @@
           x-transition:leave="transition-opacity duration-500"
           x-transition:leave-start="opacity-100"
           x-transition:leave-end="opacity-0"
-          class="mt-1 block text-sm text-green-600 dark:text-green-400">\u2713 Saved</span>
+          class="mt-1 block text-sm text-green-600 dark:text-green-400">✓ Saved</span>
+    {# OOB: update pinned row package name in the applications table #}
+    <span id="pinned-package-name" hx-swap-oob="true">{{ policy.odk_collect_package }}</span>
 {% endif %}

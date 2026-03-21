@@ -3,15 +3,17 @@
     <div class="max-w-4xl space-y-6">
         {# Section 1: Policy name #}
         <div id="section-name">{% include "publish_mdm/partials/policy_name_section.html" %}</div>
-        {# Section 2: Applications #}
-        <div id="section-applications">{% include "publish_mdm/partials/policy_applications_section.html" %}</div>
-        {# Section 3: Password policy #}
+        {# Section 2: Password policy #}
         <div id="section-password">{% include "publish_mdm/partials/policy_password_section.html" %}</div>
+        {# Section 3: Applications #}
+        <div id="section-applications">{% include "publish_mdm/partials/policy_applications_section.html" %}</div>
         {# Section 4: Always-on VPN #}
         <div id="section-vpn">{% include "publish_mdm/partials/policy_vpn_section.html" %}</div>
-        {# Section 5: Developer options #}
+        {# Section 5: Kiosk mode #}
+        <div id="section-kiosk">{% include "publish_mdm/partials/policy_kiosk_section.html" %}</div>
+        {# Section 6: Developer options #}
         <div id="section-developer">{% include "publish_mdm/partials/policy_developer_section.html" %}</div>
-        {# Section 6: Policy variables #}
+        {# Section 7: Policy variables #}
         <div id="section-variables">{% include "publish_mdm/partials/policy_variables_section.html" %}</div>
     </div>
 {% endblock content %}

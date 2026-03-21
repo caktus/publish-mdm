@@ -219,6 +219,11 @@ urlpatterns = [
         name="policy-save-developer",
     ),
     path(
+        "o/<slug:organization_slug>/policies/<int:policy_id>/save-kiosk/",
+        views.policy_save_kiosk,
+        name="policy-save-kiosk",
+    ),
+    path(
         "o/<slug:organization_slug>/policies/<int:policy_id>/variables/add/",
         views.policy_add_variable,
         name="policy-add-variable",

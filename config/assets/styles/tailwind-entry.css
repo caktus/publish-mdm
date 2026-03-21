@@ -51,3 +51,17 @@
 .htmx-request.spinner {
   display: inline;
 }
+
+/* Save flash animation for table rows */
+@keyframes save-flash {
+  0% {
+    background-color: rgb(187 247 208 / 0.6);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.save-flash {
+  animation: save-flash 2s ease-out forwards;
+}

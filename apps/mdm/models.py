@@ -41,6 +41,38 @@ class DeveloperSettings(models.TextChoices):
     DEVELOPER_SETTINGS_ALLOWED = "DEVELOPER_SETTINGS_ALLOWED", "Allowed"
 
 
+class KioskPowerButtonActions(models.TextChoices):
+    UNSPECIFIED = "POWER_BUTTON_ACTIONS_UNSPECIFIED", "Unspecified"
+    AVAILABLE = "POWER_BUTTON_AVAILABLE", "Available"
+    BLOCKED = "POWER_BUTTON_BLOCKED", "Blocked"
+
+
+class KioskSystemErrorWarnings(models.TextChoices):
+    UNSPECIFIED = "SYSTEM_ERROR_WARNINGS_UNSPECIFIED", "Unspecified"
+    ENABLED = "ERROR_AND_WARNINGS_ENABLED", "Enabled"
+    MUTED = "ERROR_AND_WARNINGS_MUTED", "Muted"
+
+
+class KioskSystemNavigation(models.TextChoices):
+    UNSPECIFIED = "SYSTEM_NAVIGATION_UNSPECIFIED", "Unspecified"
+    ENABLED = "NAVIGATION_ENABLED", "Enabled"
+    DISABLED = "NAVIGATION_DISABLED", "Disabled"
+    HOME_ONLY = "HOME_BUTTON_ONLY", "Home button only"
+
+
+class KioskStatusBar(models.TextChoices):
+    UNSPECIFIED = "STATUS_BAR_UNSPECIFIED", "Unspecified"
+    ENABLED = "NOTIFICATIONS_AND_SYSTEM_INFO_ENABLED", "Notifications and system info enabled"
+    DISABLED = "NOTIFICATIONS_AND_SYSTEM_INFO_DISABLED", "Notifications and system info disabled"
+    SYSTEM_INFO_ONLY = "SYSTEM_INFO_ONLY", "System info only"
+
+
+class KioskDeviceSettings(models.TextChoices):
+    UNSPECIFIED = "DEVICE_SETTINGS_UNSPECIFIED", "Unspecified"
+    ALLOWED = "SETTINGS_ACCESS_ALLOWED", "Settings access allowed"
+    BLOCKED = "SETTINGS_ACCESS_BLOCKED", "Settings access blocked"
+
+
 class InstallType(models.TextChoices):
     FORCE_INSTALLED = "FORCE_INSTALLED", "Force installed"
     PREINSTALLED = "PREINSTALLED", "Pre-installed"
@@ -122,6 +154,39 @@ class Policy(models.Model):
         max_length=50,
         choices=DeveloperSettings,
         default=DeveloperSettings.DEVELOPER_SETTINGS_DISABLED,
+    )
+
+    # Kiosk mode
+    kiosk_custom_launcher_enabled = models.BooleanField(default=False)
+    kiosk_power_button_actions = models.CharField(
+        max_length=60,
+        choices=KioskPowerButtonActions,
+        default=KioskPowerButtonActions.UNSPECIFIED,
+        blank=True,
+    )
+    kiosk_system_error_warnings = models.CharField(
+        max_length=60,
+        choices=KioskSystemErrorWarnings,
+        default=KioskSystemErrorWarnings.UNSPECIFIED,
+        blank=True,
+    )
+    kiosk_system_navigation = models.CharField(
+        max_length=60,
+        choices=KioskSystemNavigation,
+        default=KioskSystemNavigation.UNSPECIFIED,
+        blank=True,
+    )
+    kiosk_status_bar = models.CharField(
+        max_length=60,
+        choices=KioskStatusBar,
+        default=KioskStatusBar.UNSPECIFIED,
+        blank=True,
+    )
+    kiosk_device_settings = models.CharField(
+        max_length=60,
+        choices=KioskDeviceSettings,
+        default=KioskDeviceSettings.UNSPECIFIED,
+        blank=True,
     )
 
     objects = PolicyManager()

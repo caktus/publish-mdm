@@ -74,13 +74,9 @@
             Remove
         </button>
         {% if saved %}
-            <span x-data="{ vis: true }"
-                  x-init="setTimeout(() => { vis = false }, 2500)"
-                  x-show="vis"
-                  x-transition:leave="transition-opacity duration-500"
-                  x-transition:leave-start="opacity-100"
-                  x-transition:leave-end="opacity-0"
-                  class="text-xs text-green-600 dark:text-green-400">✓</span>
+            <span x-data="{}"
+                  x-init="const tr = $el.closest('tr'); tr.classList.remove('save-flash'); void tr.offsetWidth; tr.classList.add('save-flash')"
+                  class="hidden"></span>
         {% endif %}
     </div>
 </td>

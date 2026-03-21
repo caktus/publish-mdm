@@ -25,7 +25,7 @@
                         {# ODK Collect pinned row — read-only display #}
                         <tr class="border-b dark:border-gray-600 bg-blue-50/50 dark:bg-blue-900/10">
                             <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">
-                                {{ app.package_name }}
+                                <span id="pinned-package-name">{{ app.package_name }}</span>
                                 <span class="text-xs text-blue-600 dark:text-blue-400">(pinned)</span>
                             </td>
                             <td class="px-3 py-2">{{ app.get_install_type_display }}</td>

@@ -76,6 +76,7 @@ from .forms import (
     PasswordPolicyForm,
     VPNForm,
     DeveloperSettingsForm,
+    KioskModeForm,
     PolicyVariableForm,
 )
 from .import_export import AppUserResource
@@ -1264,6 +1265,7 @@ def policy_edit(request, organization_slug, policy_id):
         "add_app_form": PolicyApplicationAddForm(),
         "password_form": PasswordPolicyForm(instance=policy),
         "vpn_form": VPNForm(instance=policy),
+        "kiosk_form": KioskModeForm(instance=policy),
         "developer_form": DeveloperSettingsForm(instance=policy),
         "variables": variables,
         "variable_form": PolicyVariableForm(organization=request.organization),
@@ -1503,6 +1505,32 @@ def policy_save_developer(request, organization_slug, policy_id):
         {
             "policy": policy,
             "developer_form": form,
+        },
+    )
+
+
+@login_required
+def policy_save_kiosk(request, organization_slug, policy_id):
+    """HTMX: save kiosk mode settings."""
+    policy = get_object_or_404(Policy, pk=policy_id)
+    form = KioskModeForm(request.POST, instance=policy)
+    if form.is_valid():
+        form.save()
+        return render(
+            request,
+            "publish_mdm/partials/policy_kiosk_section.html",
+            {
+                "policy": policy,
+                "kiosk_form": KioskModeForm(instance=policy),
+                "saved": True,
+            },
+        )
+    return render(
+        request,
+        "publish_mdm/partials/policy_kiosk_section.html",
+        {
+            "policy": policy,
+            "kiosk_form": form,
         },
     )
 
