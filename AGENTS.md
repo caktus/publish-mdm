@@ -55,6 +55,18 @@ Key hooks that touch generated/edited files:
 
 Skills are installed at `.claude/skills/playwright-cli/SKILL.md` — consult them for usage.
 
+### Updating Skills
+
+To update all installed skills (playwright-cli and others) to their latest versions:
+
+```bash
+playwright-cli install --skills
+```
+
+This command will refresh skill definitions and ensure you have the latest versions of all
+available skills in `.claude/skills/`. Run this after pulling changes or when skills appear
+out of date.
+
 ## Browser Testing in Sandbox (Playwright)
 
 Use `playwright-cli` for headless browser testing when running in the Docker sandbox.
