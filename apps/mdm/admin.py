@@ -23,24 +23,37 @@ from apps.mdm.forms import DeviceConfirmImportForm, DeviceImportForm
 
 from .import_export import DeviceResource
 from .mdms import get_active_mdm_instance
-from .models import Device, DeviceSnapshot, DeviceSnapshotApp, FirmwareSnapshot, Fleet, Policy
+from .models import (
+    Device,
+    DeviceSnapshot,
+    DeviceSnapshotApp,
+    FirmwareSnapshot,
+    Fleet,
+    Policy,
+    PolicyApplication,
+    PolicyVariable,
+)
 
 logger = structlog.getLogger(__name__)
+
+
+class PolicyApplicationInline(admin.TabularInline):
+    model = PolicyApplication
+    extra = 0
 
 
 @admin.register(Policy)
 class PolicyAdmin(admin.ModelAdmin):
     list_display = ("name", "policy_id", "default_policy")
     search_fields = ("name", "policy_id")
+    inlines = [PolicyApplicationInline]
 
     def save_model(self, request, obj, form, change):
         obj.save()
-        # Update the policy in the MDM if the json_template has changed.
+        # Update the policy in the MDM.
         # Currently only implemented for Android Enterprise MDM
         if (
             settings.ACTIVE_MDM["name"] == "Android Enterprise"
-            and "json_template" in form.changed_data
-            and obj.json_template
             and (active_mdm := get_active_mdm_instance())
         ):
             try:
@@ -61,7 +74,7 @@ class PolicyAdmin(admin.ModelAdmin):
                 )
             if change:
                 # Update the policies for all related Devices that have a child
-                # policy (generated using this policy's json_template)
+                # policy (device-specific policy)
                 devices = Device.objects.filter(
                     fleet__policy=obj, raw_mdm_device__policyName__endswith=models.F("device_id")
                 )
@@ -84,6 +97,13 @@ class PolicyAdmin(admin.ModelAdmin):
                                 f"<br><code>{getattr(e, 'api_error', e)}</code>"
                             ),
                         )
+
+
+@admin.register(PolicyVariable)
+class PolicyVariableAdmin(admin.ModelAdmin):
+    list_display = ("key", "value", "scope", "org", "fleet")
+    list_filter = ("scope",)
+    search_fields = ("key", "value")
 
 
 @admin.register(Fleet)

@@ -1,0 +1,28 @@
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
+    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Always-on VPN</h3>
+    <form hx-post="{% url 'publish_mdm:policy-save-vpn' request.organization.slug policy.pk %}"
+          hx-target="#section-vpn"
+          hx-swap="innerHTML">
+        {% csrf_token %}
+        {{ vpn_form.non_field_errors }}
+        <div class="space-y-3 max-w-md">
+            <div>
+                {{ vpn_form.vpn_package_name.label_tag }}
+                {{ vpn_form.vpn_package_name }}
+                {{ vpn_form.vpn_package_name.errors }}
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Leave blank to disable VPN.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                {{ vpn_form.vpn_lockdown }}
+                {{ vpn_form.vpn_lockdown.label_tag }}
+                {{ vpn_form.vpn_lockdown.errors }}
+            </div>
+        </div>
+        <div class="mt-4 flex items-center gap-4">
+            <button type="submit" class="btn btn-outline btn-primary">Save</button>
+            {% if saved %}
+                <span class="text-sm text-green-600 dark:text-green-400">Saved</span>
+            {% endif %}
+        </div>
+    </form>
+</div>

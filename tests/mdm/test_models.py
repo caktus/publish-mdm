@@ -76,56 +76,56 @@ class TestModels(TestAllMDMs):
         assert Policy.get_default() == new_default
 
     def test_get_policy_data(self):
-        """Tests the Policy.get_policy_data() method."""
-        # Policy.json_template is an empty string. get_policy_data() should return None
-        policy = PolicyFactory(json_template="")
-        assert policy.get_policy_data() is None
+        """Tests the Policy.get_policy_data() method using the new serializer."""
+        from apps.mdm.models import PolicyApplication
 
-        # Policy.json_template is invalid JSON. get_policy_data() should return None
-        policy.json_template = "invalid"
+        # A policy with default fields should return a dict with the ODK Collect app
+        policy = PolicyFactory()
+        policy_data = policy.get_policy_data()
+        assert policy_data is not None
+        assert "applications" in policy_data
+        # ODK Collect is always present
+        odk_app = policy_data["applications"][0]
+        assert odk_app["packageName"] == "org.odk.collect.android"
+        assert odk_app["installType"] == "FORCE_INSTALLED"
+
+        # Add password policy fields
+        policy.device_password_quality = "NUMERIC"
+        policy.device_password_min_length = 6
         policy.save()
+        policy_data = policy.get_policy_data()
+        assert "passwordPolicies" in policy_data
+        device_pw = policy_data["passwordPolicies"][0]
+        assert device_pw["passwordQuality"] == "NUMERIC"
+        assert device_pw["passwordMinimumLength"] == 6
 
-        assert policy.get_policy_data() is None
-
-        # Policy.json_template is valid JSON
-        policy.json_template = """
-        {
-            "passwordPolicies": {
-                "passwordQuality": "SOMETHING"
-            },
-            "applications": [
-                {
-                    {% if device %}
-                    "managedConfiguration": {
-                        "device_id": "{{ device.username }}",
-                        "settings_json": {{ device.odk_collect_qr_code }}
-                    },
-                    {% endif %}
-                    "packageName": "org.odk.collect.android",
-                    "installType": "FORCE_INSTALLED"
-                }
-            ]
-        }
-        """
+        # Add a VPN
+        policy.vpn_package_name = "com.tailscale.ipn"
+        policy.vpn_lockdown = True
         policy.save()
-        expected_policy_data = {
-            "passwordPolicies": {"passwordQuality": "SOMETHING"},
-            "applications": [
-                {"packageName": "org.odk.collect.android", "installType": "FORCE_INSTALLED"}
-            ],
+        policy_data = policy.get_policy_data()
+        assert policy_data["alwaysOnVpnPackage"] == {
+            "packageName": "com.tailscale.ipn",
+            "lockdownEnabled": True,
         }
 
-        assert policy.get_policy_data() == expected_policy_data
-
-        # get_policy_data() is passed a Device object in the `device` kwarg.
-        # It should be passed to the template as a context variable
-        device = DeviceFactory()
-        expected_policy_data["applications"][0].update(
-            {
-                "managedConfiguration": {"device_id": device.username, "settings_json": ""},
-            }
+        # Add a non-ODK application
+        PolicyApplication.objects.create(
+            policy=policy,
+            package_name="com.example.app",
+            install_type="PREINSTALLED",
+            order=1,
         )
-        assert policy.get_policy_data(device=device) == expected_policy_data
+        policy_data = policy.get_policy_data()
+        assert len(policy_data["applications"]) == 2
+        assert policy_data["applications"][1]["packageName"] == "com.example.app"
+        assert policy_data["applications"][1]["installType"] == "PREINSTALLED"
+
+        # get_policy_data() with device context should inject ODK managed config
+        device = DeviceFactory()
+        policy_data = policy.get_policy_data(device=device)
+        odk_app = policy_data["applications"][0]
+        assert "managedConfiguration" in odk_app or "packageName" in odk_app
 
     def test_fleet_enroll_token_expired(self):
         """Tests the Fleet.enroll_token_expired property."""

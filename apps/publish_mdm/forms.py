@@ -631,3 +631,120 @@ class SearchForm(PlatformFormMixin, forms.Form):
     search = forms.CharField(
         widget=TextInput(attrs={"placeholder": "Search", "x-model.fill": "search"}), required=False
     )
+
+
+# --- Policy editor forms (one per section) ---
+
+from apps.mdm.models import (  # noqa: E402
+    Policy,
+    PolicyApplication,
+    PolicyVariable,
+)
+
+
+class PolicyNameForm(PlatformFormMixin, forms.ModelForm):
+    """Section 1: Policy name."""
+
+    class Meta:
+        model = Policy
+        fields = ["name"]
+        widgets = {"name": TextInput(attrs={"placeholder": "Policy name"})}
+
+
+class PolicyApplicationForm(PlatformFormMixin, forms.ModelForm):
+    """Form for a single PolicyApplication row."""
+
+    class Meta:
+        model = PolicyApplication
+        fields = ["package_name", "install_type", "disabled"]
+        widgets = {
+            "package_name": TextInput,
+            "install_type": Select,
+            "disabled": CheckboxInput,
+        }
+
+
+class PolicyApplicationAddForm(PlatformFormMixin, forms.ModelForm):
+    """Form for adding a new app (just package name)."""
+
+    class Meta:
+        model = PolicyApplication
+        fields = ["package_name"]
+        widgets = {"package_name": TextInput(attrs={"placeholder": "com.example.app"})}
+
+
+class OdkCollectPackageForm(PlatformFormMixin, forms.ModelForm):
+    """Form for overriding the ODK Collect package name."""
+
+    class Meta:
+        model = Policy
+        fields = ["odk_collect_package"]
+        widgets = {
+            "odk_collect_package": TextInput(
+                attrs={"placeholder": "org.odk.collect.android"}
+            )
+        }
+
+
+class PasswordPolicyForm(PlatformFormMixin, forms.ModelForm):
+    """Section 3: Password policy (device + work scopes)."""
+
+    class Meta:
+        model = Policy
+        fields = [
+            "device_password_quality",
+            "device_password_min_length",
+            "device_password_require_unlock",
+            "work_password_quality",
+            "work_password_min_length",
+            "work_password_require_unlock",
+        ]
+        widgets = {
+            "device_password_quality": Select,
+            "device_password_min_length": TextInput(attrs={"type": "number", "min": "0", "max": "16"}),
+            "device_password_require_unlock": Select,
+            "work_password_quality": Select,
+            "work_password_min_length": TextInput(attrs={"type": "number", "min": "0", "max": "16"}),
+            "work_password_require_unlock": Select,
+        }
+
+
+class VPNForm(PlatformFormMixin, forms.ModelForm):
+    """Section 4: Always-on VPN."""
+
+    class Meta:
+        model = Policy
+        fields = ["vpn_package_name", "vpn_lockdown"]
+        widgets = {
+            "vpn_package_name": TextInput(attrs={"placeholder": "com.tailscale.ipn"}),
+            "vpn_lockdown": CheckboxInput,
+        }
+
+
+class DeveloperSettingsForm(PlatformFormMixin, forms.ModelForm):
+    """Section 5: Developer options."""
+
+    class Meta:
+        model = Policy
+        fields = ["developer_settings"]
+        widgets = {"developer_settings": Select}
+
+
+class PolicyVariableForm(PlatformFormMixin, forms.ModelForm):
+    """Form for a single PolicyVariable row."""
+
+    class Meta:
+        model = PolicyVariable
+        fields = ["key", "value", "scope", "fleet"]
+        widgets = {
+            "key": TextInput(attrs={"placeholder": "variable_name"}),
+            "value": TextInput(attrs={"placeholder": "value"}),
+            "scope": Select,
+            "fleet": Select,
+        }
+
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if organization:
+            self.fields["fleet"].queryset = organization.fleets.all()
+        self.fields["fleet"].required = False

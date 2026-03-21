@@ -1,0 +1,15 @@
+<form hx-post="{% url 'publish_mdm:policy-save-odk-package' request.organization.slug policy.pk %}"
+      hx-target="#section-applications"
+      hx-swap="innerHTML">
+    {% csrf_token %}
+    <div class="flex items-end gap-4">
+        <div class="flex-1">
+            {{ odk_package_form.odk_collect_package }}
+            {{ odk_package_form.odk_collect_package.errors }}
+        </div>
+        <button type="submit" class="btn btn-outline text-sm">Save</button>
+    </div>
+    {% if saved %}
+        <p class="mt-1 text-sm text-green-600 dark:text-green-400">Saved</p>
+    {% endif %}
+</form>

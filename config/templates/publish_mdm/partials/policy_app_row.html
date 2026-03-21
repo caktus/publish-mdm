@@ -1,0 +1,31 @@
+<td class="px-3 py-2 font-medium text-gray-900 dark:text-white">{{ app.package_name }}</td>
+<td class="px-3 py-2">
+    <form hx-post="{% url 'publish_mdm:policy-save-application' request.organization.slug policy.pk app.pk %}"
+          hx-target="#app-row-{{ app.pk }}"
+          hx-swap="innerHTML"
+          hx-trigger="change">
+        {% csrf_token %}
+        {{ app_form.install_type }}
+    </form>
+</td>
+<td class="px-3 py-2">
+    <form hx-post="{% url 'publish_mdm:policy-save-application' request.organization.slug policy.pk app.pk %}"
+          hx-target="#app-row-{{ app.pk }}"
+          hx-swap="innerHTML"
+          hx-trigger="change">
+        {% csrf_token %}
+        {{ app_form.disabled }}
+    </form>
+</td>
+<td class="px-3 py-2">
+    <button hx-post="{% url 'publish_mdm:policy-delete-application' request.organization.slug policy.pk app.pk %}"
+            hx-target="#section-applications"
+            hx-swap="innerHTML"
+            hx-confirm="Remove {{ app.package_name }}?"
+            class="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm">
+        Remove
+    </button>
+    {% if saved %}
+        <span class="text-xs text-green-600 dark:text-green-400 ml-2">Saved</span>
+    {% endif %}
+</td>

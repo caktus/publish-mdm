@@ -437,14 +437,21 @@ class TestPolicyAdmin(TestAdmin):
     @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
     def test_new_policy(self, user, client, mocker, set_mdm_env_vars, mdm_api_error):
         """Ensures the create_or_update_policy() method is called for a new Policy
-        if json_template is set and the active MDM has the method.
+        when the active MDM has the method.
         """
         MDM = get_active_mdm_class()
         data = {
             "name": "New policy",
             "policy_id": "policy",
             "mdm": MDM.name,
-            "json_template": "{}",
+            "odk_collect_package": "org.odk.collect.android",
+            "device_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
+            "device_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+            "work_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
+            "work_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+            "developer_settings": "DEVELOPER_SETTINGS_DISABLED",
+            "applications-TOTAL_FORMS": "0",
+            "applications-INITIAL_FORMS": "0",
         }
         mdm_has_method = hasattr(MDM, "create_or_update_policy")
         if mdm_has_method:
@@ -473,14 +480,21 @@ class TestPolicyAdmin(TestAdmin):
         self, user, client, mocker, set_mdm_env_vars, mdm_api_error, mdm_api_error_class
     ):
         """Ensures the create_or_update_policy() method is called when editing a Policy
-        if json_template is changed and the active MDM has the method.
+        and the active MDM has the method.
         """
-        policy = PolicyFactory(json_template="")
+        policy = PolicyFactory()
         data = {
             "name": policy.name,
             "policy_id": policy.policy_id,
             "mdm": policy.mdm,
-            "json_template": "{}",
+            "odk_collect_package": policy.odk_collect_package,
+            "device_password_quality": policy.device_password_quality,
+            "device_password_require_unlock": policy.device_password_require_unlock,
+            "work_password_quality": policy.work_password_quality,
+            "work_password_require_unlock": policy.work_password_require_unlock,
+            "developer_settings": policy.developer_settings,
+            "applications-TOTAL_FORMS": "0",
+            "applications-INITIAL_FORMS": "0",
         }
         MDM = get_active_mdm_class()
         mdm_has_method = hasattr(MDM, "create_or_update_policy")

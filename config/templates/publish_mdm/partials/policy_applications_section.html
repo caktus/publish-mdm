@@ -1,0 +1,62 @@
+<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
+    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Applications</h3>
+
+    {# ODK Collect package name override #}
+    <div class="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+        <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">ODK Collect (pinned — always included)</p>
+        {% include "publish_mdm/partials/policy_odk_package.html" %}
+    </div>
+
+    {# Application table #}
+    <div class="overflow-x-auto mb-4">
+        <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                <tr>
+                    <th class="px-3 py-2">Package Name</th>
+                    <th class="px-3 py-2">Install Type</th>
+                    <th class="px-3 py-2">Disabled</th>
+                    <th class="px-3 py-2"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for app, app_form in app_forms %}
+                    {% if app.package_name == policy.odk_collect_package and app.order == 0 %}
+                        {# ODK Collect pinned row — read-only display #}
+                        <tr class="border-b dark:border-gray-600 bg-blue-50/50 dark:bg-blue-900/10">
+                            <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">
+                                {{ app.package_name }}
+                                <span class="text-xs text-blue-600 dark:text-blue-400">(pinned)</span>
+                            </td>
+                            <td class="px-3 py-2">{{ app.get_install_type_display }}</td>
+                            <td class="px-3 py-2">{{ app.disabled|yesno:"Yes,No" }}</td>
+                            <td class="px-3 py-2"></td>
+                        </tr>
+                    {% else %}
+                        <tr id="app-row-{{ app.pk }}" class="border-b dark:border-gray-600">
+                            {% include "publish_mdm/partials/policy_app_row.html" %}
+                        </tr>
+                    {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {# Add app form #}
+    <form hx-post="{% url 'publish_mdm:policy-add-application' request.organization.slug policy.pk %}"
+          hx-target="#section-applications"
+          hx-swap="innerHTML">
+        {% csrf_token %}
+        <div class="flex items-end gap-4">
+            <div class="flex-1">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Add application</label>
+                {{ add_app_form.package_name }}
+                {{ add_app_form.package_name.errors }}
+            </div>
+            <button type="submit" class="btn btn-outline btn-primary">Add app</button>
+        </div>
+    </form>
+
+    {% if saved %}
+        <p class="mt-2 text-sm text-green-600 dark:text-green-400">Saved</p>
+    {% endif %}
+</div>

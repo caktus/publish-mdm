@@ -1,10 +1,10 @@
 import json
 
 import structlog
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.conf import settings
 from django.core.validators import RegexValidator
-from django.template import Context, Template
 from django.utils.html import mark_safe
 from django.utils.timezone import now
 
@@ -14,6 +14,44 @@ logger = structlog.get_logger()
 class MDMChoices(models.TextChoices):
     TINYMDM = "TinyMDM", "TinyMDM"
     ANDROID_ENTERPRISE = "Android Enterprise", "Android Enterprise"
+
+
+class PasswordQuality(models.TextChoices):
+    PASSWORD_QUALITY_UNSPECIFIED = "PASSWORD_QUALITY_UNSPECIFIED", "Unspecified"
+    BIOMETRIC_WEAK = "BIOMETRIC_WEAK", "Biometric weak"
+    SOMETHING = "SOMETHING", "Something"
+    NUMERIC = "NUMERIC", "Numeric"
+    NUMERIC_COMPLEX = "NUMERIC_COMPLEX", "Numeric complex"
+    ALPHABETIC = "ALPHABETIC", "Alphabetic"
+    ALPHANUMERIC = "ALPHANUMERIC", "Alphanumeric"
+    COMPLEX = "COMPLEX", "Complex"
+
+
+class RequirePasswordUnlock(models.TextChoices):
+    REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED = (
+        "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+        "Unspecified",
+    )
+    USE_DEFAULT_DEVICE_TIMEOUT = "USE_DEFAULT_DEVICE_TIMEOUT", "Use default device timeout"
+    REQUIRE_EVERY_DAY = "REQUIRE_EVERY_DAY", "Require every day"
+
+
+class DeveloperSettings(models.TextChoices):
+    DEVELOPER_SETTINGS_DISABLED = "DEVELOPER_SETTINGS_DISABLED", "Disallowed"
+    DEVELOPER_SETTINGS_ALLOWED = "DEVELOPER_SETTINGS_ALLOWED", "Allowed"
+
+
+class InstallType(models.TextChoices):
+    FORCE_INSTALLED = "FORCE_INSTALLED", "Force installed"
+    PREINSTALLED = "PREINSTALLED", "Pre-installed"
+    AVAILABLE = "AVAILABLE", "Available"
+    KIOSK = "KIOSK", "Kiosk"
+    BLOCKED = "BLOCKED", "Blocked"
+
+
+class PolicyVariableScope(models.TextChoices):
+    ORG = "org", "Organization"
+    FLEET = "fleet", "Fleet"
 
 
 class PolicyManager(models.Manager):
@@ -30,11 +68,60 @@ class Policy(models.Model):
     )
     default_policy = models.BooleanField(default=False)
     mdm = models.CharField(max_length=50, choices=MDMChoices, verbose_name="MDM")
-    json_template = models.TextField(
+
+    # ODK Collect
+    odk_collect_package = models.CharField(
+        max_length=255,
+        default="org.odk.collect.android",
+        help_text="Package name for ODK Collect.",
+    )
+
+    # Device-scope password policy
+    device_password_quality = models.CharField(
+        max_length=50,
+        choices=PasswordQuality,
+        default=PasswordQuality.PASSWORD_QUALITY_UNSPECIFIED,
         blank=True,
-        verbose_name="JSON template",
-        help_text="A JSON template (using Django template syntax) that can be used "
-        "to create this policy and its child policies.",
+    )
+    device_password_min_length = models.PositiveSmallIntegerField(null=True, blank=True)
+    device_password_require_unlock = models.CharField(
+        max_length=50,
+        choices=RequirePasswordUnlock,
+        default=RequirePasswordUnlock.REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED,
+        blank=True,
+    )
+
+    # Work-profile-scope password policy
+    work_password_quality = models.CharField(
+        max_length=50,
+        choices=PasswordQuality,
+        default=PasswordQuality.PASSWORD_QUALITY_UNSPECIFIED,
+        blank=True,
+    )
+    work_password_min_length = models.PositiveSmallIntegerField(null=True, blank=True)
+    work_password_require_unlock = models.CharField(
+        max_length=50,
+        choices=RequirePasswordUnlock,
+        default=RequirePasswordUnlock.REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED,
+        blank=True,
+    )
+
+    # Always-on VPN
+    vpn_package_name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Package name for always-on VPN. Leave blank to disable.",
+    )
+    vpn_lockdown = models.BooleanField(
+        default=False,
+        help_text="If enabled, all networking is blocked when VPN is not connected.",
+    )
+
+    # Developer options
+    developer_settings = models.CharField(
+        max_length=50,
+        choices=DeveloperSettings,
+        default=DeveloperSettings.DEVELOPER_SETTINGS_DISABLED,
     )
 
     objects = PolicyManager()
@@ -72,18 +159,109 @@ class Policy(models.Model):
         return policy
 
     def get_policy_data(self, **kwargs):
-        """Generates policy data that can be used to create/update this policy
-        and its child policies in the MDM.
-        """
-        if self.json_template:
-            template = Template(self.json_template)
-            context = Context(kwargs)
-            policy = template.render(context)
-            try:
-                return json.loads(policy)
-            except json.JSONDecodeError:
-                pass
-        return None
+        """Generates policy data using the PolicySerializer."""
+        from .serializers import PolicySerializer
+
+        device = kwargs.get("device")
+        applications = list(
+            self.applications.select_related("policy").order_by("order", "pk")
+        )
+        variables = list(
+            PolicyVariable.objects.filter(
+                org__in=self.fleets.values_list("organization", flat=True)
+            )
+        )
+        serializer = PolicySerializer(
+            policy=self,
+            applications=applications,
+            variables=variables,
+            device=device,
+        )
+        return serializer.to_dict()
+
+
+class PolicyApplication(models.Model):
+    """One row per app in the policy's applications array."""
+
+    policy = models.ForeignKey(
+        Policy,
+        on_delete=models.CASCADE,
+        related_name="applications",
+    )
+    package_name = models.CharField(max_length=255)
+    install_type = models.CharField(
+        max_length=20,
+        choices=InstallType,
+        default=InstallType.FORCE_INSTALLED,
+    )
+    disabled = models.BooleanField(default=False)
+    managed_configuration = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Managed configuration for this app (from Play Store iframe).",
+    )
+    order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "pk"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["policy", "package_name"],
+                name="unique_policy_application",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.package_name} ({self.get_install_type_display()})"
+
+
+class PolicyVariable(models.Model):
+    """User-defined key/value pairs for variable interpolation at push time."""
+
+    key = models.CharField(max_length=255)
+    value = models.CharField(max_length=2048)
+    scope = models.CharField(max_length=10, choices=PolicyVariableScope)
+    org = models.ForeignKey(
+        "publish_mdm.Organization",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="policy_variables",
+    )
+    fleet = models.ForeignKey(
+        "mdm.Fleet",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="policy_variables",
+    )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["key", "org"],
+                condition=models.Q(scope="org"),
+                name="unique_org_policy_variable",
+            ),
+            models.UniqueConstraint(
+                fields=["key", "fleet"],
+                condition=models.Q(scope="fleet"),
+                name="unique_fleet_policy_variable",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.key}={self.value} ({self.get_scope_display()})"
+
+    def clean(self):
+        if self.scope == PolicyVariableScope.ORG:
+            if not self.org:
+                raise ValidationError("Organization is required for org-scoped variables.")
+            self.fleet = None
+        elif self.scope == PolicyVariableScope.FLEET:
+            if not self.fleet:
+                raise ValidationError("Fleet is required for fleet-scoped variables.")
+            self.org = None
 
 
 def enroll_qr_code_path(fleet, filename):

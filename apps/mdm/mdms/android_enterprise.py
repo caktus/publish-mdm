@@ -338,14 +338,12 @@ class AndroidEnterprise(MDM):
 
     def push_device_config(self, device: Device):
         """Create or update a device-specific policy in the MDM based on the
-        json_template of the device's Policy.
+        normalized fields of the device's Policy.
         """
         if not device.raw_mdm_device:
             logger.debug("New device. Cannot sync", device=device)
             return
-        policy_data = device.fleet.policy.get_policy_data(
-            device=device, tailscale_auth_key=os.getenv("TAILSCALE_AUTH_KEY")
-        )
+        policy_data = device.fleet.policy.get_policy_data(device=device)
         if not policy_data:
             logger.debug(
                 "Could not generate policy data. Cannot sync",
@@ -457,11 +455,11 @@ class AndroidEnterprise(MDM):
         return True
 
     def create_or_update_policy(self, policy: Policy):
-        """Creates or updates a policy in the MDM based on the template in the
-        Policy.json_template field.
+        """Creates or updates a policy in the MDM based on the normalized
+        Policy fields.
         """
         logger.debug("Create/update policy", policy=policy)
-        policy_data = policy.get_policy_data(tailscale_auth_key=os.getenv("TAILSCALE_AUTH_KEY"))
+        policy_data = policy.get_policy_data()
         if not policy_data:
             logger.debug(
                 "Could not generate policy data. Cannot create/update the policy",
