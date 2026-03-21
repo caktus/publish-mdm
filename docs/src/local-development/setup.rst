@@ -13,11 +13,14 @@ rather use Docker, see :doc:`../running/docker-compose`.
 
 .. code-block:: bash
 
+    # Configure a venv path that won't conflict with the agent sandbox (if any)
+    export UV_PROJECT_ENVIRONMENT=.venv-local/
+
     # set up Python and other requirements using uv
     uv sync --locked
 
     # add uv's venv to the PATH
-    PATH_add .venv/bin
+    PATH_add .venv-local/bin
 
     # use Node.js 22
     use node 22

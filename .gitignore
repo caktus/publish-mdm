@@ -18,9 +18,13 @@ media/
 test_media/
 # -------------------------------
 node_modules/
+.npm-sandbox/
+.playwright-cli/
 deploy/roles
 venv/
 .idea/
+.venv/
+.venv-local/
 .vscode
 .vscode/settings.json
 *.ipynb_checkpoints
