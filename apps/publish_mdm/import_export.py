@@ -7,6 +7,7 @@ from django.db.models import Prefetch
 from import_export import resources, fields, widgets
 
 from .models import AppUser, AppUserFormTemplate, AppUserTemplateVariable
+from apps.mdm.models import Device
 
 logger = structlog.getLogger(__name__)
 
@@ -274,3 +275,36 @@ class AppUserResource(resources.ModelResource):
         # of the "form_templates" column during import and for getting a FormTemplate ID
         # when creating a new AppUserFormTemplate
         self.form_templates = dict(self.project.form_templates.values_list("form_id_base", "id"))
+
+
+class DeviceResource(resources.ModelResource):
+    """Custom ModelResource for importing/exporting Devices."""
+
+    class Meta:
+        model = Device
+        fields = ("device_id", "app_user_name")
+        import_id_fields = ("device_id",)
+        clean_model_instances = True
+        skip_unchanged = True
+
+    def __init__(self, organization):
+        self.organization = organization
+        super().__init__()
+
+    def get_queryset(self):
+        return Device.objects.filter(fleet__organization=self.organization)
+
+    def get_instance(self, instance_loader, row):
+        instance = super().get_instance(instance_loader, row)
+        if not instance:
+            device_id = row.get("device_id")
+            if device_id:
+                raise ValidationError(
+                    {
+                        "device_id": f"A device with ID '{device_id}' does not exist in the current organization."
+                    }
+                )
+            raise ValidationError(
+                {"device_id": "A device_id is required to update an existing device."}
+            )
+        return instance

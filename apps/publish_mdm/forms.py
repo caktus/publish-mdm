@@ -153,8 +153,8 @@ class FileFormatChoiceField(forms.ChoiceField):
         return Format()
 
 
-class AppUserImportExportFormMixin(PlatformFormMixin, forms.Form):
-    """Base form for importing and exporting AppUsers."""
+class ImportExportFormMixin(PlatformFormMixin, forms.Form):
+    """Base form for importing and exporting model instances."""
 
     format = FileFormatChoiceField()
 
@@ -168,14 +168,14 @@ class AppUserImportExportFormMixin(PlatformFormMixin, forms.Form):
         pass
 
 
-class AppUserExportForm(AppUserImportExportFormMixin, import_export_forms.ImportExportFormBase):
-    """Form for exporting AppUsers to a file."""
+class ExportForm(ImportExportFormMixin, import_export_forms.ImportExportFormBase):
+    """Form for exporting model instances to a file."""
 
     pass
 
 
-class AppUserImportForm(AppUserImportExportFormMixin, import_export_forms.ImportForm):
-    """Form for importing AppUsers from a file."""
+class ImportForm(ImportExportFormMixin, import_export_forms.ImportForm):
+    """Form for importing model instances from a file."""
 
     import_file = forms.FileField(label="File to import", widget=FileInput)
 
@@ -198,7 +198,7 @@ class AppUserImportForm(AppUserImportExportFormMixin, import_export_forms.Import
                 # Using debug() instead of exception() or error() so that it's not
                 # logged in Sentry
                 logger.debug(
-                    "An error occurred when reading AppUser import file",
+                    "An error occurred when reading import file",
                     selected_format=import_format.get_title(),
                     filename=import_file.name,
                     exc_info=True,
@@ -215,7 +215,7 @@ class AppUserImportForm(AppUserImportExportFormMixin, import_export_forms.Import
         return self.cleaned_data
 
 
-class AppUserConfirmImportForm(import_export_forms.ConfirmImportForm):
+class ConfirmImportForm(import_export_forms.ConfirmImportForm):
     format = FileFormatChoiceField(widget=forms.HiddenInput)
 
     def clean(self):
@@ -238,7 +238,7 @@ class AppUserConfirmImportForm(import_export_forms.ConfirmImportForm):
                 # Either the temp file could not be read, or there was an error
                 # parsing the file using the selected format
                 logger.exception(
-                    "An error occurred when reading AppUser import temp file in confirm stage",
+                    "An error occurred when reading import temp file in confirm stage",
                     selected_format=import_format.get_title(),
                     filename=import_file_name,
                 )

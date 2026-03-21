@@ -6,7 +6,7 @@
             Below is a preview of data to be imported. If you are satisfied with the results, click 'Confirm import'.
         </p>
     {% else %}
-        <p class="mb-4 dark:text-gray-400">Import App Users using a file previously exported from this project.</p>
+        <p class="mb-4 dark:text-gray-400">{{ description }}</p>
     {% endif %}
     <div class="mb-4 grid gap-4 sm:grid-cols-2 md:mb-8">
         {{ form.media }}
@@ -33,7 +33,7 @@
                         {% if confirm %}
                             Confirm import
                         {% else %}
-                            Import app users
+                            {{ submit_label }}
                         {% endif %}
                         <svg aria-hidden="true"
                              role="status"
@@ -49,7 +49,7 @@
                     </button>
                     <a type="button"
                        class="btn btn-outline"
-                       href="{% if not confirm %}{% url 'publish_mdm:app-user-list' request.organization.slug request.odk_project.pk %}{% endif %}"
+                       href="{% if not confirm %}{{ cancel_url }}{% endif %}"
                        :disabled="submitting">Cancel</a>
                 </div>
             </div>

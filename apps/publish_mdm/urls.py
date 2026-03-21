@@ -138,6 +138,16 @@ urlpatterns = [
         name="device-update-app-user",
     ),
     path(
+        "o/<slug:organization_slug>/devices/export/",
+        views.device_export,
+        name="devices-export",
+    ),
+    path(
+        "o/<slug:organization_slug>/devices/import/",
+        views.device_import,
+        name="devices-import",
+    ),
+    path(
         "o/<slug:organization_slug>/fleets/",
         views.fleets_list,
         name="fleets-list",

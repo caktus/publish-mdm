@@ -12,6 +12,7 @@ from django.db.models.functions import Collate, Lower, NullIf
 from django.http import Http404, HttpRequest, HttpResponse
 from django.views.decorators.http import require_POST
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.html import mark_safe
 from django.utils.timezone import localdate
 from django_tables2.config import RequestConfig
@@ -46,9 +47,9 @@ from .etl.load import (
 from .filters import DeviceFilter
 from .forms import (
     ProjectSyncForm,
-    AppUserConfirmImportForm,
-    AppUserExportForm,
-    AppUserImportForm,
+    ConfirmImportForm,
+    ExportForm,
+    ImportForm,
     PublishTemplateForm,
     FormTemplateForm,
     AppUserForm,
@@ -65,7 +66,7 @@ from .forms import (
     BYODDeviceEnrollmentForm,
     SearchForm,
 )
-from .import_export import AppUserResource
+from .import_export import AppUserResource, DeviceResource
 from .models import (
     FormTemplateVersion,
     FormTemplate,
@@ -267,7 +268,7 @@ def app_user_export(request, organization_slug, odk_project_pk):
     the current project.
     """
     resource = AppUserResource(request.odk_project)
-    form = AppUserExportForm([resource], data=request.POST or None)
+    form = ExportForm([resource], data=request.POST or None)
     if request.method == "POST" and form.is_valid():
         export_format = form.cleaned_data["format"]
         dataset = resource.export()
@@ -285,31 +286,30 @@ def app_user_export(request, organization_slug, odk_project_pk):
             items=[("App Users", "app-user-list"), ("Export", "app-users-export")],
         ),
         "form": form,
+        "description": "Export App Users to bulk edit user attributes and project template variables.",
+        "submit_label": "Export app users",
+        "cancel_url": reverse(
+            "publish_mdm:app-user-list", args=[organization_slug, odk_project_pk]
+        ),
     }
-    return render(request, "publish_mdm/app_user_export.html", context)
+    return render(request, "publish_mdm/export.html", context)
 
 
-@login_required
-def app_user_import(request, organization_slug, odk_project_pk):
-    """Imports AppUsers from a CSV or Excel file.
+def handle_import(request, resource, success_url, success_noun, extra_context):
+    """Common logic for import views.
 
-    The file is expected to have the same columns as a file exported using the
-    app_user_export view above. New AppUsers will be added if the "id" column is blank.
-    If a AppUserTemplateVariable column is blank and it exists in the database,
-    it will be deleted. The import is done in 2 stages: first the user uploads a
-    file, then they will be shown a preview of the import and asked to confirm.
-    Once the user confirms, the database will be updated.
+    Handles the two-stage import flow: first the user uploads a file and sees a
+    preview, then they confirm and the database is updated.
     """
-    resource = AppUserResource(request.odk_project)
     result = None
     confirm = "original_file_name" in request.POST
     if confirm:
         # Confirm stage
-        form_class = AppUserConfirmImportForm
+        form_class = ConfirmImportForm
         args = ()
     else:
         # Initial import stage
-        form_class = AppUserImportForm
+        form_class = ImportForm
         args = ([resource],)
     form = form_class(*args, data=request.POST or None, files=request.FILES or None)
     if request.POST and form.is_valid():
@@ -324,9 +324,9 @@ def app_user_import(request, organization_slug, odk_project_pk):
                 messages.success(
                     request,
                     f"Import finished successfully, with {result.totals[RowResult.IMPORT_TYPE_NEW]} "
-                    f"new and {result.totals[RowResult.IMPORT_TYPE_UPDATE]} updated app users.",
+                    f"new and {result.totals[RowResult.IMPORT_TYPE_UPDATE]} updated {success_noun}.",
                 )
-                return redirect("publish_mdm:app-user-list", organization_slug, odk_project_pk)
+                return redirect(success_url)
             # Save the import file data in a temporary file and show the confirm page
             import_format = form.cleaned_data["format"]
             tmp_storage = MediaStorage(
@@ -334,7 +334,7 @@ def app_user_import(request, organization_slug, odk_project_pk):
                 read_mode=import_format.get_read_mode(),
             )
             tmp_storage.save(form.file_data)
-            form = AppUserConfirmImportForm(
+            form = ConfirmImportForm(
                 initial={
                     "import_file_name": tmp_storage.name,
                     "original_file_name": form.cleaned_data["import_file"].name,
@@ -348,17 +348,43 @@ def app_user_import(request, organization_slug, odk_project_pk):
         # confirm form, take them back to the initial import form so they can
         # begin the import process afresh.
         messages.error(request, "We could not complete your import. Please try importing again.")
-        form = AppUserImportForm([resource])
+        form = ImportForm([resource])
     context = {
-        "breadcrumbs": Breadcrumbs.from_items(
-            request=request,
-            items=[("App Users", "app-user-list"), ("Import", "app-users-import")],
-        ),
         "form": form,
         "result": result,
-        "confirm": isinstance(form, AppUserConfirmImportForm),
+        "confirm": isinstance(form, ConfirmImportForm),
+        "cancel_url": success_url,
+        **extra_context,
     }
-    return render(request, "publish_mdm/app_user_import.html", context)
+    return render(request, "publish_mdm/import.html", context)
+
+
+@login_required
+def app_user_import(request, organization_slug, odk_project_pk):
+    """Imports AppUsers from a CSV or Excel file.
+
+    The file is expected to have the same columns as a file exported using the
+    app_user_export view above. New AppUsers will be added if the "id" column is blank.
+    If a AppUserTemplateVariable column is blank and it exists in the database,
+    it will be deleted. The import is done in 2 stages: first the user uploads a
+    file, then they will be shown a preview of the import and asked to confirm.
+    Once the user confirms, the database will be updated.
+    """
+    resource = AppUserResource(request.odk_project)
+    return handle_import(
+        request,
+        resource,
+        success_url=reverse("publish_mdm:app-user-list", args=[organization_slug, odk_project_pk]),
+        success_noun="app users",
+        extra_context={
+            "breadcrumbs": Breadcrumbs.from_items(
+                request=request,
+                items=[("App Users", "app-user-list"), ("Import", "app-users-import")],
+            ),
+            "description": "Import App Users using a file previously exported from this project.",
+            "submit_label": "Import app users",
+        },
+    )
 
 
 def websockets_server_health(request):
@@ -929,6 +955,66 @@ def devices_list(request: HttpRequest, organization_slug):
         template += "#devices-list-partial"
 
     return render(request, template, context)
+
+
+@login_required
+def device_export(request, organization_slug):
+    """Exports Devices to a CSV or Excel file.
+
+    For each device in the current organization, there will be "device_id" and
+    "app_user_name" columns.
+    """
+    resource = DeviceResource(request.organization)
+    form = ExportForm([resource], data=request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        export_format = form.cleaned_data["format"]
+        dataset = resource.export()
+        data = export_format.export_data(dataset)
+        filename = f"devices_{organization_slug}_{localdate()}.{export_format.get_extension()}"
+        return HttpResponse(
+            data,
+            content_type=export_format.get_content_type(),
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    context = {
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("Devices", "devices-list"), ("Export", "devices-export")],
+        ),
+        "form": form,
+        "description": "Export Devices to view and bulk edit device-to-app-user assignments.",
+        "submit_label": "Export devices",
+        "cancel_url": reverse("publish_mdm:devices-list", args=[organization_slug]),
+    }
+    return render(request, "publish_mdm/export.html", context)
+
+
+@login_required
+def device_import(request, organization_slug):
+    """Imports Devices from a CSV or Excel file.
+
+    The file is expected to have the same columns as a file exported using the
+    device_export view above. If a device with the given device_id exists, its
+    app_user_name will be updated. The import is done in 2 stages: first the user
+    uploads a file, then they will be shown a preview of the import and asked to
+    confirm. Once the user confirms, the database will be updated.
+    """
+    resource = DeviceResource(request.organization)
+    return handle_import(
+        request,
+        resource,
+        success_url=reverse("publish_mdm:devices-list", args=[organization_slug]),
+        success_noun="devices",
+        extra_context={
+            "breadcrumbs": Breadcrumbs.from_items(
+                request=request,
+                items=[("Devices", "devices-list"), ("Import", "devices-import")],
+            ),
+            "description": "Import Devices using a file previously exported from this organization.",
+            "submit_label": "Import devices",
+        },
+    )
 
 
 @require_POST

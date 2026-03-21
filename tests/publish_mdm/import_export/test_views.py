@@ -13,7 +13,7 @@ from tests.publish_mdm.factories import (
     ProjectFactory,
     UserFactory,
 )
-from apps.publish_mdm.forms import AppUserConfirmImportForm, AppUserImportForm
+from apps.publish_mdm.forms import ConfirmImportForm, ImportForm
 from apps.publish_mdm.models import AppUser
 
 
@@ -83,7 +83,7 @@ class TestAppUserImport:
         data = {"format": form_format, "import_file": import_file}
         response = client.post(url, data=data)
         assert response.status_code == 200
-        assert isinstance(response.context["form"], AppUserConfirmImportForm)
+        assert isinstance(response.context["form"], ConfirmImportForm)
         response_content = response.content.decode()
         assert (
             "Below is a preview of data to be imported. If you are satisfied "
@@ -162,7 +162,7 @@ class TestAppUserImport:
         result = response.context["result"]
 
         assert response.status_code == 200
-        assert isinstance(response.context["form"], AppUserImportForm)
+        assert isinstance(response.context["form"], ImportForm)
         assert (
             "Please correct these errors in your data where possible, then reupload "
             "it using the form above."
