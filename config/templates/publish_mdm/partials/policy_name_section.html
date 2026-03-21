@@ -15,3 +15,9 @@
         {% if saved %}<p class="mt-2 text-sm text-green-600 dark:text-green-400">Saved</p>{% endif %}
     </form>
 </div>
+{% if saved %}
+    {# OOB: update the page heading to reflect the new policy name without a full reload #}
+    <h2 id="page-title-heading"
+        hx-swap-oob="true"
+        class="mt-3 mb-5 text-xl font-semibold text-gray-900 dark:text-white sm:text-2xl">{{ policy.name }}</h2>
+{% endif %}

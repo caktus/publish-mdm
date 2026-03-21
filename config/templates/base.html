@@ -4,13 +4,10 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <script src="https://cdn.jsdelivr.net/npm/flowbite@3.1.2/dist/flowbite.min.js"></script>
-        <script src="https://unpkg.com/htmx.org@2.0.4"
-                integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+"
-                crossorigin="anonymous"></script>
-        <script src="https://unpkg.com/htmx.org/dist/ext/ws.js"></script>
-        <script defer
-                src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+        <script src="{% static 'js/vendor/flowbite.min.js' %}"></script>
+        <script src="{% static 'js/vendor/htmx.js' %}"></script>
+        <script src="{% static 'js/vendor/htmx-ws.js' %}"></script>
+        <script defer src="{% static 'js/vendor/alpine.min.js' %}"></script>
         <script>htmx.logAll()</script>
         <link href="{% static 'css/main.css' %}" rel="stylesheet" />
         {# favicon #}
@@ -33,7 +30,8 @@
                 <main class="py-8 px-8">
                     <div class="max-w-7xl">
                         {% include "includes/breadcrumbs.html" %}
-                        <h2 class="mt-3 mb-5 text-xl font-semibold text-gray-900 dark:text-white sm:text-2xl">
+                        <h2 id="page-title-heading"
+                            class="mt-3 mb-5 text-xl font-semibold text-gray-900 dark:text-white sm:text-2xl">
                             {% block page_header %}
                                 {{ breadcrumbs.crumbs|last }}
                             {% endblock page_header %}

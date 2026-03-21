@@ -662,6 +662,10 @@ class PolicyApplicationForm(PlatformFormMixin, forms.ModelForm):
             "install_type": Select,
             "disabled": CheckboxInput,
         }
+        labels = {
+            "install_type": "Install type",
+            "disabled": "Disabled",
+        }
 
 
 class PolicyApplicationAddForm(PlatformFormMixin, forms.ModelForm):
@@ -682,6 +686,7 @@ class OdkCollectPackageForm(PlatformFormMixin, forms.ModelForm):
         widgets = {
             "odk_collect_package": TextInput(attrs={"placeholder": "org.odk.collect.android"})
         }
+        labels = {"odk_collect_package": "Package name override"}
 
 
 class PasswordPolicyForm(PlatformFormMixin, forms.ModelForm):
@@ -709,6 +714,14 @@ class PasswordPolicyForm(PlatformFormMixin, forms.ModelForm):
             ),
             "work_password_require_unlock": Select,
         }
+        labels = {
+            "device_password_quality": "Password quality",
+            "device_password_min_length": "Minimum length",
+            "device_password_require_unlock": "Require unlock",
+            "work_password_quality": "Password quality",
+            "work_password_min_length": "Minimum length",
+            "work_password_require_unlock": "Require unlock",
+        }
 
 
 class VPNForm(PlatformFormMixin, forms.ModelForm):
@@ -721,6 +734,10 @@ class VPNForm(PlatformFormMixin, forms.ModelForm):
             "vpn_package_name": TextInput(attrs={"placeholder": "com.tailscale.ipn"}),
             "vpn_lockdown": CheckboxInput,
         }
+        labels = {
+            "vpn_package_name": "VPN Package Name",
+            "vpn_lockdown": "Lockdown Mode",
+        }
 
 
 class DeveloperSettingsForm(PlatformFormMixin, forms.ModelForm):
@@ -730,6 +747,7 @@ class DeveloperSettingsForm(PlatformFormMixin, forms.ModelForm):
         model = Policy
         fields = ["developer_settings"]
         widgets = {"developer_settings": Select}
+        labels = {"developer_settings": "Developer Settings"}
 
 
 class PolicyVariableForm(PlatformFormMixin, forms.ModelForm):

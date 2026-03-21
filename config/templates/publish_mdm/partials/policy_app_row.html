@@ -1,19 +1,25 @@
 <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">{{ app.package_name }}</td>
 <td class="px-3 py-2">
+    {# Install type form — must include package_name and current disabled state so full form validates #}
     <form hx-post="{% url 'publish_mdm:policy-save-application' request.organization.slug policy.pk app.pk %}"
           hx-target="#app-row-{{ app.pk }}"
           hx-swap="innerHTML"
           hx-trigger="change">
         {% csrf_token %}
+        {{ app_form.package_name.as_hidden }}
+        {% if app.disabled %}<input type="hidden" name="{{ app_form.disabled.html_name }}" value="on">{% endif %}
         {{ app_form.install_type }}
     </form>
 </td>
 <td class="px-3 py-2">
+    {# Disabled form — must include package_name and current install_type so full form validates #}
     <form hx-post="{% url 'publish_mdm:policy-save-application' request.organization.slug policy.pk app.pk %}"
           hx-target="#app-row-{{ app.pk }}"
           hx-swap="innerHTML"
           hx-trigger="change">
         {% csrf_token %}
+        {{ app_form.package_name.as_hidden }}
+        {{ app_form.install_type.as_hidden }}
         {{ app_form.disabled }}
     </form>
 </td>

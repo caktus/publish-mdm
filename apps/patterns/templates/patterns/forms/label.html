@@ -9,7 +9,7 @@
             text-error
         {% endif %}
         ">
-        {{ label|title }}
+        {{ label }}
         {% if field.field.required %}<span class="text-red">*</span>{% endif %}
         </{{ tag }}>
         {% if field.help_text %}
@@ -36,7 +36,7 @@
     </div>
 {% else %}
     <span>
-        {{ label|title }}
+        {{ label }}
         {% if field.field.required %}<span class="text-red">*</span>{% endif %}
     </span>
 {% endif %}

@@ -1322,7 +1322,7 @@ def policy_save_odk_package(request, organization_slug, policy_id):
             {
                 "policy": policy,
                 "odk_package_form": OdkCollectPackageForm(instance=policy),
-                "saved": True,
+                "odk_package_saved": True,
             },
         )
     return render(
