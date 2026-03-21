@@ -9,7 +9,9 @@ from django.urls import reverse
 from django.conf import settings
 from import_export.tmp_storages import MediaStorage
 
+from tests.mdm.factories import DeviceFactory, FleetFactory
 from tests.publish_mdm.factories import (
+    OrganizationFactory,
     ProjectFactory,
     UserFactory,
 )
@@ -18,8 +20,8 @@ from apps.publish_mdm.models import AppUser
 
 
 @pytest.mark.django_db
-class TestAppUserImport:
-    """Test the AppUser import process."""
+class ImportTestBase:
+    """Base class for testing the import process."""
 
     # Map each format name to a tuple with:
     # - an instance of the class from `settings.IMPORT_EXPORT_FORMATS`
@@ -32,6 +34,9 @@ class TestAppUserImport:
             f.encoding = "utf-8-sig"
         FORMATS[f.get_title()] = (f, BytesIO if f.is_binary() else StringIO, index)
 
+    def teardown_class(cls):
+        shutil.rmtree(os.path.join(settings.MEDIA_ROOT, "django-import-export"), ignore_errors=True)
+
     @pytest.fixture
     def user(self, client):
         user = UserFactory()
@@ -40,12 +45,10 @@ class TestAppUserImport:
         return user
 
     @pytest.fixture
-    def project(self, user):
-        project = ProjectFactory()
-        project.template_variables.create(name="var1", organization=project.organization)
-        project.template_variables.create(name="var2", organization=project.organization)
-        project.organization.users.add(user)
-        return project
+    def organization(self, user):
+        org = OrganizationFactory()
+        org.users.add(user)
+        return org
 
     def test_login_required(self, client, url):
         client.logout()
@@ -55,6 +58,17 @@ class TestAppUserImport:
     def test_get(self, client, url, user):
         response = client.get(url)
         assert response.status_code == 200
+
+
+class TestAppUserImport(ImportTestBase):
+    """Test the AppUser import process."""
+
+    @pytest.fixture
+    def project(self, user, organization):
+        project = ProjectFactory(organization=organization)
+        project.template_variables.create(name="var1", organization=organization)
+        project.template_variables.create(name="var2", organization=organization)
+        return project
 
     @pytest.fixture
     def url(self, project):
@@ -71,9 +85,6 @@ class TestAppUserImport:
             ("", "newuser2", "", "", "", ""),
             headers=["id", "name", "central_id", "form_templates", "var1", "var2"],
         )
-
-    def teardown_class(cls):
-        shutil.rmtree(os.path.join(settings.MEDIA_ROOT, "django-import-export"))
 
     def check_valid_upload(self, client, url, format_name, dataset, import_file=None):
         import_format, io_class, form_format = self.FORMATS[format_name]
@@ -186,3 +197,110 @@ class TestAppUserImport:
         file_path = Path(__file__).parent / "app_users_import_from_google_sheets.xlsx"
         with open(file_path, "rb") as import_file:
             self.check_valid_upload(client, url, "xlsx", dataset, import_file)
+
+
+@pytest.mark.django_db
+class TestDeviceImport(ImportTestBase):
+    """Test the Device import process."""
+
+    @pytest.fixture
+    def fleet(self, organization):
+        return FleetFactory(organization=organization)
+
+    @pytest.fixture
+    def devices(self, fleet):
+        return [
+            DeviceFactory(fleet=fleet, device_id="dev001", app_user_name="user1"),
+            DeviceFactory(fleet=fleet, device_id="dev002", app_user_name="user2"),
+        ]
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse(
+            "publish_mdm:devices-import",
+            kwargs={"organization_slug": organization.slug},
+        )
+
+    @pytest.fixture
+    def dataset(self, devices):
+        """Valid CSV import data updating both devices."""
+        return Dataset(
+            (devices[0].device_id, "new_user1"),
+            (devices[1].device_id, "new_user2"),
+            headers=["device_id", "app_user_name"],
+        )
+
+    @pytest.mark.parametrize("format_name", ["csv", "xlsx"])
+    def test_valid_upload(self, client, url, user, devices, dataset, format_name):
+        """Ensure the review page is shown after a valid import file is uploaded."""
+        import_format, io_class, form_format = self.FORMATS[format_name]
+        import_file_data = dataset.export(format_name)
+        data = {"format": form_format, "import_file": io_class(import_file_data)}
+        response = client.post(url, data=data)
+
+        assert response.status_code == 200
+        assert isinstance(response.context["form"], ConfirmImportForm)
+        assert (
+            "Below is a preview of data to be imported. If you are satisfied "
+            "with the results, click 'Confirm import'."
+        ) in response.content.decode()
+        assert len(response.context["result"].valid_rows()) == 2
+        # Devices should not be updated yet
+        for device in devices:
+            device.refresh_from_db()
+        assert devices[0].app_user_name == "user1"
+        assert devices[1].app_user_name == "user2"
+
+    @pytest.mark.parametrize("format_name", ["csv", "xlsx"])
+    def test_import_confirmed(self, client, url, user, organization, devices, dataset, format_name):
+        """Ensure confirming the import updates the devices' app_user_name."""
+        import_format, _, form_format = self.FORMATS[format_name]
+        import_file_data = dataset.export(format_name)
+        tmp_storage = MediaStorage(
+            encoding=import_format.encoding,
+            read_mode=import_format.get_read_mode(),
+        )
+        tmp_storage.save(import_file_data)
+        data = {
+            "import_file_name": tmp_storage.name,
+            "original_file_name": f"test.{format_name}",
+            "format": form_format,
+            "resource": "",
+        }
+        response = client.post(url, data=data, follow=True)
+
+        assert response.status_code == 200
+        assert response.redirect_chain == [
+            (reverse("publish_mdm:devices-list", args=[organization.slug]), 302)
+        ]
+        assert (
+            "Import finished successfully, with 0 new and 2 updated devices."
+            in response.content.decode()
+        )
+        devices[0].refresh_from_db()
+        devices[1].refresh_from_db()
+        assert devices[0].app_user_name == "new_user1"
+        assert devices[1].app_user_name == "new_user2"
+
+    @pytest.mark.parametrize("format_name", ["csv", "xlsx"])
+    def test_invalid_upload(self, client, url, user, devices, dataset, format_name):
+        """Ensure a validation error is shown when an unknown device_id is uploaded."""
+        dataset.append(("unknown_device", "some_user"))
+        import_format, io_class, form_format = self.FORMATS[format_name]
+        import_file_data = dataset.export(format_name)
+        data = {"format": form_format, "import_file": io_class(import_file_data)}
+        response = client.post(url, data=data)
+
+        assert response.status_code == 200
+        assert isinstance(response.context["form"], ImportForm)
+        result = response.context["result"]
+        assert result.has_validation_errors()
+        assert len(result.invalid_rows) == 1
+        assert result.invalid_rows[0].field_specific_errors["device_id"] == [
+            "A device with ID 'unknown_device' does not exist in the current organization."
+        ]
+        # Devices should not be updated
+        for device in devices:
+            device.refresh_from_db()
+        assert devices[0].app_user_name == "user1"
+        assert devices[1].app_user_name == "user2"
