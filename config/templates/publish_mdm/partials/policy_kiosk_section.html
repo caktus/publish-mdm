@@ -1,8 +1,7 @@
 <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
     <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-1">Kiosk Mode</h3>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-        Settings that apply when the device is in kiosk mode (an app with install type <span class="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">Kiosk</span>
-        or <code class="text-xs bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">kioskCustomLauncherEnabled</code>).
+        Settings that apply when the device is in kiosk mode (an app with install type <span class="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">Kiosk</span>).
     </p>
     <form hx-post="{% url 'publish_mdm:policy-save-kiosk' request.organization.slug policy.pk %}"
           hx-target="#section-kiosk"
@@ -11,20 +10,6 @@
         {% csrf_token %}
         {{ kiosk_form.non_field_errors }}
         <div class="space-y-3 max-w-md">
-            <div>
-                <label class="inline-flex items-center gap-3 cursor-pointer"
-                       for="{{ kiosk_form.kiosk_custom_launcher_enabled.id_for_label }}">
-                    <input type="checkbox"
-                           name="{{ kiosk_form.kiosk_custom_launcher_enabled.html_name }}"
-                           id="{{ kiosk_form.kiosk_custom_launcher_enabled.id_for_label }}"
-                           {% if kiosk_form.kiosk_custom_launcher_enabled.value %}checked{% endif %}
-                           class="sr-only peer">
-                    <div class="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 dark:peer-focus:ring-primary-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600 dark:peer-checked:bg-blue-600">
-                    </div>
-                    <span class="text-sm font-medium text-gray-900 dark:text-white">{{ kiosk_form.kiosk_custom_launcher_enabled.label }}</span>
-                </label>
-                {{ kiosk_form.kiosk_custom_launcher_enabled.errors }}
-            </div>
             <div>
                 {{ kiosk_form.kiosk_power_button_actions.label_tag }}
                 {{ kiosk_form.kiosk_power_button_actions }}

@@ -47,9 +47,6 @@ class PolicySerializer:
             result["advancedSecurityOverrides"] = advanced_security
 
         # Kiosk customization
-        if self.policy.kiosk_custom_launcher_enabled:
-            result["kioskCustomLauncherEnabled"] = True
-
         kiosk_customization = {}
         if self.policy.kiosk_power_button_actions != "POWER_BUTTON_ACTIONS_UNSPECIFIED":
             kiosk_customization["powerButtonActions"] = self.policy.kiosk_power_button_actions

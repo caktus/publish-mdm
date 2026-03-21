@@ -756,7 +756,6 @@ class KioskModeForm(PlatformFormMixin, forms.ModelForm):
     class Meta:
         model = Policy
         fields = [
-            "kiosk_custom_launcher_enabled",
             "kiosk_power_button_actions",
             "kiosk_system_error_warnings",
             "kiosk_system_navigation",
@@ -764,7 +763,6 @@ class KioskModeForm(PlatformFormMixin, forms.ModelForm):
             "kiosk_device_settings",
         ]
         widgets = {
-            "kiosk_custom_launcher_enabled": CheckboxInput,
             "kiosk_power_button_actions": Select,
             "kiosk_system_error_warnings": Select,
             "kiosk_system_navigation": Select,
@@ -772,7 +770,6 @@ class KioskModeForm(PlatformFormMixin, forms.ModelForm):
             "kiosk_device_settings": Select,
         }
         labels = {
-            "kiosk_custom_launcher_enabled": "Enable Kiosk Custom Launcher",
             "kiosk_power_button_actions": "Power Button Actions",
             "kiosk_system_error_warnings": "System Error Warnings",
             "kiosk_system_navigation": "System Navigation",

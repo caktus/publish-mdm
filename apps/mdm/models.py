@@ -100,6 +100,13 @@ class Policy(models.Model):
     )
     default_policy = models.BooleanField(default=False)
     mdm = models.CharField(max_length=50, choices=MDMChoices, verbose_name="MDM")
+    organization = models.ForeignKey(
+        "publish_mdm.Organization",
+        on_delete=models.CASCADE,
+        related_name="policies",
+        null=True,
+        blank=True,
+    )
 
     # ODK Collect
     odk_collect_package = models.CharField(
@@ -157,7 +164,6 @@ class Policy(models.Model):
     )
 
     # Kiosk mode
-    kiosk_custom_launcher_enabled = models.BooleanField(default=False)
     kiosk_power_button_actions = models.CharField(
         max_length=60,
         choices=KioskPowerButtonActions,

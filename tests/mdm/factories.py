@@ -17,6 +17,7 @@ class PolicyFactory(factory.django.DjangoModelFactory):
     name = factory.Faker("word")
     policy_id = factory.Faker("word")
     mdm = factory.LazyAttribute(lambda _: settings.ACTIVE_MDM["name"])
+    organization = factory.SubFactory(OrganizationFactory)
 
 
 class FleetFactory(factory.django.DjangoModelFactory):

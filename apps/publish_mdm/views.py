@@ -1191,10 +1191,8 @@ def check_mdm_license_limit(request: HttpRequest):
 
 @login_required
 def policy_list(request, organization_slug):
-    """List all policies (staff only until per-org scoping in #98)."""
-    if not request.user.is_staff:
-        return redirect("publish_mdm:organization-home", organization_slug)
-    policies = Policy.objects.all()
+    """List all policies for the current organization."""
+    policies = Policy.objects.filter(organization=request.organization)
     context = {
         "policies": policies,
         "breadcrumbs": Breadcrumbs.from_items(
@@ -1208,8 +1206,6 @@ def policy_list(request, organization_slug):
 @login_required
 def policy_add(request, organization_slug):
     """Create a new policy."""
-    if not request.user.is_staff:
-        return redirect("publish_mdm:organization-home", organization_slug)
     if request.method == "POST":
         form = PolicyNameForm(request.POST)
         if form.is_valid():
@@ -1218,6 +1214,7 @@ def policy_add(request, organization_slug):
             policy.policy_id = (
                 f"policy_{policy.name.lower().replace(' ', '_')}_{Policy.objects.count() + 1}"
             )
+            policy.organization = request.organization
             policy.save()
             # Create default ODK Collect application row
             PolicyApplication.objects.create(
@@ -1246,9 +1243,7 @@ def policy_add(request, organization_slug):
 @login_required
 def policy_edit(request, organization_slug, policy_id):
     """Main policy editor page with all sections."""
-    if not request.user.is_staff:
-        return redirect("publish_mdm:organization-home", organization_slug)
-    policy = get_object_or_404(Policy, pk=policy_id)
+    policy = get_object_or_404(Policy, pk=policy_id, organization=request.organization)
     applications = policy.applications.order_by("order", "pk")
     variables = _get_org_variables(request.organization)
 
@@ -1283,7 +1278,7 @@ def policy_edit(request, organization_slug, policy_id):
 @login_required
 def policy_save_name(request, organization_slug, policy_id):
     """HTMX: save policy name."""
-    policy = get_object_or_404(Policy, pk=policy_id)
+    policy = get_object_or_404(Policy, pk=policy_id, organization=request.organization)
     form = PolicyNameForm(request.POST, instance=policy)
     if form.is_valid():
         form.save()
@@ -1309,7 +1304,7 @@ def policy_save_name(request, organization_slug, policy_id):
 @login_required
 def policy_save_odk_package(request, organization_slug, policy_id):
     """HTMX: save ODK Collect package name override."""
-    policy = get_object_or_404(Policy, pk=policy_id)
+    policy = get_object_or_404(Policy, pk=policy_id, organization=request.organization)
     form = OdkCollectPackageForm(request.POST, instance=policy)
     if form.is_valid():
         form.save()
@@ -1340,7 +1335,7 @@ def policy_save_odk_package(request, organization_slug, policy_id):
 @login_required
 def policy_add_application(request, organization_slug, policy_id):
     """HTMX: add a new application to the policy."""
-    policy = get_object_or_404(Policy, pk=policy_id)
+    policy = get_object_or_404(Policy, pk=policy_id, organization=request.organization)
     form = PolicyApplicationAddForm(request.POST)
     if form.is_valid():
         app = form.save(commit=False)
@@ -1381,7 +1376,7 @@ def policy_add_application(request, organization_slug, policy_id):
 @login_required
 def policy_save_application(request, organization_slug, policy_id, app_id):
     """HTMX: save a single application row."""
-    policy = get_object_or_404(Policy, pk=policy_id)
+    policy = get_object_or_404(Policy, pk=policy_id, organization=request.organization)
     app = get_object_or_404(PolicyApplication, pk=app_id, policy=policy)
     form = PolicyApplicationForm(request.POST, instance=app, prefix=f"app_{app.pk}")
     if form.is_valid():
@@ -1410,7 +1405,7 @@ def policy_save_application(request, organization_slug, policy_id, app_id):
 @login_required
 def policy_delete_application(request, organization_slug, policy_id, app_id):
     """HTMX: delete an application row."""
-    policy = get_object_or_404(Policy, pk=policy_id)
+    policy = get_object_or_404(Policy, pk=policy_id, organization=request.organization)
     app = get_object_or_404(PolicyApplication, pk=app_id, policy=policy)
     # Don't allow deleting ODK Collect pinned row
     if app.package_name == policy.odk_collect_package and app.order == 0:
@@ -1434,7 +1429,7 @@ def policy_delete_application(request, organization_slug, policy_id, app_id):
 @login_required
 def policy_save_password(request, organization_slug, policy_id):
     """HTMX: save password policy section."""
-    policy = get_object_or_404(Policy, pk=policy_id)
+    policy = get_object_or_404(Policy, pk=policy_id, organization=request.organization)
     form = PasswordPolicyForm(request.POST, instance=policy)
     if form.is_valid():
         form.save()
@@ -1460,7 +1455,7 @@ def policy_save_password(request, organization_slug, policy_id):
 @login_required
 def policy_save_vpn(request, organization_slug, policy_id):
     """HTMX: save VPN section."""
-    policy = get_object_or_404(Policy, pk=policy_id)
+    policy = get_object_or_404(Policy, pk=policy_id, organization=request.organization)
     form = VPNForm(request.POST, instance=policy)
     if form.is_valid():
         form.save()
@@ -1486,7 +1481,7 @@ def policy_save_vpn(request, organization_slug, policy_id):
 @login_required
 def policy_save_developer(request, organization_slug, policy_id):
     """HTMX: save developer settings section."""
-    policy = get_object_or_404(Policy, pk=policy_id)
+    policy = get_object_or_404(Policy, pk=policy_id, organization=request.organization)
     form = DeveloperSettingsForm(request.POST, instance=policy)
     if form.is_valid():
         form.save()
@@ -1512,7 +1507,7 @@ def policy_save_developer(request, organization_slug, policy_id):
 @login_required
 def policy_save_kiosk(request, organization_slug, policy_id):
     """HTMX: save kiosk mode settings."""
-    policy = get_object_or_404(Policy, pk=policy_id)
+    policy = get_object_or_404(Policy, pk=policy_id, organization=request.organization)
     form = KioskModeForm(request.POST, instance=policy)
     if form.is_valid():
         form.save()
@@ -1545,7 +1540,7 @@ def _get_org_variables(organization):
 @login_required
 def policy_save_managed_config(request, organization_slug, policy_id, app_id):
     """HTMX: save managed configuration JSON for a policy application."""
-    policy = get_object_or_404(Policy, pk=policy_id)
+    policy = get_object_or_404(Policy, pk=policy_id, organization=request.organization)
     app = get_object_or_404(PolicyApplication, pk=app_id, policy=policy)
     error = None
     saved = False
@@ -1571,7 +1566,7 @@ def policy_save_managed_config(request, organization_slug, policy_id, app_id):
 @login_required
 def policy_add_variable(request, organization_slug, policy_id):
     """HTMX: add a new policy variable."""
-    policy = get_object_or_404(Policy, pk=policy_id)
+    policy = get_object_or_404(Policy, pk=policy_id, organization=request.organization)
     form = PolicyVariableForm(request.POST, organization=request.organization)
     # Pre-set org so model.clean() can validate scope without raising "org required".
     # For fleet-scope variables, model.clean() will clear org to None automatically.
@@ -1604,7 +1599,7 @@ def policy_add_variable(request, organization_slug, policy_id):
 @login_required
 def policy_delete_variable(request, organization_slug, policy_id, var_id):
     """HTMX: delete a policy variable."""
-    policy = get_object_or_404(Policy, pk=policy_id)
+    policy = get_object_or_404(Policy, pk=policy_id, organization=request.organization)
     variable = get_object_or_404(PolicyVariable, pk=var_id)
     variable.delete()
     variables = _get_org_variables(request.organization)

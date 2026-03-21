@@ -36,23 +36,21 @@
                         <span class="ml-3">Fleets</span>
                     </a>
                 </li>
-                {% if user.is_staff %}
-                    <li>
-                        <a href="{% url 'publish_mdm:policy-list' request.organization.slug %}"
-                           class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
-                            <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
-                                 aria-hidden="true"
-                                 xmlns="http://www.w3.org/2000/svg"
-                                 width="24"
-                                 height="24"
-                                 fill="none"
-                                 viewBox="0 0 24 24">
-                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.529 9.988a2.502 2.502 0 0 1 2.243-1.5 2.5 2.5 0 0 1 2.25 1.5m-4.493 0a2.502 2.502 0 0 0-.038 1.5m.038-1.5H7.5m4.243 0a2.5 2.5 0 0 1 .038 1.5m-.038-1.5H16.5m-6.971 1.5H7.5m2.029 0a2.5 2.5 0 0 0 2.243 1.5m-2.243-1.5h4.493m0 0H16.5m-4.272 1.5a2.5 2.5 0 0 0 2.25-1.5m-2.25 1.5V15m0-6V6.5" />
-                            </svg>
-                            <span class="ml-3">Policies</span>
-                        </a>
-                    </li>
-                {% endif %}
+                <li>
+                    <a href="{% url 'publish_mdm:policy-list' request.organization.slug %}"
+                       class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
+                        <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
+                             aria-hidden="true"
+                             xmlns="http://www.w3.org/2000/svg"
+                             width="24"
+                             height="24"
+                             fill="none"
+                             viewBox="0 0 24 24">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.529 9.988a2.502 2.502 0 0 1 2.243-1.5 2.5 2.5 0 0 1 2.25 1.5m-4.493 0a2.502 2.502 0 0 0-.038 1.5m.038-1.5H7.5m4.243 0a2.5 2.5 0 0 1 .038 1.5m-.038-1.5H16.5m-6.971 1.5H7.5m2.029 0a2.5 2.5 0 0 0 2.243 1.5m-2.243-1.5h4.493m0 0H16.5m-4.272 1.5a2.5 2.5 0 0 0 2.25-1.5m-2.25 1.5V15m0-6V6.5" />
+                        </svg>
+                        <span class="ml-3">Policies</span>
+                    </a>
+                </li>
                 <li>
                     <a href="{% url 'publish_mdm:devices-list' request.organization.slug %}"
                        class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
