@@ -163,9 +163,7 @@ class Policy(models.Model):
         from .serializers import PolicySerializer
 
         device = kwargs.get("device")
-        applications = list(
-            self.applications.select_related("policy").order_by("order", "pk")
-        )
+        applications = list(self.applications.select_related("policy").order_by("order", "pk"))
         variables = list(
             PolicyVariable.objects.filter(
                 org__in=self.fleets.values_list("organization", flat=True)

@@ -52,9 +52,8 @@ class PolicyAdmin(admin.ModelAdmin):
         obj.save()
         # Update the policy in the MDM.
         # Currently only implemented for Android Enterprise MDM
-        if (
-            settings.ACTIVE_MDM["name"] == "Android Enterprise"
-            and (active_mdm := get_active_mdm_instance())
+        if settings.ACTIVE_MDM["name"] == "Android Enterprise" and (
+            active_mdm := get_active_mdm_instance()
         ):
             try:
                 active_mdm.create_or_update_policy(obj)

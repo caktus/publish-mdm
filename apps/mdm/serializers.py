@@ -89,19 +89,25 @@ class PolicySerializer:
     def _build_password_policies(self) -> list[dict]:
         policies = []
 
-        device_policy = self._build_scope_password("SCOPE_DEVICE", {
-            "quality": self.policy.device_password_quality,
-            "min_length": self.policy.device_password_min_length,
-            "require_unlock": self.policy.device_password_require_unlock,
-        })
+        device_policy = self._build_scope_password(
+            "SCOPE_DEVICE",
+            {
+                "quality": self.policy.device_password_quality,
+                "min_length": self.policy.device_password_min_length,
+                "require_unlock": self.policy.device_password_require_unlock,
+            },
+        )
         if device_policy:
             policies.append(device_policy)
 
-        work_policy = self._build_scope_password("SCOPE_PROFILE", {
-            "quality": self.policy.work_password_quality,
-            "min_length": self.policy.work_password_min_length,
-            "require_unlock": self.policy.work_password_require_unlock,
-        })
+        work_policy = self._build_scope_password(
+            "SCOPE_PROFILE",
+            {
+                "quality": self.policy.work_password_quality,
+                "min_length": self.policy.work_password_min_length,
+                "require_unlock": self.policy.work_password_require_unlock,
+            },
+        )
         if work_policy:
             policies.append(work_policy)
 

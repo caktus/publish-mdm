@@ -125,9 +125,7 @@ class TestPolicySerializer(TestAllMDMs):
         """Variables should be substituted in string values."""
         policy = PolicyFactory()
         org = OrganizationFactory()
-        var = PolicyVariable.objects.create(
-            key="auth_key", value="secret123", scope="org", org=org
-        )
+        var = PolicyVariable.objects.create(key="auth_key", value="secret123", scope="org", org=org)
         app = PolicyApplication.objects.create(
             policy=policy,
             package_name="com.example.vpn",

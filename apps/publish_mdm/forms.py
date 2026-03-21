@@ -680,9 +680,7 @@ class OdkCollectPackageForm(PlatformFormMixin, forms.ModelForm):
         model = Policy
         fields = ["odk_collect_package"]
         widgets = {
-            "odk_collect_package": TextInput(
-                attrs={"placeholder": "org.odk.collect.android"}
-            )
+            "odk_collect_package": TextInput(attrs={"placeholder": "org.odk.collect.android"})
         }
 
 
@@ -701,10 +699,14 @@ class PasswordPolicyForm(PlatformFormMixin, forms.ModelForm):
         ]
         widgets = {
             "device_password_quality": Select,
-            "device_password_min_length": TextInput(attrs={"type": "number", "min": "0", "max": "16"}),
+            "device_password_min_length": TextInput(
+                attrs={"type": "number", "min": "0", "max": "16"}
+            ),
             "device_password_require_unlock": Select,
             "work_password_quality": Select,
-            "work_password_min_length": TextInput(attrs={"type": "number", "min": "0", "max": "16"}),
+            "work_password_min_length": TextInput(
+                attrs={"type": "number", "min": "0", "max": "16"}
+            ),
             "work_password_require_unlock": Select,
         }
 

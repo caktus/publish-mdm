@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("mdm", "0006_remove_policy_unique_default_policy_and_more"),
         ("publish_mdm", "0014_organization_public_signup_enabled"),
