@@ -82,7 +82,7 @@ class InstallType(models.TextChoices):
 
 
 class PolicyVariableScope(models.TextChoices):
-    ORG = "org", "Organization"
+    ORG = "org", "Policy"
     FLEET = "fleet", "Fleet"
 
 

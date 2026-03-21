@@ -2,7 +2,7 @@
     <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Policy Variables</h3>
     <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
         Define key/value pairs that can be referenced as <code class="text-xs bg-gray-100 dark:bg-gray-700 px-1 py-0.5 rounded">{% templatetag openvariable %} variable_name {% templatetag closevariable %}</code>
-        in application managed configurations. Fleet-level values override org-level values for the same key.
+        in application managed configurations. Fleet-level values override policy-level values for the same key.
     </p>
     {# Built-in system variables reference #}
     <div class="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
@@ -60,7 +60,7 @@
                                 {% if var.scope == 'fleet' %}
                                     <span class="inline-flex items-center bg-purple-100 text-purple-700 text-xs font-medium px-2 py-0.5 rounded-full dark:bg-purple-900 dark:text-purple-300">Fleet</span>
                                 {% else %}
-                                    <span class="inline-flex items-center bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full dark:bg-blue-900 dark:text-blue-300">Org</span>
+                                    <span class="inline-flex items-center bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full dark:bg-blue-900 dark:text-blue-300">Policy</span>
                                 {% endif %}
                             </td>
                             <td class="px-3 py-2">{{ var.fleet|default:"-" }}</td>

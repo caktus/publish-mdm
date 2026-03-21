@@ -18,3 +18,16 @@
         {% include "mdm/partials/_saved_indicator.html" with saved_class="" %}
     </div>
 </form>
+{% if saved %}
+    <script>
+  (function() {
+    var modalEl = document.getElementById('config-modal-{{ app.pk }}');
+    if (modalEl) {
+      setTimeout(function() {
+        var inst = window.FlowbiteInstances && window.FlowbiteInstances.getInstance('Modal', 'config-modal-{{ app.pk }}');
+        if (inst) { inst.hide(); } else { modalEl.classList.add('hidden'); }
+      }, 1000);
+    }
+  })();
+    </script>
+{% endif %}
