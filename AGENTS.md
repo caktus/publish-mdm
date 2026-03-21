@@ -21,7 +21,7 @@ The project is mounted at the same path as on the host. The sandbox uses the def
 ```bash
 # One-time setup: install Postgres and create the DB
 sudo service postgresql start
-sudo -u postgres psql -c "CREATE USER agent SUPERUSER;"
+sudo -u postgres psql -c "CREATE ROLE agent LOGIN CREATEDB;"
 sudo -u postgres createdb -O agent publish_mdm
 
 # Run migrations (only needed once, or after new migrations are added)
@@ -134,12 +134,16 @@ classes in `apps/publish_mdm/middleware.py`:
 - `Organization` (`apps/publish_mdm/models.py`) has a `ManyToManyField` to `User` —
   no separate "OrganizationUser" role model.
 - There is **no admin/editor role distinction within an org** — all org members have
-  equal access. The only privilege distinction is `user.is_staff` (site-wide Django flag).
-
+  equal access. Additional elevated privileges are controlled via Django's site-wide
+  flags: `user.is_staff` (for staff-only features) and `user.is_superuser` (e.g., access
+  to all organizations and certain restricted org pages).
 ### Permission pattern in views
 
-All views use `@login_required`. Org scoping is free via the middleware. For features
-that should be restricted to staff only (site-wide admin tasks), add:
+All org-scoped application views use `@login_required` (or the equivalent mixin). Org
+scoping is free via the middleware. Public signup/invite endpoints (for example,
+`RequestOrganizationInvite`) are intentionally unauthenticated and must enforce any
+required permissions explicitly. For features that should be restricted to staff only
+(site-wide admin tasks), add:
 
 ```python
 if not request.user.is_staff:
