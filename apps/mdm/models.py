@@ -219,7 +219,7 @@ class Policy(models.Model):
 
     def get_policy_data(self, **kwargs):
         """Generates policy data using the PolicySerializer."""
-        from .serializers import PolicySerializer
+        from .serializers import PolicySerializer  # Avoid circular: models ← serializers → models
 
         device = kwargs.get("device")
         applications = list(self.applications.select_related("policy").order_by("order", "pk"))
@@ -274,8 +274,6 @@ class PolicyApplication(models.Model):
 
     def managed_configuration_str(self):
         """Return managed_configuration JSON as a formatted string for display."""
-        import json
-
         if self.managed_configuration:
             return json.dumps(self.managed_configuration, indent=2)
         return ""
@@ -389,7 +387,7 @@ class Fleet(models.Model):
         return self.name
 
     def save(self, *args, **kwargs):
-        from .mdms import get_active_mdm_instance
+        from .mdms import get_active_mdm_instance  # Avoid circular: models ← mdms → models
 
         sync_with_mdm = kwargs.pop("sync_with_mdm", False)
         super().save(*args, **kwargs)
@@ -479,7 +477,7 @@ class Device(models.Model):
     all_mdms = models.Manager()
 
     def save(self, *args, **kwargs):
-        from .mdms import get_active_mdm_instance
+        from .mdms import get_active_mdm_instance  # Avoid circular: models ← mdms → models
 
         push_to_mdm = kwargs.pop("push_to_mdm", False)
         super().save(*args, **kwargs)
