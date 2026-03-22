@@ -161,7 +161,7 @@ class TestModels(TestAllMDMs):
         # Fleet-scoped variable must override org-scoped variable
         assert app_entry["managedConfiguration"]["token"] == "fleet_value"
 
-
+    def test_fleet_enroll_token_expired(self):
         """Tests the Fleet.enroll_token_expired property."""
         fleet = FleetFactory(enroll_token_expires_at=None)
         assert not fleet.enroll_token_expired
