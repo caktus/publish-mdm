@@ -37,6 +37,16 @@ logger = structlog.get_logger()
 @csrf_exempt
 @require_POST
 def firmware_snapshot_view(request):
+    api_key = settings.MDM_FIRMWARE_API_KEY
+    if api_key:
+        auth_header = request.META.get("HTTP_AUTHORIZATION", "")
+        if auth_header != f"Bearer {api_key}":
+            return HttpResponse(status=401)
+    else:
+        logger.warning(
+            "firmware_snapshot_view: MDM_FIRMWARE_API_KEY not configured; endpoint is unauthenticated",
+            remote_addr=request.META.get("REMOTE_ADDR"),
+        )
     if not request.body:
         return HttpResponse(status=400)
     try:
@@ -142,9 +152,7 @@ def policy_add(request, organization_slug):
         if form.is_valid():
             policy = form.save(commit=False)
             policy.mdm = settings.ACTIVE_MDM["name"]
-            policy.policy_id = (
-                f"policy_{policy.name.lower().replace(' ', '_')}_{Policy.objects.count() + 1}"
-            )
+            policy.policy_id = f"policy_{policy.name.lower().replace(' ', '_')}_{Policy.objects.filter(organization=request.organization).count() + 1}"
             policy.organization = request.organization
             policy.save()
             PolicyApplication.objects.create(
