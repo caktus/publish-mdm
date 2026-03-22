@@ -119,3 +119,59 @@ class TestCentralServerSSRF:
         mock_post.assert_called_once()
         call_url = mock_post.call_args[0][0]
         assert call_url.startswith("https://odk.example.com")
+
+
+# ---------------------------------------------------------------------------
+# VULN-003: Sentry send_default_pii defaults to True
+# ---------------------------------------------------------------------------
+
+
+class TestSentryPIIDefault:
+    """VULN-003: SENTRY_SEND_DEFAULT_PII must default to False.
+
+    When the environment variable is absent the deploy settings must opt out of
+    sending PII to Sentry, not opt in.  An operator who wants PII sent must
+    explicitly set SENTRY_SEND_DEFAULT_PII=True.
+    """
+
+    def test_sentry_pii_default_is_false(self, monkeypatch):
+        """With no env var, SENTRY_SEND_DEFAULT_PII must resolve to False.
+
+        The pattern is:
+            SENTRY_SEND_DEFAULT_PII = os.getenv("SENTRY_SEND_DEFAULT_PII", "<default>") == "True"
+        The second argument to os.getenv is the default; it must be "False".
+        """
+        import ast
+        from pathlib import Path
+
+        deploy_path = Path("config/settings/deploy.py")
+        source = deploy_path.read_text()
+        tree = ast.parse(source)
+
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Assign)
+                and any(
+                    isinstance(t, ast.Name) and t.id == "SENTRY_SEND_DEFAULT_PII"
+                    for t in node.targets
+                )
+            ):
+                continue
+            # node.value is: Compare(Call(getenv, [..., default]), [Eq], [Constant("True")])
+            # Drill into the Call node to find the second arg (the default)
+            for subnode in ast.walk(node.value):
+                if (
+                    isinstance(subnode, ast.Call)
+                    and len(subnode.args) == 2
+                    and isinstance(subnode.args[1], ast.Constant)
+                ):
+                    default_val = subnode.args[1].value
+                    assert default_val == "False", (
+                        f"SENTRY_SEND_DEFAULT_PII os.getenv default must be 'False', "
+                        f"but found '{default_val}'. "
+                        "Set SENTRY_SEND_DEFAULT_PII=True explicitly to opt in."
+                    )
+                    return
+        raise AssertionError(
+            "Could not find SENTRY_SEND_DEFAULT_PII assignment in config/settings/deploy.py"
+        )
