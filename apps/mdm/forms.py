@@ -6,7 +6,7 @@ from apps.mdm.models import Device, PushMethodChoices
 from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import CheckboxInput, Select, TextInput
 
-from .models import FirmwareSnapshot, Policy, PolicyApplication, PolicyVariable
+from .models import FirmwareSnapshot, Policy, PolicyApplication, PolicyVariable, PolicyVariableScope
 
 logger = structlog.get_logger()
 
@@ -224,3 +224,24 @@ class PolicyVariableForm(PlatformFormMixin, forms.ModelForm):
         if organization:
             self.fields["fleet"].queryset = organization.fleets.all()
         self.fields["fleet"].required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        scope = cleaned_data.get("scope")
+        key = cleaned_data.get("key")
+        if not key or not scope:
+            return cleaned_data
+        qs = PolicyVariable.objects.exclude(pk=self.instance.pk if self.instance.pk else None)
+        if scope == PolicyVariableScope.ORG:
+            org = self.instance.org
+            if org and qs.filter(key=key, org=org, scope=scope).exists():
+                raise forms.ValidationError(
+                    f'A policy-level variable with key "{key}" already exists.'
+                )
+        elif scope == PolicyVariableScope.FLEET:
+            fleet = cleaned_data.get("fleet")
+            if fleet and qs.filter(key=key, fleet=fleet, scope=scope).exists():
+                raise forms.ValidationError(
+                    f'A fleet-level variable with key "{key}" for this fleet already exists.'
+                )
+        return cleaned_data

@@ -3,6 +3,7 @@ from django.urls import reverse
 
 from apps.mdm.models import Policy, PolicyApplication, PolicyVariable
 from tests.mdm.factories import (
+    FleetFactory,
     PolicyApplicationFactory,
     PolicyFactory,
     PolicyVariableFactory,
@@ -487,6 +488,39 @@ class TestPolicyAddVariable(PolicyViewBase):
         assert response.status_code == 200
         var = PolicyVariable.objects.get(key="scoped_var")
         assert var.org == organization
+
+    def test_duplicate_policy_variable_raises_form_error(self, client, url, policy, organization):
+        """Submitting a duplicate policy-level variable key shows a friendly form error."""
+        PolicyVariableFactory(key="dup_key", org=organization, scope="org")
+        data = {"key": "dup_key", "value": "other_val", "scope": "org"}
+        response = client.post(url, data)
+        assert response.status_code == 200
+        form = response.context["variable_form"]
+        assert form.errors
+        assert "dup_key" in str(form.errors)
+        assert PolicyVariable.objects.filter(key="dup_key", org=organization).count() == 1
+
+    def test_duplicate_fleet_variable_raises_form_error(self, client, url, policy, organization):
+        """Submitting a duplicate fleet-level variable key for the same fleet shows a friendly form error."""
+        fleet = FleetFactory(organization=organization, policy=policy)
+        PolicyVariableFactory(key="fleet_dup", fleet=fleet, org=None, scope="fleet")
+        data = {"key": "fleet_dup", "value": "other_val", "scope": "fleet", "fleet": fleet.pk}
+        response = client.post(url, data)
+        assert response.status_code == 200
+        form = response.context["variable_form"]
+        assert form.errors
+        assert "fleet_dup" in str(form.errors)
+        assert PolicyVariable.objects.filter(key="fleet_dup", fleet=fleet).count() == 1
+
+    def test_same_key_different_scope_is_allowed(self, client, url, policy, organization):
+        """A key can exist as both policy-level and fleet-level — they are independent scopes."""
+        PolicyVariableFactory(key="shared_key", org=organization, scope="org")
+        fleet = FleetFactory(organization=organization, policy=policy)
+        data = {"key": "shared_key", "value": "fleet_val", "scope": "fleet", "fleet": fleet.pk}
+        response = client.post(url, data)
+        assert response.status_code == 200
+        assert not response.context["variable_form"].errors
+        assert PolicyVariable.objects.filter(key="shared_key").count() == 2
 
 
 # ---------------------------------------------------------------------------

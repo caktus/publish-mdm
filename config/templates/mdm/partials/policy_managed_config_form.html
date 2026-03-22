@@ -20,14 +20,17 @@
 </form>
 {% if saved %}
     <script>
-  (function() {
-    var modalEl = document.getElementById('config-modal-{{ app.pk }}');
-    if (modalEl) {
-      setTimeout(function() {
-        var inst = window.FlowbiteInstances && window.FlowbiteInstances.getInstance('Modal', 'config-modal-{{ app.pk }}');
-        if (inst) { inst.hide(); } else { modalEl.classList.add('hidden'); }
-      }, 1000);
-    }
-  })();
+        (function () {
+            var modalId = 'config-modal-{{ app.pk }}';
+            setTimeout(function () {
+                var inst = window.FlowbiteInstances && window.FlowbiteInstances.getInstance('Modal', modalId);
+                if (inst) {
+                    inst.hide();
+                } else {
+                    var el = document.getElementById(modalId);
+                    if (el) el.classList.add('hidden');
+                }
+            }, 800);
+        })();
     </script>
 {% endif %}

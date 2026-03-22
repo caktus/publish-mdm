@@ -47,8 +47,13 @@
             document.body.addEventListener('htmx:configRequest', (event) => {
                 event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
             })
-            document.body.addEventListener("htmx:afterSwap", () => {
-                window.initFlowbite();
+            document.body.addEventListener("htmx:afterSwap", (event) => { /* djlint:off */
+                // Skip re-initialization when the swap is inside an open Flowbite modal.
+                // Flowbite removes the hidden class when a modal opens (not aria-hidden=false),
+                // and calling initFlowbite() during a swap inside the modal destroys the backdrop.
+                const target = event.detail && event.detail.target;
+                const isInsideOpenModal = target && target.closest('[tabindex="-1"].fixed:not(.hidden)');
+                if (!isInsideOpenModal) { window.initFlowbite(); } /* djlint:on */
             })
 
             document.body.addEventListener("showAlertMessage", (e) => {
