@@ -1054,7 +1054,7 @@ def edit_fleet(request: HttpRequest, organization_slug, fleet_id):
             if active_mdm:
                 try:
                     active_mdm.add_group_to_policy(fleet)
-                except Exception as e:
+                except (GoogleAPIClientError, RequestException) as e:
                     messages.warning(
                         request,
                         mark_safe(
