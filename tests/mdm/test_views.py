@@ -718,3 +718,36 @@ class TestPolicySaveKioskInvalid(PolicyViewBase):
         response = client.post(url, {"kiosk_power_button_actions": "INVALID_CHOICE"})
         assert response.status_code == 200
         assert response.context["kiosk_form"].errors
+
+
+# ---------------------------------------------------------------------------
+# Cross-org isolation (Finding 1 regression test)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestCrossOrgIsolation(PolicyViewBase):
+    """Verify a user in org A cannot access org B's policies via URL slug manipulation."""
+
+    @pytest.fixture
+    def org_b(self):
+        """A second organization the user does NOT belong to."""
+        return OrganizationFactory()
+
+    @pytest.fixture
+    def org_b_policy(self, org_b):
+        return PolicyFactory(organization=org_b)
+
+    def test_cannot_list_other_org_policies(self, client, user, organization, org_b):
+        """GET /o/<org_b_slug>/policies/ returns 404 for a user not in org B."""
+        url = reverse("mdm:policy-list", args=[org_b.slug])
+        response = client.get(url)
+        assert response.status_code == 404
+
+    def test_cannot_access_other_org_policy_edit(
+        self, client, user, organization, org_b, org_b_policy
+    ):
+        """GET /o/<org_b_slug>/policies/<id>/ returns 404 for a user not in org B."""
+        url = reverse("mdm:policy-edit", args=[org_b.slug, org_b_policy.pk])
+        response = client.get(url)
+        assert response.status_code == 404
