@@ -403,3 +403,74 @@ None — all 273 tests pass.
 
 ### Production bugs found and fixed
 None found during coverage phase.
+
+---
+
+# Bug-Fix Phase Report
+
+**Date:** 2025-07-25
+**Scope:** `apps/mdm/` / `tests/mdm/`
+**Baseline coverage:** 55.7%
+
+## Warning Patterns Found
+
+Only `UserWarning` about missing static directory (test-env-only, no production code paths).
+No `ResourceWarning`, `DeprecationWarning`, or other actionable patterns.
+
+---
+
+## Module Findings
+
+### apps/mdm/models.py
+
+| Suspect (line / pattern) | Classification | Test written | Bug fixed? | Notes |
+|---|---|---|---|---|
+| L487: `FirmwareSnapshot.__str__` uses `self.device_id` | PROVEN | `test_firmware_snapshot_str` (updated) | Yes | `device_id` is Django's auto FK integer attr, not the MDM identifier string. Fixed to use `self.device_identifier`. |
+| L235-243: `get_policy_data()` query `filter(org__in=...)` | PROVEN | `test_get_policy_data_includes_fleet_variables` | Yes | Fleet-scoped `PolicyVariable` rows have `org=None` so they never matched. Fleet overrides were silently dropped. Fixed with `Q(org__in=...) \| Q(fleet__in=...)`. |
+| `Policy.get_default()` no-guard if `MDM_DEFAULT_POLICY` unset | SKIP | — | n/a | `settings.MDM_DEFAULT_POLICY` guard already present; returns `None` if unset. |
+
+### apps/mdm/views.py
+
+| Suspect (line / pattern) | Classification | Test written | Bug fixed? | Notes |
+|---|---|---|---|---|
+| L432-445: `policy_delete_variable` fetches variable by PK with no org scope | PROVEN | `test_cannot_delete_other_org_variable_via_own_policy` | Yes | Security: user from org A could delete org B's variables using own valid policy_id + foreign var_id. Fixed with Q-scoped lookup. |
+| `policy_add`: `Policy.objects.count()` for unique policy_id | SKIP | — | n/a | Potential race condition but no uniqueness constraint on policy_id field; intentional design. |
+
+### apps/mdm/forms.py
+
+| Suspect (line / pattern) | Classification | Test written | Bug fixed? | Notes |
+|---|---|---|---|---|
+| `FirmwareSnapshotForm.clean()` doesn't return `cleaned_data` | SKIP | — | n/a | Django's `_clean_form()` only reassigns `self.cleaned_data` if `clean()` returns non-None. Since dict is mutated in-place and `super().clean()` returns `self.cleaned_data` (same object), mutations persist correctly. Anti-pattern but not a bug. |
+
+### apps/mdm/serializers.py
+
+| Suspect (line / pattern) | Classification | Test written | Bug fixed? | Notes |
+|---|---|---|---|---|
+| `_substitute()` leaves unknown `{{ var }}` placeholders intact | SKIP | — | n/a | Intentional: `variables.get(var_name, match.group(0))` keeps original text. No bug. |
+
+### apps/mdm/mdms/tinymdm.py
+
+| Suspect (line / pattern) | Classification | Test written | Bug fixed? | Notes |
+|---|---|---|---|---|
+| `session` returns `None` if credentials missing; `request()` would then AttributeError | SKIP | — | n/a | `is_configured` guards all callers; `request()` is never called when unconfigured. |
+
+### apps/mdm/mdms/android_enterprise.py
+
+| Suspect (line / pattern) | Classification | Test written | Bug fixed? | Notes |
+|---|---|---|---|---|
+| `update_existing_devices` builds `devices_by_serial` without guarding missing `hardwareInfo` | SKIP | — | n/a | AMAPI guarantees `hardwareInfo` on enrolled devices. No defensive guard needed. |
+
+---
+
+## Summary
+
+- **Modules scanned:** 7 (`models.py`, `views.py`, `forms.py`, `serializers.py`, `tinymdm.py`, `android_enterprise.py`, `base.py`)
+- **Suspects found:** 7 | **Proven bugs:** 3 | **Denied:** 0 | **Skipped:** 4
+- **Tests written and kept:** 3 (all proven)
+- **Tests discarded:** 0
+- **Production bugs fixed:**
+  1. `apps/mdm/models.py` L487 — `FirmwareSnapshot.__str__` showed FK integer instead of device identifier
+  2. `apps/mdm/models.py` L239 — `Policy.get_policy_data()` silently dropped fleet-scoped variable overrides
+  3. `apps/mdm/views.py` L432 — `policy_delete_variable` had no org-scoping on variable lookup (cross-org deletion)
+- **Coverage before bugfix pass:** 55.7% (baseline) / 99.0% (after coverage phase) → **After: 58.5%** (≥ 55.7% baseline ✓)
+- **Pre-existing failures:** None

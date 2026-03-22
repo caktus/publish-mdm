@@ -2,13 +2,14 @@
   "schema_version": 1,
   "phases_completed": [
     "delete",
-    "coverage"
+    "coverage",
+    "bugfix"
   ],
   "baseline": {
     "test_count": 200,
     "coverage_percent": 55.7
   },
-  "current_coverage_percent": 99.0,
+  "current_coverage_percent": 58.5,
   "deleted_tests": [],
   "refactored_tests": [
     {
@@ -194,5 +195,33 @@
       "mutation_verified": true
     }
   ],
-  "bugfix_tests": []
+  "bugfix_tests": [
+    {
+      "file": "tests/mdm/test_models.py",
+      "test": "test_firmware_snapshot_str",
+      "production_module": "apps/mdm/models.py",
+      "classification": "PROVEN",
+      "bug_confirmed": true,
+      "fix_applied": true,
+      "description": "__str__ used self.device_id (Django FK integer attribute) instead of self.device_identifier (the MDM device identifier CharField)"
+    },
+    {
+      "file": "tests/mdm/test_models.py",
+      "test": "test_get_policy_data_includes_fleet_variables",
+      "production_module": "apps/mdm/models.py",
+      "classification": "PROVEN",
+      "bug_confirmed": true,
+      "fix_applied": true,
+      "description": "get_policy_data() query only fetched org-scoped PolicyVariables (org__in=...), excluding fleet-scoped variables (org=None), so fleet-level overrides were silently dropped when generating MDM policy data"
+    },
+    {
+      "file": "tests/mdm/test_views.py",
+      "test": "test_cannot_delete_other_org_variable_via_own_policy",
+      "production_module": "apps/mdm/views.py",
+      "classification": "PROVEN",
+      "bug_confirmed": true,
+      "fix_applied": true,
+      "description": "policy_delete_variable fetched PolicyVariable by pk alone without org constraint, allowing an authenticated user to delete variables from other organizations by providing their own valid policy_id plus a foreign var_id"
+    }
+  ]
 }
