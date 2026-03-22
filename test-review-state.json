@@ -224,5 +224,6 @@
       "fix_applied": true,
       "description": "policy_delete_variable fetched PolicyVariable by pk alone without org constraint, allowing an authenticated user to delete variables from other organizations by providing their own valid policy_id plus a foreign var_id"
     }
-  ]
+  ],
+  "final_coverage_percent": 58.45400340715503
 }

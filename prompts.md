@@ -44,9 +44,7 @@ Implement the following bug fixes and feature improvements on this branch and co
 
 Ensure all UI changes are verified via playwright-cli and that elements actually render on the page. Unit tests and pre-commit must pass before committing.
 
-
 # Prompt 2
-
 
 Implement the following bug fixes and feature improvements on this branch and commit the changes:
 
@@ -55,7 +53,6 @@ Implement the following bug fixes and feature improvements on this branch and co
 - Convert the flowbite_docs.txt to a skill for future agents to use, focusing on the features in flowbite that are most relevant to this project
 - Double check the kiosk implementation; my memory is that the custom launcher is a separate thing where you have to provide your own launcher. We just want to allow using the built-in kiosk launcher for now.
 - Note that detailed policy edtiro applies only to Android EMM; for TInyMDM, they would just enter the ID of the poilcy on the TinyMDM side (investigate and confirm this)
-
 
 Ensure all UI changes are verified via playwright-cli and that elements actually render on the page. Unit tests and pre-commit must pass before committing.
 

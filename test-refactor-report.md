@@ -18,20 +18,20 @@
 
 ### tests/mdm/test_tinymdm.py
 
-| Test | Criterion failed | Action | Mutation verified? | Notes |
-|------|-----------------|--------|-------------------|-------|
+| Test               | Criterion failed                | Action               | Mutation verified?                | Notes                                                                                 |
+| ------------------ | ------------------------------- | -------------------- | --------------------------------- | ------------------------------------------------------------------------------------- |
 | `test_sync_fleets` | C2 (deferred from delete phase) | SKIP (already fixed) | Yes — fixed in Phase 2 (coverage) | `call_list_args` typo corrected to `call_args_list`; per-fleet assertion now executes |
 
 ### tests/mdm/test_android_enterprise.py
 
-| Test | Criterion failed | Action | Mutation verified? | Notes |
-|------|-----------------|--------|-------------------|-------|
+| Test               | Criterion failed                | Action               | Mutation verified?                | Notes                                                                                  |
+| ------------------ | ------------------------------- | -------------------- | --------------------------------- | -------------------------------------------------------------------------------------- |
 | `test_sync_fleets` | C2 (deferred from delete phase) | SKIP (already fixed) | Yes — fixed in Phase 2 (coverage) | Same `call_list_args` → `call_args_list` fix applied; per-fleet assertion now executes |
 
 ### tests/mdm/test_views.py
 
-| Test | Criterion failed | Action | Mutation verified? | Notes |
-|------|-----------------|--------|-------------------|-------|
+| Test                       | Criterion failed                | Action               | Mutation verified?                | Notes                                                                                                   |
+| -------------------------- | ------------------------------- | -------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `TestPolicyEdit::test_get` | C4 (deferred from delete phase) | SKIP (already fixed) | Yes — fixed in Phase 2 (coverage) | Context assertions added: `response.context["policy"] == policy`, `name_form`, `app_forms`, `variables` |
 
 ---

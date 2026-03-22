@@ -281,7 +281,7 @@ COVERAGE_THRESHOLD = ${input:coverageThreshold:80}
 
 1. Read `test-review-state.json`. Assert `"coverage"` is in `phases_completed` and `coverage_added` is a valid array.
 2. Run `${input:testCommand} -q --tb=no`. All tests must pass.
-3. Run coverage as in Phase 0 §2. Read `totals.percent_covered` from `.coverage-report.json`.  baseline.Assert 
+3. Run coverage as in Phase 0 §2. Read `totals.percent_covered` from `.coverage-report.json`. Assert ≥ baseline.
 
 If the coordinator lacks a terminal tool, delegate validation to a one-shot subagent that runs
 the commands and returns pass/fail with the coverage percentage.
