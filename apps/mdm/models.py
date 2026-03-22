@@ -3,6 +3,7 @@ import json
 import structlog
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Q
 from django.conf import settings
 from django.core.validators import RegexValidator
 from django.utils.html import mark_safe
@@ -237,7 +238,8 @@ class Policy(models.Model):
         applications = list(self.applications.select_related("policy").order_by("order", "pk"))
         variables = list(
             PolicyVariable.objects.filter(
-                org__in=self.fleets.values_list("organization", flat=True)
+                Q(org__in=self.fleets.values_list("organization", flat=True))
+                | Q(fleet__in=self.fleets.all())
             )
         )
         serializer = PolicySerializer(

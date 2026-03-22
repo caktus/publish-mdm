@@ -133,7 +133,35 @@ class TestModels(TestAllMDMs):
         odk_app = policy_data["applications"][0]
         assert "managedConfiguration" in odk_app or "packageName" in odk_app
 
-    def test_fleet_enroll_token_expired(self):
+    def test_get_policy_data_includes_fleet_variables(self):
+        """get_policy_data() must include fleet-scoped variables so fleet overrides work."""
+        from apps.mdm.models import PolicyApplication, PolicyVariable
+        from tests.publish_mdm.factories import OrganizationFactory
+
+        org = OrganizationFactory()
+        policy = PolicyFactory(organization=org)
+        fleet = FleetFactory(policy=policy, organization=org)
+
+        PolicyApplication.objects.create(
+            policy=policy,
+            package_name="com.example.app",
+            install_type="FORCE_INSTALLED",
+            managed_configuration={"token": "{{ api_token }}"},
+            order=1,
+        )
+        PolicyVariable.objects.create(key="api_token", value="org_value", scope="org", org=org)
+        PolicyVariable.objects.create(
+            key="api_token", value="fleet_value", scope="fleet", fleet=fleet
+        )
+
+        policy_data = policy.get_policy_data()
+        app_entry = next(
+            a for a in policy_data["applications"] if a["packageName"] == "com.example.app"
+        )
+        # Fleet-scoped variable must override org-scoped variable
+        assert app_entry["managedConfiguration"]["token"] == "fleet_value"
+
+
         """Tests the Fleet.enroll_token_expired property."""
         fleet = FleetFactory(enroll_token_expires_at=None)
         assert not fleet.enroll_token_expired
