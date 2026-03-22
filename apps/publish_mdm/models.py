@@ -59,15 +59,24 @@ class Organization(AbstractBaseModel):
 
     def create_default_fleet(self):
         """Create a default MDM Fleet for the organization if the active MDM's API is
-        configured and a default Policy exists.
+        configured.
         """
-        if (active_mdm := get_active_mdm_instance()) and (default_policy := Policy.get_default()):
-            fleet = Fleet(organization=self, name="Default", policy=default_policy)
-            active_mdm.create_group(fleet)
-            active_mdm.add_group_to_policy(fleet)
-            active_mdm.get_enrollment_qr_code(fleet)
-            fleet.save()
-            return fleet
+        active_mdm = get_active_mdm_instance()
+        if not active_mdm:
+            return None
+        # Create an org-specific default policy
+        policy = Policy.all_mdms.create(
+            name="Default",
+            policy_id=f"policy_default_{Policy.all_mdms.count()}",
+            mdm=settings.ACTIVE_MDM["name"],
+            organization=self,
+        )
+        fleet = Fleet(organization=self, name="Default", policy=policy)
+        active_mdm.create_group(fleet)
+        active_mdm.add_group_to_policy(fleet)
+        active_mdm.get_enrollment_qr_code(fleet)
+        fleet.save()
+        return fleet
 
 
 class CentralServer(AbstractBaseModel):

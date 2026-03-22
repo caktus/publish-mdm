@@ -99,7 +99,6 @@ class Policy(models.Model):
     policy_id = models.CharField(
         verbose_name="Policy ID", max_length=255, help_text="The ID of the policy in the MDM."
     )
-    default_policy = models.BooleanField(default=False)
     mdm = models.CharField(max_length=50, choices=MDMChoices, verbose_name="MDM")
     organization = models.ForeignKey(
         "publish_mdm.Organization",
@@ -201,34 +200,22 @@ class Policy(models.Model):
 
     class Meta:
         verbose_name_plural = "policies"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["default_policy", "mdm"],
-                condition=models.Q(default_policy=True),
-                name="unique_default_policy",
-                violation_error_message="A default policy already exists.",
-            ),
-        ]
-        # Default policy first
-        ordering = ("-default_policy", "id")
+        ordering = ("name",)
 
     def __str__(self):
         return f"{self.name} ({self.policy_id})"
 
     @classmethod
     def get_default(cls):
-        """Gets the default policy. First tries to get the Policy marked as default.
-        If none exists and the MDM_DEFAULT_POLICY setting is set, get or create
-        a Policy with that policy_id.
-        """
-        policy = cls.objects.filter(default_policy=True).first()
-        if not policy and settings.MDM_DEFAULT_POLICY:
+        """Gets or creates a default policy from the MDM_DEFAULT_POLICY setting."""
+        if settings.MDM_DEFAULT_POLICY:
             policy = cls.objects.get_or_create(
                 policy_id=settings.MDM_DEFAULT_POLICY,
                 mdm=settings.ACTIVE_MDM["name"],
-                defaults={"name": "Default", "default_policy": True},
+                defaults={"name": "Default"},
             )[0]
-        return policy
+            return policy
+        return cls.objects.first()
 
     def get_policy_data(self, **kwargs):
         """Generates policy data using the PolicySerializer."""

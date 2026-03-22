@@ -44,7 +44,7 @@ class PolicyApplicationInline(admin.TabularInline):
 
 @admin.register(Policy)
 class PolicyAdmin(admin.ModelAdmin):
-    list_display = ("name", "policy_id", "default_policy")
+    list_display = ("name", "policy_id")
     search_fields = ("name", "policy_id")
     inlines = [PolicyApplicationInline]
 

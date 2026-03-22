@@ -65,7 +65,7 @@ class TestModels(TestAllMDMs):
     def test_policy_get_default(self, settings):
         """Tests the Policy.get_default() method."""
         settings.MDM_DEFAULT_POLICY = None
-        # Cannot determine a default either from the database or using the setting
+        # Cannot determine a default from the database or using the setting
         assert not Policy.get_default()
 
         settings.MDM_DEFAULT_POLICY = "12345"
@@ -73,13 +73,10 @@ class TestModels(TestAllMDMs):
         policy = Policy.get_default()
         assert policy
         assert policy.policy_id == settings.MDM_DEFAULT_POLICY
-        assert policy.default_policy
 
-        # get_default() gets whichever Policy has default_policy=True
-        policy.default_policy = False
-        policy.save()
-        new_default = PolicyFactory(default_policy=True)
-        assert Policy.get_default() == new_default
+        # Calling again returns the same policy (get_or_create)
+        same_policy = Policy.get_default()
+        assert same_policy == policy
 
     def test_get_policy_data(self):
         """Tests the Policy.get_policy_data() method using the new serializer."""
