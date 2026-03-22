@@ -243,9 +243,12 @@ class TestModels(TestAllMDMs):
         assert str(app) == "ODK Collect (org.odk.collect.android) snapshot"
 
     def test_firmware_snapshot_str(self, fleet):
-        """FirmwareSnapshot.__str__ returns device_id (version) firmware snapshot format."""
+        """FirmwareSnapshot.__str__ shows device_identifier, not the FK integer."""
         from tests.mdm.factories import FirmwareSnapshotFactory
 
-        snap = FirmwareSnapshotFactory(device=DeviceFactory(fleet=fleet))
-        expected = f"{snap.device_id} ({snap.version}) firmware snapshot"
-        assert str(snap) == expected
+        snap = FirmwareSnapshotFactory(
+            device=DeviceFactory(fleet=fleet),
+            device_identifier="TMDM-DEVICE-99",
+            version="2.3.1",
+        )
+        assert str(snap) == "TMDM-DEVICE-99 (2.3.1) firmware snapshot"

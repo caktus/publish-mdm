@@ -682,7 +682,7 @@ class FirmwareSnapshot(models.Model):
     all_mdms = models.Manager()
 
     def __str__(self):
-        return f"{self.device_id} ({self.version}) firmware snapshot"
+        return f"{self.device_identifier} ({self.version}) firmware snapshot"
 
     class Meta:
         indexes = [
