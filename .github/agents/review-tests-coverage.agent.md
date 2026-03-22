@@ -239,9 +239,13 @@ Append every report block — in app directory order — to `{{REPORT_FILE}}`.
 
 1. Run `{{TEST_CMD}}` — all must pass. Fix failures before continuing.
 2. Run `{{LINT_CMD}}` — fix formatting/style issues.
+   If `{{LINT_CMD}}` fails due to a network error (e.g., pre-commit downloading hook environments),
+   run the formatters directly instead: `uv run ruff check --fix <changed files> && uv run ruff format <changed files>`
+   (adjust for non-uv projects). Never skip linting — only substitute the tool.
 3. Re-run coverage using the same method as the baseline above.
    Record before/after per-module percentages under `## Coverage Delta` in the report.
-4. Check `#tool:problems` for new static analysis errors.
+4. Check `#tool:problems` for new static analysis errors (if available). If not, run
+   `uv run ruff check <appRoot> <testRoot>` (or equivalent linter) as a fallback.
 5. Ensure `.coverage-report.json` is in `.gitignore`.
 
 ---

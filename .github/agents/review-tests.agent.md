@@ -6,9 +6,14 @@ description: >
   JSON state contract to prevent phases from reverting each other's work.
 name: review-tests
 tools:
-  # Allow only read, search, todo, and agent delegation in the coordinator.
-  # The specialist agents have access to all tools.
+  # The coordinator needs read + write + terminal to:
+  #   - initialize and update test-review-state.json
+  #   - run validation commands between phases (tests, coverage)
+  #   - ensure .gitignore entries exist
+  # Specialist subagents have ["*"] for full access.
   - read
+  - edit
+  - terminal
   - search
   - todo
   - agent
@@ -145,6 +150,11 @@ python -c "import django; django.setup(); print('OK')"
 
 Fix any setup errors before proceeding.
 
+> **If `lintCommand` uses pre-commit and fails with a network/pip timeout** (common in
+> sandboxed environments), fall back to running the individual formatters directly, e.g.:
+> `uv run ruff check --fix <appRoot> <testRoot> && uv run ruff format <appRoot> <testRoot>`.
+> Record the fallback used in the state contract under a `"lint_fallback"` key.
+
 ### 2. Run baseline
 
 Run the test suite with coverage reporting. The exact command depends on your setup:
@@ -243,8 +253,11 @@ FOCUS_PATTERN = ${input:focusPattern:}
 **Validate the handoff — all three checks must pass before continuing:**
 
 1. Read `test-review-state.json`. Assert `"delete"` is in `phases_completed` and `deleted_tests` is a valid array.
-2. `${input:testCommand} -q --tb=no` — all tests must pass.
-3. Coverage ≥ baseline (run coverage as in Phase 0 §2, then read `totals.percent_covered` from `.coverage-report.json`).
+2. Run `${input:testCommand} -q --tb=no`. All tests must pass.
+3. Run coverage as in Phase 0 §2. Read `totals.percent_covered` from `.coverage-report.json`. Assert ≥ baseline.
+
+If the coordinator lacks a terminal tool, delegate validation to a one-shot subagent that runs
+the commands and returns pass/fail with the coverage percentage.
 
 If any check fails, **stop and report to the user**. Do not continue to Phase 2.
 
@@ -262,11 +275,18 @@ Invoke `review-tests-coverage` as a subagent with the same parameter set plus:
 COVERAGE_THRESHOLD = ${input:coverageThreshold:80}
 ```
 
-**Wait for completion.** Run the same three validation checks:
+**Wait for completion.**
 
-1. `"coverage"` in `phases_completed`
-2. Full test suite passes
-3. Coverage ≥ baseline
+**Validate the handoff — all three checks must pass before continuing:**
+
+1. Read `test-review-state.json`. Assert `"coverage"` is in `phases_completed` and `coverage_added` is a valid array.
+2. Run `${input:testCommand} -q --tb=no`. All tests must pass.
+3. Run coverage as in Phase 0 §2. Read `totals.percent_covered` from `.coverage-report.json`.  baseline.Assert 
+
+If the coordinator lacks a terminal tool, delegate validation to a one-shot subagent that runs
+the commands and returns pass/fail with the coverage percentage.
+
+If any check fails, **stop and report to the user**. Do not continue to Phase 3.
 
 Update `current_coverage_percent`. Mark "Phase 2 — Expansion (coverage)" completed.
 
@@ -278,11 +298,18 @@ Mark "Phase 3 — Debugging (bugfix)" in-progress.
 
 Invoke `review-tests-bugfix` as a subagent with the same parameter set as Phase 1.
 
-**Wait for completion.** Run the same three validation checks:
+**Wait for completion.**
 
-1. `"bugfix"` in `phases_completed`
-2. Full test suite passes
-3. Coverage ≥ baseline
+**Validate the handoff — all three checks must pass before continuing:**
+
+1. Read `test-review-state.json`. Assert `"bugfix"` is in `phases_completed` and `bugfix_tests` is a valid array.
+2. Run `${input:testCommand} -q --tb=no`. All tests must pass.
+3. Run coverage as in Phase 0 §2. Read `totals.percent_covered` from `.coverage-report.json`. Assert ≥ baseline.
+
+If the coordinator lacks a terminal tool, delegate validation to a one-shot subagent that runs
+the commands and returns pass/fail with the coverage percentage.
+
+If any check fails, **stop and report to the user**. Do not continue to Phase 4.
 
 Update `current_coverage_percent`. Mark "Phase 3 — Debugging (bugfix)" completed.
 
@@ -294,7 +321,21 @@ Mark "Phase 4 — Refactoring (refactor)" in-progress.
 
 Invoke `review-tests-refactor` as a subagent with the same parameter set as Phase 1.
 
-**Wait for completion.** Run the same three validation checks plus re-run the coverage command from Phase 0 §2 with JSON output. Read `totals.percent_covered` from the refreshed `.coverage-report.json` and write it as `"final_coverage_percent"` in the state file.
+**Wait for completion.**
+
+**Validate the handoff — all three checks must pass before continuing:**
+
+1. Read `test-review-state.json`. Assert `"refactor"` is in `phases_completed`.
+2. Run `${input:testCommand} -q --tb=no`. All tests must pass.
+3. Run coverage as in Phase 0 §2. Read `totals.percent_covered` from `.coverage-report.json`. Assert ≥ baseline.
+
+If the coordinator lacks a terminal tool, delegate validation to a one-shot subagent that runs
+the commands and returns pass/fail with the coverage percentage.
+
+If any check fails, **stop and report to the user**.
+
+Re-run the coverage command from Phase 0 §2 with JSON output. Read `totals.percent_covered`
+from the refreshed `.coverage-report.json` and write it as `"final_coverage_percent"` in the state file.
 
 ---
 

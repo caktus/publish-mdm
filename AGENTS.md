@@ -221,3 +221,38 @@ The default MDM (`settings.ACTIVE_MDM`) defaults to TinyMDM. Set
   and never matches. Use inline `<script>` tags in HTMX responses instead.
 - **`hx-swap="innerHTML"`** (not `outerHTML`) when the target element's `id` is
   reused for future swaps — `outerHTML` removes the element and destroys its ID.
+
+## Review-Tests Workflow
+
+Project-specific parameters when running the `review-tests` agents:
+
+```
+testCommand:        DATABASE_URL=postgresql://agent@/publish_mdm uv run pytest --no-cov
+lintCommand:        uv run pre-commit run --all-files
+appRoot:            apps/
+testRoot:           tests/
+coverageThreshold:  80
+```
+
+### Coverage command (for coordinator validation steps)
+
+```bash
+DATABASE_URL=postgresql://agent@/publish_mdm uv run pytest \
+  --cov=apps/ --cov-report=json:.coverage-report.json -q tests/
+```
+
+### Pre-commit fallback (when network is unavailable)
+
+```bash
+uv run ruff check --fix apps/ tests/ && uv run ruff format apps/ tests/
+uv run djlint --reformat config/templates/
+```
+
+### Sandbox notes
+
+- Use `--no-cov` in the regular test command to avoid SQLite `.coverage` file corruption
+  when both the host and sandbox share the filesystem.
+- `DATABASE_URL=postgresql://agent@/publish_mdm` is always required in the sandbox.
+- The PostgreSQL service must be running: `sudo service postgresql start`.
+- Migrations only need to be run once per sandbox session:
+  `DATABASE_URL=postgresql://agent@/publish_mdm uv run manage.py migrate --settings=config.settings.test`

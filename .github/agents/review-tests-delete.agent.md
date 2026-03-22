@@ -183,8 +183,12 @@ Append every report block — in directory order — to `{{REPORT_FILE}}`.
 
 1. Run `{{TEST_CMD}}` — all tests must pass.
 2. Run `{{LINT_CMD}}` — fix any issues.
+   If `{{LINT_CMD}}` fails due to a network error (e.g., pre-commit downloading hook environments),
+   run the formatters directly instead: `uv run ruff check --fix <changed files> && uv run ruff format <changed files>`
+   (adjust for non-uv projects). Never skip linting — only substitute the tool.
 3. Delete any test file now empty of test functions.
-4. Check `#tool:problems` for new static analysis errors.
+4. Check `#tool:problems` for new static analysis errors (if available). If not, run
+   `uv run ruff check <appRoot> <testRoot>` (or equivalent linter) as a fallback.
 5. **Coverage guard:** Run the coverage command appropriate for this project (see
    coordinator Phase 0 §2). `percent_covered` must be ≥ baseline. If it dropped, identify
    which deletions caused the regression, revert them, reclassify as REFACTOR, and re-run.
