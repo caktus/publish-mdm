@@ -40,3 +40,6 @@ docs/_build/
 test-review-state.json
 .coverage-report.json
 refactor-app-report.md
+
+# Security review artifacts
+security-review-state.json
