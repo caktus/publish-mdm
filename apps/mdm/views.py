@@ -89,6 +89,7 @@ def policy_list(request, organization_slug):
     policies = Policy.objects.filter(organization=request.organization)
     context = {
         "policies": policies,
+        "show_policy_id": settings.ACTIVE_MDM["name"] != "Android Enterprise",
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
             items=[("Policies", "mdm:policy-list")],

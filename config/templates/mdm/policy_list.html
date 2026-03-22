@@ -9,8 +9,7 @@
             <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
                 <tr>
                     <th scope="col" class="px-4 py-3 whitespace-nowrap">Name</th>
-                    <th scope="col" class="px-4 py-3 whitespace-nowrap">Policy ID</th>
-                    <th scope="col" class="px-4 py-3 whitespace-nowrap">Default</th>
+                    {% if show_policy_id %}<th scope="col" class="px-4 py-3 whitespace-nowrap">Policy ID</th>{% endif %}
                     <th scope="col" class="px-4 py-3 whitespace-nowrap"></th>
                 </tr>
             </thead>
@@ -18,12 +17,7 @@
                 {% for policy in policies %}
                     <tr class="border-b dark:border-gray-700">
                         <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ policy.name }}</td>
-                        <td class="px-4 py-3">{{ policy.policy_id }}</td>
-                        <td class="px-4 py-3">
-                            {% if policy.default_policy %}
-                                <span class="inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20 dark:bg-green-900/30 dark:text-green-400 dark:ring-green-500/30">Default</span>
-                            {% endif %}
-                        </td>
+                        {% if show_policy_id %}<td class="px-4 py-3">{{ policy.policy_id }}</td>{% endif %}
                         <td class="px-4 py-3">
                             <a href="{% url 'mdm:policy-edit' request.organization.slug policy.pk %}"
                                class="text-primary-600 hover:underline dark:text-primary-400">Edit</a>
@@ -31,7 +25,7 @@
                     </tr>
                 {% empty %}
                     <tr class="border-b dark:border-gray-700">
-                        <td colspan="4"
+                        <td colspan="{% if show_policy_id %}3{% else %}2{% endif %}"
                             class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                             No policies found. Click "Add policy" to create one.
                         </td>
