@@ -78,6 +78,42 @@ def _build_app_forms(policy):
     ]
 
 
+def _applications_context(policy, add_app_form=None):
+    """Build the common context for the policy applications section partial."""
+    return {
+        "policy": policy,
+        "app_forms": _build_app_forms(policy),
+        "add_app_form": add_app_form if add_app_form is not None else PolicyApplicationAddForm(),
+        "odk_package_form": OdkCollectPackageForm(instance=policy),
+    }
+
+
+def _variables_context(policy, organization, variable_form=None):
+    """Build the common context for the policy variables section partial."""
+    return {
+        "policy": policy,
+        "variables": _get_org_variables(organization),
+        "variable_form": variable_form
+        if variable_form is not None
+        else PolicyVariableForm(organization=organization),
+    }
+
+
+def _save_policy_section(request, policy, form_class, template, form_key):
+    """Handle the common HTMX save-section pattern: validate, save, re-render partial.
+
+    Used by policy_save_password, policy_save_vpn, policy_save_developer, and
+    policy_save_kiosk which all follow the same structure.
+    """
+    form = form_class(request.POST, instance=policy)
+    if form.is_valid():
+        form.save()
+        ctx = {"policy": policy, form_key: form_class(instance=policy), "saved": True}
+    else:
+        ctx = {"policy": policy, form_key: form}
+    return render(request, template, ctx)
+
+
 # ---------------------------------------------------------------------------
 # Policy editor views
 # ---------------------------------------------------------------------------
@@ -221,23 +257,12 @@ def policy_add_application(request, organization_slug, policy_id):
         return render(
             request,
             "mdm/partials/policy_applications_section.html",
-            {
-                "policy": policy,
-                "app_forms": _build_app_forms(policy),
-                "add_app_form": PolicyApplicationAddForm(),
-                "odk_package_form": OdkCollectPackageForm(instance=policy),
-                "saved": True,
-            },
+            {**_applications_context(policy), "saved": True},
         )
     return render(
         request,
         "mdm/partials/policy_applications_section.html",
-        {
-            "policy": policy,
-            "app_forms": _build_app_forms(policy),
-            "add_app_form": form,
-            "odk_package_form": OdkCollectPackageForm(instance=policy),
-        },
+        _applications_context(policy, add_app_form=form),
     )
 
 
@@ -277,12 +302,7 @@ def policy_delete_application(request, organization_slug, policy_id, app_id):
     return render(
         request,
         "mdm/partials/policy_applications_section.html",
-        {
-            "policy": policy,
-            "app_forms": _build_app_forms(policy),
-            "add_app_form": PolicyApplicationAddForm(),
-            "odk_package_form": OdkCollectPackageForm(instance=policy),
-        },
+        _applications_context(policy),
     )
 
 
@@ -290,22 +310,12 @@ def policy_delete_application(request, organization_slug, policy_id, app_id):
 def policy_save_password(request, organization_slug, policy_id):
     """HTMX: save password policy section."""
     policy = _get_policy_or_404(policy_id, request.organization)
-    form = PasswordPolicyForm(request.POST, instance=policy)
-    if form.is_valid():
-        form.save()
-        return render(
-            request,
-            "mdm/partials/policy_password_section.html",
-            {
-                "policy": policy,
-                "password_form": PasswordPolicyForm(instance=policy),
-                "saved": True,
-            },
-        )
-    return render(
+    return _save_policy_section(
         request,
+        policy,
+        PasswordPolicyForm,
         "mdm/partials/policy_password_section.html",
-        {"policy": policy, "password_form": form},
+        "password_form",
     )
 
 
@@ -313,18 +323,8 @@ def policy_save_password(request, organization_slug, policy_id):
 def policy_save_vpn(request, organization_slug, policy_id):
     """HTMX: save VPN section."""
     policy = _get_policy_or_404(policy_id, request.organization)
-    form = VPNForm(request.POST, instance=policy)
-    if form.is_valid():
-        form.save()
-        return render(
-            request,
-            "mdm/partials/policy_vpn_section.html",
-            {"policy": policy, "vpn_form": VPNForm(instance=policy), "saved": True},
-        )
-    return render(
-        request,
-        "mdm/partials/policy_vpn_section.html",
-        {"policy": policy, "vpn_form": form},
+    return _save_policy_section(
+        request, policy, VPNForm, "mdm/partials/policy_vpn_section.html", "vpn_form"
     )
 
 
@@ -332,22 +332,12 @@ def policy_save_vpn(request, organization_slug, policy_id):
 def policy_save_developer(request, organization_slug, policy_id):
     """HTMX: save developer settings section."""
     policy = _get_policy_or_404(policy_id, request.organization)
-    form = DeveloperSettingsForm(request.POST, instance=policy)
-    if form.is_valid():
-        form.save()
-        return render(
-            request,
-            "mdm/partials/policy_developer_section.html",
-            {
-                "policy": policy,
-                "developer_form": DeveloperSettingsForm(instance=policy),
-                "saved": True,
-            },
-        )
-    return render(
+    return _save_policy_section(
         request,
+        policy,
+        DeveloperSettingsForm,
         "mdm/partials/policy_developer_section.html",
-        {"policy": policy, "developer_form": form},
+        "developer_form",
     )
 
 
@@ -355,22 +345,8 @@ def policy_save_developer(request, organization_slug, policy_id):
 def policy_save_kiosk(request, organization_slug, policy_id):
     """HTMX: save kiosk mode settings."""
     policy = _get_policy_or_404(policy_id, request.organization)
-    form = KioskModeForm(request.POST, instance=policy)
-    if form.is_valid():
-        form.save()
-        return render(
-            request,
-            "mdm/partials/policy_kiosk_section.html",
-            {
-                "policy": policy,
-                "kiosk_form": KioskModeForm(instance=policy),
-                "saved": True,
-            },
-        )
-    return render(
-        request,
-        "mdm/partials/policy_kiosk_section.html",
-        {"policy": policy, "kiosk_form": form},
+    return _save_policy_section(
+        request, policy, KioskModeForm, "mdm/partials/policy_kiosk_section.html", "kiosk_form"
     )
 
 
@@ -411,21 +387,12 @@ def policy_add_variable(request, organization_slug, policy_id):
         return render(
             request,
             "mdm/partials/policy_variables_section.html",
-            {
-                "policy": policy,
-                "variables": _get_org_variables(request.organization),
-                "variable_form": PolicyVariableForm(organization=request.organization),
-                "saved": True,
-            },
+            {**_variables_context(policy, request.organization), "saved": True},
         )
     return render(
         request,
         "mdm/partials/policy_variables_section.html",
-        {
-            "policy": policy,
-            "variables": _get_org_variables(request.organization),
-            "variable_form": form,
-        },
+        _variables_context(policy, request.organization, variable_form=form),
     )
 
 
@@ -442,9 +409,5 @@ def policy_delete_variable(request, organization_slug, policy_id, var_id):
     return render(
         request,
         "mdm/partials/policy_variables_section.html",
-        {
-            "policy": policy,
-            "variables": _get_org_variables(request.organization),
-            "variable_form": PolicyVariableForm(organization=request.organization),
-        },
+        _variables_context(policy, request.organization),
     )
