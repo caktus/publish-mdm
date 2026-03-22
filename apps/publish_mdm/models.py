@@ -540,7 +540,9 @@ class AppUserFormTemplate(AbstractBaseModel):
         self, form_template_version: FormTemplateVersion, attachments: dict | None = None
     ):
         """Create the next version of this app user form template."""
-        from .etl.transform import render_template_for_app_user  # Avoid circular: models ← etl.transform → models
+        from .etl.transform import (
+            render_template_for_app_user,
+        )  # Avoid circular: models ← etl.transform → models
 
         version_file = render_template_for_app_user(
             app_user=self.app_user, template_version=form_template_version, attachments=attachments
