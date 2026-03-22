@@ -104,6 +104,23 @@ class PolicyApplicationAddForm(PlatformFormMixin, forms.ModelForm):
         fields = ["package_name"]
         widgets = {"package_name": TextInput(attrs={"placeholder": "com.example.app"})}
 
+    def __init__(self, *args, policy=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.policy = policy
+
+    def clean_package_name(self):
+        package_name = self.cleaned_data.get("package_name")
+        if (
+            self.policy
+            and PolicyApplication.objects.filter(
+                policy=self.policy, package_name=package_name
+            ).exists()
+        ):
+            raise forms.ValidationError(
+                f'An application with package name "{package_name}" already exists in this policy.'
+            )
+        return package_name
+
 
 class OdkCollectPackageForm(PlatformFormMixin, forms.ModelForm):
     """Form for overriding the ODK Collect package name."""

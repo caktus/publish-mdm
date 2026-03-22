@@ -1,6 +1,6 @@
 import pytest
-from apps.mdm.forms import FirmwareSnapshotForm
-from tests.mdm.factories import DeviceFactory
+from apps.mdm.forms import FirmwareSnapshotForm, PolicyApplicationAddForm
+from tests.mdm.factories import DeviceFactory, PolicyFactory
 
 
 class TestFirmwareSnapshotForm:
@@ -62,3 +62,35 @@ class TestFirmwareSnapshotFormVersionExtraction:
         form = FirmwareSnapshotForm(json_data=data)
         assert form.is_valid(), form.errors
         assert form.cleaned_data["version"] == "2.0.0"
+
+
+@pytest.mark.django_db
+class TestPolicyApplicationAddForm:
+    def test_valid_new_application(self):
+        policy = PolicyFactory()
+        form = PolicyApplicationAddForm({"package_name": "com.example.app"}, policy=policy)
+        assert form.is_valid(), form.errors
+
+    def test_duplicate_package_name_raises_validation_error(self):
+        from tests.mdm.factories import PolicyApplicationFactory
+
+        policy = PolicyFactory()
+        PolicyApplicationFactory(policy=policy, package_name="com.example.app")
+        form = PolicyApplicationAddForm({"package_name": "com.example.app"}, policy=policy)
+        assert not form.is_valid()
+        assert "package_name" in form.errors
+        assert "already exists" in form.errors["package_name"][0]
+
+    def test_duplicate_allowed_for_different_policy(self):
+        from tests.mdm.factories import PolicyApplicationFactory
+
+        policy1 = PolicyFactory()
+        policy2 = PolicyFactory()
+        PolicyApplicationFactory(policy=policy1, package_name="com.example.app")
+        form = PolicyApplicationAddForm({"package_name": "com.example.app"}, policy=policy2)
+        assert form.is_valid(), form.errors
+
+    def test_no_policy_skips_duplicate_check(self):
+        """Without a policy, the duplicate check is skipped."""
+        form = PolicyApplicationAddForm({"package_name": "com.example.app"})
+        assert form.is_valid(), form.errors

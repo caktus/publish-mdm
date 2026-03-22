@@ -211,7 +211,7 @@ def policy_save_odk_package(request, organization_slug, policy_id):
 def policy_add_application(request, organization_slug, policy_id):
     """HTMX: add a new application to the policy."""
     policy = _get_policy_or_404(policy_id, request.organization)
-    form = PolicyApplicationAddForm(request.POST)
+    form = PolicyApplicationAddForm(request.POST, policy=policy)
     if form.is_valid():
         app = form.save(commit=False)
         app.policy = policy

@@ -1,3 +1,7 @@
+# Prompt 6
+
+Implement the following bug fixes and feature improvements on this branch and commit the changes. Follow the instructions in AGENTS.md and use the skills available in this repo to work efficiently. Ensure all UI changes are verified via playwright-cli and that elements actually render on the page. Unit tests and pre-commit must pass before committing.
+
 # Prompt 5
 
 Task: Execute the full review-tests workflow on this branch--focusing ONLY on the new code added in this branch--sequentially through these four phases:

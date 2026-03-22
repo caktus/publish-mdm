@@ -1898,7 +1898,7 @@ class TestAddCentralServer(ViewTestBase):
         }
         # Mock the ODK Central API request for validating the base URL and credentials
         requests_mock.post(
-            f'{data["base_url"]}/v1/sessions',
+            f"{data['base_url']}/v1/sessions",
             json={
                 "createdAt": "2018-04-18T03:04:51.695Z",
                 "expiresAt": "2018-04-19T03:04:51.695Z",
@@ -1968,7 +1968,7 @@ class TestEditCentralServer(ViewTestBase):
         }
         # Mock the ODK Central API request for validating the base URL and credentials
         requests_mock.post(
-            f'{data["base_url"]}/v1/sessions',
+            f"{data['base_url']}/v1/sessions",
             json={
                 "createdAt": "2018-04-18T03:04:51.695Z",
                 "expiresAt": "2018-04-19T03:04:51.695Z",
@@ -1998,7 +1998,7 @@ class TestEditCentralServer(ViewTestBase):
             "password": "",
         }
         # Mock the ODK Central API request for validating the base URL and credentials
-        mock_odk_request = requests_mock.post(f'{data["base_url"]}/v1/sessions')
+        mock_odk_request = requests_mock.post(f"{data['base_url']}/v1/sessions")
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
         assert not mock_odk_request.called

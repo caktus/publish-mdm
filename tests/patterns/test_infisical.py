@@ -105,7 +105,7 @@ class TestInfisicalKMS:
             json=key_json,
         )
         encrypt_json = {"ciphertext": "encrypted"}
-        requests_mock.post(f'/api/v1/kms/keys/{key_json["key"]["id"]}/encrypt', json=encrypt_json)
+        requests_mock.post(f"/api/v1/kms/keys/{key_json['key']['id']}/encrypt", json=encrypt_json)
         result = kms_api.encrypt("testkey", "encrypt me")
         assert result == encrypt_json["ciphertext"]
 
@@ -120,6 +120,6 @@ class TestInfisicalKMS:
         decrypt_json = {
             "plaintext": base64.b64encode(expected.encode()).decode(),
         }
-        requests_mock.post(f'/api/v1/kms/keys/{key_json["key"]["id"]}/decrypt', json=decrypt_json)
+        requests_mock.post(f"/api/v1/kms/keys/{key_json['key']['id']}/decrypt", json=decrypt_json)
         result = kms_api.decrypt("testkey", "decrypt me")
         assert result == expected
