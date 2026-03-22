@@ -3,7 +3,8 @@
   "phases_completed": [
     "delete",
     "coverage",
-    "bugfix"
+    "bugfix",
+    "refactor"
   ],
   "baseline": {
     "test_count": 200,
@@ -17,7 +18,7 @@
       "test": "test_sync_fleets",
       "criterion": "C2",
       "phase": "delete",
-      "status": "pending",
+      "status": "done",
       "behaviors_covered": [
         "TinyMDM.sync_fleets() calls self.sync_fleet() once for each Fleet with mdm_group_id set"
       ],
@@ -28,7 +29,7 @@
       "test": "test_sync_fleets",
       "criterion": "C2",
       "phase": "delete",
-      "status": "pending",
+      "status": "done",
       "behaviors_covered": [
         "AndroidEnterprise.sync_fleets() calls self.sync_fleet() once for each Fleet"
       ],
@@ -39,7 +40,7 @@
       "test": "TestPolicyEdit::test_get",
       "criterion": "C4",
       "phase": "delete",
-      "status": "pending",
+      "status": "done",
       "behaviors_covered": [
         "policy_edit GET: fetches policy scoped to org, builds all form instances and variables, renders policy_form.html"
       ],
