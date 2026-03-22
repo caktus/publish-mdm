@@ -563,3 +563,135 @@ class TestPolicyDeleteVariable(PolicyViewBase):
         # Policy is cross-org → 404 before variable lookup
         response = client.post(url)
         assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# firmware_snapshot_view
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestFirmwareSnapshotView:
+    @pytest.fixture
+    def url(self):
+        return reverse("mdm:firmware_snapshot")
+
+    def test_empty_body_returns_400(self, client, url):
+        response = client.post(url, data="", content_type="application/json")
+        assert response.status_code == 400
+
+    def test_invalid_json_returns_400(self, client, url):
+        response = client.post(url, data="not-json", content_type="application/json")
+        assert response.status_code == 400
+
+    def test_invalid_form_data_returns_400(self, client, url):
+        response = client.post(url, data="{}", content_type="application/json")
+        assert response.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# policy_save_odk_package — invalid form path
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestPolicySaveOdkPackageInvalid(PolicyViewBase):
+    @pytest.fixture
+    def url(self, organization, policy):
+        return reverse("mdm:policy-save-odk-package", args=[organization.slug, policy.pk])
+
+    def test_invalid_post_returns_form_with_errors(self, client, url, policy):
+        response = client.post(url, {"odk_collect_package": ""})
+        assert response.status_code == 200
+        assert response.context["odk_package_form"].errors
+
+
+# ---------------------------------------------------------------------------
+# policy_save_application — invalid form path
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestPolicySaveApplicationInvalid(PolicyViewBase):
+    @pytest.fixture
+    def app(self, policy):
+        from tests.mdm.factories import PolicyApplicationFactory
+
+        return PolicyApplicationFactory(policy=policy, order=1)
+
+    @pytest.fixture
+    def url(self, organization, policy, app):
+        return reverse("mdm:policy-save-application", args=[organization.slug, policy.pk, app.pk])
+
+    def test_invalid_post_returns_form_with_errors(self, client, url, app):
+        response = client.post(url, {f"app_{app.pk}-package_name": "", f"app_{app.pk}-install_type": "FORCE_INSTALLED"})
+        assert response.status_code == 200
+        assert response.context["app_form"].errors
+
+
+# ---------------------------------------------------------------------------
+# policy_save_password — invalid form path
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestPolicySavePasswordInvalid(PolicyViewBase):
+    @pytest.fixture
+    def url(self, organization, policy):
+        return reverse("mdm:policy-save-password", args=[organization.slug, policy.pk])
+
+    def test_invalid_post_returns_form_with_errors(self, client, url, policy):
+        response = client.post(url, {"device_password_min_length": "not-a-number"})
+        assert response.status_code == 200
+        assert response.context["password_form"].errors
+
+
+# ---------------------------------------------------------------------------
+# policy_save_vpn — invalid form path
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestPolicySaveVpnInvalid(PolicyViewBase):
+    @pytest.fixture
+    def url(self, organization, policy):
+        return reverse("mdm:policy-save-vpn", args=[organization.slug, policy.pk])
+
+    def test_invalid_post_returns_form_with_errors(self, client, url, policy):
+        response = client.post(url, {"vpn_package_name": "x" * 300})
+        assert response.status_code == 200
+        assert response.context["vpn_form"].errors
+
+
+# ---------------------------------------------------------------------------
+# policy_save_developer — invalid form path
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestPolicySaveDeveloperInvalid(PolicyViewBase):
+    @pytest.fixture
+    def url(self, organization, policy):
+        return reverse("mdm:policy-save-developer", args=[organization.slug, policy.pk])
+
+    def test_invalid_post_returns_form_with_errors(self, client, url, policy):
+        response = client.post(url, {"developer_settings": "TOTALLY_INVALID_CHOICE"})
+        assert response.status_code == 200
+        assert response.context["developer_form"].errors
+
+
+# ---------------------------------------------------------------------------
+# policy_save_kiosk — invalid form path
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestPolicySaveKioskInvalid(PolicyViewBase):
+    @pytest.fixture
+    def url(self, organization, policy):
+        return reverse("mdm:policy-save-kiosk", args=[organization.slug, policy.pk])
+
+    def test_invalid_post_returns_form_with_errors(self, client, url, policy):
+        response = client.post(url, {"kiosk_power_button_actions": "INVALID_CHOICE"})
+        assert response.status_code == 200
+        assert response.context["kiosk_form"].errors
