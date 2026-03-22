@@ -11,7 +11,7 @@ from import_export.tmp_storages import MediaStorage
 from invitations.adapters import get_invitations_adapter
 from invitations.exceptions import AlreadyAccepted, AlreadyInvited, UserRegisteredEmail
 
-from apps.mdm.models import Fleet
+from apps.mdm.models import Fleet, Policy
 from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import (
     BaseEmailInput,
@@ -552,22 +552,27 @@ class CentralServerFrontendForm(PlatformFormMixin, CentralServerForm):
 class FleetEditForm(PlatformFormMixin, forms.ModelForm):
     class Meta:
         model = Fleet
-        fields = ["project"]
+        fields = ["policy", "project"]
         widgets = {
+            "policy": Select,
             "project": Select,
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["project"].queryset = self.instance.organization.projects.all()
+        self.fields["policy"].queryset = Policy.objects.filter(
+            organization=self.instance.organization
+        )
 
 
 class FleetAddForm(FleetEditForm):
     class Meta:
         model = Fleet
-        fields = ["name", "project"]
+        fields = ["name", "policy", "project"]
         widgets = {
             "name": TextInput,
+            "policy": Select,
             "project": Select,
         }
 

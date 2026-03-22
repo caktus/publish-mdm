@@ -18,7 +18,7 @@ from apps.publish_mdm.forms import (
     PublishTemplateForm,
 )
 from apps.publish_mdm.http import HttpRequest
-from tests.mdm.factories import FleetFactory
+from tests.mdm.factories import FleetFactory, PolicyFactory
 from tests.publish_mdm.factories import (
     FormTemplateFactory,
     ProjectFactory,
@@ -360,9 +360,11 @@ class TestFleetForm:
     def test_name_validation(self, organization, projects):
         """Ensures a name cannot be duplicated within the same organization."""
         fleet = FleetFactory(organization=organization)
+        policy = PolicyFactory(organization=organization)
         # Try to create a Fleet with the same name
         data = {
             "name": fleet.name,
+            "policy": policy.id,
             "project": projects[0].id,
         }
         form = FleetAddForm(data=data, instance=FleetFactory.build(organization=organization))

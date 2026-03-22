@@ -945,14 +945,11 @@ def fleets_list(request: HttpRequest, organization_slug):
 @login_required
 def add_fleet(request: HttpRequest, organization_slug):
     """Add a Fleet."""
-    default_policy = Policy.get_default()
     active_mdm = get_active_mdm_instance()
+    default_policy = Policy.objects.filter(organization=request.organization).first()
 
-    if not default_policy or not active_mdm:
-        logger.warning(
-            f"Cannot create Fleets. Please set up a default {active_mdm} policy "
-            f"({default_policy=}) and/or credentials ({active_mdm.is_configured=})."
-        )
+    if not active_mdm:
+        logger.warning(f"Cannot create Fleets. Please check {active_mdm} credentials.")
         messages.error(
             request, "Sorry, cannot create a fleet at this time. Please try again later."
         )
@@ -1047,10 +1044,24 @@ def add_fleet(request: HttpRequest, organization_slug):
 def edit_fleet(request: HttpRequest, organization_slug, fleet_id):
     """Edit a Fleet."""
     fleet = get_object_or_404(request.organization.fleets, pk=fleet_id)
+    old_policy_id = fleet.policy_id
     form = FleetEditForm(request.POST or None, instance=fleet)
 
     if request.method == "POST" and form.is_valid():
-        form.save()
+        fleet = form.save()
+        if fleet.policy_id != old_policy_id:
+            active_mdm = get_active_mdm_instance()
+            if active_mdm:
+                try:
+                    active_mdm.add_group_to_policy(fleet)
+                except Exception as e:
+                    messages.warning(
+                        request,
+                        mark_safe(
+                            f"Fleet saved but could not update policy in {active_mdm}: "
+                            f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
+                        ),
+                    )
         messages.success(request, f"Successfully edited {fleet}.")
         return redirect("publish_mdm:fleets-list", organization_slug)
 

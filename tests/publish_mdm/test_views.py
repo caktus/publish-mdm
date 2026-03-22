@@ -2367,36 +2367,35 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         return reverse("publish_mdm:add-fleet", args=[organization.slug])
 
     def test_get(self, client, url, user, organization, mocker, all_mdms, set_mdm_env_vars):
-        PolicyFactory.create_batch(2)
-        default_policy = PolicyFactory(default_policy=True)
+        PolicyFactory.create_batch(2)  # other-org policies, should not be pre-selected
+        org_policy = PolicyFactory(organization=organization)
         response = client.get(url)
         assert response.status_code == 200
         assert isinstance(response.context.get("form"), FleetAddForm)
         form_instance = response.context["form"].instance
         assert form_instance.organization == organization
-        assert form_instance.policy == default_policy
+        assert form_instance.policy == org_policy
 
     def test_get_no_mdm_credentials(self, client, url, user, organization, all_mdms):
         """Ensures a warning message that a fleet cannot be created is shown if
         API credentials are not configured for the active MDM.
         """
-        PolicyFactory(default_policy=True)
         response = client.get(url, follow=True)
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
         assertContains(
             response, "Sorry, cannot create a fleet at this time. Please try again later."
         )
 
-    def test_get_no_default_policy(self, client, url, user, organization, settings, all_mdms):
-        """Ensures a warning message that a fleet cannot be created is shown if
-        there is no default policy.
-        """
-        settings.MDM_DEFAULT_POLICY = None
-        response = client.get(url, follow=True)
-        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
-        assertContains(
-            response, "Sorry, cannot create a fleet at this time. Please try again later."
-        )
+    def test_get_no_org_policy(
+        self, client, url, user, organization, settings, all_mdms, set_mdm_env_vars
+    ):
+        """Ensures the form renders when there is no org-scoped policy (policy defaults to None)."""
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), FleetAddForm)
+        form_instance = response.context["form"].instance
+        assert form_instance.organization == organization
+        assert form_instance.policy_id is None
 
     def test_valid_form(
         self, client, url, user, organization, project, all_mdms, set_mdm_env_vars, mocker
@@ -2404,8 +2403,10 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         """Ensure submitting a valid form creates a Fleet with the expected data
         and makes the expected MDM API requests.
         """
+        org_policy = PolicyFactory(organization=organization)
         data = {
             "name": "My Fleet",
+            "policy": org_policy.id,
             "project": project.id,
         }
         MDM = get_active_mdm_class()
@@ -2424,7 +2425,6 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
         mock_get_enrollment_qr_code = mocker.patch.object(MDM, "get_enrollment_qr_code")
         mocker.patch.object(MDM, "pull_devices")
-        PolicyFactory(default_policy=True)
 
         response = client.post(url, data=data, follow=True)
         fleet = organization.fleets.get()
@@ -2452,14 +2452,15 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         """Ensure submitting a valid form does not create a Fleet if the API request
         to create a group in the MDM fails.
         """
+        org_policy = PolicyFactory(organization=organization)
         data = {
             "name": "My Fleet",
+            "policy": org_policy.id,
             "project": project.id,
         }
         MDM = get_active_mdm_class()
         mock_create_group = mocker.patch.object(MDM, "create_group", side_effect=mdm_api_error)
         mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
-        PolicyFactory(default_policy=True)
 
         response = client.post(url, data=data, follow=True)
         assert not organization.fleets.exists()
@@ -2489,8 +2490,10 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         creates a group in the MDM, and shows a warning message if the MDM API
         request for adding the group to the default policy fails.
         """
+        org_policy = PolicyFactory(organization=organization)
         data = {
             "name": "My Fleet",
+            "policy": org_policy.id,
             "project": project.id,
         }
         MDM = get_active_mdm_class()
@@ -2510,7 +2513,6 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
             MDM, "add_group_to_policy", side_effect=mdm_api_error
         )
         mocker.patch.object(MDM, "pull_devices")
-        PolicyFactory(default_policy=True)
 
         response = client.post(url, data=data, follow=True)
         fleet = organization.fleets.get()
@@ -2545,8 +2547,10 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         and shows a warning message if the MDM API request for getting the
         fleet's enrollment QR code fails.
         """
+        org_policy = PolicyFactory(organization=organization)
         data = {
             "name": "My Fleet",
+            "policy": org_policy.id,
             "project": project.id,
         }
         MDM = get_active_mdm_class()
@@ -2567,7 +2571,6 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         )
         mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
         mocker.patch.object(MDM, "pull_devices")
-        PolicyFactory(default_policy=True)
 
         response = client.post(url, data=data, follow=True)
         fleet = organization.fleets.get()
@@ -2606,12 +2609,16 @@ class TestEditFleet(ViewTestBase):
 
     def test_valid_form(self, client, url, user, fleet, organization, project):
         """Ensure submitting a valid form updates the Fleet."""
+        # Create an org-scoped policy (fleet.policy belongs to a different org)
+        org_policy = PolicyFactory(organization=organization)
         data = {
+            "policy": org_policy.id,
             "project": project.id,
         }
         response = client.post(url, data=data, follow=True)
         fleet.refresh_from_db()
         assert fleet.project_id == data["project"]
+        assert fleet.policy == org_policy
         assertContains(response, f"Successfully edited {fleet}.")
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
 
