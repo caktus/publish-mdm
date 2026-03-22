@@ -114,9 +114,13 @@ class TestPolicyEdit(PolicyViewBase):
         response = client.get(url)
         assert response.status_code == 302
 
-    def test_get(self, client, url, user):
+    def test_get(self, client, url, policy, user):
         response = client.get(url)
         assert response.status_code == 200
+        assert response.context["policy"] == policy
+        assert "name_form" in response.context
+        assert "app_forms" in response.context
+        assert "variables" in response.context
 
     def test_org_isolation(self, client, organization, other_org_policy, user):
         url = reverse("mdm:policy-edit", args=[organization.slug, other_org_policy.pk])

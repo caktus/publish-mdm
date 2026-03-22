@@ -297,8 +297,8 @@ class TestTinyMDM(TestTinyMDMOnly):
         active_mdm.sync_fleets()
 
         assert mock_sync_fleet.call_count == len(fleets)
-        for call in mock_sync_fleet.call_list_args:
-            assert call.args[0] in fleets
+        called_fleets = [call.kwargs["fleet"] for call in mock_sync_fleet.call_args_list]
+        assert set(called_fleets) == set(fleets)
 
     def test_create_group(self, requests_mock, set_mdm_env_vars):
         """Ensures create_group() makes the expected API request and updates

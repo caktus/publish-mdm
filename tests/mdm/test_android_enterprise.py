@@ -320,8 +320,8 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         active_mdm.sync_fleets()
 
         assert mock_sync_fleet.call_count == len(fleets)
-        for call in mock_sync_fleet.call_list_args:
-            assert call.args[0] in fleets
+        called_fleets = [call.kwargs["fleet"] for call in mock_sync_fleet.call_args_list]
+        assert set(called_fleets) == set(fleets)
 
     @pytest.mark.parametrize("new_fleet", [True, False])
     def test_get_enrollment_qr_code(self, set_mdm_env_vars, monkeypatch, new_fleet):
