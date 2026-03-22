@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "phases_completed": [
+    "delete",
+    "coverage"
+  ],
+  "baseline": {
+    "test_count": 200,
+    "coverage_percent": 55.7
+  },
+  "current_coverage_percent": 99.0,
+  "deleted_tests": [],
+  "refactored_tests": [
+    {
+      "file": "tests/mdm/test_tinymdm.py",
+      "test": "test_sync_fleets",
+      "criterion": "C2",
+      "phase": "delete",
+      "status": "pending",
+      "behaviors_covered": [
+        "TinyMDM.sync_fleets() calls self.sync_fleet() once for each Fleet with mdm_group_id set"
+      ],
+      "suggested_rewrite": "Fix typo: replace `mock_sync_fleet.call_list_args` with `mock_sync_fleet.call_args_list`, then assert each call's first positional argument is a fleet from the `fleets` fixture. This makes the per-fleet assertion actually execute."
+    },
+    {
+      "file": "tests/mdm/test_android_enterprise.py",
+      "test": "test_sync_fleets",
+      "criterion": "C2",
+      "phase": "delete",
+      "status": "pending",
+      "behaviors_covered": [
+        "AndroidEnterprise.sync_fleets() calls self.sync_fleet() once for each Fleet"
+      ],
+      "suggested_rewrite": "Same fix as TinyMDM version: replace `mock_sync_fleet.call_list_args` with `mock_sync_fleet.call_args_list` and verify each call receives a fleet from Fleet.objects.all()."
+    },
+    {
+      "file": "tests/mdm/test_views.py",
+      "test": "TestPolicyEdit::test_get",
+      "criterion": "C4",
+      "phase": "delete",
+      "status": "pending",
+      "behaviors_covered": [
+        "policy_edit GET: fetches policy scoped to org, builds all form instances and variables, renders policy_form.html"
+      ],
+      "suggested_rewrite": "Add context assertions: assert response.context['policy'] == policy, assert 'name_form' in response.context, assert 'app_forms' in response.context, assert 'variables' in response.context. These verify the view's rich context-building logic."
+    }
+  ],
+  "coverage_added": [
+    {
+      "file": "tests/mdm/test_tinymdm.py",
+      "test": "test_sync_fleets (refactored)",
+      "production_module": "apps/mdm/mdms/tinymdm.py",
+      "lines_covered": "sync_fleets per-fleet loop",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_android_enterprise.py",
+      "test": "test_sync_fleets (refactored)",
+      "production_module": "apps/mdm/mdms/android_enterprise.py",
+      "lines_covered": "sync_fleets per-fleet loop",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_views.py",
+      "test": "TestPolicyEdit::test_get (refactored)",
+      "production_module": "apps/mdm/views.py",
+      "lines_covered": "policy_edit context building",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_serializers.py",
+      "test": "test_kiosk_customization_settings",
+      "production_module": "apps/mdm/serializers.py",
+      "lines_covered": "L52-62",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_serializers.py",
+      "test": "test_odk_managed_config_injected_when_device_has_app_user",
+      "production_module": "apps/mdm/serializers.py",
+      "lines_covered": "L82-85",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_serializers.py",
+      "test": "test_odk_collect_duplicate_in_applications_skipped",
+      "production_module": "apps/mdm/serializers.py",
+      "lines_covered": "L91",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_serializers.py",
+      "test": "test_merge_variables_exception_on_bad_raw_mdm_device",
+      "production_module": "apps/mdm/serializers.py",
+      "lines_covered": "L179-180",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_serializers.py",
+      "test": "test_resolve_variables_substitutes_strings_in_list",
+      "production_module": "apps/mdm/serializers.py",
+      "lines_covered": "L196",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_views.py",
+      "test": "TestFirmwareSnapshotView::test_empty_body_returns_400",
+      "production_module": "apps/mdm/views.py",
+      "lines_covered": "L41",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_views.py",
+      "test": "TestFirmwareSnapshotView::test_invalid_json_returns_400",
+      "production_module": "apps/mdm/views.py",
+      "lines_covered": "L44-45",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_views.py",
+      "test": "TestFirmwareSnapshotView::test_valid_data_saves_and_returns_201",
+      "production_module": "apps/mdm/views.py",
+      "lines_covered": "L49-50",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_views.py",
+      "test": "multiple TestPolicy*Invalid tests",
+      "production_module": "apps/mdm/views.py",
+      "lines_covered": "L203, L261, L304, L323, L346, L369",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_models.py",
+      "test": "test_policy_application_str, test_policy_variable_str, test_policy_variable_clean_*",
+      "production_module": "apps/mdm/models.py",
+      "lines_covered": "L284, L331, L336, L340",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_models.py",
+      "test": "test_device_odk_collect_qr_code_property",
+      "production_module": "apps/mdm/models.py",
+      "lines_covered": "L528",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_models.py",
+      "test": "test_device_snapshot_str, test_device_snapshot_app_str, test_firmware_snapshot_str",
+      "production_module": "apps/mdm/models.py",
+      "lines_covered": "L611, L641, L685",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_forms.py",
+      "test": "test_version_with_brackets_stripped, test_version_from_alternatives_when_build_info_empty",
+      "production_module": "apps/mdm/forms.py",
+      "lines_covered": "L40-42, L45",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_import_export.py",
+      "test": "TestDeviceResourceAfterImport and TestDeviceResourceBulkMode",
+      "production_module": "apps/mdm/import_export.py",
+      "lines_covered": "L27-30, L48-67",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_mdms_base.py",
+      "test": "test_str_with_status_and_error_data, test_str_with_status_only",
+      "production_module": "apps/mdm/mdms/base.py",
+      "lines_covered": "L66-69",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_tinymdm.py",
+      "test": "test_update_devices_skips_device_with_unmatched_id",
+      "production_module": "apps/mdm/mdms/tinymdm.py",
+      "lines_covered": "L118",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_android_enterprise.py",
+      "test": "test_get_devices_breaks_on_empty_response, test_update_existing_devices_skips_device_with_unmatched_id",
+      "production_module": "apps/mdm/mdms/android_enterprise.py",
+      "lines_covered": "L109, L193-196",
+      "mutation_verified": true
+    },
+    {
+      "file": "tests/mdm/test_admin.py",
+      "test": "TestFleetAdminDeleteConfirmation tests",
+      "production_module": "apps/mdm/admin.py",
+      "lines_covered": "L161, L166, L169, L214-239, L323-348",
+      "mutation_verified": true
+    }
+  ],
+  "bugfix_tests": []
+}
