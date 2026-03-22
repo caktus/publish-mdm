@@ -221,3 +221,82 @@ class TestPolicySerializer(TestAllMDMs):
         serializer = PolicySerializer(policy=policy, applications=[app])
         result = serializer.to_dict()
         assert result["applications"][1]["managedConfiguration"]["key"] == "{{ unknown_var }}"
+
+    def test_kiosk_customization_settings(self):
+        """All kiosk fields appear in kioskCustomization when non-default values are set."""
+        policy = PolicyFactory(
+            kiosk_power_button_actions="POWER_BUTTON_AVAILABLE",
+            kiosk_system_error_warnings="ERROR_AND_WARNINGS_MUTED",
+            kiosk_system_navigation="NAVIGATION_DISABLED",
+            kiosk_status_bar="NOTIFICATIONS_AND_SYSTEM_INFO_DISABLED",
+            kiosk_device_settings="SETTINGS_ACCESS_BLOCKED",
+        )
+        serializer = PolicySerializer(policy=policy)
+        result = serializer.to_dict()
+        kiosk = result["kioskCustomization"]
+        assert kiosk["powerButtonActions"] == "POWER_BUTTON_AVAILABLE"
+        assert kiosk["systemErrorWarnings"] == "ERROR_AND_WARNINGS_MUTED"
+        assert kiosk["systemNavigation"] == "NAVIGATION_DISABLED"
+        assert kiosk["statusBar"] == "NOTIFICATIONS_AND_SYSTEM_INFO_DISABLED"
+        assert kiosk["deviceSettings"] == "SETTINGS_ACCESS_BLOCKED"
+
+    def test_odk_managed_config_injected_when_device_has_app_user(self):
+        """managedConfiguration is injected into the ODK Collect app entry when
+        the device's app_user_name resolves to a project AppUser with qr_code_data."""
+        from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
+        from tests.publish_mdm.factories import AppUserFactory
+
+        fleet = FleetFactory()
+        device = DeviceFactory(fleet=fleet, app_user_name="testuser")
+        AppUserFactory(
+            name="testuser",
+            project=fleet.project,
+            qr_code_data=DEFAULT_COLLECT_SETTINGS,
+        )
+        policy = fleet.policy
+        serializer = PolicySerializer(policy=policy, device=device)
+        result = serializer.to_dict()
+        odk_app = result["applications"][0]
+        assert "managedConfiguration" in odk_app
+        assert "settings_json" in odk_app["managedConfiguration"]
+        assert odk_app["managedConfiguration"]["device_id"] == device.username
+
+    def test_odk_collect_duplicate_in_applications_skipped(self):
+        """An application row whose package_name matches odk_collect_package is
+        not duplicated in the output; only the pinned ODK entry appears."""
+        from apps.mdm.models import PolicyApplication
+
+        policy = PolicyFactory()
+        PolicyApplication.objects.create(
+            policy=policy,
+            package_name=policy.odk_collect_package,
+            install_type="FORCE_INSTALLED",
+            order=5,
+        )
+        serializer = PolicySerializer(policy=policy, applications=list(policy.applications.all()))
+        result = serializer.to_dict()
+        odk_entries = [
+            a for a in result["applications"] if a["packageName"] == policy.odk_collect_package
+        ]
+        assert len(odk_entries) == 1
+
+    def test_merge_variables_exception_on_bad_raw_mdm_device(self):
+        """AttributeError accessing hardwareInfo on a non-dict raw_mdm_device is swallowed
+        and device.serial_number is still added to the variable map."""
+        policy = PolicyFactory()
+        device = DeviceFactory(fleet=FleetFactory(policy=policy))
+        device.raw_mdm_device = "not-a-dict"  # truthy non-dict → .get() raises AttributeError
+        device.save()
+        serializer = PolicySerializer(policy=policy, device=device)
+        merged = serializer._merge_variables()
+        assert "device.serial_number" in merged
+        assert merged["device.serial_number"] == device.serial_number
+
+    def test_resolve_variables_substitutes_strings_in_list(self):
+        """String items inside a list value in the policy dict have {{ var }} replaced."""
+        policy = PolicyFactory()
+        serializer = PolicySerializer(policy=policy)
+        obj = {"items": ["hello {{ name }}", "world"]}
+        serializer._resolve_variables(obj, {"name": "Alice"})
+        assert obj["items"][0] == "hello Alice"
+        assert obj["items"][1] == "world"
