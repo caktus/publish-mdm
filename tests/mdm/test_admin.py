@@ -552,3 +552,27 @@ class TestPolicyAdmin(TestAdmin):
             )
         else:
             mock_push_device_config.assert_not_called()
+
+
+class TestFleetAdminDeleteConfirmation(TestAdmin):
+    """Tests for the GET paths in FleetAdmin that render confirmation pages."""
+
+    def test_delete_view_shows_confirmation_page(self, user, client):
+        """GET to the fleet delete URL renders the confirmation page (not the delete action)."""
+        fleet = FleetFactory()
+        response = client.get(reverse("admin:mdm_fleet_delete", args=[fleet.id]))
+        assert response.status_code == 200
+        # Confirmation page lists the object to be deleted
+        assert fleet in response.context["deleted_objects"] or fleet.name in str(response.content)
+
+    def test_delete_selected_shows_confirmation_page(self, user, client, mocker):
+        """Posting delete_selected without 'post=yes' renders the confirmation page."""
+        fleets = FleetFactory.create_batch(2)
+        data = {
+            "action": "delete_selected",
+            "_selected_action": [fleet.pk for fleet in fleets],
+        }
+        response = client.post(reverse("admin:mdm_fleet_changelist"), data=data)
+        assert response.status_code == 200
+        # Should show confirmation page, not redirect
+        assert "delete" in response.context.get("title", "").lower() or b"delete" in response.content.lower()
