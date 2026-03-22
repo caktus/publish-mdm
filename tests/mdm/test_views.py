@@ -564,6 +564,19 @@ class TestPolicyDeleteVariable(PolicyViewBase):
         response = client.post(url)
         assert response.status_code == 404
 
+    def test_cannot_delete_other_org_variable_via_own_policy(
+        self, client, organization, policy, user
+    ):
+        other_var = PolicyVariableFactory(org=OrganizationFactory())
+        url = reverse(
+            "mdm:policy-delete-variable",
+            args=[organization.slug, policy.pk, other_var.pk],
+        )
+        # Own policy passes the check, but variable belongs to another org → 404
+        response = client.post(url)
+        assert response.status_code == 404
+        assert PolicyVariable.objects.filter(pk=other_var.pk).exists()
+
 
 # ---------------------------------------------------------------------------
 # firmware_snapshot_view

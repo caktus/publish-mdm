@@ -432,7 +432,11 @@ def policy_add_variable(request, organization_slug, policy_id):
 def policy_delete_variable(request, organization_slug, policy_id, var_id):
     """HTMX: delete a policy variable."""
     policy = _get_policy_or_404(policy_id, request.organization)
-    variable = get_object_or_404(PolicyVariable, pk=var_id)
+    variable = get_object_or_404(
+        PolicyVariable,
+        Q(org=request.organization) | Q(fleet__organization=request.organization),
+        pk=var_id,
+    )
     variable.delete()
     return render(
         request,
