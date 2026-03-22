@@ -222,12 +222,12 @@ class TestDeviceResourceAfterImport(TestAllMDMs):
         """after_import() with push_method=ALL triggers Dagster for every device pk."""
         mock_trigger = mocker.patch("apps.mdm.import_export.trigger_dagster_job")
         resource = import_export.DeviceResource()
-        resource.import_data(
-            dataset, dry_run=False, push_method=models.PushMethodChoices.ALL
-        )
+        resource.import_data(dataset, dry_run=False, push_method=models.PushMethodChoices.ALL)
         mock_trigger.assert_called_once()
         call_kwargs = mock_trigger.call_args
-        device_pks = call_kwargs.kwargs["run_config"]["ops"]["push_mdm_device_config"]["config"]["device_pks"]
+        device_pks = call_kwargs.kwargs["run_config"]["ops"]["push_mdm_device_config"]["config"][
+            "device_pks"
+        ]
         assert len(device_pks) == len(dataset)
 
     def test_after_import_default_push_method_includes_only_changed(self, fleet, mocker):
@@ -239,7 +239,9 @@ class TestDeviceResourceAfterImport(TestAllMDMs):
         resource = import_export.DeviceResource()
         resource.import_data(ds, dry_run=False)
         mock_trigger.assert_called_once()
-        device_pks = mock_trigger.call_args.kwargs["run_config"]["ops"]["push_mdm_device_config"]["config"]["device_pks"]
+        device_pks = mock_trigger.call_args.kwargs["run_config"]["ops"]["push_mdm_device_config"][
+            "config"
+        ]["device_pks"]
         assert len(device_pks) == 1
 
     def test_after_import_dagster_error_is_logged_and_raised(self, fleet, mocker):

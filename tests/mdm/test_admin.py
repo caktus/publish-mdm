@@ -588,7 +588,6 @@ class TestFleetAdminDeleteConfirmation(TestAdmin):
 
     def test_delete_view_disallowed_to_field_raises_400(self, user, client):
         """GET to fleet delete URL with a non-unique _to_field returns 400."""
-        from django.contrib.admin.exceptions import DisallowedModelAdminToField
         fleet = FleetFactory()
         # 'name' is not a primary key or unique field, so it's not allowed as to_field
         response = client.get(
@@ -607,9 +606,14 @@ class TestFleetAdminDeleteConfirmation(TestAdmin):
         staff_user.user_permissions.set(
             Permission.objects.filter(
                 codename__in=[
-                    "view_fleet", "change_fleet", "delete_fleet",
-                    "view_device", "change_device",
-                    "view_policy", "change_policy", "add_policy",
+                    "view_fleet",
+                    "change_fleet",
+                    "delete_fleet",
+                    "view_device",
+                    "change_device",
+                    "view_policy",
+                    "change_policy",
+                    "add_policy",
                 ]
             )
         )
@@ -632,4 +636,7 @@ class TestFleetAdminDeleteConfirmation(TestAdmin):
         response = client.post(reverse("admin:mdm_fleet_changelist"), data=data)
         assert response.status_code == 200
         # Should show confirmation page, not redirect
-        assert "delete" in response.context.get("title", "").lower() or b"delete" in response.content.lower()
+        assert (
+            "delete" in response.context.get("title", "").lower()
+            or b"delete" in response.content.lower()
+        )

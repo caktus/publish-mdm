@@ -591,6 +591,7 @@ class TestFirmwareSnapshotView:
     @pytest.mark.django_db
     def test_valid_data_saves_and_returns_201(self, client, url):
         import json as json_module
+
         data = json_module.dumps({"deviceIdentifier": "SN-VIEW-TEST", "version": "1.0"})
         response = client.post(url, data=data, content_type="application/json")
         assert response.status_code == 201
@@ -631,7 +632,9 @@ class TestPolicySaveApplicationInvalid(PolicyViewBase):
         return reverse("mdm:policy-save-application", args=[organization.slug, policy.pk, app.pk])
 
     def test_invalid_post_returns_form_with_errors(self, client, url, app):
-        response = client.post(url, {f"app_{app.pk}-package_name": "", f"app_{app.pk}-install_type": "FORCE_INSTALLED"})
+        response = client.post(
+            url, {f"app_{app.pk}-package_name": "", f"app_{app.pk}-install_type": "FORCE_INSTALLED"}
+        )
         assert response.status_code == 200
         assert response.context["app_form"].errors
 

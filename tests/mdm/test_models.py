@@ -8,9 +8,7 @@ from tests.mdm import TestAllMDMs
 
 from .factories import (
     DeviceFactory,
-    DeviceSnapshotFactory,
     FleetFactory,
-    FirmwareSnapshotFactory,
     PolicyApplicationFactory,
     PolicyFactory,
     PolicyVariableFactory,
@@ -167,7 +165,6 @@ class TestModels(TestAllMDMs):
 
     def test_policy_variable_str(self):
         """PolicyVariable.__str__ returns key=value (scope) format."""
-        from apps.mdm.models import PolicyVariable
 
         variable = PolicyVariableFactory(key="server_url", value="https://example.com", scope="org")
         assert str(variable) == "server_url=https://example.com (Policy)"
@@ -195,7 +192,9 @@ class TestModels(TestAllMDMs):
         from apps.mdm.models import PolicyVariable
 
         fleet = FleetFactory()
-        variable = PolicyVariable(key="k", value="v", scope="org", org=fleet.organization, fleet=fleet)
+        variable = PolicyVariable(
+            key="k", value="v", scope="org", org=fleet.organization, fleet=fleet
+        )
         variable.clean()
         assert variable.fleet is None
 
@@ -204,7 +203,9 @@ class TestModels(TestAllMDMs):
         from apps.mdm.models import PolicyVariable
 
         fleet = FleetFactory()
-        variable = PolicyVariable(key="k", value="v", scope="fleet", fleet=fleet, org=fleet.organization)
+        variable = PolicyVariable(
+            key="k", value="v", scope="fleet", fleet=fleet, org=fleet.organization
+        )
         variable.clean()
         assert variable.org is None
 
@@ -215,6 +216,7 @@ class TestModels(TestAllMDMs):
         assert isinstance(result, str)
         # It should be a JSON-escaped string (double-quoted empty string if no app user)
         import json
+
         inner = json.loads(result)
         assert inner == ""  # empty since no AppUser
 

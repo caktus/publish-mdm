@@ -1,5 +1,3 @@
-import pytest
-
 from apps.mdm.mdms import MDMAPIError
 
 
