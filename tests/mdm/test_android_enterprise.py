@@ -538,3 +538,38 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         active_mdm.push_device_config(device)
         mock_get_policy_data.assert_called_once()
         mock_execute.assert_not_called()
+
+    def test_get_devices_breaks_on_empty_response(self, set_mdm_env_vars, mocker):
+        """get_devices() breaks out of the pagination loop when execute() returns
+        an empty/falsy response instead of a dict with 'devices'."""
+        from apps.mdm.mdms import AndroidEnterprise
+
+        active_mdm = AndroidEnterprise()
+        mocker.patch.object(active_mdm, "execute", return_value=None)
+        result = active_mdm.get_devices()
+        assert result == []
+
+    def test_update_existing_devices_skips_device_with_unmatched_id(self, fleet, set_mdm_env_vars):
+        """update_existing_devices() skips devices whose device_id is set but not found
+        in the MDM response by ID — matched into the queryset via serial number only."""
+        from apps.mdm.mdms import AndroidEnterprise
+        from apps.mdm.mdms.android_enterprise import MDMDevice
+        from tests.mdm.factories import DeviceFactory
+
+        # Our device has device_id that does NOT match the MDM device name suffix
+        our_device = DeviceFactory(fleet=fleet, device_id="OUR-DEVICE-ID", serial_number="SN999")
+        # MDM device name has a different ID suffix; serial_number matches our_device
+        mdm_device = MDMDevice({
+            "name": "enterprises/test/devices/DIFFERENT-MDM-ID",
+            "hardwareInfo": {
+                "serialNumber": "SN999",
+                "imei": "123456789",
+            },
+            "policyName": "enterprises/test/policies/base",
+        })
+        active_mdm = AndroidEnterprise()
+        original_name = our_device.name
+        active_mdm.update_existing_devices(fleet=fleet, mdm_devices=[mdm_device])
+        our_device.refresh_from_db()
+        # Device was skipped — name unchanged
+        assert our_device.name == original_name

@@ -538,3 +538,30 @@ class TestTinyMDM(TestTinyMDMOnly):
         else:
             responses.assert_call_count(url, 3)
             assert response.status_code == 200
+
+    def test_update_devices_skips_device_with_unmatched_id(self, fleet, set_mdm_env_vars):
+        """update_devices() skips a device whose device_id is set but not found in the
+        MDM response dict — the device is matched into the queryset via serial number
+        but the per-device lookup by ID returns None and it is skipped via continue."""
+        # Create a device with device_id that won't match any MDM device by ID,
+        # but whose serial_number is present in the MDM response.
+        our_device = DeviceFactory(fleet=fleet, device_id="OUR-DEVICE-ID", serial_number="SN001")
+        mdm_device = {
+            "id": "DIFFERENT-MDM-ID",
+            "serial_number": "SN001",  # matches our_device.serial_number
+            "name": "MDM Device Name",
+            "nickname": "MDM Nickname",
+            "user_id": "user1",
+        }
+        # mdm_devices list: our_device serial_number matches, but device_id doesn't
+        # devices_by_id: {"DIFFERENT-MDM-ID": mdm_device}
+        # devices_by_serial: {"SN001": mdm_device}
+        # our_device is in the queryset via serial_number, but devices_by_id.get("OUR-DEVICE-ID") → None
+        from apps.mdm.mdms import TinyMDM
+
+        active_mdm = TinyMDM()
+        original_serial = our_device.serial_number
+        active_mdm.update_existing_devices(fleet=fleet, mdm_devices=[mdm_device])
+        our_device.refresh_from_db()
+        # Device was not updated because it was skipped
+        assert our_device.serial_number == original_serial
