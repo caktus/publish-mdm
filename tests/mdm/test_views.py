@@ -588,6 +588,13 @@ class TestFirmwareSnapshotView:
         response = client.post(url, data="{}", content_type="application/json")
         assert response.status_code == 400
 
+    @pytest.mark.django_db
+    def test_valid_data_saves_and_returns_201(self, client, url):
+        import json as json_module
+        data = json_module.dumps({"deviceIdentifier": "SN-VIEW-TEST", "version": "1.0"})
+        response = client.post(url, data=data, content_type="application/json")
+        assert response.status_code == 201
+
 
 # ---------------------------------------------------------------------------
 # policy_save_odk_package — invalid form path

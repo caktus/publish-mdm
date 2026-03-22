@@ -278,3 +278,46 @@ class TestDeviceResourceSaveInstance(TestAllMDMs):
         resource = import_export.DeviceResource()
         resource.do_instance_save(device, is_create=False, is_dry_run=True)
         mock_save.assert_called_once_with(push_to_mdm=False)
+
+
+@pytest.mark.django_db
+class TestDeviceResourceBulkMode(TestAllMDMs):
+    """Tests for save_instance() when use_bulk=True."""
+
+    @pytest.fixture(autouse=True)
+    def disable_dagster(self, settings):
+        settings.DAGSTER_URL = None
+
+    @pytest.fixture
+    def fleet(self):
+        return FleetFactory()
+
+    def test_save_instance_bulk_create_appends_to_list(self, fleet):
+        """save_instance with use_bulk=True and is_create=True appends to create_instances."""
+        from import_export.results import RowResult
+
+        class BulkDeviceResource(import_export.DeviceResource):
+            class Meta(import_export.DeviceResource.Meta):
+                use_bulk = True
+
+        device = DeviceFactory.build(fleet=fleet)
+        resource = BulkDeviceResource()
+        resource.create_instances = []
+        resource.update_instances = []
+        resource.save_instance(device, is_create=True, row=RowResult())
+        assert device in resource.create_instances
+
+    def test_save_instance_bulk_update_appends_to_list(self, fleet):
+        """save_instance with use_bulk=True and is_create=False appends to update_instances."""
+        from import_export.results import RowResult
+
+        class BulkDeviceResource(import_export.DeviceResource):
+            class Meta(import_export.DeviceResource.Meta):
+                use_bulk = True
+
+        device = DeviceFactory(fleet=fleet)
+        resource = BulkDeviceResource()
+        resource.create_instances = []
+        resource.update_instances = []
+        resource.save_instance(device, is_create=False, row=RowResult())
+        assert device in resource.update_instances

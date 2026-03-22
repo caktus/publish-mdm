@@ -565,6 +565,63 @@ class TestFleetAdminDeleteConfirmation(TestAdmin):
         # Confirmation page lists the object to be deleted
         assert fleet in response.context["deleted_objects"] or fleet.name in str(response.content)
 
+    def test_delete_view_nonexistent_fleet_redirects(self, user, client):
+        """GET to the fleet delete URL with a non-existent ID redirects to changelist."""
+        response = client.get(reverse("admin:mdm_fleet_delete", args=[999999]))
+        assert response.status_code == 302
+
+    def test_delete_view_no_delete_permission_raises_403(self, client):
+        """GET to the fleet delete URL by a user without delete permission returns 403."""
+        from django.contrib.auth.models import Permission
+        from tests.users.factories import UserFactory
+
+        # Staff user without delete_fleet permission
+        staff_user = UserFactory(is_staff=True, is_superuser=False)
+        staff_user.user_permissions.set(
+            Permission.objects.filter(codename__in=["view_fleet", "change_fleet"])
+        )
+        staff_user.save()
+        client.force_login(staff_user)
+        fleet = FleetFactory()
+        response = client.get(reverse("admin:mdm_fleet_delete", args=[fleet.id]))
+        assert response.status_code == 403
+
+    def test_delete_view_disallowed_to_field_raises_400(self, user, client):
+        """GET to fleet delete URL with a non-unique _to_field returns 400."""
+        from django.contrib.admin.exceptions import DisallowedModelAdminToField
+        fleet = FleetFactory()
+        # 'name' is not a primary key or unique field, so it's not allowed as to_field
+        response = client.get(
+            reverse("admin:mdm_fleet_delete", args=[fleet.id]) + "?_to_field=name"
+        )
+        assert response.status_code == 400
+
+    def test_delete_view_cannot_delete_title_when_related_perms_lacking(self, client):
+        """Confirmation page shows 'Cannot delete' title when user lacks delete
+        permission for a related object (device linked to the fleet)."""
+        from django.contrib.auth.models import Permission
+        from tests.users.factories import UserFactory
+
+        # Staff user with delete_fleet but NOT delete_device
+        staff_user = UserFactory(is_staff=True, is_superuser=False)
+        staff_user.user_permissions.set(
+            Permission.objects.filter(
+                codename__in=[
+                    "view_fleet", "change_fleet", "delete_fleet",
+                    "view_device", "change_device",
+                    "view_policy", "change_policy", "add_policy",
+                ]
+            )
+        )
+        staff_user.save()
+        client.force_login(staff_user)
+        fleet = FleetFactory()
+        DeviceFactory(fleet=fleet)  # linked device requires delete_device permission
+        response = client.get(reverse("admin:mdm_fleet_delete", args=[fleet.id]))
+        assert response.status_code == 200
+        # With missing device delete perm, title should indicate cannot delete
+        assert "Cannot delete" in str(response.content) or response.context.get("perms_lacking")
+
     def test_delete_selected_shows_confirmation_page(self, user, client, mocker):
         """Posting delete_selected without 'post=yes' renders the confirmation page."""
         fleets = FleetFactory.create_batch(2)
