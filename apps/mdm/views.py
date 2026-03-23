@@ -24,7 +24,7 @@ def firmware_snapshot_view(request):
             remote_addr=request.META.get("REMOTE_ADDR"),
         )
         return HttpResponse(status=401)
-    auth_header = request.META.get("HTTP_AUTHORIZATION", "")
+    auth_header = request.headers.get("authorization", "")
     if auth_header != f"Bearer {api_key}":
         return HttpResponse(status=401)
     if not request.body:
