@@ -90,7 +90,11 @@ class OrganizationMiddleware:
             organizations = Organization.objects.filter(public_signup_enabled=True)
         else:
             organizations = request.organizations
-        if "organization_slug" in resolver_match.captured_kwargs and organizations is not None:
+        if (
+            "publish_mdm" in resolver_match.namespaces
+            and "organization_slug" in resolver_match.captured_kwargs
+            and organizations is not None
+        ):
             organization_slug = resolver_match.captured_kwargs["organization_slug"]
             organization = get_object_or_404(organizations, slug=organization_slug)
             logger.debug(
