@@ -18,7 +18,7 @@ def firmware_snapshot_view(request):
     api_key = settings.MDM_FIRMWARE_API_KEY
     if not api_key:
         # No API key configured — reject all requests rather than silently
-        # accepting unauthenticated writes (VULN-001).
+        # accepting unauthenticated writes (VULN-002).
         logger.error(
             "firmware_snapshot_view: MDM_FIRMWARE_API_KEY not configured; rejecting request",
             remote_addr=request.META.get("REMOTE_ADDR"),

@@ -1,7 +1,7 @@
 """
 Security regression tests for the MDM app.
 
-VULN-001 (HUNT-002): Unauthenticated firmware snapshot write endpoint
+VULN-002: Unauthenticated firmware snapshot write endpoint
   - When MDM_FIRMWARE_API_KEY is not configured, the endpoint must reject all
     requests (401) rather than silently accepting them.
 """
@@ -19,7 +19,7 @@ from django.urls import reverse
 
 @pytest.mark.django_db
 class TestFirmwareSnapshotAuth:
-    """VULN-001: firmware_snapshot_view must not be reachable without a valid API key."""
+    """VULN-002: firmware_snapshot_view must not be reachable without a valid API key."""
 
     @pytest.fixture
     def url(self):
