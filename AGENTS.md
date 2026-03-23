@@ -227,7 +227,7 @@ The default MDM (`settings.ACTIVE_MDM`) defaults to TinyMDM. Set
 Follow the Zen of Python principles:
 
 ```
-python -c 'import this'                                 
+python -c 'import this'
 The Zen of Python, by Tim Peters
 
 Beautiful is better than ugly.
@@ -267,6 +267,50 @@ def some_view(request):
     from apps.circular_import import helper  # Avoid circular: views → models → views
     return helper.process(request)
 ```
+
+## Security-Tester Workflow
+
+Project-specific parameters when running the `security-tester` agent:
+
+```
+appRoot:       apps/
+reportFile:    security-review-report.md
+minSeverity:   medium
+```
+
+### Sample prompt
+
+```
+Run the full security-tester workflow on this branch.
+- appRoot: apps/
+- reportFile: security-review-report.md
+- minSeverity: medium
+Make a commit with the report when done, then open a PR against main.
+```
+
+### Phases
+
+| Phase   | Agent                     | Purpose                                                        |
+| ------- | ------------------------- | -------------------------------------------------------------- |
+| Recon   | `security-tester-recon`   | Map tech stack, attack surface, generate dynamic grep patterns |
+| Hunt    | `security-tester-hunt`    | Search codebase; record every suspicious hit as a raw finding  |
+| Confirm | `security-tester-confirm` | Trace data flow; confirm exploitability; write PoC steps       |
+| Report  | `security-tester-report`  | Write the full Markdown report with remediation guidance       |
+
+### State contract
+
+The workflow uses `security-review-state.json` (added to `.gitignore` automatically) to
+pass data between phases. The coordinator validates that each phase completed before
+advancing.
+
+### Notes
+
+- The scan is **static analysis only** — race conditions and complex auth flows need
+  dynamic testing to confirm.
+- Run `pip-audit` or `safety check` separately to cover dependency vulnerabilities.
+- Add `security-review-report.md` to `.gitignore` if you do not want to commit it.
+
+---
 
 ## Review-Tests Workflow
 

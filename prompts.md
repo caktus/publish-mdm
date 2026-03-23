@@ -1,6 +1,43 @@
+# Prompt 8
+
+Task: Scan the production code in apps/ for security issues. Focus only on the code that was added in this branch (`99-policy-editor-v2`). Make granular commits on this branch with the fixes, but DO NOT push the branch or make any pull requests.
+
+Commit Message Requirements:
+Each commit must use Conventional Commits format (e.g., `test:`, `fix:`, `refactor:`, `chore:`) and include a detailed body explaining what was changed and why.
+
+Final Action: Once all phases are complete, ensure the tests pass and the changes that you made are committed, but not pushed.
+
+# Prompt 7
+
+Task: Scan the production code in apps/ for duplication and structural problems and refactor to eliminate them. Focus only on the code that was added in this branch (`99-policy-editor-v2`), and pay special attention to the new coding rules (inline imports + zen of python) added to AGENTS.md.
+
+Parameters:
+
+- appRoot: apps/
+- testRoot: tests/
+- lintCommand: uv run pre-commit run --all-files
+- testCommand: uv run pytest
+
+Focus areas:
+
+- Repeated logic across forms, views, and models
+- Copy-pasted blocks that may have silently diverged
+- Inline logic that belongs on a model method or shared mixin
+
+Commit Message Requirements:
+Each commit must use Conventional Commits format (e.g., `test:`, `fix:`, `refactor:`, `chore:`) and include a detailed body explaining what was changed and why.
+
+Final Action: Once all phases are complete, ensure the tests pass and the changes that you made are committed, but not pushed.
+
 # Prompt 6
 
 Implement the following bug fixes and feature improvements on this branch and commit the changes. Follow the instructions in AGENTS.md and use the skills available in this repo to work efficiently. Ensure all UI changes are verified via playwright-cli and that elements actually render on the page. Unit tests and pre-commit must pass before committing.
+
+- A database integrity error is generated when the user adds a duplicate application. Catch this with form clean and display a helpful error message for the user.
+- The breadcrumb text doesn't update when the policy name is changed.
+- I don't believe the policy id is relevant when using Android EMM. Verify this, then remove the column for Android EMM if I'm correct.
+- Add a field to the fleet add/edit form to assign a policy to the fleet. Ensure this actually propagates (gets pushed to devices) when the policy for a fleet is changed. This is a required field and will default to the "Default" policy for the org (data migration).
+- After adding the Fleet -> Policy Foreign Key, since all devices now have a fleet, we can remove the `default_policy` (although there will still be a new, default policy with every new org and it will be assigned to the default fleet).
 
 # Prompt 5
 
