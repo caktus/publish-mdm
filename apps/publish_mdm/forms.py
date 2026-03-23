@@ -514,7 +514,13 @@ class CentralServerForm(forms.ModelForm):
     ]
 
     def _validate_base_url(self, url: str) -> None:
-        """Reject non-HTTPS URLs and URLs that target private / reserved hosts."""
+        """Reject non-HTTPS URLs and URLs that target private / reserved hosts.
+
+        When DEBUG is True (local development), all checks are skipped so that
+        developers can use http:// or private-IP Central instances.
+        """
+        if settings.DEBUG:
+            return
         parsed = urlparse(url)
         if parsed.scheme != "https":
             raise forms.ValidationError("The base URL must use the https:// scheme.")
