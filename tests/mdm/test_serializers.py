@@ -85,13 +85,15 @@ class TestPolicySerializer(TestAllMDMs):
         }
 
     def test_developer_settings_disabled(self):
-        """Disabled developer settings should not produce advancedSecurityOverrides."""
+        """Disabled developer settings must be sent explicitly so a previous ALLOWED value is cleared."""
         policy = PolicyFactory(
             developer_settings=DeveloperSettings.DEVELOPER_SETTINGS_DISABLED,
         )
         serializer = PolicySerializer(policy=policy)
         result = serializer.to_dict()
-        assert "advancedSecurityOverrides" not in result
+        assert result["advancedSecurityOverrides"] == {
+            "developerSettings": "DEVELOPER_SETTINGS_DISABLED"
+        }
 
     def test_applications(self):
         """PolicyApplication rows should appear in the applications list."""

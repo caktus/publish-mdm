@@ -284,7 +284,7 @@ PolicyApplicationFormSet = inlineformset_factory(
     PolicyApplication,
     form=PolicyApplicationForm,
     formset=PolicyApplicationBaseFormSet,
-    extra=1,
+    extra=0,
     can_delete=True,
 )
 
@@ -310,6 +310,6 @@ PolicyVariableFormSet = modelformset_factory(
     PolicyVariable,
     form=PolicyVariableForm,
     formset=PolicyVariableBaseFormSet,
-    extra=1,
+    extra=0,
     can_delete=True,
 )

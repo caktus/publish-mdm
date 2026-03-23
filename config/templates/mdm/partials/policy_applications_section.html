@@ -16,16 +16,16 @@
                     <th class="px-3 py-2"></th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="apps-tbody">
                 {% for app_form in app_formset %}
                     {% with app=app_form.instance %}
                         {% if app.pk %}
                             {% if app.order == 0 and app.package_name == policy.odk_collect_package %}
                                 {# Pinned ODK Collect row #}
                                 <tr class="border-b bg-blue-50/50 dark:border-gray-600 dark:bg-blue-900/10">
-                                    {{ app_form.id }}
-                                    {{ app_form.package_name.as_hidden }}
                                     <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">
+                                        {{ app_form.id }}
+                                        {{ app_form.package_name.as_hidden }}
                                         {{ app.package_name }}
                                         <span class="text-xs text-blue-600 dark:text-blue-400">(pinned)</span>
                                     </td>
@@ -44,15 +44,17 @@
                                 <tr class="border-b dark:border-gray-600"
                                     x-data="{ markDelete: false }"
                                     :class="{ 'opacity-50': markDelete }">
-                                    {{ app_form.id }}
-                                    {{ app_form.package_name.as_hidden }}
-                                    <input type="checkbox"
-                                           name="{{ app_form.DELETE.html_name }}"
-                                           id="{{ app_form.DELETE.id_for_label }}"
-                                           class="hidden"
-                                           x-model="markDelete">
                                     <td class="px-3 py-2 font-medium text-gray-900 dark:text-white"
-                                        :class="{ 'line-through': markDelete }">{{ app.package_name }}</td>
+                                        :class="{ 'line-through': markDelete }">
+                                        {{ app_form.id }}
+                                        {{ app_form.package_name.as_hidden }}
+                                        <input type="checkbox"
+                                               name="{{ app_form.DELETE.html_name }}"
+                                               id="{{ app_form.DELETE.id_for_label }}"
+                                               class="sr-only"
+                                               x-model="markDelete">
+                                        {{ app.package_name }}
+                                    </td>
                                     <td class="px-3 py-2">
                                         {{ app_form.install_type }}
                                         {{ app_form.install_type.errors }}
@@ -106,10 +108,10 @@
                                 </tr>
                             {% endif %}
                         {% else %}
-                            {# Extra row: add a new application #}
+                            {# Extra row: add a new application (re-rendered on validation error) #}
                             <tr class="border-b dark:border-gray-600">
-                                {{ app_form.id }}
                                 <td class="px-3 py-2">
+                                    {{ app_form.id }}
                                     {{ app_form.package_name }}
                                     {{ app_form.package_name.errors }}
                                 </td>
@@ -137,4 +139,45 @@
             </tbody>
         </table>
     </div>
+    {% with empty=app_formset.empty_form %}
+        <template id="apps-empty-row">
+            <tr class="border-b dark:border-gray-600">
+                <td class="px-3 py-2">
+                    {{ empty.id }}
+                    {{ empty.package_name }}
+                </td>
+                <td class="px-3 py-2">{{ empty.install_type }}</td>
+                <td class="px-3 py-2">
+                    <label class="inline-flex cursor-pointer items-center gap-3"
+                           for="{{ empty.disabled.id_for_label }}">
+                        <input type="checkbox"
+                               name="{{ empty.disabled.html_name }}"
+                               id="{{ empty.disabled.id_for_label }}"
+                               class="sr-only peer">
+                        <div class="relative h-5 w-9 rounded-full bg-gray-200 after:absolute after:start-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 rtl:peer-checked:after:-translate-x-full dark:border-gray-600 dark:bg-gray-700 dark:peer-checked:bg-blue-600 dark:peer-focus:ring-primary-800">
+                        </div>
+                    </label>
+                </td>
+                <td class="px-3 py-2 text-xs italic text-gray-400 dark:text-gray-500">—</td>
+                <td class="px-3 py-2"></td>
+            </tr>
+        </template>
+    {% endwith %}
+    <button type="button"
+            onclick="addAppRow()"
+            class="mt-2 inline-flex items-center gap-1 text-sm text-blue-600 hover:underline dark:text-blue-400">
+        + Add app
+    </button>
+    <script>
+        function addAppRow() {
+            const totalForms = document.getElementById("id_apps-TOTAL_FORMS");
+            const count = parseInt(totalForms.value);
+            const template = document.getElementById("apps-empty-row");
+            const html = template.innerHTML.replace(/__prefix__/g, count);
+            const temp = document.createElement("table");
+            temp.innerHTML = "<tbody>" + html + "</tbody>";
+            document.getElementById("apps-tbody").appendChild(temp.querySelector("tr"));
+            totalForms.value = count + 1;
+        }
+    </script>
 </div>

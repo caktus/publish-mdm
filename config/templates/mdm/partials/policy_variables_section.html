@@ -35,7 +35,7 @@
                     <th class="px-3 py-2"></th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="vars-tbody">
                 {% for var_form in var_formset %}
                     {% with var=var_form.instance %}
                         {% if var.pk %}
@@ -43,13 +43,13 @@
                             <tr class="border-b dark:border-gray-600"
                                 x-data="{ markDelete: false, scope: '{{ var_form.scope.value }}' }"
                                 :class="{ 'opacity-50': markDelete }">
-                                {{ var_form.id }}
-                                <input type="checkbox"
-                                       name="{{ var_form.DELETE.html_name }}"
-                                       id="{{ var_form.DELETE.id_for_label }}"
-                                       class="hidden"
-                                       x-model="markDelete">
                                 <td class="px-3 py-2">
+                                    {{ var_form.id }}
+                                    <input type="checkbox"
+                                           name="{{ var_form.DELETE.html_name }}"
+                                           id="{{ var_form.DELETE.id_for_label }}"
+                                           class="sr-only"
+                                           x-model="markDelete">
                                     {{ var_form.key }}
                                     {{ var_form.key.errors }}
                                 </td>
@@ -81,12 +81,12 @@
                                 </td>
                             </tr>
                         {% else %}
-                            {# Extra row: add a new variable #}
+                            {# Extra row: add a new variable (re-rendered on validation error) #}
                             <tr class="border-b dark:border-gray-600"
                                 x-data="{ scope: '' }"
                                 @change.capture="if ($event.target.name === '{{ var_form.scope.html_name }}') scope = $event.target.value">
-                                {{ var_form.id }}
                                 <td class="px-3 py-2">
+                                    {{ var_form.id }}
                                     {{ var_form.key }}
                                     {{ var_form.key.errors }}
                                 </td>
@@ -112,4 +112,41 @@
             </tbody>
         </table>
     </div>
+    {% with empty=var_formset.empty_form %}
+        <template id="vars-empty-row">
+            <tr class="border-b dark:border-gray-600"
+                x-data="{ scope: '' }"
+                @change.capture="if ($event.target.name === '{{ empty.scope.html_name }}') scope = $event.target.value">
+                <td class="px-3 py-2">
+                    {{ empty.id }}
+                    {{ empty.key }}
+                </td>
+                <td class="px-3 py-2">{{ empty.value }}</td>
+                <td class="px-3 py-2">{{ empty.scope }}</td>
+                <td class="px-3 py-2">
+                    <div x-show="scope === 'fleet'">{{ empty.fleet }}</div>
+                </td>
+                <td class="px-3 py-2"></td>
+            </tr>
+        </template>
+    {% endwith %}
+    <button type="button"
+            onclick="addVarRow()"
+            class="mt-2 inline-flex items-center gap-1 text-sm text-blue-600 hover:underline dark:text-blue-400">
+        + Add variable
+    </button>
+    <script>
+        function addVarRow() {
+            const totalForms = document.getElementById("id_vars-TOTAL_FORMS");
+            const count = parseInt(totalForms.value);
+            const template = document.getElementById("vars-empty-row");
+            const html = template.innerHTML.replace(/__prefix__/g, count);
+            const temp = document.createElement("table");
+            temp.innerHTML = "<tbody>" + html + "</tbody>";
+            const row = temp.querySelector("tr");
+            document.getElementById("vars-tbody").appendChild(row);
+            Alpine.initTree(row);
+            totalForms.value = count + 1;
+        }
+    </script>
 </div>

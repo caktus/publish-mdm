@@ -167,7 +167,7 @@ class PolicySerializer:
 
     def _build_advanced_security(self) -> dict | None:
         ds = self.policy.developer_settings
-        if not ds or ds == "DEVELOPER_SETTINGS_DISABLED":
+        if not ds:
             return None
         return {"developerSettings": ds}
 
