@@ -117,7 +117,7 @@ class Policy(models.Model):
     odk_collect_device_id_template = models.CharField(
         max_length=255,
         blank=True,
-        default="{{ app_user_name }} - {{ device_id }}",
+        default="{{ app_user_name }}-{{ device_id }}",
         help_text=(
             "Template for the device_id field passed to ODK Collect's managed configuration. "
             "Supports built-in variables: {{ app_user_name }}, {{ device_id }}, "

@@ -227,7 +227,7 @@ class Migration(migrations.Migration):
             name="odk_collect_device_id_template",
             field=models.CharField(
                 blank=True,
-                default="{{ app_user_name }} - {{ device_id }}",
+                default="{{ app_user_name }}-{{ device_id }}",
                 help_text="Template for the device_id field passed to ODK Collect's managed configuration. Supports built-in variables: {{ app_user_name }}, {{ device_id }}, {{ serial_number }}, {{ imei }}. Leave blank to omit device_id from the managed configuration.",
                 max_length=255,
             ),
