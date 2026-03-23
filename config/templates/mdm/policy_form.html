@@ -19,21 +19,13 @@
                         {{ form.name }}
                         {{ form.name.errors }}
                     </div>
-                    <div>
-                        <p class="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">ODK Collect (pinned — always included)</p>
-                        {{ form.odk_collect_package.label_tag }}
-                        {{ form.odk_collect_package }}
-                        {{ form.odk_collect_package.errors }}
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            The pinned ODK Collect app row will be updated when you save.
-                        </p>
-                    </div>
                 </div>
             </div>
             {% include "mdm/partials/policy_password_section.html" %}
             {% include "mdm/partials/policy_vpn_section.html" %}
             {% include "mdm/partials/policy_kiosk_section.html" %}
             {% include "mdm/partials/policy_developer_section.html" %}
+            {% include "mdm/partials/policy_odk_collect_section.html" %}
             {# Applications formset — management_form must be inside the <form> #}
             {{ app_formset.management_form }}
             {% include "mdm/partials/policy_applications_section.html" %}

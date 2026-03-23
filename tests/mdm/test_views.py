@@ -142,6 +142,7 @@ class TestPolicyEditPost(PolicyViewBase):
         data = {
             "name": "Updated Policy",
             "odk_collect_package": "org.odk.collect.android",
+            "odk_collect_device_id_template": "",
             "device_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
             "device_password_min_length": "",
             "device_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
@@ -359,6 +360,7 @@ class TestPolicyEditFormsets(PolicyViewBase):
         return {
             "name": "My Policy",
             "odk_collect_package": "org.odk.collect.android",
+            "odk_collect_device_id_template": "",
             "device_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
             "device_password_min_length": "",
             "device_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",

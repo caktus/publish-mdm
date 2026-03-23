@@ -114,6 +114,16 @@ class Policy(models.Model):
         default="org.odk.collect.android",
         help_text="Package name for ODK Collect.",
     )
+    odk_collect_device_id_template = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text=(
+            "Template for the device_id field passed to ODK Collect's managed configuration. "
+            "Use {{ imei }} or {{ serial_number }} as placeholders. "
+            "Leave blank to use the device's app-user username."
+        ),
+    )
 
     # Device-scope password policy
     device_password_quality = models.CharField(

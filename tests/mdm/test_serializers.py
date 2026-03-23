@@ -182,8 +182,8 @@ class TestPolicySerializer(TestAllMDMs):
             package_name="com.example.app",
             install_type="FORCE_INSTALLED",
             managed_configuration={
-                "device_id": "{{ device.imei }}",
-                "serial": "{{ device.serial_number }}",
+                "device_id": "{{ imei }}",
+                "serial": "{{ serial_number }}",
             },
             order=1,
         )
@@ -291,8 +291,8 @@ class TestPolicySerializer(TestAllMDMs):
         device.save()
         serializer = PolicySerializer(policy=policy, device=device)
         merged = serializer._merge_variables()
-        assert "device.serial_number" in merged
-        assert merged["device.serial_number"] == device.serial_number
+        assert "serial_number" in merged
+        assert merged["serial_number"] == device.serial_number
 
     def test_resolve_variables_substitutes_strings_in_list(self):
         """String items inside a list value in the policy dict have {{ var }} replaced."""
@@ -302,3 +302,48 @@ class TestPolicySerializer(TestAllMDMs):
         serializer._resolve_variables(obj, {"name": "Alice"})
         assert obj["items"][0] == "hello Alice"
         assert obj["items"][1] == "world"
+
+    def test_odk_device_id_template_used_when_set(self):
+        """When odk_collect_device_id_template is set, it is used as the device_id
+        in the ODK Collect managed configuration (with variable substitution)."""
+        from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
+        from tests.publish_mdm.factories import AppUserFactory
+
+        fleet = FleetFactory()
+        device = DeviceFactory(
+            fleet=fleet,
+            app_user_name="testuser",
+            serial_number="SN-999",
+        )
+        AppUserFactory(
+            name="testuser",
+            project=fleet.project,
+            qr_code_data=DEFAULT_COLLECT_SETTINGS,
+        )
+        policy = fleet.policy
+        policy.odk_collect_device_id_template = "{{ serial_number }}"
+        policy.save()
+        serializer = PolicySerializer(policy=policy, device=device)
+        result = serializer.to_dict()
+        odk_app = result["applications"][0]
+        assert odk_app["managedConfiguration"]["device_id"] == "SN-999"
+
+    def test_odk_device_id_falls_back_to_username_when_template_empty(self):
+        """When odk_collect_device_id_template is blank, the device username is used."""
+        from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
+        from tests.publish_mdm.factories import AppUserFactory
+
+        fleet = FleetFactory()
+        device = DeviceFactory(fleet=fleet, app_user_name="testuser")
+        AppUserFactory(
+            name="testuser",
+            project=fleet.project,
+            qr_code_data=DEFAULT_COLLECT_SETTINGS,
+        )
+        policy = fleet.policy
+        policy.odk_collect_device_id_template = ""
+        policy.save()
+        serializer = PolicySerializer(policy=policy, device=device)
+        result = serializer.to_dict()
+        odk_app = result["applications"][0]
+        assert odk_app["managedConfiguration"]["device_id"] == device.username

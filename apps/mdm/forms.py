@@ -150,6 +150,7 @@ class PolicyEditForm(PlatformFormMixin, forms.ModelForm):
         fields = [
             "name",
             "odk_collect_package",
+            "odk_collect_device_id_template",
             "device_password_quality",
             "device_password_min_length",
             "device_password_require_unlock",
@@ -169,6 +170,9 @@ class PolicyEditForm(PlatformFormMixin, forms.ModelForm):
         widgets = {
             "name": TextInput(attrs={"placeholder": "Policy name"}),
             "odk_collect_package": TextInput(attrs={"placeholder": "org.odk.collect.android"}),
+            "odk_collect_device_id_template": TextInput(
+                attrs={"placeholder": "e.g. {{ serial_number }} or {{ imei }}"}
+            ),
             "device_password_quality": Select,
             "device_password_min_length": TextInput(
                 attrs={"type": "number", "min": "0", "max": "16"}
@@ -191,21 +195,22 @@ class PolicyEditForm(PlatformFormMixin, forms.ModelForm):
         }
         labels = {
             "odk_collect_package": "Package name override",
-            "device_password_quality": "Password quality",
+            "odk_collect_device_id_template": "Device ID template",
+            "device_password_quality": "Quality",
             "device_password_min_length": "Minimum length",
-            "device_password_require_unlock": "Require unlock",
-            "work_password_quality": "Password quality",
+            "device_password_require_unlock": "Require unlock after",
+            "work_password_quality": "Quality",
             "work_password_min_length": "Minimum length",
-            "work_password_require_unlock": "Require unlock",
-            "vpn_package_name": "VPN Package Name",
-            "vpn_lockdown": "Lockdown Mode",
-            "kiosk_custom_launcher_enabled": "Kiosk Custom Launcher",
-            "kiosk_power_button_actions": "Power Button Actions",
-            "kiosk_system_error_warnings": "System Error Warnings",
-            "kiosk_system_navigation": "System Navigation",
-            "kiosk_status_bar": "Status Bar",
-            "kiosk_device_settings": "Device Settings",
-            "developer_settings": "Developer Settings",
+            "work_password_require_unlock": "Require unlock after",
+            "vpn_package_name": "VPN app package name",
+            "vpn_lockdown": "Lockdown mode",
+            "kiosk_custom_launcher_enabled": "Custom launcher",
+            "kiosk_power_button_actions": "Power button actions",
+            "kiosk_system_error_warnings": "System error warnings",
+            "kiosk_system_navigation": "System navigation",
+            "kiosk_status_bar": "Status bar",
+            "kiosk_device_settings": "Device settings",
+            "developer_settings": "Developer options",
         }
 
     def clean(self):

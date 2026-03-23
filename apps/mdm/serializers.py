@@ -93,9 +93,10 @@ class PolicySerializer:
         if self.device:
             qr_code_string = self.device.get_odk_collect_qr_code_string()
             if qr_code_string:
+                device_id_template = self.policy.odk_collect_device_id_template
                 odk_app["managedConfiguration"] = {
                     "settings_json": qr_code_string,
-                    "device_id": self.device.username,
+                    "device_id": device_id_template if device_id_template else self.device.username,
                 }
         apps.append(odk_app)
 
@@ -185,14 +186,14 @@ class PolicySerializer:
             if var.scope == "fleet":
                 merged[var.key] = var.value
 
-        # Built-in system variables from device
+        # Built-in system variables from device (accessible as {{ imei }}, {{ serial_number }})
         if self.device:
             try:
                 hardware_info = (self.device.raw_mdm_device or {}).get("hardwareInfo", {})
-                merged["device.imei"] = hardware_info.get("imei", "")
+                merged["imei"] = hardware_info.get("imei", "")
             except (AttributeError, TypeError):
                 pass
-            merged["device.serial_number"] = self.device.serial_number or ""
+            merged["serial_number"] = self.device.serial_number or ""
 
         return merged
 
