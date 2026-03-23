@@ -12,13 +12,13 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 import logging
 import os
-
 from pathlib import Path
 
 import dj_database_url
 import structlog
 from dotenv import dotenv_values
 from import_export.formats import base_formats
+
 from ..import_export_formats import XLSX
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -447,7 +447,3 @@ ACTIVE_MDM = {
     "name": os.getenv("ACTIVE_MDM_NAME", "TinyMDM"),
     "class": os.getenv("ACTIVE_MDM_CLASS", "apps.mdm.mdms.TinyMDM"),
 }
-
-# API key required to POST to the firmware snapshot endpoint.
-# If empty, the endpoint accepts unauthenticated requests and logs a warning.
-MDM_FIRMWARE_API_KEY = os.getenv("MDM_FIRMWARE_API_KEY", "")
