@@ -35,11 +35,3 @@ __pycache__/
 ~*.xlsx
 docs/_build/
 .tmp_dagster*
-
-# Test quality review artifacts
-test-review-state.json
-.coverage-report.json
-refactor-app-report.md
-
-# Security review artifacts
-security-review-state.json
