@@ -1,7 +1,8 @@
 import pytest
+
 from apps.mdm.forms import FirmwareSnapshotForm, PolicyApplicationAddForm, PolicyEditForm
 from apps.mdm.models import Policy
-from tests.mdm.factories import DeviceFactory, PolicyFactory
+from tests.mdm.factories import DeviceFactory, PolicyApplicationFactory, PolicyFactory
 
 
 class TestFirmwareSnapshotForm:
@@ -45,8 +46,6 @@ class TestFirmwareSnapshotFormVersionExtraction:
             "buildInfo": {"buildPropContent": {"[ro.product.version]": "[1.2.3]"}},
             "versionInfo": {},
         }
-        from apps.mdm.forms import FirmwareSnapshotForm
-
         form = FirmwareSnapshotForm(json_data=data)
         assert form.is_valid(), form.errors
         assert form.cleaned_data["version"] == "1.2.3"
@@ -58,8 +57,6 @@ class TestFirmwareSnapshotFormVersionExtraction:
             "buildInfo": {"buildPropContent": {}},
             "versionInfo": {"alternatives": ["2.0.0", "1.9.9"]},
         }
-        from apps.mdm.forms import FirmwareSnapshotForm
-
         form = FirmwareSnapshotForm(json_data=data)
         assert form.is_valid(), form.errors
         assert form.cleaned_data["version"] == "2.0.0"
@@ -73,8 +70,6 @@ class TestPolicyApplicationAddForm:
         assert form.is_valid(), form.errors
 
     def test_duplicate_package_name_raises_validation_error(self):
-        from tests.mdm.factories import PolicyApplicationFactory
-
         policy = PolicyFactory()
         PolicyApplicationFactory(policy=policy, package_name="com.example.app")
         form = PolicyApplicationAddForm({"package_name": "com.example.app"}, policy=policy)
@@ -83,8 +78,6 @@ class TestPolicyApplicationAddForm:
         assert "already exists" in form.errors["package_name"][0]
 
     def test_duplicate_allowed_for_different_policy(self):
-        from tests.mdm.factories import PolicyApplicationFactory
-
         policy1 = PolicyFactory()
         policy2 = PolicyFactory()
         PolicyApplicationFactory(policy=policy1, package_name="com.example.app")
@@ -124,9 +117,6 @@ class TestPolicyEditForm:
         assert form.is_valid(), form.errors
 
     def test_kiosk_custom_launcher_blocked_when_kiosk_install_type_app_exists(self):
-        from apps.mdm.forms import PolicyEditForm
-        from tests.mdm.factories import PolicyApplicationFactory
-
         policy = PolicyFactory()
         PolicyApplicationFactory(
             policy=policy, install_type="KIOSK", package_name="com.example.kiosk"
@@ -145,9 +135,6 @@ class TestPolicyEditForm:
 
     def test_kiosk_custom_launcher_allowed_for_new_policy_without_pk(self):
         """New policies (no pk yet) skip the kiosk app check."""
-        from apps.mdm.forms import PolicyEditForm
-        from tests.mdm.factories import PolicyApplicationFactory
-
         policy = PolicyFactory()
         PolicyApplicationFactory(policy=policy, install_type="KIOSK")
         # Simulate a new (unsaved) policy instance

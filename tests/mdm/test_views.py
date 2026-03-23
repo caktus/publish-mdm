@@ -207,8 +207,6 @@ class TestPolicyEditPost(PolicyViewBase):
 
     def test_kiosk_validation_error_when_app_has_kiosk_install_type(self, client, url, policy):
         """Enabling kiosk_custom_launcher while an app has KIOSK install type is rejected."""
-        from tests.mdm.factories import PolicyApplicationFactory
-
         PolicyApplicationFactory(
             policy=policy, install_type="KIOSK", package_name="com.example.kiosk"
         )
@@ -231,8 +229,6 @@ class TestPolicyEditPost(PolicyViewBase):
 
     def test_odk_collect_app_updated_on_package_name_change(self, client, url, policy):
         """When odk_collect_package changes, the pinned order=0 app row is also updated."""
-        from tests.mdm.factories import PolicyApplicationFactory
-
         pinned = PolicyApplicationFactory(
             policy=policy, order=0, package_name="org.odk.collect.android"
         )

@@ -9,6 +9,7 @@ from googleapiclient.errors import HttpError
 from googleapiclient.http import RequestMockBuilder
 
 from apps.mdm.mdms import AndroidEnterprise, MDMAPIError
+from apps.mdm.mdms.android_enterprise import MDMDevice
 from apps.mdm.models import Device
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from tests.mdm import TestAndroidEnterpriseOnly
@@ -543,8 +544,6 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
     def test_get_devices_breaks_on_empty_response(self, set_mdm_env_vars, mocker):
         """get_devices() breaks out of the pagination loop when execute() returns
         an empty/falsy response instead of a dict with 'devices'."""
-        from apps.mdm.mdms import AndroidEnterprise
-
         active_mdm = AndroidEnterprise()
         mocker.patch.object(active_mdm, "execute", return_value=None)
         result = active_mdm.get_devices()
@@ -553,10 +552,6 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
     def test_update_existing_devices_skips_device_with_unmatched_id(self, fleet, set_mdm_env_vars):
         """update_existing_devices() skips devices whose device_id is set but not found
         in the MDM response by ID — matched into the queryset via serial number only."""
-        from apps.mdm.mdms import AndroidEnterprise
-        from apps.mdm.mdms.android_enterprise import MDMDevice
-        from tests.mdm.factories import DeviceFactory
-
         # Our device has device_id that does NOT match the MDM device name suffix
         our_device = DeviceFactory(fleet=fleet, device_id="OUR-DEVICE-ID", serial_number="SN999")
         # MDM device name has a different ID suffix; serial_number matches our_device

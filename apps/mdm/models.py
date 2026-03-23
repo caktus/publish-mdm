@@ -1,13 +1,15 @@
 import json
 
 import structlog
+from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models import Q
-from django.conf import settings
-from django.core.validators import RegexValidator
 from django.utils.html import mark_safe
 from django.utils.timezone import now
+
+from .serializers import PolicySerializer
 
 logger = structlog.get_logger()
 
@@ -233,8 +235,6 @@ class Policy(models.Model):
 
     def get_policy_data(self, **kwargs):
         """Generates policy data using the PolicySerializer."""
-        from .serializers import PolicySerializer  # Avoid circular: models ← serializers → models
-
         device = kwargs.get("device")
         applications = list(self.applications.select_related("policy").order_by("order", "pk"))
         variables = list(

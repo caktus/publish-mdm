@@ -1,5 +1,6 @@
 import pytest
 from django.conf import settings
+from django.contrib.auth.models import Permission
 from django.urls import reverse
 from django.utils.html import linebreaks
 from import_export.tmp_storages import TempFolderStorage
@@ -572,9 +573,6 @@ class TestFleetAdminDeleteConfirmation(TestAdmin):
 
     def test_delete_view_no_delete_permission_raises_403(self, client):
         """GET to the fleet delete URL by a user without delete permission returns 403."""
-        from django.contrib.auth.models import Permission
-        from tests.users.factories import UserFactory
-
         # Staff user without delete_fleet permission
         staff_user = UserFactory(is_staff=True, is_superuser=False)
         staff_user.user_permissions.set(
@@ -598,9 +596,6 @@ class TestFleetAdminDeleteConfirmation(TestAdmin):
     def test_delete_view_cannot_delete_title_when_related_perms_lacking(self, client):
         """Confirmation page shows 'Cannot delete' title when user lacks delete
         permission for a related object (device linked to the fleet)."""
-        from django.contrib.auth.models import Permission
-        from tests.users.factories import UserFactory
-
         # Staff user with delete_fleet but NOT delete_device
         staff_user = UserFactory(is_staff=True, is_superuser=False)
         staff_user.user_permissions.set(

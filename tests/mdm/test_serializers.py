@@ -8,9 +8,10 @@ from apps.mdm.models import (
     RequirePasswordUnlock,
 )
 from apps.mdm.serializers import PolicySerializer
+from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from tests.mdm import TestAllMDMs
 from tests.mdm.factories import DeviceFactory, FleetFactory, PolicyFactory
-from tests.publish_mdm.factories import OrganizationFactory
+from tests.publish_mdm.factories import AppUserFactory, OrganizationFactory
 
 
 @pytest.mark.django_db
@@ -245,9 +246,6 @@ class TestPolicySerializer(TestAllMDMs):
     def test_odk_managed_config_injected_when_device_has_app_user(self):
         """managedConfiguration is injected into the ODK Collect app entry when
         the device's app_user_name resolves to a project AppUser with qr_code_data."""
-        from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
-        from tests.publish_mdm.factories import AppUserFactory
-
         fleet = FleetFactory()
         device = DeviceFactory(fleet=fleet, app_user_name="testuser")
         AppUserFactory(
@@ -261,13 +259,13 @@ class TestPolicySerializer(TestAllMDMs):
         odk_app = result["applications"][0]
         assert "managedConfiguration" in odk_app
         assert "settings_json" in odk_app["managedConfiguration"]
-        assert odk_app["managedConfiguration"]["device_id"] == device.username
+        assert odk_app["managedConfiguration"]["device_id"] == (
+            f"{device.app_user_name}-{device.device_id}"
+        )
 
     def test_odk_collect_duplicate_in_applications_skipped(self):
         """An application row whose package_name matches odk_collect_package is
         not duplicated in the output; only the pinned ODK entry appears."""
-        from apps.mdm.models import PolicyApplication
-
         policy = PolicyFactory()
         PolicyApplication.objects.create(
             policy=policy,
@@ -306,9 +304,6 @@ class TestPolicySerializer(TestAllMDMs):
     def test_odk_device_id_template_used_when_set(self):
         """When odk_collect_device_id_template is set, it is used as the device_id
         in the ODK Collect managed configuration (with variable substitution)."""
-        from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
-        from tests.publish_mdm.factories import AppUserFactory
-
         fleet = FleetFactory()
         device = DeviceFactory(
             fleet=fleet,
@@ -330,9 +325,6 @@ class TestPolicySerializer(TestAllMDMs):
 
     def test_odk_device_id_omitted_when_template_empty(self):
         """When odk_collect_device_id_template is blank, device_id is omitted from managed config."""
-        from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
-        from tests.publish_mdm.factories import AppUserFactory
-
         fleet = FleetFactory()
         device = DeviceFactory(fleet=fleet, app_user_name="testuser")
         AppUserFactory(
