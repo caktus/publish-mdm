@@ -199,6 +199,37 @@ The default MDM (`settings.ACTIVE_MDM`) defaults to TinyMDM. Set
 - **`flowbite`** — UI component patterns (toggle switches, modals, badges, auto-save
   HTMX forms, Alpine.js, etc.): `.claude/skills/flowbite/SKILL.md`
 
+## Git Branch Configuration
+
+When creating feature branches with `git checkout -b <branch> <base>`, always verify
+the git config's `merge` setting. **The branch's `merge` must point to itself, not to
+the base branch.** If misconfigured, `git push` sends commits to the base branch instead
+of the feature branch.
+
+**After creating a branch, confirm:**
+
+```bash
+# Check current config
+git config branch.<branch-name>.merge
+
+# Should output: refs/heads/<branch-name>
+# NOT: refs/heads/main (or whatever the base branch is)
+```
+
+**If wrong, fix it:**
+
+```bash
+# Option 1: Use git command
+git branch --set-upstream-to=origin/<branch-name> <branch-name>
+
+# Option 2: Edit .git/config directly
+# [branch "<branch-name>"]
+#     merge = refs/heads/<branch-name>  # ← must match branch name
+#     remote = origin
+```
+
+Agents may create branches with incorrect merge configs. Always verify before pushing.
+
 ## Key Conventions
 
 - `Breadcrumbs.from_items()` requires a non-None string `viewname` for every
