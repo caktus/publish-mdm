@@ -63,8 +63,9 @@ class TestCentralServerSSRF:
         mock_post.assert_not_called()
         assert "base_url" in response.context["form"].errors
 
-    def test_http_base_url_rejected(self, client, url, user, organization, mocker):
-        """Plain http:// URLs must be rejected; only https:// is allowed."""
+    def test_http_base_url_rejected(self, client, url, user, organization, mocker, settings):
+        """Plain http:// URLs must be rejected when DEBUG is False."""
+        settings.DEBUG = False
         mock_post = mocker.patch("apps.publish_mdm.forms.requests.post")
 
         response = client.post(
@@ -79,6 +80,32 @@ class TestCentralServerSSRF:
         assert response.status_code == 200
         mock_post.assert_not_called()
         assert "base_url" in response.context["form"].errors
+
+    def test_http_base_url_allowed_in_debug(
+        self, client, url, user, organization, mocker, settings
+    ):
+        """Plain http:// URLs must be allowed when DEBUG is True (development)."""
+        settings.DEBUG = True
+        mock_post = mocker.patch(
+            "apps.publish_mdm.forms.requests.post",
+            return_value=mocker.Mock(status_code=200),
+        )
+
+        response = client.post(
+            url,
+            data={
+                "base_url": "http://localhost:8383",
+                "username": "user@example.com",
+                "password": "password",
+            },
+        )
+
+        # The HTTPS check is skipped in DEBUG mode; requests.post should be called
+        # and the form submits successfully (redirects)
+        assert response.status_code == 302
+        mock_post.assert_called_once()
+        call_url = mock_post.call_args[0][0]
+        assert call_url.startswith("http://localhost:8383")
 
     def test_loopback_base_url_rejected(self, client, url, user, organization, mocker):
         """Loopback addresses (127.x.x.x) must be rejected."""

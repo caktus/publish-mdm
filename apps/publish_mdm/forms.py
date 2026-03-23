@@ -514,9 +514,9 @@ class CentralServerForm(forms.ModelForm):
     ]
 
     def _validate_base_url(self, url: str) -> None:
-        """Reject non-HTTPS URLs and URLs that target private / reserved hosts."""
+        """Reject non-HTTPS URLs (unless DEBUG is True) and URLs that target private / reserved hosts."""
         parsed = urlparse(url)
-        if parsed.scheme != "https":
+        if not settings.DEBUG and parsed.scheme != "https":
             raise forms.ValidationError("The base URL must use the https:// scheme.")
         host = parsed.hostname or ""
         try:
