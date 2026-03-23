@@ -441,5 +441,5 @@ ACTIVE_MDM = {
 }
 
 # API key required to POST to the firmware snapshot endpoint.
-# If empty, the endpoint accepts unauthenticated requests and logs a warning.
+# If empty, the endpoint rejects all requests and returns 401.
 MDM_FIRMWARE_API_KEY = os.getenv("MDM_FIRMWARE_API_KEY", "")
