@@ -1,19 +1,10 @@
-<div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-5">
-    <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Developer Options</h3>
-    <form hx-post="{% url 'mdm:policy-save-developer' request.organization.slug policy.pk %}"
-          hx-target="#section-developer"
-          hx-swap="innerHTML"
-          hx-trigger="change, submit">
-        {% csrf_token %}
-        {{ developer_form.non_field_errors }}
-        <div class="max-w-md">
-            <div>
-                {{ developer_form.developer_settings.label_tag }}
-                {{ developer_form.developer_settings }}
-                {{ developer_form.developer_settings.errors }}
-            </div>
+<div class="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
+    <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Developer Options</h3>
+    <div class="max-w-md">
+        <div>
+            {{ form.developer_settings.label_tag }}
+            {{ form.developer_settings }}
+            {{ form.developer_settings.errors }}
         </div>
-        <button type="submit" class="sr-only" tabindex="-1">Save</button>
-    </form>
-    {% include "mdm/partials/_saved_indicator.html" %}
+    </div>
 </div>

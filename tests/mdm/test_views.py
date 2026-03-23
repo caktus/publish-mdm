@@ -1,12 +1,10 @@
 import pytest
 from django.urls import reverse
 
-from apps.mdm.models import Policy, PolicyApplication, PolicyVariable
+from apps.mdm.models import Policy, PolicyApplication
 from tests.mdm.factories import (
-    FleetFactory,
     PolicyApplicationFactory,
     PolicyFactory,
-    PolicyVariableFactory,
 )
 from tests.publish_mdm.factories import OrganizationFactory, UserFactory
 
@@ -118,9 +116,9 @@ class TestPolicyEdit(PolicyViewBase):
         response = client.get(url)
         assert response.status_code == 200
         assert response.context["policy"] == policy
-        assert "name_form" in response.context
-        assert "app_forms" in response.context
-        assert "variables" in response.context
+        assert "form" in response.context
+        assert "app_formset" in response.context
+        assert "var_formset" in response.context
 
     def test_org_isolation(self, client, organization, other_org_policy, user):
         url = reverse("mdm:policy-edit", args=[organization.slug, other_org_policy.pk])
@@ -129,286 +127,128 @@ class TestPolicyEdit(PolicyViewBase):
 
 
 # ---------------------------------------------------------------------------
-# policy_save_name
+# policy_edit (POST)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.django_db
-class TestPolicySaveName(PolicyViewBase):
+class TestPolicyEditPost(PolicyViewBase):
     @pytest.fixture
     def url(self, organization, policy):
-        return reverse("mdm:policy-save-name", args=[organization.slug, policy.pk])
+        return reverse("mdm:policy-edit", args=[organization.slug, policy.pk])
 
-    def test_login_required(self, client, url, user):
-        client.logout()
-        response = client.post(url, {"name": "New Name"})
-        assert response.status_code == 302
-
-    def test_valid_post_saves_and_returns_partial(self, client, url, policy):
-        response = client.post(url, {"name": "New Name"})
-        assert response.status_code == 200
-        policy.refresh_from_db()
-        assert policy.name == "New Name"
-        assert response.context["saved"] is True
-
-    def test_invalid_post_returns_form_errors(self, client, url, policy):
-        response = client.post(url, {"name": ""})
-        assert response.status_code == 200
-        assert response.context["name_form"].errors
-
-    def test_org_isolation(self, client, organization, other_org_policy, user):
-        url = reverse("mdm:policy-save-name", args=[organization.slug, other_org_policy.pk])
-        response = client.post(url, {"name": "Hack"})
-        assert response.status_code == 404
-
-
-# ---------------------------------------------------------------------------
-# policy_save_odk_package
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-class TestPolicySaveOdkPackage(PolicyViewBase):
-    @pytest.fixture
-    def url(self, organization, policy):
-        return reverse("mdm:policy-save-odk-package", args=[organization.slug, policy.pk])
-
-    def test_login_required(self, client, url, user):
-        client.logout()
-        response = client.post(url, {"odk_collect_package": "org.odk.collect.android"})
-        assert response.status_code == 302
-
-    def test_valid_post_saves_and_updates_pinned_app(self, client, url, policy):
-        pinned = PolicyApplicationFactory(policy=policy, order=0)
-        response = client.post(url, {"odk_collect_package": "org.custom.collect"})
-        assert response.status_code == 200
-        policy.refresh_from_db()
-        pinned.refresh_from_db()
-        assert policy.odk_collect_package == "org.custom.collect"
-        assert pinned.package_name == "org.custom.collect"
-        assert response.context["odk_package_saved"] is True
-
-
-# ---------------------------------------------------------------------------
-# policy_add_application
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-class TestPolicyAddApplication(PolicyViewBase):
-    @pytest.fixture
-    def url(self, organization, policy):
-        return reverse("mdm:policy-add-application", args=[organization.slug, policy.pk])
-
-    def test_login_required(self, client, url, user):
-        client.logout()
-        response = client.post(url, {"package_name": "com.example.app"})
-        assert response.status_code == 302
-
-    def test_valid_post_adds_app(self, client, url, policy):
-        count_before = policy.applications.count()
-        response = client.post(url, {"package_name": "com.new.app"})
-        assert response.status_code == 200
-        assert policy.applications.count() == count_before + 1
-        assert response.context["saved"] is True
-
-    def test_invalid_post_returns_form_errors(self, client, url, policy):
-        response = client.post(url, {"package_name": ""})
-        assert response.status_code == 200
-        assert response.context["add_app_form"].errors
-
-
-# ---------------------------------------------------------------------------
-# policy_save_application
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-class TestPolicySaveApplication(PolicyViewBase):
-    @pytest.fixture
-    def app(self, policy):
-        return PolicyApplicationFactory(policy=policy, order=1)
-
-    @pytest.fixture
-    def url(self, organization, policy, app):
-        return reverse("mdm:policy-save-application", args=[organization.slug, policy.pk, app.pk])
-
-    def test_login_required(self, client, url, user, app):
-        client.logout()
-        response = client.post(url, {f"app_{app.pk}-package_name": app.package_name})
-        assert response.status_code == 302
-
-    def test_valid_post_saves_app(self, client, url, policy, app):
+    def _valid_data(self, app_forms=None, var_forms=None):
+        """Build valid POST data for PolicyEditForm + empty formsets."""
         data = {
-            f"app_{app.pk}-package_name": app.package_name,
-            f"app_{app.pk}-install_type": "AVAILABLE",
-            f"app_{app.pk}-disabled": False,
-        }
-        response = client.post(url, data)
-        assert response.status_code == 200
-        app.refresh_from_db()
-        assert app.install_type == "AVAILABLE"
-        assert response.context["saved"] is True
-
-    def test_org_isolation(self, client, organization, other_org_policy, user):
-        other_app = PolicyApplicationFactory(policy=other_org_policy)
-        url = reverse(
-            "mdm:policy-save-application",
-            args=[organization.slug, other_org_policy.pk, other_app.pk],
-        )
-        response = client.post(url, {f"app_{other_app.pk}-package_name": "x"})
-        assert response.status_code == 404
-
-
-# ---------------------------------------------------------------------------
-# policy_delete_application
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-class TestPolicyDeleteApplication(PolicyViewBase):
-    @pytest.fixture
-    def app(self, policy):
-        return PolicyApplicationFactory(policy=policy, order=1)
-
-    @pytest.fixture
-    def url(self, organization, policy, app):
-        return reverse("mdm:policy-delete-application", args=[organization.slug, policy.pk, app.pk])
-
-    def test_login_required(self, client, url, user):
-        client.logout()
-        response = client.post(url)
-        assert response.status_code == 302
-
-    def test_deletes_app(self, client, url, policy, app):
-        response = client.post(url)
-        assert response.status_code == 200
-        assert not PolicyApplication.objects.filter(pk=app.pk).exists()
-
-    def test_cannot_delete_pinned_odk_collect_row(self, client, organization, policy):
-        pinned = PolicyApplicationFactory(
-            policy=policy, package_name=policy.odk_collect_package, order=0
-        )
-        url = reverse(
-            "mdm:policy-delete-application",
-            args=[organization.slug, policy.pk, pinned.pk],
-        )
-        response = client.post(url)
-        assert response.status_code == 403
-        assert PolicyApplication.objects.filter(pk=pinned.pk).exists()
-
-
-# ---------------------------------------------------------------------------
-# policy_save_password
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-class TestPolicySavePassword(PolicyViewBase):
-    @pytest.fixture
-    def url(self, organization, policy):
-        return reverse("mdm:policy-save-password", args=[organization.slug, policy.pk])
-
-    def test_login_required(self, client, url, user):
-        client.logout()
-        response = client.post(url, {})
-        assert response.status_code == 302
-
-    def test_valid_post_saves(self, client, url, policy):
-        data = {
-            "device_password_quality": "NUMERIC",
-            "device_password_min_length": "6",
+            "name": "Updated Policy",
+            "odk_collect_package": "org.odk.collect.android",
+            "device_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
+            "device_password_min_length": "",
             "device_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
             "work_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
             "work_password_min_length": "",
             "work_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+            "vpn_package_name": "",
+            "kiosk_power_button_actions": "POWER_BUTTON_ACTIONS_UNSPECIFIED",
+            "kiosk_system_error_warnings": "SYSTEM_ERROR_WARNINGS_UNSPECIFIED",
+            "kiosk_system_navigation": "SYSTEM_NAVIGATION_UNSPECIFIED",
+            "kiosk_status_bar": "STATUS_BAR_UNSPECIFIED",
+            "kiosk_device_settings": "DEVICE_SETTINGS_UNSPECIFIED",
+            "developer_settings": "DEVELOPER_SETTINGS_DISABLED",
+            # App formset management form
+            "apps-TOTAL_FORMS": "1",
+            "apps-INITIAL_FORMS": "0",
+            "apps-MIN_NUM_FORMS": "0",
+            "apps-MAX_NUM_FORMS": "1000",
+            # Var formset management form
+            "vars-TOTAL_FORMS": "1",
+            "vars-INITIAL_FORMS": "0",
+            "vars-MIN_NUM_FORMS": "0",
+            "vars-MAX_NUM_FORMS": "1000",
         }
-        response = client.post(url, data)
-        assert response.status_code == 200
-        policy.refresh_from_db()
-        assert policy.device_password_quality == "NUMERIC"
-        assert response.context["saved"] is True
-
-
-# ---------------------------------------------------------------------------
-# policy_save_vpn
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-class TestPolicySaveVPN(PolicyViewBase):
-    @pytest.fixture
-    def url(self, organization, policy):
-        return reverse("mdm:policy-save-vpn", args=[organization.slug, policy.pk])
+        if app_forms:
+            data.update(app_forms)
+        if var_forms:
+            data.update(var_forms)
+        return data
 
     def test_login_required(self, client, url, user):
         client.logout()
-        response = client.post(url, {})
+        response = client.post(url, self._valid_data())
         assert response.status_code == 302
 
-    def test_valid_post_saves(self, client, url, policy):
-        data = {"vpn_package_name": "com.tailscale.ipn", "vpn_lockdown": False}
-        response = client.post(url, data)
-        assert response.status_code == 200
+    def test_valid_post_saves_and_redirects(self, client, url, policy):
+        response = client.post(url, self._valid_data())
+        assert response.status_code == 302
         policy.refresh_from_db()
-        assert policy.vpn_package_name == "com.tailscale.ipn"
-        assert response.context["saved"] is True
+        assert policy.name == "Updated Policy"
 
-
-# ---------------------------------------------------------------------------
-# policy_save_developer
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-class TestPolicySaveDeveloper(PolicyViewBase):
-    @pytest.fixture
-    def url(self, organization, policy):
-        return reverse("mdm:policy-save-developer", args=[organization.slug, policy.pk])
-
-    def test_login_required(self, client, url, user):
-        client.logout()
-        response = client.post(url, {})
-        assert response.status_code == 302
-
-    def test_valid_post_saves(self, client, url, policy):
-        data = {"developer_settings": "DEVELOPER_SETTINGS_ALLOWED"}
-        response = client.post(url, data)
-        assert response.status_code == 200
-        policy.refresh_from_db()
-        assert policy.developer_settings == "DEVELOPER_SETTINGS_ALLOWED"
-        assert response.context["saved"] is True
-
-
-# ---------------------------------------------------------------------------
-# policy_save_kiosk
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-class TestPolicySaveKiosk(PolicyViewBase):
-    @pytest.fixture
-    def url(self, organization, policy):
-        return reverse("mdm:policy-save-kiosk", args=[organization.slug, policy.pk])
-
-    def test_login_required(self, client, url, user):
-        client.logout()
-        response = client.post(url, {})
-        assert response.status_code == 302
-
-    def test_valid_post_saves(self, client, url, policy):
+    def test_invalid_post_returns_form_with_errors(self, client, url, policy):
         data = {
-            "kiosk_power_button_actions": "POWER_BUTTON_AVAILABLE",
-            "kiosk_system_error_warnings": "ERROR_AND_WARNINGS_MUTED",
-            "kiosk_system_navigation": "NAVIGATION_DISABLED",
-            "kiosk_status_bar": "NOTIFICATIONS_AND_SYSTEM_INFO_DISABLED",
-            "kiosk_device_settings": "SETTINGS_ACCESS_BLOCKED",
+            "name": "",
+            "apps-TOTAL_FORMS": "1",
+            "apps-INITIAL_FORMS": "0",
+            "apps-MIN_NUM_FORMS": "0",
+            "apps-MAX_NUM_FORMS": "1000",
+            "vars-TOTAL_FORMS": "1",
+            "vars-INITIAL_FORMS": "0",
+            "vars-MIN_NUM_FORMS": "0",
+            "vars-MAX_NUM_FORMS": "1000",
         }
         response = client.post(url, data)
         assert response.status_code == 200
+        assert response.context["form"].errors
+
+    def test_org_isolation(self, client, organization, other_org_policy, user):
+        url = reverse("mdm:policy-edit", args=[organization.slug, other_org_policy.pk])
+        response = client.post(url, self._valid_data())
+        assert response.status_code == 404
+
+    def test_kiosk_validation_error_when_app_has_kiosk_install_type(self, client, url, policy):
+        """Enabling kiosk_custom_launcher while an app has KIOSK install type is rejected."""
+        from tests.mdm.factories import PolicyApplicationFactory
+
+        PolicyApplicationFactory(
+            policy=policy, install_type="KIOSK", package_name="com.example.kiosk"
+        )
+        data = self._valid_data()
+        data["kiosk_custom_launcher_enabled"] = "on"
+        response = client.post(url, data)
+        assert response.status_code == 200
+        form = response.context["form"]
+        assert form.non_field_errors()
+        assert "com.example.kiosk" in str(form.non_field_errors())
+
+    def test_kiosk_launcher_allowed_when_no_kiosk_install_type_apps(self, client, url, policy):
+        """Enabling kiosk_custom_launcher is allowed when no apps use KIOSK install type."""
+        data = self._valid_data()
+        data["kiosk_custom_launcher_enabled"] = "on"
+        response = client.post(url, data)
+        assert response.status_code == 302
         policy.refresh_from_db()
-        assert policy.kiosk_system_navigation == "NAVIGATION_DISABLED"
-        assert response.context["saved"] is True
+        assert policy.kiosk_custom_launcher_enabled is True
+
+    def test_odk_collect_app_updated_on_package_name_change(self, client, url, policy):
+        """When odk_collect_package changes, the pinned order=0 app row is also updated."""
+        from tests.mdm.factories import PolicyApplicationFactory
+
+        pinned = PolicyApplicationFactory(
+            policy=policy, order=0, package_name="org.odk.collect.android"
+        )
+        data = self._valid_data(
+            app_forms={
+                "apps-TOTAL_FORMS": "2",
+                "apps-INITIAL_FORMS": "1",
+                "apps-0-id": str(pinned.pk),
+                "apps-0-package_name": "org.odk.collect.android",
+                "apps-0-install_type": "FORCE_INSTALLED",
+            }
+        )
+        data["odk_collect_package"] = "org.custom.collect"
+        response = client.post(url, data)
+        assert response.status_code == 302
+        pinned.refresh_from_db()
+        assert pinned.package_name == "org.custom.collect"
 
 
 # ---------------------------------------------------------------------------
@@ -458,127 +298,6 @@ class TestPolicySaveManagedConfig(PolicyViewBase):
 
 
 # ---------------------------------------------------------------------------
-# policy_add_variable
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-class TestPolicyAddVariable(PolicyViewBase):
-    @pytest.fixture
-    def url(self, organization, policy):
-        return reverse("mdm:policy-add-variable", args=[organization.slug, policy.pk])
-
-    def test_login_required(self, client, url, user):
-        client.logout()
-        response = client.post(url, {})
-        assert response.status_code == 302
-
-    def test_valid_post_creates_variable(self, client, url, policy, organization):
-        data = {"key": "my_var", "value": "my_value", "scope": "org"}
-        response = client.post(url, data)
-        assert response.status_code == 200
-        assert PolicyVariable.objects.filter(key="my_var", org=organization).exists()
-        assert response.context["saved"] is True
-
-    def test_invalid_post_returns_form_errors(self, client, url, policy):
-        response = client.post(url, {"key": "", "value": "", "scope": "org"})
-        assert response.status_code == 200
-        assert response.context["variable_form"].errors
-
-    def test_org_is_pre_set_on_form_instance(self, client, url, policy, organization):
-        """org is pre-set before is_valid() so model.clean() finds the org."""
-        data = {"key": "scoped_var", "value": "val", "scope": "org"}
-        response = client.post(url, data)
-        assert response.status_code == 200
-        var = PolicyVariable.objects.get(key="scoped_var")
-        assert var.org == organization
-
-    def test_duplicate_policy_variable_raises_form_error(self, client, url, policy, organization):
-        """Submitting a duplicate policy-level variable key shows a friendly form error."""
-        PolicyVariableFactory(key="dup_key", org=organization, scope="org")
-        data = {"key": "dup_key", "value": "other_val", "scope": "org"}
-        response = client.post(url, data)
-        assert response.status_code == 200
-        form = response.context["variable_form"]
-        assert form.errors
-        assert "dup_key" in str(form.errors)
-        assert PolicyVariable.objects.filter(key="dup_key", org=organization).count() == 1
-
-    def test_duplicate_fleet_variable_raises_form_error(self, client, url, policy, organization):
-        """Submitting a duplicate fleet-level variable key for the same fleet shows a friendly form error."""
-        fleet = FleetFactory(organization=organization, policy=policy)
-        PolicyVariableFactory(key="fleet_dup", fleet=fleet, org=None, scope="fleet")
-        data = {"key": "fleet_dup", "value": "other_val", "scope": "fleet", "fleet": fleet.pk}
-        response = client.post(url, data)
-        assert response.status_code == 200
-        form = response.context["variable_form"]
-        assert form.errors
-        assert "fleet_dup" in str(form.errors)
-        assert PolicyVariable.objects.filter(key="fleet_dup", fleet=fleet).count() == 1
-
-    def test_same_key_different_scope_is_allowed(self, client, url, policy, organization):
-        """A key can exist as both policy-level and fleet-level — they are independent scopes."""
-        PolicyVariableFactory(key="shared_key", org=organization, scope="org")
-        fleet = FleetFactory(organization=organization, policy=policy)
-        data = {"key": "shared_key", "value": "fleet_val", "scope": "fleet", "fleet": fleet.pk}
-        response = client.post(url, data)
-        assert response.status_code == 200
-        assert not response.context["variable_form"].errors
-        assert PolicyVariable.objects.filter(key="shared_key").count() == 2
-
-
-# ---------------------------------------------------------------------------
-# policy_delete_variable
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-class TestPolicyDeleteVariable(PolicyViewBase):
-    @pytest.fixture
-    def variable(self, organization):
-        return PolicyVariableFactory(org=organization)
-
-    @pytest.fixture
-    def url(self, organization, policy, variable):
-        return reverse(
-            "mdm:policy-delete-variable", args=[organization.slug, policy.pk, variable.pk]
-        )
-
-    def test_login_required(self, client, url, user):
-        client.logout()
-        response = client.post(url)
-        assert response.status_code == 302
-
-    def test_deletes_variable(self, client, url, variable):
-        response = client.post(url)
-        assert response.status_code == 200
-        assert not PolicyVariable.objects.filter(pk=variable.pk).exists()
-
-    def test_org_isolation(self, client, organization, other_org_policy, user):
-        other_var = PolicyVariableFactory(org=OrganizationFactory())
-        url = reverse(
-            "mdm:policy-delete-variable",
-            args=[organization.slug, other_org_policy.pk, other_var.pk],
-        )
-        # Policy is cross-org → 404 before variable lookup
-        response = client.post(url)
-        assert response.status_code == 404
-
-    def test_cannot_delete_other_org_variable_via_own_policy(
-        self, client, organization, policy, user
-    ):
-        other_var = PolicyVariableFactory(org=OrganizationFactory())
-        url = reverse(
-            "mdm:policy-delete-variable",
-            args=[organization.slug, policy.pk, other_var.pk],
-        )
-        # Own policy passes the check, but variable belongs to another org → 404
-        response = client.post(url)
-        assert response.status_code == 404
-        assert PolicyVariable.objects.filter(pk=other_var.pk).exists()
-
-
-# ---------------------------------------------------------------------------
 # firmware_snapshot_view
 # ---------------------------------------------------------------------------
 
@@ -611,110 +330,135 @@ class TestFirmwareSnapshotView:
 
 
 # ---------------------------------------------------------------------------
-# policy_save_odk_package — invalid form path
+# policy_edit — formset tests
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.django_db
-class TestPolicySaveOdkPackageInvalid(PolicyViewBase):
+class TestPolicyEditFormsets(PolicyViewBase):
     @pytest.fixture
     def url(self, organization, policy):
-        return reverse("mdm:policy-save-odk-package", args=[organization.slug, policy.pk])
-
-    def test_invalid_post_returns_form_with_errors(self, client, url, policy):
-        response = client.post(url, {"odk_collect_package": ""})
-        assert response.status_code == 200
-        assert response.context["odk_package_form"].errors
-
-
-# ---------------------------------------------------------------------------
-# policy_save_application — invalid form path
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-class TestPolicySaveApplicationInvalid(PolicyViewBase):
-    @pytest.fixture
-    def app(self, policy):
-        from tests.mdm.factories import PolicyApplicationFactory
-
-        return PolicyApplicationFactory(policy=policy, order=1)
+        return reverse("mdm:policy-edit", args=[organization.slug, policy.pk])
 
     @pytest.fixture
-    def url(self, organization, policy, app):
-        return reverse("mdm:policy-save-application", args=[organization.slug, policy.pk, app.pk])
-
-    def test_invalid_post_returns_form_with_errors(self, client, url, app):
-        response = client.post(
-            url, {f"app_{app.pk}-package_name": "", f"app_{app.pk}-install_type": "FORCE_INSTALLED"}
+    def pinned_app(self, policy):
+        return PolicyApplicationFactory(
+            policy=policy,
+            order=0,
+            package_name="org.odk.collect.android",
+            install_type="FORCE_INSTALLED",
         )
-        assert response.status_code == 200
-        assert response.context["app_form"].errors
 
-
-# ---------------------------------------------------------------------------
-# policy_save_password — invalid form path
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-class TestPolicySavePasswordInvalid(PolicyViewBase):
     @pytest.fixture
-    def url(self, organization, policy):
-        return reverse("mdm:policy-save-password", args=[organization.slug, policy.pk])
+    def extra_app(self, policy, pinned_app):
+        return PolicyApplicationFactory(
+            policy=policy, order=1, package_name="com.example.app", install_type="AVAILABLE"
+        )
 
-    def test_invalid_post_returns_form_with_errors(self, client, url, policy):
-        response = client.post(url, {"device_password_min_length": "not-a-number"})
+    def _policy_base_data(self):
+        return {
+            "name": "My Policy",
+            "odk_collect_package": "org.odk.collect.android",
+            "device_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
+            "device_password_min_length": "",
+            "device_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+            "work_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
+            "work_password_min_length": "",
+            "work_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+            "vpn_package_name": "",
+            "kiosk_power_button_actions": "POWER_BUTTON_ACTIONS_UNSPECIFIED",
+            "kiosk_system_error_warnings": "SYSTEM_ERROR_WARNINGS_UNSPECIFIED",
+            "kiosk_system_navigation": "SYSTEM_NAVIGATION_UNSPECIFIED",
+            "kiosk_status_bar": "STATUS_BAR_UNSPECIFIED",
+            "kiosk_device_settings": "DEVICE_SETTINGS_UNSPECIFIED",
+            "developer_settings": "DEVELOPER_SETTINGS_DISABLED",
+        }
+
+    def test_edit_app_install_type_via_formset(self, client, url, policy, pinned_app, extra_app):
+        data = self._policy_base_data()
+        data.update(
+            {
+                "apps-TOTAL_FORMS": "3",
+                "apps-INITIAL_FORMS": "2",
+                "apps-0-id": str(pinned_app.pk),
+                "apps-0-package_name": "org.odk.collect.android",
+                "apps-0-install_type": "FORCE_INSTALLED",
+                "apps-1-id": str(extra_app.pk),
+                "apps-1-package_name": "com.example.app",
+                "apps-1-install_type": "KIOSK",
+                "vars-TOTAL_FORMS": "1",
+                "vars-INITIAL_FORMS": "0",
+                "vars-MIN_NUM_FORMS": "0",
+                "vars-MAX_NUM_FORMS": "1000",
+            }
+        )
+        response = client.post(url, data)
+        assert response.status_code == 302
+        extra_app.refresh_from_db()
+        assert extra_app.install_type == "KIOSK"
+
+    def test_add_app_via_formset_extra_row(self, client, url, policy, pinned_app):
+        data = self._policy_base_data()
+        data.update(
+            {
+                "apps-TOTAL_FORMS": "2",
+                "apps-INITIAL_FORMS": "1",
+                "apps-0-id": str(pinned_app.pk),
+                "apps-0-package_name": "org.odk.collect.android",
+                "apps-0-install_type": "FORCE_INSTALLED",
+                "apps-1-id": "",
+                "apps-1-package_name": "com.newapp.example",
+                "apps-1-install_type": "AVAILABLE",
+                "vars-TOTAL_FORMS": "1",
+                "vars-INITIAL_FORMS": "0",
+                "vars-MIN_NUM_FORMS": "0",
+                "vars-MAX_NUM_FORMS": "1000",
+            }
+        )
+        response = client.post(url, data)
+        assert response.status_code == 302
+        assert policy.applications.filter(package_name="com.newapp.example").exists()
+
+    def test_delete_app_via_formset(self, client, url, policy, pinned_app, extra_app):
+        data = self._policy_base_data()
+        data.update(
+            {
+                "apps-TOTAL_FORMS": "3",
+                "apps-INITIAL_FORMS": "2",
+                "apps-0-id": str(pinned_app.pk),
+                "apps-0-package_name": "org.odk.collect.android",
+                "apps-0-install_type": "FORCE_INSTALLED",
+                "apps-1-id": str(extra_app.pk),
+                "apps-1-package_name": "com.example.app",
+                "apps-1-install_type": "AVAILABLE",
+                "apps-1-DELETE": "on",
+                "vars-TOTAL_FORMS": "1",
+                "vars-INITIAL_FORMS": "0",
+                "vars-MIN_NUM_FORMS": "0",
+                "vars-MAX_NUM_FORMS": "1000",
+            }
+        )
+        response = client.post(url, data)
+        assert response.status_code == 302
+        assert not PolicyApplication.objects.filter(pk=extra_app.pk).exists()
+
+    def test_cannot_delete_pinned_app_via_formset(self, client, url, policy, pinned_app):
+        data = self._policy_base_data()
+        data.update(
+            {
+                "apps-TOTAL_FORMS": "2",
+                "apps-INITIAL_FORMS": "1",
+                "apps-0-id": str(pinned_app.pk),
+                "apps-0-package_name": "org.odk.collect.android",
+                "apps-0-install_type": "FORCE_INSTALLED",
+                "apps-0-DELETE": "on",
+                "vars-TOTAL_FORMS": "1",
+                "vars-INITIAL_FORMS": "0",
+                "vars-MIN_NUM_FORMS": "0",
+                "vars-MAX_NUM_FORMS": "1000",
+            }
+        )
+        response = client.post(url, data)
         assert response.status_code == 200
-        assert response.context["password_form"].errors
-
-
-# ---------------------------------------------------------------------------
-# policy_save_vpn — invalid form path
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-class TestPolicySaveVpnInvalid(PolicyViewBase):
-    @pytest.fixture
-    def url(self, organization, policy):
-        return reverse("mdm:policy-save-vpn", args=[organization.slug, policy.pk])
-
-    def test_invalid_post_returns_form_with_errors(self, client, url, policy):
-        response = client.post(url, {"vpn_package_name": "x" * 300})
-        assert response.status_code == 200
-        assert response.context["vpn_form"].errors
-
-
-# ---------------------------------------------------------------------------
-# policy_save_developer — invalid form path
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-class TestPolicySaveDeveloperInvalid(PolicyViewBase):
-    @pytest.fixture
-    def url(self, organization, policy):
-        return reverse("mdm:policy-save-developer", args=[organization.slug, policy.pk])
-
-    def test_invalid_post_returns_form_with_errors(self, client, url, policy):
-        response = client.post(url, {"developer_settings": "TOTALLY_INVALID_CHOICE"})
-        assert response.status_code == 200
-        assert response.context["developer_form"].errors
-
-
-# ---------------------------------------------------------------------------
-# policy_save_kiosk — invalid form path
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.django_db
-class TestPolicySaveKioskInvalid(PolicyViewBase):
-    @pytest.fixture
-    def url(self, organization, policy):
-        return reverse("mdm:policy-save-kiosk", args=[organization.slug, policy.pk])
-
-    def test_invalid_post_returns_form_with_errors(self, client, url, policy):
-        response = client.post(url, {"kiosk_power_button_actions": "INVALID_CHOICE"})
-        assert response.status_code == 200
-        assert response.context["kiosk_form"].errors
+        assert PolicyApplication.objects.filter(pk=pinned_app.pk).exists()
+        assert response.context["app_formset"].non_form_errors()

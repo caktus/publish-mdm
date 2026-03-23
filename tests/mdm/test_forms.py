@@ -1,5 +1,6 @@
 import pytest
-from apps.mdm.forms import FirmwareSnapshotForm, PolicyApplicationAddForm
+from apps.mdm.forms import FirmwareSnapshotForm, PolicyApplicationAddForm, PolicyEditForm
+from apps.mdm.models import Policy
 from tests.mdm.factories import DeviceFactory, PolicyFactory
 
 
@@ -93,4 +94,64 @@ class TestPolicyApplicationAddForm:
     def test_no_policy_skips_duplicate_check(self):
         """Without a policy, the duplicate check is skipped."""
         form = PolicyApplicationAddForm({"package_name": "com.example.app"})
+        assert form.is_valid(), form.errors
+
+
+@pytest.mark.django_db
+class TestPolicyEditForm:
+    def _base_data(self):
+        return {
+            "name": "Test Policy",
+            "odk_collect_package": "org.odk.collect.android",
+            "device_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
+            "device_password_min_length": "",
+            "device_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+            "work_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
+            "work_password_min_length": "",
+            "work_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+            "vpn_package_name": "",
+            "kiosk_power_button_actions": "POWER_BUTTON_ACTIONS_UNSPECIFIED",
+            "kiosk_system_error_warnings": "SYSTEM_ERROR_WARNINGS_UNSPECIFIED",
+            "kiosk_system_navigation": "SYSTEM_NAVIGATION_UNSPECIFIED",
+            "kiosk_status_bar": "STATUS_BAR_UNSPECIFIED",
+            "kiosk_device_settings": "DEVICE_SETTINGS_UNSPECIFIED",
+            "developer_settings": "DEVELOPER_SETTINGS_DISABLED",
+        }
+
+    def test_valid_data_is_valid(self):
+        policy = PolicyFactory()
+        form = PolicyEditForm(self._base_data(), instance=policy)
+        assert form.is_valid(), form.errors
+
+    def test_kiosk_custom_launcher_blocked_when_kiosk_install_type_app_exists(self):
+        from apps.mdm.forms import PolicyEditForm
+        from tests.mdm.factories import PolicyApplicationFactory
+
+        policy = PolicyFactory()
+        PolicyApplicationFactory(
+            policy=policy, install_type="KIOSK", package_name="com.example.kiosk"
+        )
+        data = {**self._base_data(), "kiosk_custom_launcher_enabled": True}
+        form = PolicyEditForm(data, instance=policy)
+        assert not form.is_valid()
+        assert form.non_field_errors()
+        assert "com.example.kiosk" in str(form.non_field_errors())
+
+    def test_kiosk_custom_launcher_allowed_when_no_kiosk_install_type_apps(self):
+        policy = PolicyFactory()
+        data = {**self._base_data(), "kiosk_custom_launcher_enabled": True}
+        form = PolicyEditForm(data, instance=policy)
+        assert form.is_valid(), form.errors
+
+    def test_kiosk_custom_launcher_allowed_for_new_policy_without_pk(self):
+        """New policies (no pk yet) skip the kiosk app check."""
+        from apps.mdm.forms import PolicyEditForm
+        from tests.mdm.factories import PolicyApplicationFactory
+
+        policy = PolicyFactory()
+        PolicyApplicationFactory(policy=policy, install_type="KIOSK")
+        # Simulate a new (unsaved) policy instance
+        new_policy = Policy(name="New", mdm="Android Enterprise")
+        data = {**self._base_data(), "kiosk_custom_launcher_enabled": True}
+        form = PolicyEditForm(data, instance=new_policy)
         assert form.is_valid(), form.errors

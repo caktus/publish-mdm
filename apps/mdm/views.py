@@ -13,16 +13,11 @@ from django.views.decorators.http import require_POST
 from apps.publish_mdm.nav import Breadcrumbs
 
 from .forms import (
-    DeveloperSettingsForm,
     FirmwareSnapshotForm,
-    KioskModeForm,
-    OdkCollectPackageForm,
-    PasswordPolicyForm,
-    PolicyApplicationAddForm,
-    PolicyApplicationForm,
+    PolicyApplicationFormSet,
+    PolicyEditForm,
     PolicyNameForm,
-    PolicyVariableForm,
-    VPNForm,
+    PolicyVariableFormSet,
 )
 from .mdms import get_active_mdm_instance
 from .models import Device, Policy, PolicyApplication, PolicyVariable
@@ -81,35 +76,6 @@ def _get_org_variables(organization):
     ).select_related("fleet")
 
 
-def _build_app_forms(policy):
-    """Build a list of (app, form) tuples for all applications on a policy."""
-    return [
-        (app, PolicyApplicationForm(instance=app, prefix=f"app_{app.pk}"))
-        for app in policy.applications.order_by("order", "pk")
-    ]
-
-
-def _applications_context(policy, add_app_form=None):
-    """Build the common context for the policy applications section partial."""
-    return {
-        "policy": policy,
-        "app_forms": _build_app_forms(policy),
-        "add_app_form": add_app_form if add_app_form is not None else PolicyApplicationAddForm(),
-        "odk_package_form": OdkCollectPackageForm(instance=policy),
-    }
-
-
-def _variables_context(policy, organization, variable_form=None):
-    """Build the common context for the policy variables section partial."""
-    return {
-        "policy": policy,
-        "variables": _get_org_variables(organization),
-        "variable_form": variable_form
-        if variable_form is not None
-        else PolicyVariableForm(organization=organization),
-    }
-
-
 def _push_policy_to_mdm(policy):
     """Push a policy and any device-specific child policies to the MDM.
 
@@ -134,22 +100,6 @@ def _push_policy_to_mdm(policy):
             active_mdm.push_device_config(device)
         except Exception:
             logger.error("Failed to push device config to MDM", device=device, exc_info=True)
-
-
-def _save_policy_section(request, policy, form_class, template, form_key):
-    """Handle the common HTMX save-section pattern: validate, save, re-render partial.
-
-    Used by policy_save_password, policy_save_vpn, policy_save_developer, and
-    policy_save_kiosk which all follow the same structure.
-    """
-    form = form_class(request.POST, instance=policy)
-    if form.is_valid():
-        form.save()
-        _push_policy_to_mdm(policy)
-        ctx = {"policy": policy, form_key: form_class(instance=policy), "saved": True}
-    else:
-        ctx = {"policy": policy, form_key: form}
-    return render(request, template, ctx)
 
 
 # ---------------------------------------------------------------------------
@@ -209,21 +159,51 @@ def policy_add(request, organization_slug):
 
 @login_required
 def policy_edit(request, organization_slug, policy_id):
-    """Main policy editor page with all sections."""
+    """Edit a policy: all fields, applications, and variables in a single form."""
     policy = _get_policy_or_404(policy_id, request.organization)
-    variables = _get_org_variables(request.organization)
+    organization = request.organization
+
+    if request.method == "POST":
+        form = PolicyEditForm(request.POST, instance=policy)
+        app_formset = PolicyApplicationFormSet(request.POST, instance=policy, prefix="apps")
+        var_formset = PolicyVariableFormSet(
+            request.POST,
+            queryset=_get_org_variables(organization),
+            prefix="vars",
+            organization=organization,
+        )
+        if form.is_valid() and app_formset.is_valid() and var_formset.is_valid():
+            policy = form.save()
+            app_formset.save()
+            # Keep pinned ODK app in sync with the policy's odk_collect_package
+            odk_app = policy.applications.filter(order=0).first()
+            if odk_app and odk_app.package_name != policy.odk_collect_package:
+                odk_app.package_name = policy.odk_collect_package
+                odk_app.save()
+            variables = var_formset.save(commit=False)
+            for var in variables:
+                if not var.pk:
+                    var.org = organization
+                var.save()
+            for var in var_formset.deleted_objects:
+                var.delete()
+            _push_policy_to_mdm(policy)
+            messages.success(request, "Policy saved.")
+            return redirect("mdm:policy-edit", organization_slug, policy.pk)
+    else:
+        form = PolicyEditForm(instance=policy)
+        app_formset = PolicyApplicationFormSet(instance=policy, prefix="apps")
+        var_formset = PolicyVariableFormSet(
+            queryset=_get_org_variables(organization),
+            prefix="vars",
+            organization=organization,
+        )
+
     context = {
         "policy": policy,
-        "name_form": PolicyNameForm(instance=policy),
-        "odk_package_form": OdkCollectPackageForm(instance=policy),
-        "app_forms": _build_app_forms(policy),
-        "add_app_form": PolicyApplicationAddForm(),
-        "password_form": PasswordPolicyForm(instance=policy),
-        "vpn_form": VPNForm(instance=policy),
-        "kiosk_form": KioskModeForm(instance=policy),
-        "developer_form": DeveloperSettingsForm(instance=policy),
-        "variables": variables,
-        "variable_form": PolicyVariableForm(organization=request.organization),
+        "form": form,
+        "app_formset": app_formset,
+        "var_formset": var_formset,
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
             items=[
@@ -233,176 +213,6 @@ def policy_edit(request, organization_slug, policy_id):
         ),
     }
     return render(request, "mdm/policy_form.html", context)
-
-
-@login_required
-def policy_save_name(request, organization_slug, policy_id):
-    """HTMX: save policy name."""
-    policy = _get_policy_or_404(policy_id, request.organization)
-    form = PolicyNameForm(request.POST, instance=policy)
-    if form.is_valid():
-        form.save()
-        _push_policy_to_mdm(policy)
-        return render(
-            request,
-            "mdm/partials/policy_name_section.html",
-            {"policy": policy, "name_form": PolicyNameForm(instance=policy), "saved": True},
-        )
-    return render(
-        request,
-        "mdm/partials/policy_name_section.html",
-        {"policy": policy, "name_form": form},
-    )
-
-
-@login_required
-def policy_save_odk_package(request, organization_slug, policy_id):
-    """HTMX: save ODK Collect package name override."""
-    policy = _get_policy_or_404(policy_id, request.organization)
-    form = OdkCollectPackageForm(request.POST, instance=policy)
-    if form.is_valid():
-        form.save()
-        odk_app = policy.applications.filter(order=0).first()
-        if odk_app:
-            odk_app.package_name = policy.odk_collect_package
-            odk_app.save()
-        _push_policy_to_mdm(policy)
-        return render(
-            request,
-            "mdm/partials/policy_odk_package.html",
-            {
-                "policy": policy,
-                "odk_package_form": OdkCollectPackageForm(instance=policy),
-                "odk_package_saved": True,
-            },
-        )
-    return render(
-        request,
-        "mdm/partials/policy_odk_package.html",
-        {"policy": policy, "odk_package_form": form},
-    )
-
-
-@login_required
-def policy_add_application(request, organization_slug, policy_id):
-    """HTMX: add a new application to the policy."""
-    policy = _get_policy_or_404(policy_id, request.organization)
-    form = PolicyApplicationAddForm(request.POST, policy=policy)
-    if form.is_valid():
-        app = form.save(commit=False)
-        app.policy = policy
-        app.order = policy.applications.count()
-        app.save()
-        _push_policy_to_mdm(policy)
-        return render(
-            request,
-            "mdm/partials/policy_applications_section.html",
-            {**_applications_context(policy), "saved": True},
-        )
-    return render(
-        request,
-        "mdm/partials/policy_applications_section.html",
-        _applications_context(policy, add_app_form=form),
-    )
-
-
-@login_required
-def policy_save_application(request, organization_slug, policy_id, app_id):
-    """HTMX: save a single application row."""
-    policy = _get_policy_or_404(policy_id, request.organization)
-    app = get_object_or_404(PolicyApplication, pk=app_id, policy=policy)
-    is_pinned = app.order == 0 and app.package_name == policy.odk_collect_package
-    form = PolicyApplicationForm(request.POST, instance=app, prefix=f"app_{app.pk}")
-    if form.is_valid():
-        form.save()
-        _push_policy_to_mdm(policy)
-        if is_pinned:
-            return render(
-                request,
-                "mdm/partials/policy_applications_section.html",
-                {**_applications_context(policy), "saved": True},
-            )
-        return render(
-            request,
-            "mdm/partials/policy_app_row.html",
-            {
-                "policy": policy,
-                "app": app,
-                "app_form": PolicyApplicationForm(instance=app, prefix=f"app_{app.pk}"),
-                "saved": True,
-            },
-        )
-    if is_pinned:
-        return render(
-            request,
-            "mdm/partials/policy_applications_section.html",
-            _applications_context(policy),
-        )
-    return render(
-        request,
-        "mdm/partials/policy_app_row.html",
-        {"policy": policy, "app": app, "app_form": form},
-    )
-
-
-@login_required
-def policy_delete_application(request, organization_slug, policy_id, app_id):
-    """HTMX: delete an application row."""
-    policy = _get_policy_or_404(policy_id, request.organization)
-    app = get_object_or_404(PolicyApplication, pk=app_id, policy=policy)
-    if app.package_name == policy.odk_collect_package and app.order == 0:
-        return HttpResponse(status=403)
-    app.delete()
-    _push_policy_to_mdm(policy)
-    return render(
-        request,
-        "mdm/partials/policy_applications_section.html",
-        _applications_context(policy),
-    )
-
-
-@login_required
-def policy_save_password(request, organization_slug, policy_id):
-    """HTMX: save password policy section."""
-    policy = _get_policy_or_404(policy_id, request.organization)
-    return _save_policy_section(
-        request,
-        policy,
-        PasswordPolicyForm,
-        "mdm/partials/policy_password_section.html",
-        "password_form",
-    )
-
-
-@login_required
-def policy_save_vpn(request, organization_slug, policy_id):
-    """HTMX: save VPN section."""
-    policy = _get_policy_or_404(policy_id, request.organization)
-    return _save_policy_section(
-        request, policy, VPNForm, "mdm/partials/policy_vpn_section.html", "vpn_form"
-    )
-
-
-@login_required
-def policy_save_developer(request, organization_slug, policy_id):
-    """HTMX: save developer settings section."""
-    policy = _get_policy_or_404(policy_id, request.organization)
-    return _save_policy_section(
-        request,
-        policy,
-        DeveloperSettingsForm,
-        "mdm/partials/policy_developer_section.html",
-        "developer_form",
-    )
-
-
-@login_required
-def policy_save_kiosk(request, organization_slug, policy_id):
-    """HTMX: save kiosk mode settings."""
-    policy = _get_policy_or_404(policy_id, request.organization)
-    return _save_policy_section(
-        request, policy, KioskModeForm, "mdm/partials/policy_kiosk_section.html", "kiosk_form"
-    )
 
 
 @login_required
@@ -430,43 +240,4 @@ def policy_save_managed_config(request, organization_slug, policy_id, app_id):
         request,
         "mdm/partials/policy_managed_config_form.html",
         {"policy": policy, "app": app, "saved": saved, "error": error},
-    )
-
-
-@login_required
-def policy_add_variable(request, organization_slug, policy_id):
-    """HTMX: add a new policy variable."""
-    policy = _get_policy_or_404(policy_id, request.organization)
-    form = PolicyVariableForm(request.POST, organization=request.organization)
-    form.instance.org = request.organization
-    if form.is_valid():
-        form.save()
-        _push_policy_to_mdm(policy)
-        return render(
-            request,
-            "mdm/partials/policy_variables_section.html",
-            {**_variables_context(policy, request.organization), "saved": True},
-        )
-    return render(
-        request,
-        "mdm/partials/policy_variables_section.html",
-        _variables_context(policy, request.organization, variable_form=form),
-    )
-
-
-@login_required
-def policy_delete_variable(request, organization_slug, policy_id, var_id):
-    """HTMX: delete a policy variable."""
-    policy = _get_policy_or_404(policy_id, request.organization)
-    variable = get_object_or_404(
-        PolicyVariable,
-        Q(org=request.organization) | Q(fleet__organization=request.organization),
-        pk=var_id,
-    )
-    variable.delete()
-    _push_policy_to_mdm(policy)
-    return render(
-        request,
-        "mdm/partials/policy_variables_section.html",
-        _variables_context(policy, request.organization),
     )

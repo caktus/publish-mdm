@@ -1,12 +1,25 @@
 import structlog
 from django import forms
+from django.forms import (
+    BaseInlineFormSet,
+    BaseModelFormSet,
+    inlineformset_factory,
+    modelformset_factory,
+)
 from import_export.forms import ConfirmImportForm, ImportForm
 
 from apps.mdm.models import Device, PushMethodChoices
 from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import CheckboxInput, Select, TextInput
 
-from .models import FirmwareSnapshot, Policy, PolicyApplication, PolicyVariable, PolicyVariableScope
+from .models import (
+    FirmwareSnapshot,
+    InstallType,
+    Policy,
+    PolicyApplication,
+    PolicyVariable,
+    PolicyVariableScope,
+)
 
 logger = structlog.get_logger()
 
@@ -95,6 +108,13 @@ class PolicyApplicationForm(PlatformFormMixin, forms.ModelForm):
             "disabled": "Disabled",
         }
 
+    def has_changed(self):
+        # An unsaved (extra) row with no package_name is an empty placeholder row;
+        # treat it as unchanged so empty_permitted=True skips validation.
+        if not self.instance.pk and not self.data.get(self.add_prefix("package_name")):
+            return False
+        return super().has_changed()
+
 
 class PolicyApplicationAddForm(PlatformFormMixin, forms.ModelForm):
     """Form for adding a new app (just package name)."""
@@ -122,32 +142,33 @@ class PolicyApplicationAddForm(PlatformFormMixin, forms.ModelForm):
         return package_name
 
 
-class OdkCollectPackageForm(PlatformFormMixin, forms.ModelForm):
-    """Form for overriding the ODK Collect package name."""
-
-    class Meta:
-        model = Policy
-        fields = ["odk_collect_package"]
-        widgets = {
-            "odk_collect_package": TextInput(attrs={"placeholder": "org.odk.collect.android"})
-        }
-        labels = {"odk_collect_package": "Package name override"}
-
-
-class PasswordPolicyForm(PlatformFormMixin, forms.ModelForm):
-    """Section 3: Password policy (device + work scopes)."""
+class PolicyEditForm(PlatformFormMixin, forms.ModelForm):
+    """Combined form for all editable Policy fields."""
 
     class Meta:
         model = Policy
         fields = [
+            "name",
+            "odk_collect_package",
             "device_password_quality",
             "device_password_min_length",
             "device_password_require_unlock",
             "work_password_quality",
             "work_password_min_length",
             "work_password_require_unlock",
+            "vpn_package_name",
+            "vpn_lockdown",
+            "kiosk_custom_launcher_enabled",
+            "kiosk_power_button_actions",
+            "kiosk_system_error_warnings",
+            "kiosk_system_navigation",
+            "kiosk_status_bar",
+            "kiosk_device_settings",
+            "developer_settings",
         ]
         widgets = {
+            "name": TextInput(attrs={"placeholder": "Policy name"}),
+            "odk_collect_package": TextInput(attrs={"placeholder": "org.odk.collect.android"}),
             "device_password_quality": Select,
             "device_password_min_length": TextInput(
                 attrs={"type": "number", "min": "0", "max": "16"}
@@ -158,72 +179,46 @@ class PasswordPolicyForm(PlatformFormMixin, forms.ModelForm):
                 attrs={"type": "number", "min": "0", "max": "16"}
             ),
             "work_password_require_unlock": Select,
-        }
-        labels = {
-            "device_password_quality": "Password quality",
-            "device_password_min_length": "Minimum length",
-            "device_password_require_unlock": "Require unlock",
-            "work_password_quality": "Password quality",
-            "work_password_min_length": "Minimum length",
-            "work_password_require_unlock": "Require unlock",
-        }
-
-
-class VPNForm(PlatformFormMixin, forms.ModelForm):
-    """Section 4: Always-on VPN."""
-
-    class Meta:
-        model = Policy
-        fields = ["vpn_package_name", "vpn_lockdown"]
-        widgets = {
             "vpn_package_name": TextInput(attrs={"placeholder": "com.tailscale.ipn"}),
             "vpn_lockdown": CheckboxInput,
-        }
-        labels = {
-            "vpn_package_name": "VPN Package Name",
-            "vpn_lockdown": "Lockdown Mode",
-        }
-
-
-class DeveloperSettingsForm(PlatformFormMixin, forms.ModelForm):
-    """Section 5: Developer options."""
-
-    class Meta:
-        model = Policy
-        fields = ["developer_settings"]
-        widgets = {"developer_settings": Select}
-        labels = {"developer_settings": "Developer Settings"}
-
-
-class KioskModeForm(PlatformFormMixin, forms.ModelForm):
-    """Section: Kiosk mode settings."""
-
-    class Meta:
-        model = Policy
-        fields = [
-            "kiosk_custom_launcher_enabled",
-            "kiosk_power_button_actions",
-            "kiosk_system_error_warnings",
-            "kiosk_system_navigation",
-            "kiosk_status_bar",
-            "kiosk_device_settings",
-        ]
-        widgets = {
             "kiosk_custom_launcher_enabled": CheckboxInput,
             "kiosk_power_button_actions": Select,
             "kiosk_system_error_warnings": Select,
             "kiosk_system_navigation": Select,
             "kiosk_status_bar": Select,
             "kiosk_device_settings": Select,
+            "developer_settings": Select,
         }
         labels = {
+            "odk_collect_package": "Package name override",
+            "device_password_quality": "Password quality",
+            "device_password_min_length": "Minimum length",
+            "device_password_require_unlock": "Require unlock",
+            "work_password_quality": "Password quality",
+            "work_password_min_length": "Minimum length",
+            "work_password_require_unlock": "Require unlock",
+            "vpn_package_name": "VPN Package Name",
+            "vpn_lockdown": "Lockdown Mode",
             "kiosk_custom_launcher_enabled": "Kiosk Custom Launcher",
             "kiosk_power_button_actions": "Power Button Actions",
             "kiosk_system_error_warnings": "System Error Warnings",
             "kiosk_system_navigation": "System Navigation",
             "kiosk_status_bar": "Status Bar",
             "kiosk_device_settings": "Device Settings",
+            "developer_settings": "Developer Settings",
         }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if cleaned_data.get("kiosk_custom_launcher_enabled") and self.instance.pk:
+            kiosk_apps = self.instance.applications.filter(install_type=InstallType.KIOSK)
+            if kiosk_apps.exists():
+                pkg_list = ", ".join(kiosk_apps.values_list("package_name", flat=True))
+                raise forms.ValidationError(
+                    "Kiosk Custom Launcher cannot be enabled while apps are set to KIOSK "
+                    f"install type ({pkg_list}). Change those apps' install type first."
+                )
+        return cleaned_data
 
 
 class PolicyVariableForm(PlatformFormMixin, forms.ModelForm):
@@ -265,3 +260,56 @@ class PolicyVariableForm(PlatformFormMixin, forms.ModelForm):
                     f'A fleet-level variable with key "{key}" for this fleet already exists.'
                 )
         return cleaned_data
+
+
+class PolicyApplicationBaseFormSet(BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        for form in self.deleted_forms:
+            if form.instance.pk and form.instance.order == 0:
+                raise forms.ValidationError("The pinned ODK Collect application cannot be removed.")
+        seen = set()
+        for form in self.forms:
+            if self.can_delete and self._should_delete_form(form):
+                continue
+            pkg = form.cleaned_data.get("package_name", "")
+            if pkg:
+                if pkg in seen:
+                    raise forms.ValidationError(f'Duplicate package name "{pkg}".')
+                seen.add(pkg)
+
+
+PolicyApplicationFormSet = inlineformset_factory(
+    Policy,
+    PolicyApplication,
+    form=PolicyApplicationForm,
+    formset=PolicyApplicationBaseFormSet,
+    extra=1,
+    can_delete=True,
+)
+
+
+class PolicyVariableBaseFormSet(BaseModelFormSet):
+    def __init__(self, *args, organization=None, **kwargs):
+        self.organization = organization
+        super().__init__(*args, **kwargs)
+
+    def get_form_kwargs(self, index):
+        kwargs = super().get_form_kwargs(index)
+        kwargs["organization"] = self.organization
+        return kwargs
+
+    def _construct_form(self, i, **kwargs):
+        form = super()._construct_form(i, **kwargs)
+        if not form.instance.pk and self.organization:
+            form.instance.org = self.organization
+        return form
+
+
+PolicyVariableFormSet = modelformset_factory(
+    PolicyVariable,
+    form=PolicyVariableForm,
+    formset=PolicyVariableBaseFormSet,
+    extra=1,
+    can_delete=True,
+)
