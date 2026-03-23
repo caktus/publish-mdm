@@ -20,14 +20,25 @@
             <tbody>
                 {% for app, app_form in app_forms %}
                     {% if app.package_name == policy.odk_collect_package and app.order == 0 %}
-                        {# ODK Collect pinned row — read-only display #}
-                        <tr class="border-b dark:border-gray-600 bg-blue-50/50 dark:bg-blue-900/10">
+                        {# ODK Collect pinned row — install type editable, no delete #}
+                        <tr id="app-row-{{ app.pk }}"
+                            class="border-b dark:border-gray-600 bg-blue-50/50 dark:bg-blue-900/10">
                             <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">
                                 <span id="pinned-package-name">{{ app.package_name }}</span>
                                 <span class="text-xs text-blue-600 dark:text-blue-400">(pinned)</span>
                             </td>
-                            <td class="px-3 py-2">{{ app.get_install_type_display }}</td>
-                            <td class="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm">{{ app.disabled|yesno:"Yes,No" }}</td>
+                            <td class="px-3 py-2">
+                                <form hx-post="{% url 'mdm:policy-save-application' request.organization.slug policy.pk app.pk %}"
+                                      hx-target="#section-applications"
+                                      hx-swap="innerHTML"
+                                      hx-trigger="change, submit">
+                                    {% csrf_token %}
+                                    {{ app_form.package_name.as_hidden }}
+                                    {{ app_form.install_type }}
+                                    <button type="submit" class="sr-only" tabindex="-1">Save</button>
+                                </form>
+                            </td>
+                            <td class="px-3 py-2 text-gray-500 dark:text-gray-400 text-sm">—</td>
                             <td class="px-3 py-2">
                                 <span class="text-gray-400 dark:text-gray-500 text-xs italic">auto-injected</span>
                             </td>

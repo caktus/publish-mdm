@@ -404,7 +404,7 @@ class AndroidEnterprise(MDM):
         logger.info("Syncing fleet to Android Enterprise devices", fleet=fleet)
         self.pull_devices(fleet)
         if push_config:
-            for device in fleet.devices.exclude(app_user_name="").select_related("fleet").all():
+            for device in fleet.devices.select_related("fleet").all():
                 self.push_device_config(device=device)
 
     def sync_fleets(self, push_config: bool = True):

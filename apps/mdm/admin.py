@@ -50,14 +50,10 @@ class PolicyAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         obj.save()
-        # Update the policy in the MDM.
-        # Currently only implemented for Android Enterprise MDM
-        if settings.ACTIVE_MDM["name"] == "Android Enterprise" and (
-            active_mdm := get_active_mdm_instance()
-        ):
+        if active_mdm := get_active_mdm_instance():
             try:
                 active_mdm.create_or_update_policy(obj)
-            except GoogleAPIClientError as e:
+            except (GoogleAPIClientError, RequestException) as e:
                 logger.debug(
                     f"Unable to update the policy in {active_mdm}",
                     policy=obj,
@@ -81,7 +77,7 @@ class PolicyAdmin(admin.ModelAdmin):
                 for device in devices:
                     try:
                         active_mdm.push_device_config(device)
-                    except GoogleAPIClientError as e:
+                    except (GoogleAPIClientError, RequestException) as e:
                         logger.debug(
                             f"Unable to update the policy for {device} in {active_mdm}",
                             device=device,

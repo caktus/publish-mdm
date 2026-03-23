@@ -46,7 +46,9 @@ class PolicySerializer:
         if advanced_security:
             result["advancedSecurityOverrides"] = advanced_security
 
-        # Kiosk customization
+        # Kiosk
+        if self.policy.kiosk_custom_launcher_enabled:
+            result["kioskCustomLauncherEnabled"] = True
         kiosk_customization = {}
         if self.policy.kiosk_power_button_actions != "POWER_BUTTON_ACTIONS_UNSPECIFIED":
             kiosk_customization["powerButtonActions"] = self.policy.kiosk_power_button_actions
@@ -70,10 +72,22 @@ class PolicySerializer:
     def _build_applications(self) -> list[dict]:
         apps = []
 
-        # ODK Collect is always first
+        # AMAPI constraint: KIOSK install type is incompatible with kioskCustomLauncherEnabled.
+        # When the custom launcher is active it IS the kiosk, so apps must be FORCE_INSTALLED.
+        def _effective_install_type(install_type: str) -> str:
+            if self.policy.kiosk_custom_launcher_enabled and install_type == "KIOSK":
+                return "FORCE_INSTALLED"
+            return install_type
+
+        # ODK Collect is always first — use install_type from the pinned PolicyApplication row
+        pinned_app = next(
+            (a for a in self.applications if a.package_name == self.policy.odk_collect_package),
+            None,
+        )
+        raw_install_type = pinned_app.install_type if pinned_app else "FORCE_INSTALLED"
         odk_app = {
             "packageName": self.policy.odk_collect_package,
-            "installType": "FORCE_INSTALLED",
+            "installType": _effective_install_type(raw_install_type),
         }
         # Inject managed configuration from device's app user QR code at push time
         if self.device:
@@ -91,7 +105,7 @@ class PolicySerializer:
                 continue
             entry = {
                 "packageName": app.package_name,
-                "installType": app.install_type,
+                "installType": _effective_install_type(app.install_type),
             }
             if app.disabled:
                 entry["disabled"] = True

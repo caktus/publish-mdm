@@ -4,7 +4,7 @@ import structlog
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q
+from django.db.models import F, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
@@ -24,7 +24,8 @@ from .forms import (
     PolicyVariableForm,
     VPNForm,
 )
-from .models import Policy, PolicyApplication, PolicyVariable
+from .mdms import get_active_mdm_instance
+from .models import Device, Policy, PolicyApplication, PolicyVariable
 
 logger = structlog.get_logger()
 
@@ -109,6 +110,32 @@ def _variables_context(policy, organization, variable_form=None):
     }
 
 
+def _push_policy_to_mdm(policy):
+    """Push a policy and any device-specific child policies to the MDM.
+
+    Errors are logged but not raised so they don't interrupt the view response.
+    For Android Enterprise, each enrolled device has its own device-specific policy
+    (fleet{id}_{device_id}) that must be updated independently of the base policy.
+    We always attempt to push device-specific policies even if the base policy
+    update fails, because the device may be on the device-specific policy only.
+    """
+    active_mdm = get_active_mdm_instance()
+    if not active_mdm:
+        return
+    try:
+        active_mdm.create_or_update_policy(policy)
+    except Exception:
+        logger.error("Failed to push base policy to MDM", policy=policy, exc_info=True)
+    for device in Device.objects.filter(
+        fleet__policy=policy,
+        raw_mdm_device__policyName__endswith=F("device_id"),
+    ).select_related("fleet__policy"):
+        try:
+            active_mdm.push_device_config(device)
+        except Exception:
+            logger.error("Failed to push device config to MDM", device=device, exc_info=True)
+
+
 def _save_policy_section(request, policy, form_class, template, form_key):
     """Handle the common HTMX save-section pattern: validate, save, re-render partial.
 
@@ -118,6 +145,7 @@ def _save_policy_section(request, policy, form_class, template, form_key):
     form = form_class(request.POST, instance=policy)
     if form.is_valid():
         form.save()
+        _push_policy_to_mdm(policy)
         ctx = {"policy": policy, form_key: form_class(instance=policy), "saved": True}
     else:
         ctx = {"policy": policy, form_key: form}
@@ -161,6 +189,7 @@ def policy_add(request, organization_slug):
                 install_type="FORCE_INSTALLED",
                 order=0,
             )
+            _push_policy_to_mdm(policy)
             messages.success(request, f"Policy '{policy.name}' created.")
             return redirect("mdm:policy-edit", organization_slug, policy.pk)
     else:
@@ -213,6 +242,7 @@ def policy_save_name(request, organization_slug, policy_id):
     form = PolicyNameForm(request.POST, instance=policy)
     if form.is_valid():
         form.save()
+        _push_policy_to_mdm(policy)
         return render(
             request,
             "mdm/partials/policy_name_section.html",
@@ -236,6 +266,7 @@ def policy_save_odk_package(request, organization_slug, policy_id):
         if odk_app:
             odk_app.package_name = policy.odk_collect_package
             odk_app.save()
+        _push_policy_to_mdm(policy)
         return render(
             request,
             "mdm/partials/policy_odk_package.html",
@@ -262,6 +293,7 @@ def policy_add_application(request, organization_slug, policy_id):
         app.policy = policy
         app.order = policy.applications.count()
         app.save()
+        _push_policy_to_mdm(policy)
         return render(
             request,
             "mdm/partials/policy_applications_section.html",
@@ -279,9 +311,17 @@ def policy_save_application(request, organization_slug, policy_id, app_id):
     """HTMX: save a single application row."""
     policy = _get_policy_or_404(policy_id, request.organization)
     app = get_object_or_404(PolicyApplication, pk=app_id, policy=policy)
+    is_pinned = app.order == 0 and app.package_name == policy.odk_collect_package
     form = PolicyApplicationForm(request.POST, instance=app, prefix=f"app_{app.pk}")
     if form.is_valid():
         form.save()
+        _push_policy_to_mdm(policy)
+        if is_pinned:
+            return render(
+                request,
+                "mdm/partials/policy_applications_section.html",
+                {**_applications_context(policy), "saved": True},
+            )
         return render(
             request,
             "mdm/partials/policy_app_row.html",
@@ -291,6 +331,12 @@ def policy_save_application(request, organization_slug, policy_id, app_id):
                 "app_form": PolicyApplicationForm(instance=app, prefix=f"app_{app.pk}"),
                 "saved": True,
             },
+        )
+    if is_pinned:
+        return render(
+            request,
+            "mdm/partials/policy_applications_section.html",
+            _applications_context(policy),
         )
     return render(
         request,
@@ -307,6 +353,7 @@ def policy_delete_application(request, organization_slug, policy_id, app_id):
     if app.package_name == policy.odk_collect_package and app.order == 0:
         return HttpResponse(status=403)
     app.delete()
+    _push_policy_to_mdm(policy)
     return render(
         request,
         "mdm/partials/policy_applications_section.html",
@@ -377,6 +424,8 @@ def policy_save_managed_config(request, organization_slug, policy_id, app_id):
         app.managed_configuration = None
         app.save(update_fields=["managed_configuration"])
         saved = True
+    if saved:
+        _push_policy_to_mdm(policy)
     return render(
         request,
         "mdm/partials/policy_managed_config_form.html",
@@ -392,6 +441,7 @@ def policy_add_variable(request, organization_slug, policy_id):
     form.instance.org = request.organization
     if form.is_valid():
         form.save()
+        _push_policy_to_mdm(policy)
         return render(
             request,
             "mdm/partials/policy_variables_section.html",
@@ -414,6 +464,7 @@ def policy_delete_variable(request, organization_slug, policy_id, var_id):
         pk=var_id,
     )
     variable.delete()
+    _push_policy_to_mdm(policy)
     return render(
         request,
         "mdm/partials/policy_variables_section.html",

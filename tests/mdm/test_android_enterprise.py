@@ -281,11 +281,12 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
 
     def test_sync_fleet(self, fleet, devices, mocker, set_mdm_env_vars):
         """Ensure calling sync_fleet() calls pull_devices() for the specified fleet
-        and push_device_config() for the fleet's devices whose app_user_name field is set.
+        and push_device_config() for ALL devices in the fleet, regardless of whether
+        app_user_name is set (every Android Enterprise device needs its own AMAPI policy).
         """
         # Make app_user_name blank for some devices
         fleet.devices.filter(id__in=[d.id for d in devices][:3]).update(app_user_name="")
-        devices_to_push = fleet.devices.exclude(app_user_name="")
+        all_devices = list(fleet.devices.all())
 
         active_mdm = AndroidEnterprise()
         mock_pull_devices = mocker.patch.object(active_mdm, "pull_devices")
@@ -293,13 +294,13 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         active_mdm.sync_fleet(fleet)
 
         mock_pull_devices.assert_called_once()
-        # push_device_config should be called only for the devices where
-        # app_user_name is set
+        # push_device_config should be called for ALL devices, including those
+        # without an app_user_name, so each device gets its own AMAPI policy
         mock_push_device_config.assert_has_calls(
-            [mocker.call(device=device) for device in devices_to_push],
+            [mocker.call(device=device) for device in all_devices],
             any_order=True,
         )
-        assert mock_push_device_config.call_count == len(devices_to_push)
+        assert mock_push_device_config.call_count == len(all_devices)
 
     def test_sync_fleet_with_push_config_false(self, fleet, devices, mocker, set_mdm_env_vars):
         """Ensure calling sync_fleet() with push_config=False calls pull_devices()

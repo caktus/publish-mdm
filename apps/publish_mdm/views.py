@@ -831,7 +831,7 @@ def devices_list(request: HttpRequest, organization_slug):
             synced = 0
             for fleet in fleets:
                 try:
-                    active_mdm.sync_fleet(fleet, push_config=False)
+                    active_mdm.sync_fleet(fleet, push_config=True)
                 except (GoogleAPIClientError, RequestException) as e:
                     logger.debug(
                         "Unable to sync fleet",

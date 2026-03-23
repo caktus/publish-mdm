@@ -2213,7 +2213,7 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
         assert mock_sync_fleet.call_count == len(fleets)
         assert {
             (call.args[0], call.kwargs["push_config"]) for call in mock_sync_fleet.mock_calls
-        } == {(fleet, False) for fleet in fleets}
+        } == {(fleet, True) for fleet in fleets}
         # Ensure the expected devices list is included in the response
         table = response.context.get("table")
         assert isinstance(table, Table)

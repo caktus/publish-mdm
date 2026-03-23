@@ -194,6 +194,10 @@ class Policy(models.Model):
         default=KioskDeviceSettings.UNSPECIFIED,
         blank=True,
     )
+    kiosk_custom_launcher_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable the custom launcher when the device is in kiosk mode.",
+    )
 
     objects = PolicyManager()
     all_mdms = models.Manager()
