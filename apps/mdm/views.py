@@ -87,6 +87,12 @@ def _push_policy_to_mdm(policy):
     """
     active_mdm = get_active_mdm_instance()
     if not active_mdm:
+        logger.warning(
+            "Skipping policy push: MDM is not configured. "
+            "Check that the required environment variables are set and restart the server.",
+            active_mdm_name=settings.ACTIVE_MDM["name"],
+            policy=policy,
+        )
         return
     try:
         active_mdm.create_or_update_policy(policy)
