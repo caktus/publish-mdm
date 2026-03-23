@@ -52,7 +52,7 @@ Use this structure:
 
 ---
 
-````markdown
+```markdown
 # Security Code Review — Automated Report
 
 **Generated:** <today's date>
@@ -220,7 +220,7 @@ This is a **static analysis** review. It will not find:
 2. Run a dependency audit: `pip-audit` or `safety check`.
 3. Add SAST to CI/CD (e.g., Semgrep with Django rules).
 4. Schedule a manual penetration test for the critical data paths.
-````
+```
 
 ---
 

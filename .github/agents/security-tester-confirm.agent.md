@@ -2,9 +2,10 @@
 description: >
   Phase 3 of the security code review. Reads raw findings from the shared state contract,
   validates each one by tracing the full data flow and reasoning about exploitability,
-  generates proof-of-concept steps for confirmed vulnerabilities, and classifies findings
-  as CONFIRMED or DENIED. Thinks like an attacker. Invoked by the security-tester
-  coordinator — not intended to be run directly.
+  generates proof-of-concept steps for confirmed vulnerabilities, writes a failing pytest
+  test that demonstrates each bug, implements the minimal fix, and classifies findings as
+  CONFIRMED or DENIED. Thinks like an attacker; fixes like a developer. Invoked by the
+  security-tester coordinator — not intended to be run directly.
 name: security-tester-confirm
 tools: ["*"]
 user-invocable: false
@@ -151,7 +152,11 @@ For CONFIRMED findings, write:
     "3. Observe the server making a request to the AWS metadata endpoint",
     "4. Exfiltrate IAM credentials from the response"
   ],
-  "remediation": "Validate webhook_url against an allowlist of known-safe domains before passing to requests.post(). Use urllib.parse to extract the hostname and reject anything not in the allowlist."
+  "remediation": "Validate webhook_url against an allowlist of known-safe domains before passing to requests.post(). Use urllib.parse to extract the hostname and reject anything not in the allowlist.",
+  "test_file": "tests/foo/test_security.py",
+  "test_name": "test_vuln_001_<short_description>",
+  "fix_applied": false,
+  "fix_description": ""
 }
 ```
 
@@ -169,6 +174,80 @@ For DENIED findings, write:
 Append CONFIRMED findings to `confirmed_findings` in `{{STATE_FILE}}`.
 Append DENIED findings to `denied_findings` in `{{STATE_FILE}}`.
 Use sequential VULN-N IDs across all subagents (read current array length first).
+
+---
+
+**Step 6 — Write a failing test that demonstrates the vulnerability**
+
+For every CONFIRMED finding, write a pytest test that:
+
+1. **Proves the vulnerability is real** — the test should _pass_ in the current (vulnerable)
+   state when asserting the insecure behaviour (e.g., a 200 response when 403 is expected,
+   or data leaking across tenants). Mark it `@pytest.mark.xfail(strict=True)` so it is
+   recorded as an expected failure until the fix is applied.
+2. **Acts as a regression guard** — once the fix is applied the `xfail` mark is removed
+   and the test becomes a permanent green assertion.
+
+Place tests in the nearest existing test file for the affected module, or create
+`tests/<app>/test_security.py` if none exists. Follow the project's existing test
+conventions (use `pytest`, `TestCase`, fixtures, or factories as appropriate).
+
+Example pattern for an IDOR / tenant-bypass finding:
+
+```python
+import pytest
+from django.test import TestCase
+from django.urls import reverse
+
+
+@pytest.mark.xfail(strict=True, reason="VULN-001: tenant isolation bypass — remove xfail after fix")
+def test_vuln_001_cross_tenant_device_access(client, org_a_user, org_b_device):
+    """A member of org A must NOT be able to fetch org B's device."""
+    client.force_login(org_a_user)
+    url = reverse("publish_mdm:device-detail", kwargs={"pk": org_b_device.pk})
+    response = client.get(url)
+    assert response.status_code == 403  # should be forbidden; currently 200
+```
+
+Add a `"test_file"` key to the confirmed finding in `{{STATE_FILE}}`:
+
+```json
+"test_file": "tests/publish_mdm/test_security.py",
+"test_name": "test_vuln_001_cross_tenant_device_access"
+```
+
+**Step 7 — Implement the fix**
+
+Apply the minimal code change that closes the vulnerability:
+
+- For missing org/tenant filters: add `organization=request.organization` to the
+  `get_object_or_404()` call or `get_queryset()` override.
+- For missing `@login_required`: add the decorator or mixin.
+- For SSRF via unvalidated URL: add an allowlist check using `urllib.parse`.
+- For hardcoded secrets: replace with `os.environ.get("SECRET_NAME")` and document
+  the required env var.
+- For `mark_safe` on user content: replace with `format_html()` or remove the bypass.
+- For missing CSRF protection on a state-mutating view: remove `@csrf_exempt` or add
+  a HMAC signature check.
+
+Keep fixes minimal — change only what is needed to close the vulnerability.
+Do not refactor surrounding code.
+
+After applying the fix, **remove the `@pytest.mark.xfail` mark from the test** so it
+becomes a green assertion. Run the test to verify:
+
+```bash
+{{TEST_CMD:uv run pytest}} {{test_file}}::{{test_name}} -v
+```
+
+If the test fails after the fix, revisit the fix before marking it done.
+
+Add a `"fix_applied"` key to the confirmed finding:
+
+```json
+"fix_applied": true,
+"fix_description": "One sentence describing what was changed and where."
+```
 
 ---
 
