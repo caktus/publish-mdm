@@ -149,6 +149,7 @@ class FileFormatChoiceField(forms.ChoiceField):
 
     def clean(self, value):
         """Return the selected file format instance."""
+        value = super().clean(value)
         Format = self.formats[int(value)]
         return Format()
 

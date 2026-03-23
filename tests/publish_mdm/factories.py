@@ -29,7 +29,7 @@ class OrganizationFactory(
         model = models.Organization
 
     name = factory.Faker("company")
-    slug = factory.Faker("slug")
+    slug = factory.Sequence(lambda _: fake.unique.slug())
 
 
 class CentralServerFactory(
