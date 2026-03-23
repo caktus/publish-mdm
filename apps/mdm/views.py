@@ -4,7 +4,7 @@ import structlog
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import F, Q
+from django.db.models import F, Max, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.csrf import csrf_exempt
@@ -174,9 +174,25 @@ def policy_edit(request, organization_slug, policy_id):
         )
         if form.is_valid() and app_formset.is_valid() and var_formset.is_valid():
             policy = form.save()
-            app_formset.save()
-            # Keep pinned ODK app in sync with the policy's odk_collect_package
-            odk_app = policy.applications.filter(order=0).first()
+            # save(commit=False) returns unsaved instances and populates deleted_objects
+            apps_to_save = app_formset.save(commit=False)
+            for app in app_formset.deleted_objects:
+                app.delete()
+            # Assign sequential order to new apps (order defaults to 0, which would
+            # wrongly match the pinned ODK app check on the next save)
+            current_max = policy.applications.aggregate(m=Max("order"))["m"] or 0
+            new_idx = 0
+            for app in apps_to_save:
+                if not app.pk:
+                    new_idx += 1
+                    app.order = current_max + new_idx
+                app.save()
+            # Keep the pinned ODK app in sync with the policy's odk_collect_package
+            odk_app = policy.applications.filter(
+                order=0, package_name=policy.odk_collect_package
+            ).first()
+            if not odk_app:
+                odk_app = policy.applications.filter(order=0).first()
             if odk_app and odk_app.package_name != policy.odk_collect_package:
                 odk_app.package_name = policy.odk_collect_package
                 odk_app.save()

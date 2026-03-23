@@ -462,3 +462,60 @@ class TestPolicyEditFormsets(PolicyViewBase):
         assert response.status_code == 200
         assert PolicyApplication.objects.filter(pk=pinned_app.pk).exists()
         assert response.context["app_formset"].non_form_errors()
+
+    def test_delete_app_with_order_zero_but_not_pinned_is_allowed(
+        self, client, url, policy, pinned_app
+    ):
+        """Regression: an app whose order happens to be 0 but is not the ODK
+        collect app must be deletable (the old code only checked order==0)."""
+        non_pinned = PolicyApplicationFactory(
+            policy=policy,
+            order=0,
+            package_name="com.other.app",
+            install_type="AVAILABLE",
+        )
+        data = self._policy_base_data()
+        data.update(
+            {
+                "apps-TOTAL_FORMS": "3",
+                "apps-INITIAL_FORMS": "2",
+                "apps-0-id": str(pinned_app.pk),
+                "apps-0-package_name": "org.odk.collect.android",
+                "apps-0-install_type": "FORCE_INSTALLED",
+                "apps-1-id": str(non_pinned.pk),
+                "apps-1-package_name": "com.other.app",
+                "apps-1-install_type": "AVAILABLE",
+                "apps-1-DELETE": "on",
+                "vars-TOTAL_FORMS": "1",
+                "vars-INITIAL_FORMS": "0",
+                "vars-MIN_NUM_FORMS": "0",
+                "vars-MAX_NUM_FORMS": "1000",
+            }
+        )
+        response = client.post(url, data)
+        assert response.status_code == 302
+        assert not PolicyApplication.objects.filter(pk=non_pinned.pk).exists()
+
+    def test_new_app_added_via_formset_gets_positive_order(self, client, url, policy, pinned_app):
+        """Apps added through the formset extra row should get order > 0."""
+        data = self._policy_base_data()
+        data.update(
+            {
+                "apps-TOTAL_FORMS": "2",
+                "apps-INITIAL_FORMS": "1",
+                "apps-0-id": str(pinned_app.pk),
+                "apps-0-package_name": "org.odk.collect.android",
+                "apps-0-install_type": "FORCE_INSTALLED",
+                "apps-1-id": "",
+                "apps-1-package_name": "com.brand.new",
+                "apps-1-install_type": "AVAILABLE",
+                "vars-TOTAL_FORMS": "1",
+                "vars-INITIAL_FORMS": "0",
+                "vars-MIN_NUM_FORMS": "0",
+                "vars-MAX_NUM_FORMS": "1000",
+            }
+        )
+        response = client.post(url, data)
+        assert response.status_code == 302
+        new_app = policy.applications.get(package_name="com.brand.new")
+        assert new_app.order > 0

@@ -266,7 +266,12 @@ class PolicyApplicationBaseFormSet(BaseInlineFormSet):
     def clean(self):
         super().clean()
         for form in self.deleted_forms:
-            if form.instance.pk and form.instance.order == 0:
+            instance = form.instance
+            if (
+                instance.pk
+                and instance.order == 0
+                and instance.package_name == self.instance.odk_collect_package
+            ):
                 raise forms.ValidationError("The pinned ODK Collect application cannot be removed.")
         seen = set()
         for form in self.forms:
