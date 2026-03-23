@@ -5,44 +5,65 @@
             <p class="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
                 ODK Collect <span class="text-gray-400 dark:text-gray-500">(always included)</span>
             </p>
-            {{ form.odk_collect_package.label_tag }}
+            <label class="mb-1 flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300"
+                   for="{{ form.odk_collect_package.id_for_label }}">
+                {{ form.odk_collect_package.label }}
+                <span data-tooltip-target="tooltip-odk-package"
+                      data-tooltip-style="light"
+                      class="cursor-help text-gray-500 hover:text-gray-700 dark:text-gray-400">
+                    <svg class="inline h-4 w-4"
+                         fill="none"
+                         viewBox="0 0 24 24"
+                         stroke="currentColor"
+                         stroke-width="2"
+                         aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 11h2v5m-2 0h4m-2.592-8.5h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                </span>
+            </label>
+            <div id="tooltip-odk-package"
+                 role="tooltip"
+                 class="tooltip invisible absolute z-10 inline-block max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 opacity-0 shadow-xs transition-opacity duration-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                Override only if you use a custom ODK Collect build. Leave as default for standard
+                installs.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
             {{ form.odk_collect_package }}
             {{ form.odk_collect_package.errors }}
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Override only if you use a custom ODK Collect build. Leave as default for standard installs.
-                The pinned app row in Applications updates when you save.
-            </p>
         </div>
         <div>
             <label class="mb-1 flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300"
                    for="{{ form.odk_collect_device_id_template.id_for_label }}">
                 {{ form.odk_collect_device_id_template.label }}
                 <span data-tooltip-target="tooltip-device-id"
-                      class="cursor-help text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                      data-tooltip-style="light"
+                      class="cursor-help text-gray-500 hover:text-gray-700 dark:text-gray-400">
                     <svg class="inline h-4 w-4"
-                         fill="currentColor"
-                         viewBox="0 0 20 20"
+                         fill="none"
+                         viewBox="0 0 24 24"
+                         stroke="currentColor"
+                         stroke-width="2"
                          aria-hidden="true">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 11h2v5m-2 0h4m-2.592-8.5h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                     </svg>
                 </span>
             </label>
             <div id="tooltip-device-id"
                  role="tooltip"
-                 class="tooltip invisible absolute z-10 inline-block rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white opacity-0 shadow-sm transition-opacity duration-300 dark:bg-gray-700">
+                 class="tooltip invisible absolute z-10 inline-block max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 opacity-0 shadow-xs transition-opacity duration-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                 This value is passed as <code>device_id</code> in ODK Collect's managed
-                configuration. Use <code>{% templatetag openvariable %} serial_number {% templatetag closevariable %}</code> or
-                <code>{% templatetag openvariable %} imei {% templatetag closevariable %}</code> to use device attributes. Leave blank to use
-                the device's app-user username.
+                configuration. Use template variables such as
+                <code>{% templatetag openvariable %} app_user_name {% templatetag closevariable %}</code>,
+                <code>{% templatetag openvariable %} device_id {% templatetag closevariable %}</code>,
+                <code>{% templatetag openvariable %} serial_number {% templatetag closevariable %}</code>,
+                or <code>{% templatetag openvariable %} imei {% templatetag closevariable %}</code>.
+                Leave blank to omit this field from the managed configuration entirely.
                 <div class="tooltip-arrow" data-popper-arrow></div>
             </div>
             {{ form.odk_collect_device_id_template }}
             {{ form.odk_collect_device_id_template.errors }}
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Use <code class="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-gray-700">{% templatetag openvariable %} serial_number {% templatetag closevariable %}</code>
-                or
-                <code class="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-gray-700">{% templatetag openvariable %} imei {% templatetag closevariable %}</code>.
-                Leave blank to use the app-user username.
+                Supports all built-in variables (see Policy Variables section below).
             </p>
         </div>
     </div>

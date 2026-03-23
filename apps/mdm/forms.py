@@ -171,7 +171,7 @@ class PolicyEditForm(PlatformFormMixin, forms.ModelForm):
             "name": TextInput(attrs={"placeholder": "Policy name"}),
             "odk_collect_package": TextInput(attrs={"placeholder": "org.odk.collect.android"}),
             "odk_collect_device_id_template": TextInput(
-                attrs={"placeholder": "e.g. {{ serial_number }} or {{ imei }}"}
+                attrs={"placeholder": "e.g. {{ app_user_name }} - {{ device_id }}"}
             ),
             "device_password_quality": Select,
             "device_password_min_length": TextInput(
@@ -270,6 +270,16 @@ class PolicyVariableForm(PlatformFormMixin, forms.ModelForm):
 class PolicyApplicationBaseFormSet(BaseInlineFormSet):
     def clean(self):
         super().clean()
+        if self.instance.pk and self.instance.kiosk_custom_launcher_enabled:
+            for form in self.forms:
+                if self.can_delete and self._should_delete_form(form):
+                    continue
+                if form.cleaned_data.get("install_type") == InstallType.KIOSK:
+                    pkg = form.cleaned_data.get("package_name", "")
+                    raise forms.ValidationError(
+                        f'Cannot set install type to Kiosk for "{pkg}" while Custom Launcher'
+                        " is enabled. Use Force Installed instead."
+                    )
         for form in self.deleted_forms:
             instance = form.instance
             if (

@@ -1,5 +1,10 @@
 <div class="rounded-lg border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
-    <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Kiosk Mode</h3>
+    <h3 class="mb-1 text-lg font-semibold text-gray-900 dark:text-white">Kiosk Mode</h3>
+    <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
+        Lock devices to a single app or a curated set of apps. Enable the custom launcher for a
+        fully managed kiosk experience, or configure individual options to restrict navigation and
+        system access.
+    </p>
     <div class="max-w-md space-y-3">
         <div>
             <label class="inline-flex cursor-pointer items-center gap-3"
@@ -13,21 +18,24 @@
                 </div>
                 <span class="text-sm font-medium text-gray-900 dark:text-white">{{ form.kiosk_custom_launcher_enabled.label }}</span>
                 <span data-tooltip-target="tooltip-kiosk-launcher"
-                      class="cursor-help text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                      data-tooltip-style="light"
+                      class="cursor-help text-gray-500 hover:text-gray-700 dark:text-gray-400">
                     <svg class="inline h-4 w-4"
-                         fill="currentColor"
-                         viewBox="0 0 20 20"
+                         fill="none"
+                         viewBox="0 0 24 24"
+                         stroke="currentColor"
+                         stroke-width="2"
                          aria-hidden="true">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 11h2v5m-2 0h4m-2.592-8.5h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                     </svg>
                 </span>
             </label>
             <div id="tooltip-kiosk-launcher"
                  role="tooltip"
-                 class="tooltip invisible absolute z-10 inline-block max-w-xs rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white opacity-0 shadow-sm transition-opacity duration-300 dark:bg-gray-700">
-                Replaces the Android launcher with a dedicated kiosk launcher. When enabled, apps with
-                install type <strong>Kiosk</strong> are automatically treated as
-                <strong>Force Installed</strong> — these two modes are mutually exclusive.
+                 class="tooltip invisible absolute z-10 inline-block max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 opacity-0 shadow-xs transition-opacity duration-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
+                Replaces the Android launcher with a dedicated kiosk launcher. Incompatible with
+                the <strong>Kiosk</strong> install type — use <strong>Force Installed</strong>
+                instead when the custom launcher is enabled.
                 <div class="tooltip-arrow" data-popper-arrow></div>
             </div>
             {{ form.kiosk_custom_launcher_enabled.errors }}
@@ -37,18 +45,21 @@
                    for="{{ form.kiosk_power_button_actions.id_for_label }}">
                 {{ form.kiosk_power_button_actions.label }}
                 <span data-tooltip-target="tooltip-kiosk-power"
-                      class="cursor-help text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                      data-tooltip-style="light"
+                      class="cursor-help text-gray-500 hover:text-gray-700 dark:text-gray-400">
                     <svg class="inline h-4 w-4"
-                         fill="currentColor"
-                         viewBox="0 0 20 20"
+                         fill="none"
+                         viewBox="0 0 24 24"
+                         stroke="currentColor"
+                         stroke-width="2"
                          aria-hidden="true">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 11h2v5m-2 0h4m-2.592-8.5h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                     </svg>
                 </span>
             </label>
             <div id="tooltip-kiosk-power"
                  role="tooltip"
-                 class="tooltip invisible absolute z-10 inline-block max-w-xs rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white opacity-0 shadow-sm transition-opacity duration-300 dark:bg-gray-700">
+                 class="tooltip invisible absolute z-10 inline-block max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 opacity-0 shadow-xs transition-opacity duration-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                 Controls what happens when the power button is pressed in kiosk mode.
                 <div class="tooltip-arrow" data-popper-arrow></div>
             </div>
@@ -60,18 +71,21 @@
                    for="{{ form.kiosk_system_error_warnings.id_for_label }}">
                 {{ form.kiosk_system_error_warnings.label }}
                 <span data-tooltip-target="tooltip-kiosk-errors"
-                      class="cursor-help text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                      data-tooltip-style="light"
+                      class="cursor-help text-gray-500 hover:text-gray-700 dark:text-gray-400">
                     <svg class="inline h-4 w-4"
-                         fill="currentColor"
-                         viewBox="0 0 20 20"
+                         fill="none"
+                         viewBox="0 0 24 24"
+                         stroke="currentColor"
+                         stroke-width="2"
                          aria-hidden="true">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 11h2v5m-2 0h4m-2.592-8.5h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                     </svg>
                 </span>
             </label>
             <div id="tooltip-kiosk-errors"
                  role="tooltip"
-                 class="tooltip invisible absolute z-10 inline-block max-w-xs rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white opacity-0 shadow-sm transition-opacity duration-300 dark:bg-gray-700">
+                 class="tooltip invisible absolute z-10 inline-block max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 opacity-0 shadow-xs transition-opacity duration-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                 Whether system error dialogs are shown to the user in kiosk mode.
                 <div class="tooltip-arrow" data-popper-arrow></div>
             </div>
@@ -83,18 +97,21 @@
                    for="{{ form.kiosk_system_navigation.id_for_label }}">
                 {{ form.kiosk_system_navigation.label }}
                 <span data-tooltip-target="tooltip-kiosk-nav"
-                      class="cursor-help text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                      data-tooltip-style="light"
+                      class="cursor-help text-gray-500 hover:text-gray-700 dark:text-gray-400">
                     <svg class="inline h-4 w-4"
-                         fill="currentColor"
-                         viewBox="0 0 20 20"
+                         fill="none"
+                         viewBox="0 0 24 24"
+                         stroke="currentColor"
+                         stroke-width="2"
                          aria-hidden="true">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 11h2v5m-2 0h4m-2.592-8.5h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                     </svg>
                 </span>
             </label>
             <div id="tooltip-kiosk-nav"
                  role="tooltip"
-                 class="tooltip invisible absolute z-10 inline-block max-w-xs rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white opacity-0 shadow-sm transition-opacity duration-300 dark:bg-gray-700">
+                 class="tooltip invisible absolute z-10 inline-block max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 opacity-0 shadow-xs transition-opacity duration-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                 Controls availability of the Home and Overview (recents) navigation buttons.
                 <div class="tooltip-arrow" data-popper-arrow></div>
             </div>
@@ -106,18 +123,21 @@
                    for="{{ form.kiosk_status_bar.id_for_label }}">
                 {{ form.kiosk_status_bar.label }}
                 <span data-tooltip-target="tooltip-kiosk-status"
-                      class="cursor-help text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                      data-tooltip-style="light"
+                      class="cursor-help text-gray-500 hover:text-gray-700 dark:text-gray-400">
                     <svg class="inline h-4 w-4"
-                         fill="currentColor"
-                         viewBox="0 0 20 20"
+                         fill="none"
+                         viewBox="0 0 24 24"
+                         stroke="currentColor"
+                         stroke-width="2"
                          aria-hidden="true">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 11h2v5m-2 0h4m-2.592-8.5h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                     </svg>
                 </span>
             </label>
             <div id="tooltip-kiosk-status"
                  role="tooltip"
-                 class="tooltip invisible absolute z-10 inline-block max-w-xs rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white opacity-0 shadow-sm transition-opacity duration-300 dark:bg-gray-700">
+                 class="tooltip invisible absolute z-10 inline-block max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 opacity-0 shadow-xs transition-opacity duration-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                 Controls status bar visibility and notification access in kiosk mode.
                 <div class="tooltip-arrow" data-popper-arrow></div>
             </div>
@@ -129,18 +149,21 @@
                    for="{{ form.kiosk_device_settings.id_for_label }}">
                 {{ form.kiosk_device_settings.label }}
                 <span data-tooltip-target="tooltip-kiosk-device-settings"
-                      class="cursor-help text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                      data-tooltip-style="light"
+                      class="cursor-help text-gray-500 hover:text-gray-700 dark:text-gray-400">
                     <svg class="inline h-4 w-4"
-                         fill="currentColor"
-                         viewBox="0 0 20 20"
+                         fill="none"
+                         viewBox="0 0 24 24"
+                         stroke="currentColor"
+                         stroke-width="2"
                          aria-hidden="true">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10 11h2v5m-2 0h4m-2.592-8.5h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                     </svg>
                 </span>
             </label>
             <div id="tooltip-kiosk-device-settings"
                  role="tooltip"
-                 class="tooltip invisible absolute z-10 inline-block max-w-xs rounded-lg bg-gray-900 px-3 py-2 text-sm font-medium text-white opacity-0 shadow-sm transition-opacity duration-300 dark:bg-gray-700">
+                 class="tooltip invisible absolute z-10 inline-block max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 opacity-0 shadow-xs transition-opacity duration-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white">
                 Controls whether the user can access the device Settings app in kiosk mode.
                 <div class="tooltip-arrow" data-popper-arrow></div>
             </div>

@@ -328,8 +328,8 @@ class TestPolicySerializer(TestAllMDMs):
         odk_app = result["applications"][0]
         assert odk_app["managedConfiguration"]["device_id"] == "SN-999"
 
-    def test_odk_device_id_falls_back_to_username_when_template_empty(self):
-        """When odk_collect_device_id_template is blank, the device username is used."""
+    def test_odk_device_id_omitted_when_template_empty(self):
+        """When odk_collect_device_id_template is blank, device_id is omitted from managed config."""
         from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
         from tests.publish_mdm.factories import AppUserFactory
 
@@ -346,4 +346,4 @@ class TestPolicySerializer(TestAllMDMs):
         serializer = PolicySerializer(policy=policy, device=device)
         result = serializer.to_dict()
         odk_app = result["applications"][0]
-        assert odk_app["managedConfiguration"]["device_id"] == device.username
+        assert "device_id" not in odk_app["managedConfiguration"]

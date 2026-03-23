@@ -10,6 +10,14 @@
         </p>
         <table class="w-full text-xs text-gray-600 dark:text-gray-400">
             <tr>
+                <td class="py-1 font-mono">{% templatetag openvariable %} app_user_name {% templatetag closevariable %}</td>
+                <td class="py-1">ODK app user assigned to the device</td>
+            </tr>
+            <tr>
+                <td class="py-1 font-mono">{% templatetag openvariable %} device_id {% templatetag closevariable %}</td>
+                <td class="py-1">MDM device ID</td>
+            </tr>
+            <tr>
                 <td class="py-1 font-mono">{% templatetag openvariable %} imei {% templatetag closevariable %}</td>
                 <td class="py-1">Device IMEI from hardware info</td>
             </tr>

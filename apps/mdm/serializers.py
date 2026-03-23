@@ -72,13 +72,6 @@ class PolicySerializer:
     def _build_applications(self) -> list[dict]:
         apps = []
 
-        # AMAPI constraint: KIOSK install type is incompatible with kioskCustomLauncherEnabled.
-        # When the custom launcher is active it IS the kiosk, so apps must be FORCE_INSTALLED.
-        def _effective_install_type(install_type: str) -> str:
-            if self.policy.kiosk_custom_launcher_enabled and install_type == "KIOSK":
-                return "FORCE_INSTALLED"
-            return install_type
-
         # ODK Collect is always first — use install_type from the pinned PolicyApplication row
         pinned_app = next(
             (a for a in self.applications if a.package_name == self.policy.odk_collect_package),
@@ -87,17 +80,17 @@ class PolicySerializer:
         raw_install_type = pinned_app.install_type if pinned_app else "FORCE_INSTALLED"
         odk_app = {
             "packageName": self.policy.odk_collect_package,
-            "installType": _effective_install_type(raw_install_type),
+            "installType": raw_install_type,
         }
         # Inject managed configuration from device's app user QR code at push time
         if self.device:
             qr_code_string = self.device.get_odk_collect_qr_code_string()
             if qr_code_string:
                 device_id_template = self.policy.odk_collect_device_id_template
-                odk_app["managedConfiguration"] = {
-                    "settings_json": qr_code_string,
-                    "device_id": device_id_template if device_id_template else self.device.username,
-                }
+                managed_config = {"settings_json": qr_code_string}
+                if device_id_template:
+                    managed_config["device_id"] = device_id_template
+                odk_app["managedConfiguration"] = managed_config
         apps.append(odk_app)
 
         for app in self.applications:
@@ -106,7 +99,7 @@ class PolicySerializer:
                 continue
             entry = {
                 "packageName": app.package_name,
-                "installType": _effective_install_type(app.install_type),
+                "installType": app.install_type,
             }
             if app.disabled:
                 entry["disabled"] = True
@@ -186,8 +179,10 @@ class PolicySerializer:
             if var.scope == "fleet":
                 merged[var.key] = var.value
 
-        # Built-in system variables from device (accessible as {{ imei }}, {{ serial_number }})
+        # Built-in system variables from device (accessible as {{ imei }}, {{ serial_number }}, etc.)
         if self.device:
+            merged["app_user_name"] = self.device.app_user_name or ""
+            merged["device_id"] = self.device.device_id or ""
             try:
                 hardware_info = (self.device.raw_mdm_device or {}).get("hardwareInfo", {})
                 merged["imei"] = hardware_info.get("imei", "")
