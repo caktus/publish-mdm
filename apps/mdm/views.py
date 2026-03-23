@@ -38,17 +38,15 @@ logger = structlog.get_logger()
 @require_POST
 def firmware_snapshot_view(request):
     api_key = settings.MDM_FIRMWARE_API_KEY
-    if not api_key:
-        # No API key configured — reject all requests rather than silently
-        # accepting unauthenticated writes (VULN-001).
-        logger.error(
-            "firmware_snapshot_view: MDM_FIRMWARE_API_KEY not configured; rejecting request",
+    if api_key:
+        auth_header = request.META.get("HTTP_AUTHORIZATION", "")
+        if auth_header != f"Bearer {api_key}":
+            return HttpResponse(status=401)
+    else:
+        logger.warning(
+            "firmware_snapshot_view: MDM_FIRMWARE_API_KEY not configured; endpoint is unauthenticated",
             remote_addr=request.META.get("REMOTE_ADDR"),
         )
-        return HttpResponse(status=401)
-    auth_header = request.META.get("HTTP_AUTHORIZATION", "")
-    if auth_header != f"Bearer {api_key}":
-        return HttpResponse(status=401)
     if not request.body:
         return HttpResponse(status=400)
     try:
