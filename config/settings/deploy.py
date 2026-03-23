@@ -70,7 +70,7 @@ CELERY_SEND_TASK_ERROR_EMAILS = True
 # SENTRY
 # ------------------------------------------------------------------------------
 SENTRY_DSN = os.getenv("SENTRY_DSN")
-SENTRY_SEND_DEFAULT_PII = os.getenv("SENTRY_SEND_DEFAULT_PII", "True") == "True"
+SENTRY_SEND_DEFAULT_PII = os.getenv("SENTRY_SEND_DEFAULT_PII", "False") == "True"
 if SENTRY_DSN:
     import sentry_sdk
 
