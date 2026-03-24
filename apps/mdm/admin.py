@@ -50,13 +50,18 @@ class PolicyAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         obj.save()
+
+    def save_related(self, request, form, formsets, change):
+        # Save inlines first so applications are persisted before pushing to MDM.
+        super().save_related(request, form, formsets, change)
+        policy = form.instance
         if active_mdm := get_active_mdm_instance():
             try:
-                active_mdm.create_or_update_policy(obj)
+                active_mdm.create_or_update_policy(policy)
             except (GoogleAPIClientError, RequestException) as e:
                 logger.debug(
                     f"Unable to update the policy in {active_mdm}",
-                    policy=obj,
+                    policy=policy,
                     exc_info=True,
                 )
                 messages.warning(
@@ -71,7 +76,8 @@ class PolicyAdmin(admin.ModelAdmin):
                 # Update the policies for all related Devices that have a child
                 # policy (device-specific policy)
                 devices = Device.objects.filter(
-                    fleet__policy=obj, raw_mdm_device__policyName__endswith=models.F("device_id")
+                    fleet__policy=policy,
+                    raw_mdm_device__policyName__endswith=models.F("device_id"),
                 )
                 logger.debug("Updating child policies", count=len(devices))
                 for device in devices:
@@ -81,7 +87,7 @@ class PolicyAdmin(admin.ModelAdmin):
                         logger.debug(
                             f"Unable to update the policy for {device} in {active_mdm}",
                             device=device,
-                            policy=obj,
+                            policy=policy,
                             exc_info=True,
                         )
                         messages.warning(

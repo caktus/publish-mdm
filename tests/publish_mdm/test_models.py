@@ -312,3 +312,22 @@ class TestOrganization(TestAllMDMs):
         mock_create_group.assert_called_once()
         mock_add_group_to_policy.assert_called_once()
         mock_get_enrollment_qr_code.assert_called_once()
+
+    def test_create_default_fleet_policy_id_is_unique(self, set_mdm_env_vars, mocker):
+        """Two calls to create_default_fleet() must produce distinct policy_id values.
+
+        Regression test: the previous implementation used
+        ``f"policy_default_{Policy.all_mdms.count()}"`` which produces collisions
+        under concurrency or after deletions.
+        """
+        MDM = get_active_mdm_class()
+        mocker.patch.object(MDM, "create_group")
+        mocker.patch.object(MDM, "add_group_to_policy")
+        mocker.patch.object(MDM, "get_enrollment_qr_code")
+        mocker.patch.object(MDM, "pull_devices")
+
+        org1 = OrganizationFactory()
+        org2 = OrganizationFactory()
+        fleet1 = org1.create_default_fleet()
+        fleet2 = org2.create_default_fleet()
+        assert fleet1.policy.policy_id != fleet2.policy.policy_id

@@ -237,11 +237,15 @@ class Policy(models.Model):
         """Generates policy data using the PolicySerializer."""
         device = kwargs.get("device")
         applications = list(self.applications.select_related("policy").order_by("order", "pk"))
+        # Collect organization IDs from fleets using this policy.
+        org_ids = list(self.fleets.values_list("organization", flat=True))
+        # Also include the policy's own organization, if present, so that
+        # org-scoped variables for a new policy (not yet attached to any fleet)
+        # are still available for template substitution.
+        if self.organization_id is not None and self.organization_id not in org_ids:
+            org_ids.append(self.organization_id)
         variables = list(
-            PolicyVariable.objects.filter(
-                Q(org__in=self.fleets.values_list("organization", flat=True))
-                | Q(fleet__in=self.fleets.all())
-            )
+            PolicyVariable.objects.filter(Q(org__in=org_ids) | Q(fleet__in=self.fleets.all()))
         )
         serializer = PolicySerializer(
             policy=self,
@@ -288,9 +292,9 @@ class PolicyApplication(models.Model):
 
     def managed_configuration_str(self):
         """Return managed_configuration JSON as a formatted string for display."""
-        if self.managed_configuration:
-            return json.dumps(self.managed_configuration, indent=2)
-        return ""
+        if self.managed_configuration is None:
+            return ""
+        return json.dumps(self.managed_configuration, indent=2)
 
 
 class PolicyVariable(models.Model):

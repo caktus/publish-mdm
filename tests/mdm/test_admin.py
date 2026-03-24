@@ -554,6 +554,52 @@ class TestPolicyAdmin(TestAdmin):
         else:
             mock_push_device_config.assert_not_called()
 
+    def test_policy_push_happens_after_inline_applications_saved(
+        self, user, client, mocker, set_mdm_env_vars
+    ):
+        """MDM push is triggered in save_related(), so inline applications added in the
+        same POST are already persisted when create_or_update_policy() is called.
+
+        Regression test: the push was previously in save_model(), which runs before
+        Django's save_related() persists inline formset rows.
+        """
+        MDM = get_active_mdm_class()
+        if not hasattr(MDM, "create_or_update_policy"):
+            pytest.skip("MDM does not have create_or_update_policy")
+
+        pushed_package_names = []
+
+        def capture_policy(policy):
+            pushed_package_names.extend(
+                list(policy.applications.values_list("package_name", flat=True))
+            )
+
+        mocker.patch.object(MDM, "create_or_update_policy", side_effect=capture_policy)
+        mocker.patch.object(MDM, "push_device_config")
+
+        data = {
+            "name": "Test Policy",
+            "policy_id": "test_policy_inline",
+            "mdm": MDM.name,
+            "odk_collect_package": "org.odk.collect.android",
+            "device_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
+            "device_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+            "work_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
+            "work_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+            "developer_settings": "DEVELOPER_SETTINGS_DISABLED",
+            "applications-TOTAL_FORMS": "1",
+            "applications-INITIAL_FORMS": "0",
+            "applications-MIN_NUM_FORMS": "0",
+            "applications-MAX_NUM_FORMS": "1000",
+            "applications-0-package_name": "com.example.inline",
+            "applications-0-install_type": "FORCE_INSTALLED",
+            "applications-0-order": "1",
+        }
+        response = client.post(reverse("admin:mdm_policy_add"), data=data, follow=True)
+        assert response.status_code == 200
+        # The inline application must already be in the DB when the MDM push fires
+        assert "com.example.inline" in pushed_package_names
+
 
 class TestFleetAdminDeleteConfirmation(TestAdmin):
     """Tests for the GET paths in FleetAdmin that render confirmation pages."""
