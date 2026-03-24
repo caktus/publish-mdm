@@ -327,7 +327,7 @@ class DeviceSnapshot(models.Model):
     )
     serial_number = models.CharField(max_length=255, help_text="The serial number of the device.")
     manufacturer = models.CharField(max_length=64, help_text="The manufacturer of the device.")
-    os_version = models.CharField(
+    os_version = models.CharField(  # noqa: DJ001
         verbose_name="OS Version",
         max_length=32,
         help_text="The version of the operating system.",

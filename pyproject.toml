@@ -69,7 +69,6 @@ select = [
 ignore = [
     "E501",    # line too long (handled by formatter)
     "B008",    # do not perform function calls in default args (common in Django)
-    "DJ001",   # do not warn about null=True on string-based fields (needed for external RPA data)
     "SIM102",  # collapsible if (often hurts readability)
     "SIM108",  # ternary operator (often hurts readability)
 ]
