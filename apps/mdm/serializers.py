@@ -195,13 +195,13 @@ class PolicySerializer:
             for key in obj:
                 if isinstance(obj[key], str):
                     obj[key] = self._substitute(obj[key], variables)
-                elif isinstance(obj[key], (dict, list)):
+                elif isinstance(obj[key], dict | list):
                     self._resolve_variables(obj[key], variables)
         elif isinstance(obj, list):
             for i, item in enumerate(obj):
                 if isinstance(item, str):
                     obj[i] = self._substitute(item, variables)
-                elif isinstance(item, (dict, list)):
+                elif isinstance(item, dict | list):
                     self._resolve_variables(item, variables)
 
     def _substitute(self, value: str, variables: dict[str, str]) -> str:
