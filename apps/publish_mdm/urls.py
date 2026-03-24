@@ -163,6 +163,11 @@ urlpatterns = [
         name="add-fleet",
     ),
     path(
+        "o/<slug:organization_slug>/fleet/app-users/",
+        views.fleet_app_users,
+        name="fleet-app-users",
+    ),
+    path(
         "o/<slug:organization_slug>/fleet-qr-code/",
         views.fleet_qr_code,
         name="fleet-qr-code",

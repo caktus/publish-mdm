@@ -1,13 +1,12 @@
 import contextlib
 import tempfile
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Sequence
 
 import structlog
 from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import transaction
-from django.db.models import QuerySet
 from django.core.files.storage import storages
 from pydantic import BaseModel, field_validator
 from storages.base import BaseStorage
@@ -132,9 +131,17 @@ def update_app_users_central_id(project: Project, app_users):
         )
 
 
-def generate_and_save_app_user_collect_qrcodes(project: Project):
-    """Generate and save QR codes for all app users in the project."""
-    app_users: QuerySet[AppUser] = project.app_users.all()
+def generate_and_save_app_user_collect_qrcodes(
+    project: Project,
+    app_users: Sequence[AppUser] | None = None,
+):
+    """Generate and save QR codes for app users in the project.
+
+    If app_users is provided, only generate QR codes for those users.
+    Otherwise, generate QR codes for all app users in the project.
+    """
+    if app_users is None:
+        app_users = project.app_users.all()
     logger.info("Generating QR codes", project=project.name, app_users=len(app_users))
     project.central_server.decrypt()
     with PublishMDMClient(

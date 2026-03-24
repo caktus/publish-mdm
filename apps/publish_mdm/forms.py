@@ -599,23 +599,55 @@ class CentralServerFrontendForm(PlatformFormMixin, CentralServerForm):
 class FleetEditForm(PlatformFormMixin, forms.ModelForm):
     class Meta:
         model = Fleet
-        fields = ["project"]
+        fields = ["project", "default_app_user"]
         widgets = {
             "project": Select,
+            "default_app_user": Select,
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["project"].queryset = self.instance.organization.projects.all()
+        self.fields["project"].widget.attrs.update(
+            {
+                "hx-trigger": "change",
+                "hx-target": "#id_default_app_user_container",
+                "hx-swap": "innerHTML",
+                "hx-indicator": ".loading",
+                "hx-get": reverse_lazy(
+                    "publish_mdm:fleet-app-users", args=[self.instance.organization.slug]
+                ),
+            }
+        )
+        project = self.instance.project
+        # When the form is bound, always derive the project from the submitted
+        # data — not the saved instance — so that the default_app_user queryset
+        # is always correct. On GET requests self.is_bound is False so the saved
+        # project is used.
+        if self.is_bound:
+            project_id = self.data.get("project")
+            if not project_id:
+                project = None
+            elif str(project_id) != str(self.instance.project_id):
+                # Project changed — fetch from DB
+                try:
+                    project = self.instance.organization.projects.get(pk=project_id)
+                except (Project.DoesNotExist, ValueError):
+                    project = None
+        if project and project.pk:
+            self.fields["default_app_user"].queryset = AppUser.objects.filter(project=project)
+        else:
+            self.fields["default_app_user"].queryset = AppUser.objects.none()
 
 
 class FleetAddForm(FleetEditForm):
     class Meta:
         model = Fleet
-        fields = ["name", "project"]
+        fields = ["name", "project", "default_app_user"]
         widgets = {
             "name": TextInput,
             "project": Select,
+            "default_app_user": Select,
         }
 
     def clean_name(self):

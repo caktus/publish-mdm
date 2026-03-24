@@ -510,6 +510,10 @@ class TestFormTemplateDetail(ViewTestBase):
 
 
 class TestAddAppUser(ViewTestBase):
+    @pytest.fixture(autouse=True)
+    def mock_generate_qr_codes(self, mocker):
+        return mocker.patch("apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes")
+
     @pytest.fixture
     def url(self, project):
         return reverse(
@@ -543,7 +547,7 @@ class TestAddAppUser(ViewTestBase):
             "app_user_template_variables-MAX_NUM_FORMS": 1000,
         }
 
-    def test_valid_form(self, client, url, user, project, data):
+    def test_valid_form(self, client, url, user, project, data, mock_generate_qr_codes):
         """Test a form with a valid name and no template variables."""
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
@@ -562,9 +566,11 @@ class TestAddAppUser(ViewTestBase):
         ]
         # Ensure there is a success message
         assert f"Successfully added {app_user}." in response.content.decode()
+        # Ensure QR codes were generated for the new app user only
+        mock_generate_qr_codes.assert_called_once_with(project=project, app_users=[app_user])
 
     def test_valid_form_and_valid_formset(
-        self, client, url, user, project, data, template_variables
+        self, client, url, user, project, data, template_variables, mock_generate_qr_codes
     ):
         """Test a form with a valid name and valid template variables formset."""
         data["app_user_template_variables-TOTAL_FORMS"] = 2
@@ -590,6 +596,8 @@ class TestAddAppUser(ViewTestBase):
         ]
         # Ensure there is a success message
         assert f"Successfully added {app_user}." in response.content.decode()
+        # Ensure QR codes were generated for the new app user only
+        mock_generate_qr_codes.assert_called_once_with(project=project, app_users=[app_user])
 
     def test_invalid_name(self, client, url, user, data):
         """Test a form with an invalid name and no template variables."""
@@ -645,6 +653,10 @@ class TestAddAppUser(ViewTestBase):
 
 
 class TestEditAppUser(ViewTestBase):
+    @pytest.fixture(autouse=True)
+    def mock_generate_qr_codes(self, mocker):
+        return mocker.patch("apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes")
+
     @pytest.fixture
     def template_variables(self, project):
         return [
@@ -702,7 +714,9 @@ class TestEditAppUser(ViewTestBase):
             "app_user_template_variables-1-value": f"edited {new_var.name} value",
         }
 
-    def test_valid_form_and_valid_formset(self, client, url, user, app_user, data):
+    def test_valid_form_and_valid_formset(
+        self, client, url, user, app_user, data, mock_generate_qr_codes
+    ):
         """Test a form with a valid name and valid template variables formset."""
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
@@ -726,9 +740,13 @@ class TestEditAppUser(ViewTestBase):
         ]
         # Ensure there is a success message
         assert f"Successfully edited {app_user}." in response.content.decode()
+        # Ensure QR codes were generated for the edited app user only
+        mock_generate_qr_codes.assert_called_once_with(
+            project=app_user.project, app_users=[app_user]
+        )
 
     def test_valid_form_and_valid_formset_deleting_variable(
-        self, client, url, user, app_user, data, template_variables
+        self, client, url, user, app_user, data, template_variables, mock_generate_qr_codes
     ):
         """Test a form with a valid name and valid template variables formset that deletes
         the user's existing template variable.
@@ -756,6 +774,10 @@ class TestEditAppUser(ViewTestBase):
         ]
         # Ensure there is a success message
         assert f"Successfully edited {app_user}." in response.content.decode()
+        # Ensure QR codes were generated for the edited app user only
+        mock_generate_qr_codes.assert_called_once_with(
+            project=app_user.project, app_users=[app_user]
+        )
 
     def check_invalid_form_or_formset(self, app_user, data, response):
         assert response.status_code == 200
@@ -2340,13 +2362,14 @@ class TestFleetsList(ViewTestBase):
         table = response.context.get("table")
         assert isinstance(table, Table)
         rows = response.context["table"].as_values()
-        assert next(rows) == ["Name", "MDM Group ID", "Project"]
+        assert next(rows) == ["Name", "MDM Group ID", "Project", "Default app user"]
         rows = {tuple(i) for i in rows}
         assert rows == {
             (
                 i.name,
                 i.mdm_group_id,
                 str(i.project),
+                i.default_app_user,
             )
             for i in fleets
         }
@@ -2616,6 +2639,73 @@ class TestEditFleet(ViewTestBase):
         assert fleet.project_id == data["project"]
         assertContains(response, f"Successfully edited {fleet}.")
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
+
+    def test_valid_form_with_default_app_user(
+        self, client, url, user, fleet, organization, project
+    ):
+        """Ensure submitting a valid form with a default_app_user assigns it to the fleet."""
+        fleet.project = project
+        fleet.save()
+        app_user = AppUserFactory(project=project)
+        data = {
+            "project": project.id,
+            "default_app_user": app_user.id,
+        }
+        response = client.post(url, data=data, follow=True)
+        fleet.refresh_from_db()
+        assert fleet.default_app_user == app_user
+        assertContains(response, f"Successfully edited {fleet}.")
+        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
+
+    def test_clear_default_app_user(self, client, url, user, fleet, organization, project):
+        """Ensure submitting without a default_app_user clears the field."""
+        app_user = AppUserFactory(project=project)
+        fleet.project = project
+        fleet.default_app_user = app_user
+        fleet.save()
+        data = {
+            "project": project.id,
+        }
+        response = client.post(url, data=data, follow=True)
+        fleet.refresh_from_db()
+        assert fleet.default_app_user is None
+        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
+
+
+class TestFleetAppUsers(ViewTestBase):
+    """Tests the HTMX partial view for filtering default_app_user by project."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("publish_mdm:fleet-app-users", args=[organization.slug])
+
+    def test_no_project(self, client, url, user, organization):
+        """With no project param, the select renders with no app user options."""
+        AppUserFactory.create_batch(3, project=ProjectFactory(organization=organization))
+        response = client.get(url)
+        form = FleetEditForm(instance=FleetFactory.build(organization=organization, project=None))
+        assert response.status_code == 200
+        assertContains(response, str(form["default_app_user"]))
+
+    def test_with_project(self, client, url, user, organization, project):
+        """With a valid project param, the select is filtered to that project's app users."""
+        AppUserFactory.create_batch(3, project=project)
+        # App users in a different project — should not appear
+        AppUserFactory.create_batch(2, project=ProjectFactory(organization=organization))
+        response = client.get(url, {"project": project.id})
+        form = FleetEditForm(
+            instance=FleetFactory.build(organization=organization, project=project)
+        )
+        assert response.status_code == 200
+        assertContains(response, str(form["default_app_user"]))
+
+    def test_invalid_project(self, client, url, user, organization):
+        """With a non-existent project id, the select falls back to no app user options."""
+        AppUserFactory.create_batch(2, project=ProjectFactory(organization=organization))
+        response = client.get(url, {"project": 99999})
+        form = FleetEditForm(instance=FleetFactory.build(organization=organization, project=None))
+        assert response.status_code == 200
+        assertContains(response, str(form["default_app_user"]))
 
 
 class TestFleetQRCode(ViewTestBase, TestAllMDMsNoAutouse):

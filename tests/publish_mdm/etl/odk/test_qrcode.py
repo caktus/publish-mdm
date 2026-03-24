@@ -79,3 +79,24 @@ class TestCollectSettings:
             assert mock_call_language == app_language
         else:
             assert mock_call_language == settings.DEFAULT_APP_LANGUAGE
+
+    @pytest.mark.django_db
+    def test_generate_qrcodes_for_specific_app_users(self, app_user, mocker):
+        """When generate_and_save_app_user_collect_qrcodes() is called with the
+        app_users arg set, it should only generate QR codes for those app users.
+        """
+        project = ProjectFactory(central_server__base_url="https://central")
+        AppUserFactory.create_batch(3, project=project)
+        # Only this AppUser should be updated
+        db_app_user = AppUserFactory(name=app_user.displayName, project=project)
+        mocker.patch(
+            "apps.publish_mdm.etl.odk.publish.PublishService.get_app_users",
+            return_value={app_user.displayName: app_user},
+        )
+        mock_create_app_user_qrcode = mocker.patch(
+            "apps.publish_mdm.etl.load.create_app_user_qrcode", wraps=create_app_user_qrcode
+        )
+
+        generate_and_save_app_user_collect_qrcodes(project, app_users=[db_app_user])
+
+        mock_create_app_user_qrcode.assert_called_once()

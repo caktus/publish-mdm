@@ -81,7 +81,7 @@ class AppUserFactory(factory.django.DjangoModelFactory, metaclass=BaseMetaFactor
 
     central_id = factory.Sequence(lambda n: n)
     project = factory.SubFactory(ProjectFactory)
-    name = factory.Faker("word")
+    name = factory.Sequence(lambda _: fake.unique.word())
 
 
 class FormTemplateFactory(
