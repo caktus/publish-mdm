@@ -3,8 +3,9 @@ import datetime as dt
 
 import faker
 from apps.mdm.mdms import get_active_mdm_class
-from apps.mdm.models import Policy, PolicyVariable
+from apps.mdm.models import Policy, PolicyApplication, PolicyVariable
 from tests.mdm import TestAllMDMs
+from tests.publish_mdm.factories import OrganizationFactory
 
 from .factories import (
     DeviceFactory,
@@ -80,8 +81,6 @@ class TestModels(TestAllMDMs):
 
     def test_get_policy_data(self):
         """Tests the Policy.get_policy_data() method using the new serializer."""
-        from apps.mdm.models import PolicyApplication
-
         # A policy with default fields should return a dict with the ODK Collect app
         policy = PolicyFactory()
         policy_data = policy.get_policy_data()
@@ -132,9 +131,6 @@ class TestModels(TestAllMDMs):
 
     def test_get_policy_data_includes_fleet_variables(self):
         """get_policy_data() must include fleet-scoped variables so fleet overrides work."""
-        from apps.mdm.models import PolicyApplication, PolicyVariable
-        from tests.publish_mdm.factories import OrganizationFactory
-
         org = OrganizationFactory()
         policy = PolicyFactory(organization=org)
         fleet = FleetFactory(policy=policy, organization=org)
@@ -164,9 +160,6 @@ class TestModels(TestAllMDMs):
         Regression test: variables were only fetched via fleet→org, so a policy not yet
         attached to any fleet had no org in the query and {{ var }} produced nothing.
         """
-        from apps.mdm.models import PolicyApplication
-        from tests.publish_mdm.factories import OrganizationFactory
-
         org = OrganizationFactory()
         policy = PolicyFactory(organization=org)
         # No fleet — policy.fleets.all() is empty
