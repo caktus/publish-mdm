@@ -252,6 +252,10 @@ Agents may create branches with incorrect merge configs. Always verify before pu
   and never matches. Use inline `<script>` tags in HTMX responses instead.
 - **`hx-swap="innerHTML"`** (not `outerHTML`) when the target element's `id` is
   reused for future swaps — `outerHTML` removes the element and destroys its ID.
+- **djlint and form tags**: Do not use HTML tags inside Django template comments
+  (`{# ... #}`). djlint H025 will report the form as "orphan" even though it's
+  commented out. Extract form opening/closing to separate lines or move the comment
+  outside the form tags to avoid false positives.
 
 ## Python Coding Standards
 
