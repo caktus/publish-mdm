@@ -426,14 +426,6 @@ INFISICAL_KMS_PROJECT_ID = os.getenv("INFISICAL_KMS_PROJECT_ID")
 # in the Policy model it will be considered the default instead.
 MDM_DEFAULT_POLICY = os.getenv("MDM_DEFAULT_POLICY")
 
-# Set to True to enable the Play Store managed configurations iframe in the policy editor.
-# Requires valid AMAPI credentials and enterprise enrollment.
-MANAGED_CONFIGS_IFRAME_ENABLED = os.getenv("MANAGED_CONFIGS_IFRAME_ENABLED", "").lower() in (
-    "true",
-    "1",
-    "yes",
-)
-
 # Dagster settings
 DAGSTER_URL = os.getenv("DAGSTER_URL", "")
 
