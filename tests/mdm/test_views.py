@@ -1,8 +1,9 @@
 import pytest
 from django.urls import reverse
 
-from apps.mdm.models import Policy, PolicyApplication
+from apps.mdm.models import Policy, PolicyApplication, PolicyVariable
 from tests.mdm.factories import (
+    FleetFactory,
     PolicyApplicationFactory,
     PolicyFactory,
 )
@@ -124,6 +125,18 @@ class TestPolicyEdit(PolicyViewBase):
         url = reverse("mdm:policy-edit", args=[organization.slug, other_org_policy.pk])
         response = client.get(url)
         assert response.status_code == 404
+
+    def test_configured_badge_shown_for_empty_managed_configuration(self, client, url, policy):
+        """The 'Configured' badge is shown even when managed_configuration is {}.
+
+        Regression test: the template previously used
+        ``{% if app.managed_configuration %}``, which treated ``{}`` as falsy
+        and skipped the badge for an empty-but-present managed configuration.
+        """
+        PolicyApplicationFactory(policy=policy, order=1, managed_configuration={})
+        response = client.get(url)
+        assert response.status_code == 200
+        assert b"Configured" in response.content
 
 
 # ---------------------------------------------------------------------------
@@ -517,3 +530,39 @@ class TestPolicyEditFormsets(PolicyViewBase):
         assert response.status_code == 302
         new_app = policy.applications.get(package_name="com.brand.new")
         assert new_app.order > 0
+
+    def test_variable_scope_change_clears_stale_org_or_fleet(
+        self, client, url, organization, policy, pinned_app
+    ):
+        """A new fleet-scoped variable saves with org=None (not a stale org reference).
+
+        Regression test: the old code unconditionally set ``var.org = organization``
+        for all new variables, leaving a stale org FK even on fleet-scoped variables.
+        """
+        fleet = FleetFactory(policy=policy, organization=organization)
+        data = self._policy_base_data()
+        data.update(
+            {
+                "apps-TOTAL_FORMS": "2",
+                "apps-INITIAL_FORMS": "1",
+                "apps-0-id": str(pinned_app.pk),
+                "apps-0-package_name": "org.odk.collect.android",
+                "apps-0-install_type": "FORCE_INSTALLED",
+                # New fleet-scoped variable (no id → new instance)
+                "vars-TOTAL_FORMS": "1",
+                "vars-INITIAL_FORMS": "0",
+                "vars-MIN_NUM_FORMS": "0",
+                "vars-MAX_NUM_FORMS": "1000",
+                "vars-0-id": "",
+                "vars-0-key": "api_token",
+                "vars-0-value": "secret",
+                "vars-0-scope": "fleet",
+                "vars-0-fleet": str(fleet.pk),
+            }
+        )
+        response = client.post(url, data)
+        assert response.status_code == 302
+        var = PolicyVariable.objects.get(key="api_token", fleet=fleet)
+        assert var.scope == "fleet"
+        # org must NOT be set; the old code left a stale org FK on fleet-scoped variables
+        assert var.org is None
