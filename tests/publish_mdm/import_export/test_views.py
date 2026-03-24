@@ -319,9 +319,8 @@ class TestDeviceImport(ImportTestBase):
     def dataset(self, devices):
         """Valid CSV import data updating both devices."""
         return Dataset(
-            (devices[0].device_id, "new_user1"),
-            (devices[1].device_id, "new_user2"),
-            headers=["device_id", "app_user_name"],
+            *((d.device_id, d.serial_number, f"new_user{n}") for n, d in enumerate(devices, 1)),
+            headers=["device_id", "serial_number", "app_user_name"],
         )
 
     @pytest.mark.parametrize("format_name", ["csv", "xlsx"])
@@ -379,7 +378,7 @@ class TestDeviceImport(ImportTestBase):
     @pytest.mark.parametrize("format_name", ["csv", "xlsx"])
     def test_invalid_upload(self, client, url, user, devices, dataset, format_name):
         """Ensure a validation error is shown when an unknown device_id is uploaded."""
-        dataset.append(("unknown_device", "some_user"))
+        dataset.append(("unknown_device", "some_serial_no", "some_user"))
         import_format, io_class, form_format = self.FORMATS[format_name]
         import_file_data = dataset.export(format_name)
         data = {"format": form_format, "import_file": io_class(import_file_data)}
@@ -533,6 +532,6 @@ class TestDeviceExport(ExportTestBase):
             response,
             format,
             f"devices_{organization.slug}_{date_format}.{format.get_extension()}",
-            ["device_id", "app_user_name"],
-            {(i.device_id, i.app_user_name) for i in devices},
+            ["device_id", "serial_number", "app_user_name"],
+            {(i.device_id, i.serial_number, i.app_user_name) for i in devices},
         )

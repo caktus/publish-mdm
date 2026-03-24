@@ -961,8 +961,8 @@ def devices_list(request: HttpRequest, organization_slug):
 def device_export(request, organization_slug):
     """Exports Devices to a CSV or Excel file.
 
-    For each device in the current organization, there will be "device_id" and
-    "app_user_name" columns.
+    For each device in the current organization, there will be "device_id",
+    "serial_number", and "app_user_name" columns.
     """
     resource = DeviceResource(request.organization)
     form = ExportForm([resource], data=request.POST or None)

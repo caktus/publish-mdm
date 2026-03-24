@@ -386,15 +386,15 @@ class TestDeviceResource:
         dataset = resource.export()
 
         assert len(dataset) == 2
-        assert dataset.headers == ["device_id", "app_user_name"]
+        assert dataset.headers == ["device_id", "serial_number", "app_user_name"]
         assert {row[0] for row in dataset} == {i.device_id for i in devices}
 
     def test_successful_import(self, organization):
         """Importing should update app_user_name on existing devices."""
         devices = DeviceFactory.create_batch(2, fleet__organization=organization)
-        csv_data = "device_id,app_user_name\n"
+        csv_data = "device_id,serial_number,app_user_name\n"
         for i in devices:
-            csv_data += f"{i.device_id},{i.app_user_name}_edited\n"
+            csv_data += f"{i.device_id},{i.serial_number},{i.app_user_name}_edited\n"
 
         result = self.import_data(csv_data, organization)
 
@@ -409,9 +409,9 @@ class TestDeviceResource:
         device = DeviceFactory(fleet__organization=organization, app_user_name="app_user")
         # A device in a different organization
         other_device = DeviceFactory()
-        csv_data = "device_id,app_user_name\n"
+        csv_data = "device_id,serial_number,app_user_name\n"
         for i in (device, other_device):
-            csv_data += f"{i.device_id},{i.app_user_name}_edited\n"
+            csv_data += f"{i.device_id},{i.serial_number},{i.app_user_name}_edited\n"
 
         result = self.import_data(csv_data, organization)
 
@@ -429,7 +429,7 @@ class TestDeviceResource:
 
     def test_unknown_device_id(self, organization):
         """A device_id that doesn't match any device should produce a validation error."""
-        csv_data = "device_id,app_user_name\nnonexistent_device,new_user\n"
+        csv_data = "device_id,serial_number,app_user_name\nnonexistent_device,serial,new_user\n"
         result = self.import_data(csv_data, organization)
 
         assert result.has_validation_errors()
@@ -444,7 +444,7 @@ class TestDeviceResource:
         """A blank device_id should produce a validation error instead of attempting
         to create a new Device.
         """
-        csv_data = "device_id,app_user_name\n,new_user\n"
+        csv_data = "device_id,serial_number,app_user_name\n,serial,new_user\n"
         result = self.import_data(csv_data, organization)
 
         assert result.has_validation_errors()
@@ -456,9 +456,9 @@ class TestDeviceResource:
     def test_unchanged_rows_skipped(self, organization):
         """Rows where app_user_name hasn't changed should be marked as skip."""
         devices = DeviceFactory.create_batch(2, fleet__organization=organization)
-        csv_data = "device_id,app_user_name\n"
+        csv_data = "device_id,serial_number,app_user_name\n"
         for i in devices:
-            csv_data += f"{i.device_id},{i.app_user_name}\n"
+            csv_data += f"{i.device_id},{i.serial_number},{i.app_user_name}\n"
 
         result = self.import_data(csv_data, organization)
 
