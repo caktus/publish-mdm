@@ -245,10 +245,7 @@ class Policy(models.Model):
         if self.organization_id is not None and self.organization_id not in org_ids:
             org_ids.append(self.organization_id)
         variables = list(
-            PolicyVariable.objects.filter(
-                Q(org__in=org_ids)
-                | Q(fleet__in=self.fleets.all())
-            )
+            PolicyVariable.objects.filter(Q(org__in=org_ids) | Q(fleet__in=self.fleets.all()))
         )
         serializer = PolicySerializer(
             policy=self,
