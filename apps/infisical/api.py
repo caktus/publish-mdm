@@ -26,7 +26,7 @@ class InfisicalKMS:
         # Create the client
         return InfisicalSDKClient(settings.INFISICAL_API_URL, settings.INFISICAL_TOKEN)
 
-    @cache
+    @cache  # noqa: B019
     def get_key(self, key_name: str, can_create: bool = True) -> KmsKey:
         """Get or create a key with the provided name."""
         try:

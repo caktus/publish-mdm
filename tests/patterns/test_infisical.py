@@ -1,4 +1,5 @@
 import base64
+import re
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
@@ -43,15 +44,15 @@ class TestInfisicalKMS:
         settings.INFISICAL_API_URL = None
         kms_api = InfisicalKMS()
         with pytest.raises(
-            ImproperlyConfigured, match="INFISICAL_API_URL must be defined in settings."
+            ImproperlyConfigured, match=re.escape("INFISICAL_API_URL must be defined in settings.")
         ):
-            kms_api.client
+            _ = kms_api.client
         settings.INFISICAL_TOKEN = None
         with pytest.raises(
             ImproperlyConfigured,
-            match="INFISICAL_API_URL and INFISICAL_TOKEN must be defined in settings.",
+            match=re.escape("INFISICAL_API_URL and INFISICAL_TOKEN must be defined in settings."),
         ):
-            kms_api.client
+            _ = kms_api.client
 
     def test_get_key(self, requests_mock, set_infisical_settings, settings, key_json):
         """Ensure calling get_key() with a valid key name returns a KmsKey object."""

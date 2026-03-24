@@ -1,4 +1,4 @@
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 import factory
 import faker
@@ -12,7 +12,7 @@ T = TypeVar("T")
 fake = faker.Faker()
 
 
-class BaseMetaFactory(Generic[T], factory.base.FactoryMetaClass):
+class BaseMetaFactory[T](factory.base.FactoryMetaClass):
     """Typing helper to return the Model class from the factory.
 
     Source: https://github.com/FactoryBoy/factory_boy/issues/468#issuecomment-1151633557

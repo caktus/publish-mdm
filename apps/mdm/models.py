@@ -1,4 +1,5 @@
 import json
+from typing import ClassVar
 
 import structlog
 from django.conf import settings
@@ -37,12 +38,12 @@ class Policy(models.Model):
         "to create this policy and its child policies.",
     )
 
-    objects = PolicyManager()
     all_mdms = models.Manager()
+    objects = PolicyManager()
 
     class Meta:
         verbose_name_plural = "policies"
-        constraints = [
+        constraints: ClassVar = [
             models.UniqueConstraint(
                 fields=["default_policy", "mdm"],
                 condition=models.Q(default_policy=True),
@@ -133,11 +134,11 @@ class Fleet(models.Model):
     enroll_token_expires_at = models.DateTimeField(blank=True, null=True)
     enroll_token_value = models.CharField(max_length=30, blank=True)
 
-    objects = FleetManager()
     all_mdms = models.Manager()
+    objects = FleetManager()
 
     class Meta:
-        constraints = [
+        constraints: ClassVar = [
             models.UniqueConstraint(fields=["organization", "name"], name="unique_org_and_name"),
         ]
 
@@ -145,7 +146,7 @@ class Fleet(models.Model):
         return self.name
 
     def save(self, *args, **kwargs):
-        from .mdms import get_active_mdm_instance
+        from .mdms import get_active_mdm_instance  # noqa: PLC0415
 
         sync_with_mdm = kwargs.pop("sync_with_mdm", False)
         super().save(*args, **kwargs)
@@ -231,11 +232,14 @@ class Device(models.Model):
         blank=True,
     )
 
-    objects = DeviceManager()
     all_mdms = models.Manager()
+    objects = DeviceManager()
+
+    def __str__(self):
+        return f"{self.name} ({self.device_id})"
 
     def save(self, *args, **kwargs):
-        from .mdms import get_active_mdm_instance
+        from .mdms import get_active_mdm_instance  # noqa: PLC0415
 
         push_to_mdm = kwargs.pop("push_to_mdm", False)
         super().save(*args, **kwargs)
@@ -248,9 +252,6 @@ class Device(models.Model):
 
         if push_to_mdm and (active_mdm := get_active_mdm_instance()):
             active_mdm.push_device_config(self)
-
-    def __str__(self):
-        return f"{self.name} ({self.device_id})"
 
     def get_odk_collect_qr_code_string(self):
         """Gets a QR code string that can be used to update the managed configuration
@@ -343,11 +344,11 @@ class DeviceSnapshot(models.Model):
     )
     synced_at = models.DateTimeField(help_text="When the device snapshot was synced.")
 
-    objects = DeviceSnapshotManager()
     all_mdms = models.Manager()
+    objects = DeviceSnapshotManager()
 
     class Meta:
-        indexes = [
+        indexes: ClassVar = [
             models.Index(fields=["last_sync"]),
             models.Index(fields=["synced_at"]),
         ]
@@ -375,7 +376,7 @@ class DeviceSnapshotApp(models.Model):
     )
 
     class Meta:
-        constraints = [
+        constraints: ClassVar = [
             models.UniqueConstraint(
                 fields=["device_snapshot", "package_name"],
                 name="unique_device_snapshot_and_package",
@@ -423,13 +424,13 @@ class FirmwareSnapshot(models.Model):
         blank=True,
     )
 
-    objects = FirmwareSnapshotManager()
     all_mdms = models.Manager()
+    objects = FirmwareSnapshotManager()
+
+    class Meta:
+        indexes: ClassVar = [
+            models.Index(fields=["synced_at"]),
+        ]
 
     def __str__(self):
         return f"{self.device_id} ({self.version}) firmware snapshot"
-
-    class Meta:
-        indexes = [
-            models.Index(fields=["synced_at"]),
-        ]

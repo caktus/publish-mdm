@@ -2,6 +2,7 @@ import os
 import shutil
 from io import BytesIO, StringIO
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 from django.conf import settings
@@ -25,7 +26,7 @@ class TestAppUserImport:
     # - an instance of the class from `settings.IMPORT_EXPORT_FORMATS`
     # - an `io` class to use to create a file-like object for POST data
     # - the value for selecting the format in import forms
-    FORMATS = {}
+    FORMATS: ClassVar = {}
     for index, format_class in enumerate(settings.IMPORT_EXPORT_FORMATS):
         f = format_class()
         if f.is_binary():
@@ -153,7 +154,7 @@ class TestAppUserImport:
         """Ensure form validation errors are displayed in case of invalid data in the upload."""
         # Add a row with an invalid central_id
         dataset.append(("", "newuser2", "xx", "", "", ""))
-        import_format, io_class, form_format = self.FORMATS[format_name]
+        _, io_class, form_format = self.FORMATS[format_name]
         import_file_data = dataset.export(format_name)
         data = {"format": form_format, "import_file": io_class(import_file_data)}
         response = client.post(url, data=data)

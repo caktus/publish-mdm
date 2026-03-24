@@ -29,7 +29,7 @@ class TestPublishTemplateConsumer:
         communicator = WebsocketCommunicator(
             PublishTemplateConsumer.as_asgi(), "/ws/publish-template/"
         )
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
         assert connected
         mocker.patch.object(
             PublishTemplateConsumer, "publish_form_template", side_effect=SpreadsheetNotFound()
@@ -60,7 +60,7 @@ class TestPublishTemplateConsumer:
         communicator = WebsocketCommunicator(
             PublishTemplateConsumer.as_asgi(), "/ws/publish-template/"
         )
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
         assert connected
 
         user = await database_sync_to_async(UserFactory)()
@@ -123,7 +123,7 @@ class TestPublishTemplateConsumer:
         communicator = WebsocketCommunicator(
             PublishTemplateConsumer.as_asgi(), "/ws/publish-template/"
         )
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
         assert connected
 
         user = await database_sync_to_async(UserFactory)()
@@ -188,7 +188,7 @@ class TestPublishTemplateConsumer:
         communicator = WebsocketCommunicator(
             PublishTemplateConsumer.as_asgi(), "/ws/publish-template/"
         )
-        connected, subprotocol = await communicator.connect()
+        connected, _ = await communicator.connect()
         assert connected
 
         def other_api_error(*arg, **kwargs):

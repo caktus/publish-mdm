@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 import structlog
 from django import forms
 from django.conf import settings
@@ -61,7 +63,7 @@ class ProjectTemplateVariableInline(admin.TabularInline):
     model = ProjectTemplateVariable
     extra = 1
     fields = ("template_variable", "value")
-    autocomplete_fields = ["template_variable"]
+    autocomplete_fields: ClassVar = ["template_variable"]
 
 
 @admin.register(Project)
@@ -99,8 +101,14 @@ class ProjectAdmin(admin.ModelAdmin):
 class FormTemplateForm(forms.ModelForm):
     class Meta:
         model = FormTemplate
-        fields = "__all__"
-        widgets = {
+        fields: ClassVar = [
+            "project",
+            "title_base",
+            "form_id_base",
+            "template_url",
+            "template_url_user",
+        ]
+        widgets: ClassVar = {
             "template_url_user": forms.HiddenInput,
         }
 

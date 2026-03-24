@@ -1,4 +1,5 @@
 import hashlib
+import re
 from pathlib import Path
 
 import pytest
@@ -122,7 +123,7 @@ class TestTemplate:
         ]
         with pytest.raises(
             LookupError,
-            match=(
+            match=re.escape(
                 "'NOT_IN_SHEET' is not a valid variable in the XLSForm template. "
                 "Please check the variable name and try again."
             ),

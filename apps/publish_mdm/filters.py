@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from django.db.models import Count
 from django.utils.functional import cached_property
 from django_filters import FilterSet, MultipleChoiceFilter
@@ -27,4 +29,4 @@ class DeviceFilter(FilterSet):
 
     class Meta:
         model = Device
-        fields = ["fleet"]
+        fields: ClassVar = ["fleet"]

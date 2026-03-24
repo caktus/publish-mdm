@@ -1,5 +1,6 @@
 import datetime
 from functools import cached_property
+from typing import ClassVar
 from urllib.parse import urlparse
 
 import structlog
@@ -134,15 +135,15 @@ class TemplateVariable(AbstractBaseModel):
         Organization, on_delete=models.CASCADE, related_name="template_variables"
     )
 
-    def __str__(self):
-        return self.name
-
     class Meta:
-        constraints = [
+        constraints: ClassVar = [
             models.UniqueConstraint(
                 fields=["name", "organization"], name="unique_template_variable_name"
             ),
         ]
+
+    def __str__(self):
+        return self.name
 
 
 class Project(AbstractBaseModel):
@@ -150,7 +151,7 @@ class Project(AbstractBaseModel):
 
     # APP_LANGUAGE_CHOICES should be updated only based on the supported
     # values for the "app_language " setting: https://docs.getodk.org/collect-import-export/
-    APP_LANGUAGE_CHOICES = list(
+    APP_LANGUAGE_CHOICES: ClassVar = list(
         zip(
             *[
                 [
@@ -265,7 +266,7 @@ class ProjectTemplateVariable(AbstractBaseModel):
     )
 
     class Meta:
-        constraints = [
+        constraints: ClassVar = [
             models.UniqueConstraint(
                 fields=["project", "template_variable"], name="unique_project_template_variable"
             ),
@@ -341,7 +342,7 @@ class FormTemplateVersion(AbstractBaseModel):
     version = models.CharField(max_length=255)
 
     class Meta:
-        constraints = [
+        constraints: ClassVar = [
             models.UniqueConstraint(
                 fields=["form_template", "version"], name="unique_form_template_version"
             ),
@@ -388,7 +389,7 @@ class AppUserTemplateVariable(AbstractBaseModel):
     value = models.CharField(max_length=1024)
 
     class Meta:
-        constraints = [
+        constraints: ClassVar = [
             models.UniqueConstraint(
                 fields=["app_user", "template_variable"], name="unique_app_user_template_variable"
             ),
@@ -436,7 +437,7 @@ class AppUser(AbstractBaseModel):
     qr_code_data = models.JSONField(verbose_name="QR Code data", blank=True, null=True)
 
     class Meta:
-        constraints = [
+        constraints: ClassVar = [
             models.UniqueConstraint(fields=["project", "name"], name="unique_project_name"),
         ]
 
@@ -514,7 +515,7 @@ class AppUserFormTemplate(AbstractBaseModel):
     )
 
     class Meta:
-        constraints = [
+        constraints: ClassVar = [
             models.UniqueConstraint(
                 fields=["app_user", "form_template"], name="unique_app_user_form_template"
             ),
@@ -532,7 +533,7 @@ class AppUserFormTemplate(AbstractBaseModel):
         self, form_template_version: FormTemplateVersion, attachments: dict | None = None
     ):
         """Create the next version of this app user form template."""
-        from .etl.transform import render_template_for_app_user
+        from .etl.transform import render_template_for_app_user  # noqa: PLC0415
 
         version_file = render_template_for_app_user(
             app_user=self.app_user, template_version=form_template_version, attachments=attachments
@@ -558,7 +559,7 @@ class AppUserFormVersion(AbstractBaseModel):
     file = models.FileField(upload_to="form-templates/")
 
     class Meta:
-        constraints = [
+        constraints: ClassVar = [
             models.UniqueConstraint(
                 fields=["app_user_form_template", "form_template_version"],
                 name="unique_app_user_form_template_version",
@@ -589,7 +590,7 @@ class ProjectAttachment(AbstractBaseModel):
     file = models.FileField(upload_to=project_directory_path)
 
     class Meta:
-        constraints = [
+        constraints: ClassVar = [
             models.UniqueConstraint(fields=["project", "name"], name="unique_project_attachments"),
         ]
 

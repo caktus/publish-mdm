@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 import django_tables2 as tables
 
 from apps.mdm.models import Device, Fleet
@@ -23,9 +25,9 @@ class FormTemplateTable(tables.Table):
 
     class Meta:
         model = FormTemplate
-        fields = ["title_base", "form_id_base"]
+        fields: ClassVar = ["title_base", "form_id_base"]
         template_name = "patterns/tables/table.html"
-        attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
+        attrs: ClassVar = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
         orderable = False
 
 
@@ -39,9 +41,9 @@ class FormTemplateVersionTable(tables.Table):
 
     class Meta:
         model = FormTemplateVersion
-        fields = ["version", "modified_at"]
+        fields: ClassVar = ["version", "modified_at"]
         template_name = "patterns/tables/table.html"
-        attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
+        attrs: ClassVar = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
         orderable = False
 
 
@@ -57,9 +59,9 @@ class CentralServerTable(tables.Table):
 
     class Meta:
         model = CentralServer
-        fields = ["base_url", "username", "created_at"]
+        fields: ClassVar = ["base_url", "username", "created_at"]
         template_name = "patterns/tables/table.html"
-        attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
+        attrs: ClassVar = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
         orderable = False
 
 
@@ -73,7 +75,7 @@ class DeviceTable(tables.Table):
 
     class Meta:
         model = Device
-        fields = [
+        fields: ClassVar = [
             "device_id",
             "serial_number",
             "app_user_name",
@@ -82,7 +84,7 @@ class DeviceTable(tables.Table):
             "last_seen_vpn",
         ]
         template_name = "patterns/tables/table.html"
-        attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
+        attrs: ClassVar = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
 
 
 class FleetTable(tables.Table):
@@ -96,4 +98,4 @@ class FleetTable(tables.Table):
         model = Fleet
         fields = ("name", "mdm_group_id", "project")
         template_name = "patterns/tables/table.html"
-        attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
+        attrs: ClassVar = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}

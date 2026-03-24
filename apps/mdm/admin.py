@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 import structlog
 from django.conf import settings
 from django.contrib import admin, messages
@@ -91,7 +93,7 @@ class FleetAdmin(admin.ModelAdmin):
     list_display = ("name", "organization", "mdm_group_id", "policy", "project")
     search_fields = ("name", "organization__name", "policy__name", "project__name", "mdm_group_id")
     list_filter = ("organization", "policy", "project")
-    actions = ["delete_selected"]
+    actions: ClassVar = ["delete_selected"]
 
     def save_model(self, request, obj, form, change):
         # Always sync with MDM when saving a Fleet in the admin
@@ -354,7 +356,7 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
     import_form_class = DeviceImportForm
     confirm_form_class = DeviceConfirmImportForm
     export_form_class = ExportForm
-    resource_classes = [DeviceResource]
+    resource_classes: ClassVar = [DeviceResource]
 
     def save_model(self, request, obj, form, change):
         """Always push to MDM when saving a Device in the admin."""
@@ -448,7 +450,7 @@ class DeviceSnapshotAdmin(admin.ModelAdmin):
     date_hierarchy = "synced_at"
     list_filter = ("manufacturer", "os_version", "enrollment_type")
     ordering = ("-synced_at",)
-    inlines = [DeviceSnapshotAppInline]
+    inlines: ClassVar = [DeviceSnapshotAppInline]
     raw_id_fields = ("mdm_device",)
     readonly_fields = (
         "device_id",

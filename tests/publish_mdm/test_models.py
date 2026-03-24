@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from django.core.exceptions import ValidationError
 from django.db import connection
@@ -287,7 +289,9 @@ class TestAppUser:
         app_user = AppUserFactory.build(name=name, project=project)
         with pytest.raises(
             ValidationError,
-            match="Name can only contain alphanumeric characters, underscores, hyphens, and not more than one colon.",
+            match=re.escape(
+                "Name can only contain alphanumeric characters, underscores, hyphens, and not more than one colon."
+            ),
         ):
             app_user.full_clean()
 
