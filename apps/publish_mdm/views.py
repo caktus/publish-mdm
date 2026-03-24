@@ -481,6 +481,9 @@ def change_app_user(request: HttpRequest, organization_slug, odk_project_pk, app
     if request.method == "POST" and all([form.is_valid(), variables_formset.is_valid()]):
         app_user = form.save()
         variables_formset.save()
+        generate_and_save_app_user_collect_qrcodes(
+            project=request.odk_project, app_users=[app_user]
+        )
         messages.success(
             request,
             f"Successfully {'edit' if app_user_id else 'add'}ed {app_user}.",

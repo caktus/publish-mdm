@@ -508,6 +508,10 @@ class TestFormTemplateDetail(ViewTestBase):
 
 
 class TestAddAppUser(ViewTestBase):
+    @pytest.fixture(autouse=True)
+    def mock_generate_qr_codes(self, mocker):
+        return mocker.patch("apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes")
+
     @pytest.fixture
     def url(self, project):
         return reverse(
@@ -541,7 +545,7 @@ class TestAddAppUser(ViewTestBase):
             "app_user_template_variables-MAX_NUM_FORMS": 1000,
         }
 
-    def test_valid_form(self, client, url, user, project, data):
+    def test_valid_form(self, client, url, user, project, data, mock_generate_qr_codes):
         """Test a form with a valid name and no template variables."""
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
@@ -560,9 +564,11 @@ class TestAddAppUser(ViewTestBase):
         ]
         # Ensure there is a success message
         assert f"Successfully added {app_user}." in response.content.decode()
+        # Ensure QR codes were generated for the new app user only
+        mock_generate_qr_codes.assert_called_once_with(project=project, app_users=[app_user])
 
     def test_valid_form_and_valid_formset(
-        self, client, url, user, project, data, template_variables
+        self, client, url, user, project, data, template_variables, mock_generate_qr_codes
     ):
         """Test a form with a valid name and valid template variables formset."""
         data["app_user_template_variables-TOTAL_FORMS"] = 2
@@ -588,6 +594,8 @@ class TestAddAppUser(ViewTestBase):
         ]
         # Ensure there is a success message
         assert f"Successfully added {app_user}." in response.content.decode()
+        # Ensure QR codes were generated for the new app user only
+        mock_generate_qr_codes.assert_called_once_with(project=project, app_users=[app_user])
 
     def test_invalid_name(self, client, url, user, data):
         """Test a form with an invalid name and no template variables."""
@@ -643,6 +651,10 @@ class TestAddAppUser(ViewTestBase):
 
 
 class TestEditAppUser(ViewTestBase):
+    @pytest.fixture(autouse=True)
+    def mock_generate_qr_codes(self, mocker):
+        return mocker.patch("apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes")
+
     @pytest.fixture
     def template_variables(self, project):
         return [
@@ -700,7 +712,9 @@ class TestEditAppUser(ViewTestBase):
             "app_user_template_variables-1-value": f"edited {new_var.name} value",
         }
 
-    def test_valid_form_and_valid_formset(self, client, url, user, app_user, data):
+    def test_valid_form_and_valid_formset(
+        self, client, url, user, app_user, data, mock_generate_qr_codes
+    ):
         """Test a form with a valid name and valid template variables formset."""
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
@@ -724,9 +738,13 @@ class TestEditAppUser(ViewTestBase):
         ]
         # Ensure there is a success message
         assert f"Successfully edited {app_user}." in response.content.decode()
+        # Ensure QR codes were generated for the edited app user only
+        mock_generate_qr_codes.assert_called_once_with(
+            project=app_user.project, app_users=[app_user]
+        )
 
     def test_valid_form_and_valid_formset_deleting_variable(
-        self, client, url, user, app_user, data, template_variables
+        self, client, url, user, app_user, data, template_variables, mock_generate_qr_codes
     ):
         """Test a form with a valid name and valid template variables formset that deletes
         the user's existing template variable.
@@ -754,6 +772,10 @@ class TestEditAppUser(ViewTestBase):
         ]
         # Ensure there is a success message
         assert f"Successfully edited {app_user}." in response.content.decode()
+        # Ensure QR codes were generated for the edited app user only
+        mock_generate_qr_codes.assert_called_once_with(
+            project=app_user.project, app_users=[app_user]
+        )
 
     def check_invalid_form_or_formset(self, app_user, data, response):
         assert response.status_code == 200
