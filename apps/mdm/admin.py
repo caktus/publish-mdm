@@ -109,7 +109,7 @@ class PolicyVariableAdmin(admin.ModelAdmin):
 
 @admin.register(Fleet)
 class FleetAdmin(admin.ModelAdmin):
-    list_display = ("name", "organization", "mdm_group_id", "policy", "project")
+    list_display = ("name", "organization", "mdm_group_id", "policy", "project", "default_app_user")
     search_fields = ("name", "organization__name", "policy__name", "project__name", "mdm_group_id")
     list_filter = ("organization", "policy", "project")
     actions = ["delete_selected"]
