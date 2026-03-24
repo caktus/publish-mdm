@@ -2,10 +2,11 @@ import pytest
 import datetime as dt
 
 import faker
+from django.core.exceptions import ValidationError
 from apps.mdm.mdms import get_active_mdm_class
 from apps.mdm.models import Policy
 from tests.mdm import TestAllMDMs
-from tests.publish_mdm.factories import AppUserFactory
+from tests.publish_mdm.factories import AppUserFactory, ProjectFactory
 
 from .factories import DeviceFactory, FleetFactory, PolicyFactory
 
@@ -114,6 +115,48 @@ class TestModels(TestAllMDMs):
         device = DeviceFactory(fleet=fleet, app_user_name="")
         device.refresh_from_db()
         assert device.app_user_name == ""
+
+    def test_fleet_clean_valid_default_app_user(self, fleet):
+        """Fleet.clean() should not raise when default_app_user belongs to fleet.project.
+        The fleet should also be saveable after passing validation.
+        """
+        app_user = AppUserFactory(project=fleet.project)
+        fleet.default_app_user = app_user
+        fleet.full_clean()  # Should not raise
+        fleet.save()
+        fleet.refresh_from_db()
+        assert fleet.default_app_user == app_user
+
+    def test_fleet_clean_default_app_user_wrong_project(self, fleet):
+        """Fleet.clean() should raise ValidationError when default_app_user belongs
+        to a different project than fleet.project.
+        """
+        other_project = ProjectFactory(organization=fleet.organization)
+        app_user = AppUserFactory(project=other_project)
+        fleet.default_app_user = app_user
+        with pytest.raises(ValidationError) as exc_info:
+            fleet.clean()
+        assert "default_app_user" in exc_info.value.message_dict
+
+    def test_fleet_clean_default_app_user_without_project(self, fleet):
+        """Fleet.clean() should raise ValidationError when default_app_user is set
+        but fleet.project is None.
+        """
+        app_user = AppUserFactory(project=fleet.project)
+        fleet.default_app_user = app_user
+        fleet.project = None
+        with pytest.raises(ValidationError) as exc_info:
+            fleet.clean()
+        assert "default_app_user" in exc_info.value.message_dict
+
+    def test_fleet_clean_no_default_app_user(self, fleet):
+        """Fleet.clean() should not raise when default_app_user is None,
+        regardless of whether project is set.
+        """
+        fleet.default_app_user = None
+        fleet.clean()  # Should not raise
+        fleet.project = None
+        fleet.clean()  # Should also not raise
 
     def test_fleet_group_name(self, fleet):
         """Ensure the Fleet.group_name property returns a string in the format
