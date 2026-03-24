@@ -1,5 +1,4 @@
 import json
-from typing import ClassVar
 
 import structlog
 from django.conf import settings
@@ -43,14 +42,14 @@ class Policy(models.Model):
 
     class Meta:
         verbose_name_plural = "policies"
-        constraints: ClassVar = [
+        constraints = (
             models.UniqueConstraint(
                 fields=["default_policy", "mdm"],
                 condition=models.Q(default_policy=True),
                 name="unique_default_policy",
                 violation_error_message="A default policy already exists.",
             ),
-        ]
+        )
         # Default policy first
         ordering = ("-default_policy", "id")
 
@@ -138,9 +137,9 @@ class Fleet(models.Model):
     objects = FleetManager()
 
     class Meta:
-        constraints: ClassVar = [
+        constraints = (
             models.UniqueConstraint(fields=["organization", "name"], name="unique_org_and_name"),
-        ]
+        )
 
     def __str__(self):
         return self.name
@@ -348,10 +347,10 @@ class DeviceSnapshot(models.Model):
     objects = DeviceSnapshotManager()
 
     class Meta:
-        indexes: ClassVar = [
+        indexes = (
             models.Index(fields=["last_sync"]),
             models.Index(fields=["synced_at"]),
-        ]
+        )
 
     def __str__(self):
         return f"{self.name} ({self.device_id})"
@@ -376,12 +375,12 @@ class DeviceSnapshotApp(models.Model):
     )
 
     class Meta:
-        constraints: ClassVar = [
+        constraints = (
             models.UniqueConstraint(
                 fields=["device_snapshot", "package_name"],
                 name="unique_device_snapshot_and_package",
             ),
-        ]
+        )
 
     def __str__(self):
         return f"{self.app_name} ({self.package_name}) snapshot"
@@ -428,9 +427,7 @@ class FirmwareSnapshot(models.Model):
     objects = FirmwareSnapshotManager()
 
     class Meta:
-        indexes: ClassVar = [
-            models.Index(fields=["synced_at"]),
-        ]
+        indexes = (models.Index(fields=["synced_at"]),)
 
     def __str__(self):
         return f"{self.device_id} ({self.version}) firmware snapshot"

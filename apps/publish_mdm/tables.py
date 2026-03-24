@@ -27,7 +27,10 @@ class FormTemplateTable(tables.Table):
 
     class Meta:
         model = FormTemplate
-        fields: ClassVar = ["title_base", "form_id_base"]
+        fields = (
+            "title_base",
+            "form_id_base",
+        )
         template_name = "patterns/tables/table.html"
         attrs: ClassVar = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
         orderable = False
@@ -43,7 +46,10 @@ class FormTemplateVersionTable(tables.Table):
 
     class Meta:
         model = FormTemplateVersion
-        fields: ClassVar = ["version", "modified_at"]
+        fields = (
+            "version",
+            "modified_at",
+        )
         template_name = "patterns/tables/table.html"
         attrs: ClassVar = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
         orderable = False
@@ -61,7 +67,11 @@ class CentralServerTable(tables.Table):
 
     class Meta:
         model = CentralServer
-        fields: ClassVar = ["base_url", "username", "created_at"]
+        fields = (
+            "base_url",
+            "username",
+            "created_at",
+        )
         template_name = "patterns/tables/table.html"
         attrs: ClassVar = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
         orderable = False
@@ -94,14 +104,14 @@ class DeviceTable(tables.Table):
 
     class Meta:
         model = Device
-        fields: ClassVar = [
+        fields = (
             "device_id",
             "serial_number",
             "app_user_name",
             "firmware_version",
             "last_seen_mdm",
             "last_seen_vpn",
-        ]
+        )
         template_name = "patterns/tables/table.html"
         attrs: ClassVar = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
 

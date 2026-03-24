@@ -267,7 +267,12 @@ class FormTemplateForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = FormTemplate
-        fields: ClassVar = ["title_base", "form_id_base", "template_url", "template_url_user"]
+        fields = (
+            "title_base",
+            "form_id_base",
+            "template_url",
+            "template_url_user",
+        )
         widgets: ClassVar = {
             "title_base": TextInput,
             "form_id_base": TextInput,
@@ -291,7 +296,7 @@ class AppUserForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = AppUser
-        fields: ClassVar = ["name"]
+        fields = ("name",)
         widgets: ClassVar = {
             "name": TextInput,
         }
@@ -315,7 +320,10 @@ class AppUserTemplateVariableForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = AppUserTemplateVariable
-        fields: ClassVar = ["template_variable", "value"]
+        fields = (
+            "template_variable",
+            "value",
+        )
         widgets: ClassVar = {
             "template_variable": Select,
             "value": TextInput,
@@ -333,7 +341,12 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = Project
-        fields: ClassVar = ["name", "central_server", "template_variables", "app_language"]
+        fields = (
+            "name",
+            "central_server",
+            "template_variables",
+            "app_language",
+        )
         widgets: ClassVar = {
             "name": TextInput,
             "central_server": Select,
@@ -355,7 +368,10 @@ class ProjectTemplateVariableForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = ProjectTemplateVariable
-        fields: ClassVar = ["template_variable", "value"]
+        fields = (
+            "template_variable",
+            "value",
+        )
         widgets: ClassVar = {
             "template_variable": Select,
             "value": TextInput,
@@ -377,7 +393,10 @@ ProjectTemplateVariableFormSet.deletion_widget = CheckboxInput
 class OrganizationForm(PlatformFormMixin, forms.ModelForm):
     class Meta:
         model = Organization
-        fields: ClassVar = ["name", "slug"]
+        fields = (
+            "name",
+            "slug",
+        )
         widgets: ClassVar = {
             "name": TextInput,
             "slug": TextInput,
@@ -460,7 +479,10 @@ class TemplateVariableForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = TemplateVariable
-        fields: ClassVar = ["name", "transform"]
+        fields = (
+            "name",
+            "transform",
+        )
         widgets: ClassVar = {
             "name": TextInput,
             "transform": Select,
@@ -478,7 +500,12 @@ class CentralServerForm(forms.ModelForm):
 
     class Meta:
         model = CentralServer
-        fields: ClassVar = ["base_url", "organization", "username", "password"]
+        fields = (
+            "base_url",
+            "organization",
+            "username",
+            "password",
+        )
         widgets: ClassVar = {
             "username": BaseEmailInput(render_value=False),
             "password": forms.widgets.PasswordInput,
@@ -501,7 +528,7 @@ class CentralServerForm(forms.ModelForm):
                     field.required = False
 
     # Private / reserved address blocks that must never be used as an ODK Central host.
-    _BLOCKED_NETWORKS: ClassVar = [
+    _BLOCKED_NETWORKS = (
         ipaddress.ip_network(cidr)
         for cidr in (
             "10.0.0.0/8",
@@ -513,7 +540,7 @@ class CentralServerForm(forms.ModelForm):
             "fc00::/7",
             "fe80::/10",
         )
-    ]
+    )
 
     def _validate_base_url(self, url: str) -> None:
         """Reject non-HTTPS URLs and URLs that target private / reserved hosts.
@@ -589,7 +616,11 @@ class CentralServerFrontendForm(PlatformFormMixin, CentralServerForm):
     """A form for adding or editing a CentralServer on the frontend."""
 
     class Meta(CentralServerForm.Meta):
-        fields: ClassVar = ["base_url", "username", "password"]
+        fields = (
+            "base_url",
+            "username",
+            "password",
+        )
         widgets: ClassVar = {
             "base_url": TextInput,
             "username": EmailInput(render_value=False),
@@ -600,7 +631,7 @@ class CentralServerFrontendForm(PlatformFormMixin, CentralServerForm):
 class FleetEditForm(PlatformFormMixin, forms.ModelForm):
     class Meta:
         model = Fleet
-        fields: ClassVar = ["project"]
+        fields = ("project",)
         widgets: ClassVar = {
             "project": Select,
         }
@@ -613,7 +644,10 @@ class FleetEditForm(PlatformFormMixin, forms.ModelForm):
 class FleetAddForm(FleetEditForm):
     class Meta:
         model = Fleet
-        fields: ClassVar = ["name", "project"]
+        fields = (
+            "name",
+            "project",
+        )
         widgets: ClassVar = {
             "name": TextInput,
             "project": Select,

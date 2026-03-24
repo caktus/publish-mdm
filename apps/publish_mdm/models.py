@@ -136,11 +136,11 @@ class TemplateVariable(AbstractBaseModel):
     )
 
     class Meta:
-        constraints: ClassVar = [
+        constraints = (
             models.UniqueConstraint(
                 fields=["name", "organization"], name="unique_template_variable_name"
             ),
-        ]
+        )
 
     def __str__(self):
         return self.name
@@ -266,11 +266,11 @@ class ProjectTemplateVariable(AbstractBaseModel):
     )
 
     class Meta:
-        constraints: ClassVar = [
+        constraints = (
             models.UniqueConstraint(
                 fields=["project", "template_variable"], name="unique_project_template_variable"
             ),
-        ]
+        )
 
     def __str__(self):
         return f"{self.value} ({self.id})"
@@ -342,11 +342,11 @@ class FormTemplateVersion(AbstractBaseModel):
     version = models.CharField(max_length=255)
 
     class Meta:
-        constraints: ClassVar = [
+        constraints = (
             models.UniqueConstraint(
                 fields=["form_template", "version"], name="unique_form_template_version"
             ),
-        ]
+        )
 
     def __str__(self):
         return self.file.name
@@ -389,11 +389,11 @@ class AppUserTemplateVariable(AbstractBaseModel):
     value = models.CharField(max_length=1024)
 
     class Meta:
-        constraints: ClassVar = [
+        constraints = (
             models.UniqueConstraint(
                 fields=["app_user", "template_variable"], name="unique_app_user_template_variable"
             ),
-        ]
+        )
 
     def __str__(self):
         return f"{self.value} ({self.id})"
@@ -437,9 +437,9 @@ class AppUser(AbstractBaseModel):
     qr_code_data = models.JSONField(verbose_name="QR Code data", blank=True, null=True)
 
     class Meta:
-        constraints: ClassVar = [
+        constraints = (
             models.UniqueConstraint(fields=["project", "name"], name="unique_project_name"),
-        ]
+        )
 
     def __str__(self):
         return self.name
@@ -515,11 +515,11 @@ class AppUserFormTemplate(AbstractBaseModel):
     )
 
     class Meta:
-        constraints: ClassVar = [
+        constraints = (
             models.UniqueConstraint(
                 fields=["app_user", "form_template"], name="unique_app_user_form_template"
             ),
-        ]
+        )
 
     def __str__(self):
         return self.xml_form_id
@@ -559,12 +559,12 @@ class AppUserFormVersion(AbstractBaseModel):
     file = models.FileField(upload_to="form-templates/")
 
     class Meta:
-        constraints: ClassVar = [
+        constraints = (
             models.UniqueConstraint(
                 fields=["app_user_form_template", "form_template_version"],
                 name="unique_app_user_form_template_version",
             ),
-        ]
+        )
 
     def __str__(self):
         return f"{self.app_user_form_template} - {self.form_template_version}"
@@ -590,9 +590,9 @@ class ProjectAttachment(AbstractBaseModel):
     file = models.FileField(upload_to=project_directory_path)
 
     class Meta:
-        constraints: ClassVar = [
+        constraints = (
             models.UniqueConstraint(fields=["project", "name"], name="unique_project_attachments"),
-        ]
+        )
 
     def __str__(self):
         return f"{self.name}: {self.file.name}"

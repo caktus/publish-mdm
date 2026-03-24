@@ -25,7 +25,7 @@ class DeviceSnapshotFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = DeviceSnapshot
 
-    addresses: ClassVar = [factory.Faker("ipv4")]
+    addresses = (factory.Faker("ipv4"),)
     client_version = factory.Faker("word")
     created = fake.date_time(tzinfo=dt.UTC)
     expires = fake.date_time(tzinfo=dt.UTC)
@@ -34,7 +34,7 @@ class DeviceSnapshotFactory(factory.django.DjangoModelFactory):
     name = factory.Faker("word")
     node_id = factory.Faker("uuid4")
     os = "linux"
-    tags: ClassVar = [factory.Faker("word")]
+    tags = (factory.Faker("word"),)
     update_available = False
     user = factory.Faker("name")
     # Non-API fields

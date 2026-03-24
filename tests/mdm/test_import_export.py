@@ -1,5 +1,3 @@
-from typing import ClassVar
-
 import pytest
 from tablib import Dataset
 
@@ -12,7 +10,13 @@ from .factories import DeviceFactory, FleetFactory
 
 @pytest.mark.django_db
 class TestDeviceResource(TestAllMDMs):
-    HEADERS: ClassVar = ["id", "fleet", "serial_number", "app_user_name", "device_id"]
+    HEADERS = (
+        "id",
+        "fleet",
+        "serial_number",
+        "app_user_name",
+        "device_id",
+    )
 
     @pytest.fixture(autouse=True)
     def disable_dagster(self, settings):
@@ -43,7 +47,7 @@ class TestDeviceResource(TestAllMDMs):
         }
 
         assert len(dataset) == models.Device.objects.count()
-        assert dataset.headers == expected_headers
+        assert tuple(dataset.headers) == expected_headers
         for row in dataset:
             assert tuple(str(i) for i in row) in expected_export_values
 
