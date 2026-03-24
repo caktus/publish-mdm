@@ -14,7 +14,12 @@ class FirmwareSnapshotForm(forms.ModelForm):
 
     class Meta:
         model = FirmwareSnapshot
-        fields = ["serial_number", "device_identifier", "version", "raw_data"]
+        fields = (
+            "serial_number",
+            "device_identifier",
+            "version",
+            "raw_data",
+        )
 
     def __init__(self, json_data, *args, **kwargs):
         form_data = {"raw_data": json_data}

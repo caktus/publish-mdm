@@ -1,6 +1,5 @@
-from django.contrib.auth.models import AbstractUser
-
 from allauth.socialaccount.models import SocialToken
+from django.contrib.auth.models import AbstractUser
 
 
 class User(AbstractUser):
@@ -16,7 +15,7 @@ class User(AbstractUser):
         )
 
     def get_organizations(self):
-        from apps.publish_mdm.models import Organization
+        from apps.publish_mdm.models import Organization  # noqa: PLC0415
 
         if self.is_superuser:
             return Organization.objects.order_by("created_at")

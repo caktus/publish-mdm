@@ -1,6 +1,5 @@
 import factory
 import faker
-
 from allauth.socialaccount.models import SocialAccount, SocialToken
 
 from apps.users.models import User

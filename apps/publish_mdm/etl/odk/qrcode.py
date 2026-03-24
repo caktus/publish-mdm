@@ -2,15 +2,15 @@ import base64
 import io
 import json
 import zlib
-import structlog
 from pathlib import Path
 
+import structlog
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+from apps.publish_mdm.utils import create_qr_code
 
 from .constants import DEFAULT_COLLECT_SETTINGS
 from .publish import ProjectAppUserAssignment
-from apps.publish_mdm.utils import create_qr_code
-
 
 logger = structlog.getLogger(__name__)
 
@@ -30,7 +30,7 @@ def build_collect_settings(
         collect_settings["admin"]["admin_pw"] = admin_pw
 
     # Customize settings
-    url = f"{base_url.rstrip("/")}/key/{app_user.token}/projects/{project_id}"
+    url = f"{base_url.rstrip('/')}/key/{app_user.token}/projects/{project_id}"
     collect_settings["general"]["server_url"] = url
     collect_settings["general"]["username"] = app_user.displayName
     collect_settings["general"]["app_language"] = language

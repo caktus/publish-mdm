@@ -40,7 +40,7 @@ def push_mdm_device_config(context: dg.AssetExecutionContext, config: DeviceConf
                 except requests.exceptions.JSONDecodeError:
                     error_data = None
                 context.log.error(
-                    f"Failed to push configuration ({device.device_id=} {device.pk=} {str(e)=} "
+                    f"Failed to push configuration ({device.device_id=} {device.pk=} {e=!s} "
                     f"{error_data=})"
                 )
                 failed_pks.append(device.pk)

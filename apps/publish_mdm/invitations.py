@@ -18,12 +18,7 @@ class InvitationsAdapter(DefaultAccountAdapter):
             "account_verified_email",
         ):
             return True
-        elif app_settings.INVITATION_ONLY is True:
-            # Site is ONLY open for invites
-            return False
-        else:
-            # Site is open to signup
-            return True
+        return app_settings.INVITATION_ONLY is not True
 
     def get_user_signed_up_signal(self):
         return user_signed_up
@@ -31,7 +26,7 @@ class InvitationsAdapter(DefaultAccountAdapter):
     def post_login(
         self, request, user, *, email_verification, signal_kwargs, email, signup, redirect_url
     ):
-        from invitations.views import accept_invitation
+        from invitations.views import accept_invitation  # noqa: PLC0415
 
         # If the user is being logged in after going through the accept-invite URL,
         # invitation_id will be set in the session

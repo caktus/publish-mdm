@@ -1,4 +1,5 @@
 import base64
+import re
 
 import pytest
 from django.core.exceptions import ImproperlyConfigured
@@ -43,15 +44,15 @@ class TestInfisicalKMS:
         settings.INFISICAL_API_URL = None
         kms_api = InfisicalKMS()
         with pytest.raises(
-            ImproperlyConfigured, match="INFISICAL_API_URL must be defined in settings."
+            ImproperlyConfigured, match=re.escape("INFISICAL_API_URL must be defined in settings.")
         ):
-            kms_api.client
+            _ = kms_api.client
         settings.INFISICAL_TOKEN = None
         with pytest.raises(
             ImproperlyConfigured,
-            match="INFISICAL_API_URL and INFISICAL_TOKEN must be defined in settings.",
+            match=re.escape("INFISICAL_API_URL and INFISICAL_TOKEN must be defined in settings."),
         ):
-            kms_api.client
+            _ = kms_api.client
 
     def test_get_key(self, requests_mock, set_infisical_settings, settings, key_json):
         """Ensure calling get_key() with a valid key name returns a KmsKey object."""
@@ -105,7 +106,7 @@ class TestInfisicalKMS:
             json=key_json,
         )
         encrypt_json = {"ciphertext": "encrypted"}
-        requests_mock.post(f'/api/v1/kms/keys/{key_json["key"]["id"]}/encrypt', json=encrypt_json)
+        requests_mock.post(f"/api/v1/kms/keys/{key_json['key']['id']}/encrypt", json=encrypt_json)
         result = kms_api.encrypt("testkey", "encrypt me")
         assert result == encrypt_json["ciphertext"]
 
@@ -120,6 +121,6 @@ class TestInfisicalKMS:
         decrypt_json = {
             "plaintext": base64.b64encode(expected.encode()).decode(),
         }
-        requests_mock.post(f'/api/v1/kms/keys/{key_json["key"]["id"]}/decrypt', json=decrypt_json)
+        requests_mock.post(f"/api/v1/kms/keys/{key_json['key']['id']}/decrypt", json=decrypt_json)
         result = kms_api.decrypt("testkey", "decrypt me")
         assert result == expected

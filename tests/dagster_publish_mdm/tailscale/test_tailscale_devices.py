@@ -1,11 +1,11 @@
-import dagster as dg
-import pytest
 import datetime as dt
 
-from dagster_publish_mdm.assets.tailscale import tailscale_devices as assets
-from dagster_publish_mdm.resources.tailscale import TailscaleResource
+import dagster as dg
+import pytest
 
 from apps.tailscale.models import DeviceSnapshot
+from dagster_publish_mdm.assets.tailscale import tailscale_devices as assets
+from dagster_publish_mdm.resources.tailscale import TailscaleResource
 from tests.tailscale.factories import DeviceSnapshotFactory
 
 TAILSCALE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
@@ -124,7 +124,7 @@ def test_dev_stale_tailscale_devices(monkeypatch):
     """
 
     monkeypatch.setenv("TAILSCALE_DEVICE_STALE_MINUTES", "60")
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
 
     snapshot = {
         "devices": [
@@ -162,7 +162,7 @@ def test_stale_tailscale_devices(monkeypatch):
     Ensure default 90-day cutoff is used when TAILSCALE_DEVICE_STALE_MINUTES is unset.
     """
 
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
     monkeypatch.delenv("TAILSCALE_DEVICE_STALE_MINUTES", raising=False)
 
     # Only one device: device-3, should be marked stale.
@@ -202,7 +202,7 @@ def test_stale_tailscale_devices(monkeypatch):
 def test_stale_tailscale_devices_with_no_last_seen(monkeypatch):
     """Test stale devices asset handles devices with no last seen."""
 
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
     monkeypatch.delenv("TAILSCALE_DEVICE_STALE_MINUTES", raising=False)
 
     # Only one device: device-3, should be marked stale.

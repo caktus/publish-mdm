@@ -4,15 +4,22 @@ import re
 import shutil
 from io import BytesIO, StringIO
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
-from tablib import Dataset
-from django.urls import reverse
 from django.conf import settings
 from django.contrib.messages import ERROR, Message
+from django.urls import reverse
 from import_export.tmp_storages import MediaStorage
 from pytest_django.asserts import assertContains, assertFormError, assertMessages
+from tablib import Dataset
 
+from apps.publish_mdm.forms import (
+    ConfirmImportForm,
+    ExportForm,
+    ImportForm,
+)
+from apps.publish_mdm.models import AppUser
 from tests.mdm.factories import DeviceFactory, FleetFactory
 from tests.publish_mdm.factories import (
     AppUserFactory,
@@ -22,8 +29,6 @@ from tests.publish_mdm.factories import (
     ProjectFactory,
     UserFactory,
 )
-from apps.publish_mdm.forms import ConfirmImportForm, ExportForm, ImportForm
-from apps.publish_mdm.models import AppUser
 
 
 @pytest.mark.django_db
@@ -56,7 +61,7 @@ class ImportTestBase(ImportExportTestBase):
     # - an instance of the class from `settings.IMPORT_EXPORT_FORMATS`
     # - an `io` class to use to create a file-like object for POST data
     # - the value for selecting the format in import forms
-    FORMATS = {}
+    FORMATS: ClassVar = {}
     for index, format_class in enumerate(settings.IMPORT_EXPORT_FORMATS):
         f = format_class()
         if f.is_binary():
@@ -175,7 +180,7 @@ class TestAppUserImport(ImportTestBase):
         """Ensure form validation errors are displayed in case of invalid data in the upload."""
         # Add a row with an invalid central_id
         dataset.append(("", "newuser2", "xx", "", "", ""))
-        import_format, io_class, form_format = self.FORMATS[format_name]
+        _, io_class, form_format = self.FORMATS[format_name]
         import_file_data = dataset.export(format_name)
         data = {"format": form_format, "import_file": io_class(import_file_data)}
         response = client.post(url, data=data)
@@ -326,7 +331,7 @@ class TestDeviceImport(ImportTestBase):
     @pytest.mark.parametrize("format_name", ["csv", "xlsx"])
     def test_valid_upload(self, client, url, user, devices, dataset, format_name):
         """Ensure the review page is shown after a valid import file is uploaded."""
-        import_format, io_class, form_format = self.FORMATS[format_name]
+        _, io_class, form_format = self.FORMATS[format_name]
         import_file_data = dataset.export(format_name)
         data = {"format": form_format, "import_file": io_class(import_file_data)}
         response = client.post(url, data=data)
@@ -379,7 +384,7 @@ class TestDeviceImport(ImportTestBase):
     def test_invalid_upload(self, client, url, user, devices, dataset, format_name):
         """Ensure a validation error is shown when an unknown device_id is uploaded."""
         dataset.append(("unknown_device", "some_serial_no", "some_user"))
-        import_format, io_class, form_format = self.FORMATS[format_name]
+        _, io_class, form_format = self.FORMATS[format_name]
         import_file_data = dataset.export(format_name)
         data = {"format": form_format, "import_file": io_class(import_file_data)}
         response = client.post(url, data=data)
@@ -472,7 +477,7 @@ class TestAppUserExport(ExportTestBase):
         # The first 2 users have 2 form templates each and template variables
         app_user_templates = {}
         user_vars = {var: {} for var in vars}
-        for index, app_user in enumerate(app_users[:2], 1):
+        for _index, app_user in enumerate(app_users[:2], 1):
             template_ids = []
             for template in random.sample(templates, 2):
                 app_user.app_user_forms.create(form_template=template)

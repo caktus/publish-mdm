@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from django.forms.widgets import PasswordInput
 from django.urls import reverse
-from pytest_django.asserts import assertQuerySetEqual, assertFormError
+from pytest_django.asserts import assertFormError, assertQuerySetEqual
 from requests.exceptions import ConnectionError
 
 from apps.patterns.widgets import BaseEmailInput
@@ -19,14 +19,15 @@ from apps.publish_mdm.forms import (
     PublishTemplateForm,
 )
 from apps.publish_mdm.http import HttpRequest
-from tests.mdm.factories import FleetFactory, DeviceFactory as MDMDeviceFactory
+from tests.mdm.factories import DeviceFactory as MDMDeviceFactory
+from tests.mdm.factories import FleetFactory
 from tests.publish_mdm.factories import (
     AppUserFactory,
-    FormTemplateFactory,
-    ProjectFactory,
     AppUserFormTemplateFactory,
-    OrganizationFactory,
     CentralServerFactory,
+    FormTemplateFactory,
+    OrganizationFactory,
+    ProjectFactory,
 )
 
 
@@ -190,7 +191,7 @@ class TestCentralServerForm:
             "organization": organization.id,
         }
         mock_odk_request = requests_mock.post(
-            f'{data["base_url"]}/v1/sessions',
+            f"{data['base_url']}/v1/sessions",
             json={
                 "createdAt": "2018-04-18T03:04:51.695Z",
                 "expiresAt": "2018-04-19T03:04:51.695Z",
@@ -216,7 +217,7 @@ class TestCentralServerForm:
         }
         form = CentralServerForm(data)
         mock_odk_request = requests_mock.post(
-            f'{data["base_url"]}/v1/sessions',
+            f"{data['base_url']}/v1/sessions",
             json={
                 "createdAt": "2018-04-18T03:04:51.695Z",
                 "expiresAt": "2018-04-19T03:04:51.695Z",
@@ -238,7 +239,7 @@ class TestCentralServerForm:
         }
         form = CentralServerForm(data)
         mock_odk_request = requests_mock.post(
-            f'{data["base_url"]}/v1/sessions',
+            f"{data['base_url']}/v1/sessions",
             status_code=401,
             json={
                 "code": 401.2,
@@ -265,7 +266,7 @@ class TestCentralServerForm:
         }
         form = CentralServerForm(data)
         mock_odk_request = requests_mock.post(
-            f'{data["base_url"]}/v1/sessions', exc=ConnectionError()
+            f"{data['base_url']}/v1/sessions", exc=ConnectionError()
         )
         assert not form.is_valid()
         assert mock_odk_request.called_once
@@ -290,7 +291,7 @@ class TestCentralServerForm:
         }
         form = CentralServerForm(data, instance=server)
         requests_mock.post(
-            f'{data["base_url"]}/v1/sessions',
+            f"{data['base_url']}/v1/sessions",
             json={
                 "createdAt": "2018-04-18T03:04:51.695Z",
                 "expiresAt": "2018-04-19T03:04:51.695Z",
@@ -309,7 +310,7 @@ class TestCentralServerForm:
         # Creating a new CentralServer
         form = form_class()
         field = form.fields[field_name]
-        assert isinstance(field.widget, (PasswordInput, BaseEmailInput))
+        assert isinstance(field.widget, PasswordInput | BaseEmailInput)
         assert not field.widget.render_value
         assert not field.help_text
         # The field should be required when creating a server
@@ -319,7 +320,7 @@ class TestCentralServerForm:
         server = CentralServerFactory(organization=organization, **{field_name: None})
         form = form_class(instance=server)
         field = form.fields[field_name]
-        assert isinstance(field.widget, (PasswordInput, BaseEmailInput))
+        assert isinstance(field.widget, PasswordInput | BaseEmailInput)
         assert not field.widget.render_value
         assert not field.help_text
         # The field should be required if there is currently no value in the DB
@@ -329,7 +330,7 @@ class TestCentralServerForm:
         server = CentralServerFactory(organization=organization)
         form = form_class(instance=server)
         field = form.fields[field_name]
-        assert isinstance(field.widget, (PasswordInput, BaseEmailInput))
+        assert isinstance(field.widget, PasswordInput | BaseEmailInput)
         assert not field.widget.render_value
         # Help text when editing a server
         assert field.help_text == (

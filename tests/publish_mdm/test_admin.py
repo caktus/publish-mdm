@@ -1,6 +1,6 @@
 import pytest
-from django.urls import reverse
 from django.conf import settings
+from django.urls import reverse
 from pytest_django.asserts import assertContains
 
 from apps.publish_mdm.models import CentralServer, Organization, Project
@@ -10,8 +10,8 @@ from tests.publish_mdm.factories import (
     FormTemplateFactory,
     OrganizationFactory,
     ProjectFactory,
-    UserFactory,
     TemplateVariableFactory,
+    UserFactory,
 )
 
 
@@ -212,7 +212,7 @@ class TestCentralServerAdmin(BaseTestAdmin):
             "organization": OrganizationFactory().id,
         }
         # Mock the ODK Central API request for validating the base URL and credentials
-        mock_odk_request = requests_mock.post(f'{data["base_url"]}/v1/sessions')
+        mock_odk_request = requests_mock.post(f"{data['base_url']}/v1/sessions")
         response = client.post(
             reverse("admin:publish_mdm_centralserver_change", args=[server.id]),
             data=data,
@@ -236,7 +236,7 @@ class TestCentralServerAdmin(BaseTestAdmin):
         }
         # Mock the ODK Central API request for validating the base URL and credentials
         mock_odk_request = requests_mock.post(
-            f'{data["base_url"]}/v1/sessions',
+            f"{data['base_url']}/v1/sessions",
             json={
                 "createdAt": "2018-04-18T03:04:51.695Z",
                 "expiresAt": "2018-04-19T03:04:51.695Z",

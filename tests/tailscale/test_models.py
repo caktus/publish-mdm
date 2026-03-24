@@ -1,10 +1,11 @@
-import pytest
 import datetime as dt
+
+import pytest
 from django.utils import timezone
 
-from apps.tailscale.models import DeviceSnapshot, Device
+from apps.tailscale.models import Device, DeviceSnapshot
 
-from .factories import DeviceSnapshotFactory, DeviceFactory
+from .factories import DeviceFactory, DeviceSnapshotFactory
 
 
 class TestDevice:
@@ -16,7 +17,7 @@ class TestDevice:
 class TestDeviceSnapshot:
     def test_str(self):
         snapshot = DeviceSnapshotFactory.build(
-            name="name", id=5, synced_at=dt.datetime(2021, 1, 1, tzinfo=dt.timezone.utc)
+            name="name", id=5, synced_at=dt.datetime(2021, 1, 1, tzinfo=dt.UTC)
         )
         assert str(snapshot) == "name (5) from 2021-01-01 sync"
 

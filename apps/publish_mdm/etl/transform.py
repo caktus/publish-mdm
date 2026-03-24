@@ -1,7 +1,7 @@
 import io
-import structlog
 
 import openpyxl
+import structlog
 from django.core.files.uploadedfile import SimpleUploadedFile
 from gspread.utils import ExportFormat
 
@@ -14,7 +14,6 @@ from apps.publish_mdm.etl.template import (
 )
 
 from ..models import AppUser, FormTemplateVersion
-
 
 logger = structlog.getLogger(__name__)
 

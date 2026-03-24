@@ -1,6 +1,6 @@
-from django.db import models, transaction
 from django.contrib import postgres
-from django.db.models import Subquery, OuterRef
+from django.db import models, transaction
+from django.db.models import OuterRef, Subquery
 
 
 class Device(models.Model):
@@ -26,7 +26,7 @@ class Device(models.Model):
     )
 
     class Meta:
-        indexes = [models.Index(fields=["last_seen"])]
+        indexes = (models.Index(fields=["last_seen"]),)
 
     def __str__(self):
         return f"{self.name} ({self.id})"
@@ -139,10 +139,10 @@ class DeviceSnapshot(models.Model):
     objects = DeviceSnapshotManager()
 
     class Meta:
-        indexes = [
+        indexes = (
             models.Index(fields=["synced_at"]),
             models.Index(fields=["tailnet"]),
-        ]
+        )
 
     def __str__(self):
         return f"{self.name} ({self.id}) from {self.synced_at.date()} sync"

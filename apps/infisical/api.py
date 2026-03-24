@@ -5,7 +5,6 @@ from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from django.utils.functional import cached_property
 from django.utils.text import get_text_list
-
 from infisical_sdk import InfisicalSDKClient
 from infisical_sdk.api_types import KmsKey, SymmetricEncryption
 from infisical_sdk.infisical_requests import APIError
@@ -22,12 +21,12 @@ class InfisicalKMS:
                 missing_settings.append(setting)
         if missing_settings:
             raise ImproperlyConfigured(
-                f'{get_text_list(missing_settings, "and")} must be defined in settings.'
+                f"{get_text_list(missing_settings, 'and')} must be defined in settings."
             )
         # Create the client
         return InfisicalSDKClient(settings.INFISICAL_API_URL, settings.INFISICAL_TOKEN)
 
-    @cache
+    @cache  # noqa: B019
     def get_key(self, key_name: str, can_create: bool = True) -> KmsKey:
         """Get or create a key with the provided name."""
         try:

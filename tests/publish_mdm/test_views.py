@@ -4,16 +4,16 @@ from urllib.parse import urlencode
 import faker
 import pytest
 from allauth.socialaccount.models import SocialToken
-from django_tables2 import Table
-from django.urls import reverse
 from django.conf import settings
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.core.files.base import ContentFile
 from django.db.models import Count, Q
 from django.shortcuts import resolve_url
 from django.template.loader import render_to_string
-from django.utils.timezone import now, localtime
+from django.urls import reverse
 from django.utils.formats import date_format
+from django.utils.timezone import localtime, now
+from django_tables2 import Table
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers.data import JsonLexer
@@ -27,21 +27,7 @@ from pytest_django.asserts import (
 )
 from requests.exceptions import HTTPError
 
-from tests.mdm.factories import PolicyFactory
-from tests.publish_mdm.factories import (
-    AppUserFactory,
-    AppUserFormTemplateFactory,
-    AppUserFormVersionFactory,
-    FormTemplateFactory,
-    FormTemplateVersionFactory,
-    OrganizationFactory,
-    OrganizationInvitationFactory,
-    ProjectFactory,
-    UserFactory,
-    CentralServerFactory,
-    TemplateVariableFactory,
-)
-from apps.mdm.mdms import get_active_mdm_class, TinyMDM
+from apps.mdm.mdms import TinyMDM, get_active_mdm_class
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
 from apps.publish_mdm.etl.template import VariableTransform
@@ -50,9 +36,9 @@ from apps.publish_mdm.forms import (
     AppUserForm,
     AppUserTemplateVariableFormSet,
     BYODDeviceEnrollmentForm,
+    CentralServerFrontendForm,
     DeviceAppUserForm,
     DeviceEnrollmentQRCodeForm,
-    CentralServerFrontendForm,
     FleetAddForm,
     FleetEditForm,
     FormTemplateForm,
@@ -77,6 +63,20 @@ from tests.mdm.factories import (
     DeviceSnapshotFactory,
     FirmwareSnapshotFactory,
     FleetFactory,
+    PolicyFactory,
+)
+from tests.publish_mdm.factories import (
+    AppUserFactory,
+    AppUserFormTemplateFactory,
+    AppUserFormVersionFactory,
+    CentralServerFactory,
+    FormTemplateFactory,
+    FormTemplateVersionFactory,
+    OrganizationFactory,
+    OrganizationInvitationFactory,
+    ProjectFactory,
+    TemplateVariableFactory,
+    UserFactory,
 )
 from tests.tailscale.factories import DeviceFactory as TailscaleDeviceFactory
 
@@ -477,8 +477,11 @@ class TestFormTemplateDetail(ViewTestBase):
         versions_table = response.context.get("versions_table")
         assert isinstance(versions_table, Table)
         versions_table_cols = list(versions_table.columns.iterall())
-        assert ["Version number", "Date published", "App users", "Published by"] == [
-            column.header for column in versions_table_cols
+        assert [column.header for column in versions_table_cols] == [
+            "Version number",
+            "Date published",
+            "App users",
+            "Published by",
         ]
         app_user_name_field = "app_user_form_templates__app_user_form_template__app_user__name"
         versions = (
@@ -1058,7 +1061,7 @@ class TestEditProject(ViewTestBase):
         # Ensure there is a success message
         assert f"Successfully edited {project}." in response.content.decode()
 
-    @pytest.mark.parametrize("changed_field", [None, "admin_pw"] + ProjectForm._meta.fields)
+    @pytest.mark.parametrize("changed_field", [None, "admin_pw", *ProjectForm._meta.fields])
     def test_regenerating_qr_codes(
         self,
         client,
@@ -1922,7 +1925,7 @@ class TestAddCentralServer(ViewTestBase):
         }
         # Mock the ODK Central API request for validating the base URL and credentials
         requests_mock.post(
-            f'{data["base_url"]}/v1/sessions',
+            f"{data['base_url']}/v1/sessions",
             json={
                 "createdAt": "2018-04-18T03:04:51.695Z",
                 "expiresAt": "2018-04-19T03:04:51.695Z",
@@ -1992,7 +1995,7 @@ class TestEditCentralServer(ViewTestBase):
         }
         # Mock the ODK Central API request for validating the base URL and credentials
         requests_mock.post(
-            f'{data["base_url"]}/v1/sessions',
+            f"{data['base_url']}/v1/sessions",
             json={
                 "createdAt": "2018-04-18T03:04:51.695Z",
                 "expiresAt": "2018-04-19T03:04:51.695Z",
@@ -2022,7 +2025,7 @@ class TestEditCentralServer(ViewTestBase):
             "password": "",
         }
         # Mock the ODK Central API request for validating the base URL and credentials
-        mock_odk_request = requests_mock.post(f'{data["base_url"]}/v1/sessions')
+        mock_odk_request = requests_mock.post(f"{data['base_url']}/v1/sessions")
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
         assert not mock_odk_request.called

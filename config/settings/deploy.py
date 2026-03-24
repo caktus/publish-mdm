@@ -73,7 +73,6 @@ SENTRY_DSN = os.getenv("SENTRY_DSN")
 SENTRY_SEND_DEFAULT_PII = os.getenv("SENTRY_SEND_DEFAULT_PII", "False") == "True"
 if SENTRY_DSN:
     import sentry_sdk
-
     from sentry_sdk.integrations.celery import CeleryIntegration
     from sentry_sdk.integrations.django import DjangoIntegration
     from sentry_sdk.integrations.redis import RedisIntegration
@@ -81,7 +80,7 @@ if SENTRY_DSN:
     sentry_sdk.init(
         dsn=SENTRY_DSN,
         integrations=[DjangoIntegration(), RedisIntegration(), CeleryIntegration()],
-        environment=ENVIRONMENT,  # noqa: F405
+        environment=ENVIRONMENT,
         release=os.getenv("CONTAINER_IMAGE_TAG"),
         # % of captured performance monitoring transactions
         traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", 0)),

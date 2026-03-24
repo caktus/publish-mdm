@@ -1,8 +1,8 @@
 import datetime as dt
+import os
 
 import dagster as dg
 import django
-import os
 
 from dagster_publish_mdm.resources.tailscale import TailscaleResource
 
@@ -53,7 +53,7 @@ def tailscale_append_device_snapshot_table(
             name=device["name"],
             node_id=device["nodeId"],
             os=device["os"],
-            tags=device["tags"] if "tags" in device else None,
+            tags=device.get("tags", None),
             update_available=device["updateAvailable"],
             user=device["user"],
             # Non-API fields
@@ -95,7 +95,7 @@ def stale_tailscale_devices(
 
     context.log.info("Scanning for stale devices...")
 
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
     time_delta = now - dt.timedelta(
         minutes=int(
             os.getenv(

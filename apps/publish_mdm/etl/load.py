@@ -1,13 +1,13 @@
 import contextlib
 import tempfile
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Callable, Sequence
 
 import structlog
 from django.conf import settings
+from django.core.files.storage import storages
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import transaction
-from django.core.files.storage import storages
 from pydantic import BaseModel, field_validator
 from storages.base import BaseStorage
 
@@ -50,10 +50,10 @@ def publish_form_template(event: PublishTemplateEvent, user: User, send_message:
     * Get or create app users in ODK Central
     * Publish each app user version to ODK Central
     """
-    send_message(f"New {repr(event)}")
+    send_message(f"New {event!r}")
     # Get the form template
     form_template = FormTemplate.objects.select_related().get(id=event.form_template)
-    send_message(f"Publishing next version of {repr(form_template)}")
+    send_message(f"Publishing next version of {form_template!r}")
     # Get the next version by querying ODK Central
     form_template.project.central_server.decrypt()
     client = PublishMDMClient(

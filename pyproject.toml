@@ -48,6 +48,34 @@ pythonpath = [ "." ]
 [tool.ruff]
 line-length = 100
 
+[tool.ruff.lint.per-file-ignores]
+"*/migrations/*.py" = ["RUF012"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes (undefined names, unused imports)
+    "I",    # isort
+    "UP",   # pyupgrade (modern Python syntax)
+    "B",    # flake8-bugbear (likely bugs)
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+    "DJ",   # flake8-django
+    "RUF",  # ruff-specific rules
+    "PLC0415", # import-outside-top-level
+    "E402", # module-import-not-at-top-of-file
+]
+ignore = [
+    "E501",    # line too long (handled by formatter)
+    "B008",    # do not perform function calls in default args (common in Django)
+    "SIM102",  # collapsible if (often hurts readability)
+    "SIM108",  # ternary operator (often hurts readability)
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config"]
+
 [tool.dagster]
 module_name = "dagster_publish_mdm.definitions"
 code_location_name = "dagster_publish_mdm"

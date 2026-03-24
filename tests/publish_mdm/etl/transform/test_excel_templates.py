@@ -1,4 +1,5 @@
 import hashlib
+import re
 from pathlib import Path
 
 import pytest
@@ -8,13 +9,13 @@ from openpyxl.worksheet.worksheet import Worksheet
 from apps.publish_mdm.etl.excel import get_column_cell_by_value, get_header
 from apps.publish_mdm.etl.template import (
     TemplateVariable,
+    VariableTransform,
     build_entity_list_mapping,
     discover_entity_lists,
-    update_setting_variables,
-    update_entity_references,
-    set_survey_template_variables,
     set_survey_attachments,
-    VariableTransform,
+    set_survey_template_variables,
+    update_entity_references,
+    update_setting_variables,
 )
 from tests.publish_mdm.factories import ProjectAttachmentFactory, ProjectFactory
 
@@ -122,7 +123,7 @@ class TestTemplate:
         ]
         with pytest.raises(
             LookupError,
-            match=(
+            match=re.escape(
                 "'NOT_IN_SHEET' is not a valid variable in the XLSForm template. "
                 "Please check the variable name and try again."
             ),
@@ -148,11 +149,11 @@ class TestEntityReferences:
         mapping = build_entity_list_mapping(workbook=workbook, app_user="11030")
         # Entity lists not ending in "_APP_USER" will remain the same, so will
         # not be included in the mapping
-        assert {
+        assert mapping == {
             "cats_APP_USER": "cats_11030",
             "dogs_APP_USER": "dogs_11030",
             "pets_APP_USER": "pets_11030",
-        } == mapping
+        }
 
     def test_update_entity_references(self, workbook):
         """Test updating entity list references in the survey and entity sheets."""

@@ -1,10 +1,9 @@
 import pytest
 from django.conf import settings
 
+from apps.publish_mdm.etl.load import generate_and_save_app_user_collect_qrcodes
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
 from apps.publish_mdm.etl.odk.qrcode import build_collect_settings, create_app_user_qrcode
-from apps.publish_mdm.etl.load import generate_and_save_app_user_collect_qrcodes
-
 from tests.publish_mdm.factories import AppUserFactory, ProjectFactory
 
 

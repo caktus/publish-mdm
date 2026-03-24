@@ -1,17 +1,19 @@
-import pytest
 import datetime as dt
-from typing import Generator
+from collections.abc import Generator
 from pathlib import Path
 
+import pytest
 from django.core.files.temp import NamedTemporaryFile
 from django.core.serializers.json import DjangoJSONEncoder
 from pyodk.errors import PyODKError
 
-from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment, Form
 from apps.publish_mdm.etl.odk.client import PublishMDMClient
-from tests.publish_mdm.factories import FormTemplateFactory, FormTemplateVersionFactory
-
-from tests.publish_mdm.factories import CentralServerFactory
+from apps.publish_mdm.etl.odk.publish import Form, ProjectAppUserAssignment
+from tests.publish_mdm.factories import (
+    CentralServerFactory,
+    FormTemplateFactory,
+    FormTemplateVersionFactory,
+)
 
 
 @pytest.fixture

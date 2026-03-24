@@ -1,7 +1,7 @@
 import dagster as dg
 
-from dagster_publish_mdm.assets.tailscale import tailscale_devices
 from dagster_publish_mdm.assets import mdm_devices
+from dagster_publish_mdm.assets.tailscale import tailscale_devices
 from dagster_publish_mdm.resources.tailscale import TailscaleResource
 
 all_assets = dg.load_assets_from_modules([tailscale_devices, mdm_devices])

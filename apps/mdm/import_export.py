@@ -1,10 +1,11 @@
 import structlog
+import tablib
 from import_export.resources import ModelResource
 from import_export.results import Result
-import tablib
+
+from config.dagster import dagster_enabled, trigger_dagster_job
 
 from .models import Device, PushMethodChoices
-from config.dagster import dagster_enabled, trigger_dagster_job
 
 logger = structlog.get_logger(__name__)
 

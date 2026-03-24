@@ -1,12 +1,12 @@
 import pytest
 from django.http.response import Http404
-from django.urls import reverse, resolve
+from django.urls import resolve, reverse
 
-from apps.publish_mdm.middleware import OrganizationMiddleware, ODKProjectMiddleware
+from apps.publish_mdm.middleware import ODKProjectMiddleware, OrganizationMiddleware
 from apps.publish_mdm.models import Organization
+from tests.users.factories import UserFactory
 
 from .factories import CentralServerFactory, OrganizationFactory, ProjectFactory
-from tests.users.factories import UserFactory
 
 
 @pytest.mark.django_db
