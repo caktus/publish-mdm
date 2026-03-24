@@ -38,7 +38,7 @@ class CentralServerFactory(
     class Meta:
         model = models.CentralServer
 
-    base_url = factory.Faker("url")
+    base_url = factory.Faker("url", schemes=["https"])
     organization = factory.SubFactory(OrganizationFactory)
     username = factory.Faker("email")
     password = "password"

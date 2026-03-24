@@ -1,4 +1,6 @@
+import ipaddress
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 import structlog
@@ -497,6 +499,44 @@ class CentralServerForm(forms.ModelForm):
                     )
                     field.required = False
 
+    # Private / reserved address blocks that must never be used as an ODK Central host.
+    _BLOCKED_NETWORKS = [
+        ipaddress.ip_network(cidr)
+        for cidr in (
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+            "127.0.0.0/8",
+            "169.254.0.0/16",  # link-local / AWS metadata
+            "::1/128",
+            "fc00::/7",
+            "fe80::/10",
+        )
+    ]
+
+    def _validate_base_url(self, url: str) -> None:
+        """Reject non-HTTPS URLs and URLs that target private / reserved hosts.
+
+        When DEBUG is True (local development), all checks are skipped so that
+        developers can use http:// or private-IP Central instances.
+        """
+        if settings.DEBUG:
+            return
+        parsed = urlparse(url)
+        if parsed.scheme != "https":
+            raise forms.ValidationError("The base URL must use the https:// scheme.")
+        host = parsed.hostname or ""
+        try:
+            addr = ipaddress.ip_address(host)
+            for network in self._BLOCKED_NETWORKS:
+                if addr in network:
+                    raise forms.ValidationError(
+                        "The base URL must not point to a private or reserved IP address."
+                    )
+        except ValueError:
+            # host is a hostname, not a bare IP address — allow it
+            pass
+
     def clean(self):
         if not self.errors and (
             self.cleaned_data["username"]
@@ -505,6 +545,12 @@ class CentralServerForm(forms.ModelForm):
         ):
             # Strip trailing "/" from base_url
             self.cleaned_data["base_url"] = self.cleaned_data["base_url"].rstrip("/")
+            # VULN-002: validate scheme and host before making any outbound request
+            try:
+                self._validate_base_url(self.cleaned_data["base_url"])
+            except forms.ValidationError as exc:
+                self.add_error("base_url", exc)
+                return self.cleaned_data
             # Validate the base URL and credentials by checking if we can log in
             # https://docs.getodk.org/central-api-authentication/#logging-in
             if not (self.cleaned_data["username"] and self.cleaned_data["password"]):
