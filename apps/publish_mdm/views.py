@@ -928,7 +928,7 @@ def devices_list(request: HttpRequest, organization_slug):
 
 @login_required
 def fleets_list(request: HttpRequest, organization_slug):
-    fleets = request.organization.fleets.all()
+    fleets = request.organization.fleets.select_related("project", "default_app_user")
     table = FleetTable(data=fleets, show_footer=False)
     RequestConfig(request, paginate=False).configure(table)
     context = {
