@@ -1,28 +1,26 @@
 <div class="policy-section">
     <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Policy Variables</h3>
     <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-        Define key/value pairs that can be referenced as <code class="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-gray-700">{% templatetag openvariable %} variable_name {% templatetag closevariable %}</code>
+        Define key/value pairs that can be referenced as <code class="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-gray-700">$variable_name</code> or <code class="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-gray-700">${variable_name}</code>
         in application managed configurations. Fleet-level values override policy-level values for the same key.
     </p>
     <div class="mb-4 rounded-lg bg-gray-50 p-3 dark:bg-gray-700">
-        <p class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-            Built-in system variables (resolved at push time)
-        </p>
+        <p class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Built-in system variables</p>
         <table class="w-full text-xs text-gray-600 dark:text-gray-400">
             <tr>
-                <td class="py-1 font-mono">{% templatetag openvariable %} app_user_name {% templatetag closevariable %}</td>
+                <td class="py-1 font-mono">${app_user_name}</td>
                 <td class="py-1">ODK app user assigned to the device</td>
             </tr>
             <tr>
-                <td class="py-1 font-mono">{% templatetag openvariable %} device_id {% templatetag closevariable %}</td>
+                <td class="py-1 font-mono">${device_id}</td>
                 <td class="py-1">MDM device ID</td>
             </tr>
             <tr>
-                <td class="py-1 font-mono">{% templatetag openvariable %} imei {% templatetag closevariable %}</td>
+                <td class="py-1 font-mono">${imei}</td>
                 <td class="py-1">Device IMEI from hardware info</td>
             </tr>
             <tr>
-                <td class="py-1 font-mono">{% templatetag openvariable %} serial_number {% templatetag closevariable %}</td>
+                <td class="py-1 font-mono">${serial_number}</td>
                 <td class="py-1">Device serial number</td>
             </tr>
         </table>
@@ -36,7 +34,7 @@
         <table class="w-full text-left text-sm text-gray-500 dark:text-gray-400">
             <thead class="bg-gray-50 text-xs uppercase text-gray-700 dark:bg-gray-700 dark:text-gray-400">
                 <tr>
-                    <th class="px-3 py-2">Key</th>
+                    <th class="px-3 py-2">Variable Name</th>
                     <th class="px-3 py-2">Value</th>
                     <th class="px-3 py-2">Scope</th>
                     <th class="px-3 py-2">Fleet</th>

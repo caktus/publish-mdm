@@ -171,7 +171,7 @@ class PolicyEditForm(PlatformFormMixin, forms.ModelForm):
             "name": TextInput(attrs={"placeholder": "Policy name"}),
             "odk_collect_package": TextInput(attrs={"placeholder": "org.odk.collect.android"}),
             "odk_collect_device_id_template": TextInput(
-                attrs={"placeholder": "e.g. {{ app_user_name }} - {{ device_id }}"}
+                attrs={"placeholder": "e.g. ${app_user_name}-${device_id}"}
             ),
             "device_password_quality": Select,
             "device_password_min_length": TextInput(

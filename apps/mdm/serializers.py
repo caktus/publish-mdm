@@ -7,15 +7,12 @@ No ORM calls — receives pre-fetched data as arguments.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
+from string import Template
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from apps.mdm.models import Device, Policy, PolicyApplication, PolicyVariable
-
-
-VARIABLE_PATTERN = re.compile(r"\{\{\s*(\S+?)\s*\}\}")
 
 
 @dataclass
@@ -208,8 +205,4 @@ class PolicySerializer:
                     self._resolve_variables(item, variables)
 
     def _substitute(self, value: str, variables: dict[str, str]) -> str:
-        def replace_match(match):
-            var_name = match.group(1)
-            return variables.get(var_name, match.group(0))
-
-        return VARIABLE_PATTERN.sub(replace_match, value)
+        return Template(value).safe_substitute(variables)

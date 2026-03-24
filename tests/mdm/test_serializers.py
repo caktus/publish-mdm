@@ -133,7 +133,7 @@ class TestPolicySerializer(TestAllMDMs):
             policy=policy,
             package_name="com.example.vpn",
             install_type="FORCE_INSTALLED",
-            managed_configuration={"AuthKey": "{{ auth_key }}"},
+            managed_configuration={"AuthKey": "$auth_key"},
             order=1,
         )
         serializer = PolicySerializer(
@@ -160,7 +160,7 @@ class TestPolicySerializer(TestAllMDMs):
             policy=policy,
             package_name="com.example.app",
             install_type="FORCE_INSTALLED",
-            managed_configuration={"key": "{{ auth_key }}"},
+            managed_configuration={"key": "$auth_key"},
             order=1,
         )
         serializer = PolicySerializer(
@@ -183,8 +183,8 @@ class TestPolicySerializer(TestAllMDMs):
             package_name="com.example.app",
             install_type="FORCE_INSTALLED",
             managed_configuration={
-                "device_id": "{{ imei }}",
-                "serial": "{{ serial_number }}",
+                "device_id": "$imei",
+                "serial": "$serial_number",
             },
             order=1,
         )
@@ -218,12 +218,12 @@ class TestPolicySerializer(TestAllMDMs):
             policy=policy,
             package_name="com.example.app",
             install_type="FORCE_INSTALLED",
-            managed_configuration={"key": "{{ unknown_var }}"},
+            managed_configuration={"key": "$unknown_var"},
             order=1,
         )
         serializer = PolicySerializer(policy=policy, applications=[app])
         result = serializer.to_dict()
-        assert result["applications"][1]["managedConfiguration"]["key"] == "{{ unknown_var }}"
+        assert result["applications"][1]["managedConfiguration"]["key"] == "$unknown_var"
 
     def test_kiosk_customization_settings(self):
         """All kiosk fields appear in kioskCustomization when non-default values are set."""
@@ -293,10 +293,10 @@ class TestPolicySerializer(TestAllMDMs):
         assert merged["serial_number"] == device.serial_number
 
     def test_resolve_variables_substitutes_strings_in_list(self):
-        """String items inside a list value in the policy dict have {{ var }} replaced."""
+        """String items inside a list value in the policy dict have $var replaced."""
         policy = PolicyFactory()
         serializer = PolicySerializer(policy=policy)
-        obj = {"items": ["hello {{ name }}", "world"]}
+        obj = {"items": ["hello $name", "world"]}
         serializer._resolve_variables(obj, {"name": "Alice"})
         assert obj["items"][0] == "hello Alice"
         assert obj["items"][1] == "world"
@@ -316,7 +316,7 @@ class TestPolicySerializer(TestAllMDMs):
             qr_code_data=DEFAULT_COLLECT_SETTINGS,
         )
         policy = fleet.policy
-        policy.odk_collect_device_id_template = "{{ serial_number }}"
+        policy.odk_collect_device_id_template = "$serial_number"
         policy.save()
         serializer = PolicySerializer(policy=policy, device=device)
         result = serializer.to_dict()
