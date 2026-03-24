@@ -1070,6 +1070,24 @@ def edit_fleet(request: HttpRequest, organization_slug, fleet_id):
 
 
 @login_required
+def fleet_app_users(request: HttpRequest, organization_slug):
+    """Returns the default_app_user select field filtered by the selected project (HTMX partial)."""
+    project_id = request.GET.get("project")
+    fleet = Fleet(organization=request.organization)
+    if project_id:
+        try:
+            fleet.project = request.organization.projects.get(pk=project_id)
+        except (Project.DoesNotExist, ValueError):
+            pass
+    form = FleetEditForm(instance=fleet)
+    return render(
+        request,
+        "publish_mdm/change_fleet.html#default-app-user-partial",
+        {"form": form},
+    )
+
+
+@login_required
 def fleet_qr_code(request: HttpRequest, organization_slug):
     """Get the HTML for displaying the enrollment QR code for one Fleet."""
     form = DeviceEnrollmentQRCodeForm(request.organization, request.POST or None)

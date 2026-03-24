@@ -20,6 +20,7 @@ from apps.publish_mdm.forms import (
 from apps.publish_mdm.http import HttpRequest
 from tests.mdm.factories import FleetFactory
 from tests.publish_mdm.factories import (
+    AppUserFactory,
     FormTemplateFactory,
     ProjectFactory,
     AppUserFormTemplateFactory,
@@ -356,6 +357,64 @@ class TestFleetForm:
         ProjectFactory.create_batch(2, organization=OrganizationFactory())
         form = FleetForm(instance=FleetFactory.build(organization=organization))
         assertQuerySetEqual(form.fields["project"].queryset, projects, ordered=False)
+
+    @pytest.mark.parametrize("FleetForm", [FleetAddForm, FleetEditForm])
+    def test_default_app_user_choices_with_project(self, organization, projects, FleetForm):
+        """Ensures the default_app_user queryset is filtered to the fleet's project."""
+        fleet = FleetFactory(organization=organization, project=projects[0])
+        # App users for the fleet's project
+        project_app_users = AppUserFactory.create_batch(3, project=projects[0])
+        # App users for a different project — should not appear
+        AppUserFactory.create_batch(2, project=projects[1])
+        form = FleetForm(instance=fleet)
+        assertQuerySetEqual(
+            form.fields["default_app_user"].queryset,
+            project_app_users,
+            ordered=False,
+        )
+
+    @pytest.mark.parametrize("FleetForm", [FleetAddForm, FleetEditForm])
+    def test_default_app_user_choices_no_project(self, organization, FleetForm):
+        """Ensures the default_app_user queryset is empty when the fleet has no project."""
+        fleet = FleetFactory(organization=organization, project=None)
+        form = FleetForm(instance=fleet)
+        assertQuerySetEqual(form.fields["default_app_user"].queryset, [])
+
+    @pytest.mark.parametrize(
+        "make_instance",
+        [
+            # New fleet (unsaved, no project)
+            pytest.param(
+                lambda org: FleetFactory.build(organization=org, project=None),
+                id="FleetAddForm-new",
+            ),
+            # Existing fleet whose project was never set
+            pytest.param(
+                lambda org: FleetFactory(organization=org, project=None),
+                id="FleetEditForm-no-project",
+            ),
+        ],
+    )
+    def test_default_app_user_from_post_data(self, organization, projects, make_instance):
+        """Ensures the default_app_user queryset is populated from the submitted project
+        when the instance has no saved project, so that a default_app_user chosen in the
+        same submission passes ModelChoiceField validation.  This covers both new fleets
+        (FleetAddForm) and existing fleets whose project was not previously set.
+        """
+        app_user = AppUserFactory(project=projects[0])
+        # App users in a different project — should not appear in the queryset
+        AppUserFactory.create_batch(2, project=projects[1])
+        data = {
+            "name": "New Fleet",
+            "project": projects[0].id,
+            "default_app_user": app_user.id,
+        }
+        form = FleetEditForm(data=data, instance=make_instance(organization))
+        assertQuerySetEqual(
+            form.fields["default_app_user"].queryset,
+            [app_user],
+            ordered=False,
+        )
 
     def test_name_validation(self, organization, projects):
         """Ensures a name cannot be duplicated within the same organization."""

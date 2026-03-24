@@ -5,6 +5,7 @@ import faker
 from apps.mdm.mdms import get_active_mdm_class
 from apps.mdm.models import Policy
 from tests.mdm import TestAllMDMs
+from tests.publish_mdm.factories import AppUserFactory
 
 from .factories import DeviceFactory, FleetFactory, PolicyFactory
 
@@ -49,6 +50,53 @@ class TestModels(TestAllMDMs):
         device = DeviceFactory(fleet=fleet)
         device.save(push_to_mdm=True)
         mock_push_device_config.assert_called_once()
+
+    def test_device_save_auto_assigns_default_app_user(self, fleet):
+        """When a device has no app_user_name and the fleet has a default_app_user,
+        the device's app_user_name should be auto-assigned on save.
+        """
+        app_user = AppUserFactory(project=fleet.project)
+        fleet.default_app_user = app_user
+        fleet.save()
+        device = DeviceFactory(fleet=fleet, app_user_name="")
+        device.refresh_from_db()
+        assert device.app_user_name == app_user.name
+
+    def test_device_save_auto_assigns_and_pushes_to_mdm(self, fleet, mocker, set_mdm_env_vars):
+        """When auto-assigning the default_app_user, push_device_config should
+        still fire if push_to_mdm=True.
+        """
+        app_user = AppUserFactory(project=fleet.project)
+        fleet.default_app_user = app_user
+        fleet.save()
+        mock_push_device_config = mocker.patch.object(get_active_mdm_class(), "push_device_config")
+        device = DeviceFactory(fleet=fleet, app_user_name="")
+        device.app_user_name = ""
+        device.save(push_to_mdm=True)
+        mock_push_device_config.assert_called_once()
+        device.refresh_from_db()
+        assert device.app_user_name == app_user.name
+
+    def test_device_save_does_not_overwrite_existing_app_user_name(self, fleet):
+        """When a device already has an app_user_name, the default_app_user
+        should not overwrite it.
+        """
+        app_user = AppUserFactory(project=fleet.project)
+        fleet.default_app_user = app_user
+        fleet.save()
+        original_name = "existing-user"
+        device = DeviceFactory(fleet=fleet, app_user_name=original_name)
+        device.refresh_from_db()
+        assert device.app_user_name == original_name
+
+    def test_device_save_no_default_app_user_leaves_name_empty(self, fleet):
+        """When the fleet has no default_app_user and a device is saved
+        without an app_user_name, the name should remain empty.
+        """
+        assert fleet.default_app_user_id is None
+        device = DeviceFactory(fleet=fleet, app_user_name="")
+        device.refresh_from_db()
+        assert device.app_user_name == ""
 
     def test_fleet_group_name(self, fleet):
         """Ensure the Fleet.group_name property returns a string in the format

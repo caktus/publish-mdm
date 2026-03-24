@@ -127,6 +127,14 @@ class Fleet(models.Model):
         null=True,
         blank=True,
     )
+    default_app_user = models.ForeignKey(
+        "publish_mdm.AppUser",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="default_fleet_set",
+        help_text="If set, newly enrolled devices are automatically assigned this app user.",
+    )
     enroll_qr_code = models.ImageField(
         upload_to=enroll_qr_code_path, null=True, blank=True, verbose_name="enrollment QR code"
     )
@@ -238,6 +246,12 @@ class Device(models.Model):
         from .mdms import get_active_mdm_instance
 
         push_to_mdm = kwargs.pop("push_to_mdm", False)
+
+        if not self.app_user_name and self.fleet_id and self.fleet.default_app_user_id:
+            self.app_user_name = self.fleet.default_app_user.name
+            if "update_fields" in kwargs:
+                kwargs["update_fields"] = [*kwargs["update_fields"], "app_user_name"]
+
         super().save(*args, **kwargs)
         logger.info(
             "Device saved",

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load partials %}
 {% block content %}
     <p class="mb-4 dark:text-gray-400">A group of MDM devices that can be assigned to an ODK project.</p>
     <form method="post" autocomplete="off">
@@ -9,9 +10,22 @@
             <div class="grid gap-4 sm:grid-cols-1 sm:gap-6">
                 {% for field in form.visible_fields %}
                     <div id="id_{{ field.name }}_container">
-                        {{ field.label_tag }}
-                        {{ field }}
-                        {{ field.errors }}
+                        {% if field.name == "default_app_user" %}
+                            {# djlint:off #}
+                            {% partialdef default-app-user-partial inline %}
+                                <div class="flex flex-row items-center">
+                                    {{ form.default_app_user.label_tag }}
+                                    <div class="loading hidden ml-3 mb-2 px-3 py-1 text-xs font-medium leading-none text-center text-primary-700 bg-primary-200 rounded-full animate-pulse dark:bg-blue-900 dark:text-blue-200">loading...</div>
+                                </div>
+                                {{ form.default_app_user }}
+                                {{ form.default_app_user.errors }}
+                            {% endpartialdef default-app-user-partial %}
+                            {# djlint:on #}
+                        {% else %}
+                            {{ field.label_tag }}
+                            {{ field }}
+                            {{ field.errors }}
+                        {% endif %}
                     </div>
                 {% endfor %}
             </div>

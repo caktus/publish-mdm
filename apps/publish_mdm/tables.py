@@ -93,6 +93,6 @@ class FleetTable(tables.Table):
 
     class Meta:
         model = Fleet
-        fields = ("name", "mdm_group_id", "project")
+        fields = ("name", "mdm_group_id", "project", "default_app_user")
         template_name = "patterns/tables/table.html"
         attrs = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
