@@ -280,9 +280,13 @@ class AppUserResource(resources.ModelResource):
 class DeviceResource(resources.ModelResource):
     """Custom ModelResource for importing/exporting Devices."""
 
+    serial_number_readonly = fields.Field(
+        attribute="serial_number", column_name="serial_number", readonly=True
+    )
+
     class Meta:
         model = Device
-        fields = ("device_id", "app_user_name")
+        fields = ("device_id", "serial_number_readonly", "app_user_name")
         import_id_fields = ("device_id",)
         clean_model_instances = True
         skip_unchanged = True
