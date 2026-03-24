@@ -4,10 +4,11 @@ from functools import partial
 import structlog
 from django.core.exceptions import ValidationError
 from django.db.models import Prefetch
-from import_export import resources, fields, widgets
+from import_export import fields, resources, widgets
+
+from apps.mdm.models import Device
 
 from .models import AppUser, AppUserFormTemplate, AppUserTemplateVariable
-from apps.mdm.models import Device
 
 logger = structlog.getLogger(__name__)
 
@@ -38,7 +39,7 @@ class AppUserTemplateVariableWidget(widgets.ForeignKeyWidget):
             try:
                 template_variable.full_clean(exclude=["app_user"])
             except ValidationError as e:
-                raise ValueError(e.messages[0])
+                raise ValueError(e.messages[0]) from e
         return template_variable
 
     def render(self, value, obj=None, **kwargs):
@@ -85,7 +86,7 @@ class PositiveIntegerWidget(widgets.IntegerWidget):
         except InvalidOperation:
             # The base class will raise a decimal.InvalidOperation if the value
             # is not a valid number
-            raise ValueError("Value must be an integer.")
+            raise ValueError("Value must be an integer.") from None
         if val and val < 0:
             raise ValueError("Value must be positive.")
         return val

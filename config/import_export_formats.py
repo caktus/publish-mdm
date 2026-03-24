@@ -12,9 +12,9 @@ class XLSX(base_formats.XLSX):
         during imports, which seems to occur when an otherwise valid xlsx import
         file is edited in Google Sheets.
         """
-        from io import BytesIO
+        from io import BytesIO  # noqa: PLC0415
 
-        import openpyxl
+        import openpyxl  # noqa: PLC0415
 
         # 'data_only' means values are read from formula cells, not the formula itself
         xlsx_book = openpyxl.load_workbook(BytesIO(in_stream), read_only=True, data_only=True)
@@ -26,7 +26,7 @@ class XLSX(base_formats.XLSX):
         rows = sheet.rows
         dataset.headers = [cell.value for cell in next(rows)]
 
-        for index, row in enumerate(rows):
+        for _index, row in enumerate(rows):
             if not row:
                 # Skip empty row
                 continue

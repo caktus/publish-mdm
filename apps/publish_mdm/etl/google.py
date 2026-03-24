@@ -1,5 +1,4 @@
 import structlog
-
 from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from google.oauth2.credentials import Credentials

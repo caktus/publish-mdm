@@ -1,8 +1,8 @@
 from pathlib import Path
+
 import pytest
 
 from apps.publish_mdm.etl.odk.client import PublishMDMClient
-
 from tests.publish_mdm.factories import CentralServerFactory
 
 

@@ -41,10 +41,10 @@ def create_fleets(apps, schema_editor):
         fleet = fleet_model.objects.get_or_create(
             policy_id=policy_id,
             organization_id=organization_id,
-            defaults=dict(
-                name=policy_name,
-                project_id=project_id,
-            ),
+            defaults={
+                "name": policy_name,
+                "project_id": project_id,
+            },
         )[0]
         device_model.objects.filter(policy_id=policy_id).update(fleet=fleet)
 

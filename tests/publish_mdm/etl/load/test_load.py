@@ -3,7 +3,6 @@ from requests.exceptions import HTTPError
 
 from apps.publish_mdm.etl.load import create_project, sync_central_project
 from apps.publish_mdm.models import AppUserFormTemplate
-
 from tests.publish_mdm.factories import CentralServerFactory
 
 

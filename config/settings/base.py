@@ -340,7 +340,7 @@ structlog.configure(
 # EMAIL
 # ------------------------------------------------------------------------------
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
-EMAIL_SUBJECT_PREFIX = "[publish-mdm %s] " % ENVIRONMENT.title()
+EMAIL_SUBJECT_PREFIX = f"[publish-mdm {ENVIRONMENT.title()}] "
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@caktusgroup.com")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 
@@ -366,11 +366,11 @@ AWS_SES_REGION_ENDPOINT = os.getenv("AWS_SES_REGION_ENDPOINT", "email.us-east-2.
 # django-email-bandit
 BANDIT_ALLOW_EMAILS = os.getenv("BANDIT_ALLOW_EMAILS", "").split(":")
 if any(BANDIT_ALLOW_EMAILS):
-    INSTALLED_APPS += ("bandit",)  # noqa: F405
+    INSTALLED_APPS += ("bandit",)
     EMAIL_BACKEND = "config.email_backends.HijackSESBackend"
     BANDIT_EMAIL = ["admin@caktusgroup.com"]
     BANDIT_WHITELIST = BANDIT_ALLOW_EMAILS
-    LOGGING["loggers"]["bandit"] = {  # noqa
+    LOGGING["loggers"]["bandit"] = {
         "handlers": ["console"],
         "level": "DEBUG",
         "propagate": False,

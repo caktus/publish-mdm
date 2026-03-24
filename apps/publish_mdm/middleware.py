@@ -1,8 +1,7 @@
 import structlog
-
 from django.http import HttpRequest, HttpResponseForbidden
-from django.urls import ResolverMatch
 from django.shortcuts import get_object_or_404
+from django.urls import ResolverMatch
 
 from .models import Organization
 from .nav import Breadcrumbs

@@ -1,10 +1,10 @@
 import json
 
 import structlog
-from django.core.exceptions import ValidationError
-from django.db import models
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
+from django.db import models
 from django.db.models import Q
 from django.utils.html import mark_safe
 from django.utils.timezone import now
@@ -211,8 +211,8 @@ class Policy(models.Model):
         help_text="Enable the custom launcher when the device is in kiosk mode.",
     )
 
-    objects = PolicyManager()
     all_mdms = models.Manager()
+    objects = PolicyManager()
 
     class Meta:
         verbose_name_plural = "policies"
@@ -279,13 +279,13 @@ class PolicyApplication(models.Model):
     order = models.PositiveSmallIntegerField(default=0)
 
     class Meta:
-        ordering = ["order", "pk"]
-        constraints = [
+        ordering = ("order", "pk")
+        constraints = (
             models.UniqueConstraint(
                 fields=["policy", "package_name"],
                 name="unique_policy_application",
             ),
-        ]
+        )
 
     def __str__(self):
         return f"{self.package_name} ({self.get_install_type_display()})"
@@ -319,7 +319,7 @@ class PolicyVariable(models.Model):
     )
 
     class Meta:
-        constraints = [
+        constraints = (
             models.UniqueConstraint(
                 fields=["key", "org"],
                 condition=models.Q(scope="org"),
@@ -330,7 +330,7 @@ class PolicyVariable(models.Model):
                 condition=models.Q(scope="fleet"),
                 name="unique_fleet_policy_variable",
             ),
-        ]
+        )
 
     def __str__(self):
         return f"{self.key}={self.value} ({self.get_scope_display()})"
@@ -401,16 +401,24 @@ class Fleet(models.Model):
     enroll_token_expires_at = models.DateTimeField(blank=True, null=True)
     enroll_token_value = models.CharField(max_length=30, blank=True)
 
-    objects = FleetManager()
     all_mdms = models.Manager()
+    objects = FleetManager()
 
     class Meta:
-        constraints = [
+        constraints = (
             models.UniqueConstraint(fields=["organization", "name"], name="unique_org_and_name"),
-        ]
+        )
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        from .mdms import get_active_mdm_instance  # noqa: PLC0415
+
+        sync_with_mdm = kwargs.pop("sync_with_mdm", False)
+        super().save(*args, **kwargs)
+        if sync_with_mdm and (active_mdm := get_active_mdm_instance()):
+            active_mdm.pull_devices(self)
 
     def clean(self):
         if self.default_app_user_id:
@@ -422,14 +430,6 @@ class Fleet(models.Model):
                 raise ValidationError(
                     {"default_app_user": "The default app user must belong to the fleet's project."}
                 )
-
-    def save(self, *args, **kwargs):
-        from .mdms import get_active_mdm_instance  # Avoid circular: models ← mdms → models
-
-        sync_with_mdm = kwargs.pop("sync_with_mdm", False)
-        super().save(*args, **kwargs)
-        if sync_with_mdm and (active_mdm := get_active_mdm_instance()):
-            active_mdm.pull_devices(self)
 
     @property
     def group_name(self):
@@ -510,11 +510,14 @@ class Device(models.Model):
         blank=True,
     )
 
-    objects = DeviceManager()
     all_mdms = models.Manager()
+    objects = DeviceManager()
+
+    def __str__(self):
+        return f"{self.name} ({self.device_id})"
 
     def save(self, *args, **kwargs):
-        from .mdms import get_active_mdm_instance  # Avoid circular: models ← mdms → models
+        from .mdms import get_active_mdm_instance  # noqa: PLC0415
 
         push_to_mdm = kwargs.pop("push_to_mdm", False)
 
@@ -533,9 +536,6 @@ class Device(models.Model):
 
         if push_to_mdm and (active_mdm := get_active_mdm_instance()):
             active_mdm.push_device_config(self)
-
-    def __str__(self):
-        return f"{self.name} ({self.device_id})"
 
     def get_odk_collect_qr_code_string(self):
         """Gets a QR code string that can be used to update the managed configuration
@@ -586,7 +586,7 @@ class DeviceSnapshot(models.Model):
     )
     serial_number = models.CharField(max_length=255, help_text="The serial number of the device.")
     manufacturer = models.CharField(max_length=64, help_text="The manufacturer of the device.")
-    os_version = models.CharField(
+    os_version = models.CharField(  # noqa: DJ001
         verbose_name="OS Version",
         max_length=32,
         help_text="The version of the operating system.",
@@ -628,14 +628,14 @@ class DeviceSnapshot(models.Model):
     )
     synced_at = models.DateTimeField(help_text="When the device snapshot was synced.")
 
-    objects = DeviceSnapshotManager()
     all_mdms = models.Manager()
+    objects = DeviceSnapshotManager()
 
     class Meta:
-        indexes = [
+        indexes = (
             models.Index(fields=["last_sync"]),
             models.Index(fields=["synced_at"]),
-        ]
+        )
 
     def __str__(self):
         return f"{self.name} ({self.device_id})"
@@ -660,12 +660,12 @@ class DeviceSnapshotApp(models.Model):
     )
 
     class Meta:
-        constraints = [
+        constraints = (
             models.UniqueConstraint(
                 fields=["device_snapshot", "package_name"],
                 name="unique_device_snapshot_and_package",
             ),
-        ]
+        )
 
     def __str__(self):
         return f"{self.app_name} ({self.package_name}) snapshot"
@@ -708,13 +708,11 @@ class FirmwareSnapshot(models.Model):
         blank=True,
     )
 
-    objects = FirmwareSnapshotManager()
     all_mdms = models.Manager()
+    objects = FirmwareSnapshotManager()
+
+    class Meta:
+        indexes = (models.Index(fields=["synced_at"]),)
 
     def __str__(self):
         return f"{self.device_identifier} ({self.version}) firmware snapshot"
-
-    class Meta:
-        indexes = [
-            models.Index(fields=["synced_at"]),
-        ]

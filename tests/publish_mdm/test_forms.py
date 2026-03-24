@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from django.forms.widgets import PasswordInput
 from django.urls import reverse
-from pytest_django.asserts import assertQuerySetEqual, assertFormError
+from pytest_django.asserts import assertFormError, assertQuerySetEqual
 from requests.exceptions import ConnectionError
 
 from apps.patterns.widgets import BaseEmailInput
@@ -24,13 +24,15 @@ from tests.mdm.factories import (
     DeviceFactory as MDMDeviceFactory,
     PolicyFactory,
 )
+from tests.mdm.factories import DeviceFactory as MDMDeviceFactory
+from tests.mdm.factories import FleetFactory
 from tests.publish_mdm.factories import (
     AppUserFactory,
-    FormTemplateFactory,
-    ProjectFactory,
     AppUserFormTemplateFactory,
-    OrganizationFactory,
     CentralServerFactory,
+    FormTemplateFactory,
+    OrganizationFactory,
+    ProjectFactory,
 )
 
 
@@ -313,7 +315,7 @@ class TestCentralServerForm:
         # Creating a new CentralServer
         form = form_class()
         field = form.fields[field_name]
-        assert isinstance(field.widget, (PasswordInput, BaseEmailInput))
+        assert isinstance(field.widget, PasswordInput | BaseEmailInput)
         assert not field.widget.render_value
         assert not field.help_text
         # The field should be required when creating a server
@@ -323,7 +325,7 @@ class TestCentralServerForm:
         server = CentralServerFactory(organization=organization, **{field_name: None})
         form = form_class(instance=server)
         field = form.fields[field_name]
-        assert isinstance(field.widget, (PasswordInput, BaseEmailInput))
+        assert isinstance(field.widget, PasswordInput | BaseEmailInput)
         assert not field.widget.render_value
         assert not field.help_text
         # The field should be required if there is currently no value in the DB
@@ -333,7 +335,7 @@ class TestCentralServerForm:
         server = CentralServerFactory(organization=organization)
         form = form_class(instance=server)
         field = form.fields[field_name]
-        assert isinstance(field.widget, (PasswordInput, BaseEmailInput))
+        assert isinstance(field.widget, PasswordInput | BaseEmailInput)
         assert not field.widget.render_value
         # Help text when editing a server
         assert field.help_text == (

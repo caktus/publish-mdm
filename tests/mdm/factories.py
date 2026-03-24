@@ -74,10 +74,10 @@ class DeviceSnapshotFactory(factory.django.DjangoModelFactory):
     os_version = factory.Faker("android_platform_token")
     battery_level = factory.Faker("pyint", min_value=0, max_value=100)
     enrollment_type = factory.Faker("random_element", elements=["fully_managed", "work_profile"])
-    last_sync = factory.Faker("date_time", tzinfo=dt.timezone.utc)
+    last_sync = factory.Faker("date_time", tzinfo=dt.UTC)
     mdm_device = factory.SubFactory(DeviceFactory)
     raw_mdm_device = factory.LazyAttribute(lambda obj: {"id": obj.device_id})
-    synced_at = factory.Faker("date_time", tzinfo=dt.timezone.utc)
+    synced_at = factory.Faker("date_time", tzinfo=dt.UTC)
 
 
 class FirmwareSnapshotFactory(factory.django.DjangoModelFactory):

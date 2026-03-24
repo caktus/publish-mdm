@@ -1,14 +1,12 @@
+import logging
+import time
 from urllib.parse import urljoin
 
 import dagster as dg
 import requests
-import logging
-import time
-
 from oauthlib.oauth2 import BackendApplicationClient
 from requests.adapters import HTTPAdapter, Retry
 from requests_oauthlib import OAuth2Session
-
 
 logger = logging.getLogger(__name__)
 
@@ -101,12 +99,12 @@ class TailscaleResource(dg.ConfigurableResource):
 
     def get(self, path: str, *args, **kwargs) -> dict:
         """Make a GET request to the Tailscale API."""
-        response = self.client().get(url=self.url(path), *args, **kwargs)
+        response = self.client().get(*args, url=self.url(path), **kwargs)
         response.raise_for_status()
         return response.json()
 
     def delete(self, path: str, *args, **kwargs) -> dict:
         """Make a DELETE request to the Tailscale API."""
-        response = self.client().delete(url=self.url(path), *args, **kwargs)
+        response = self.client().delete(*args, url=self.url(path), **kwargs)
         response.raise_for_status()
         return response

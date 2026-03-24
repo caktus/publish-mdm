@@ -4,6 +4,7 @@ from os import PathLike
 from typing import TYPE_CHECKING
 
 import structlog
+from pydantic import Field
 from pyodk._endpoints import bases
 from pyodk._endpoints.form_assignments import FormAssignmentService
 from pyodk._endpoints.forms import Form
@@ -21,8 +22,8 @@ logger = structlog.getLogger(__name__)
 class ProjectAppUserAssignment(ProjectAppUser):
     """Extended ProjectAppUser with additional form_ids attribute."""
 
-    forms: list[Form] = []
-    xml_form_ids: list[str] = []
+    forms: list[Form] = Field(default_factory=list)
+    xml_form_ids: list[str] = Field(default_factory=list)
 
 
 class PublishService(bases.Service):

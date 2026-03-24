@@ -3,6 +3,8 @@ import pytest
 from apps.mdm.forms import FirmwareSnapshotForm, PolicyApplicationAddForm, PolicyEditForm
 from apps.mdm.models import Policy
 from tests.mdm.factories import DeviceFactory, PolicyApplicationFactory, PolicyFactory
+from apps.mdm.forms import FirmwareSnapshotForm
+from tests.mdm.factories import DeviceFactory
 
 
 class TestFirmwareSnapshotForm:

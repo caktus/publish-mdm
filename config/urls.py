@@ -20,7 +20,7 @@ from django.contrib import admin
 from django.urls import include, path, re_path
 from django.views.generic import TemplateView
 
-from apps.publish_mdm.views import websockets_server_health, AcceptOrganizationInvite
+from apps.publish_mdm.views import AcceptOrganizationInvite, websockets_server_health
 
 urlpatterns = [
     path("accounts/", include("allauth.urls")),
@@ -39,11 +39,9 @@ urlpatterns = [
 if settings.DEBUG:
     from django.conf.urls.static import static
 
-    urlpatterns = (
-        [
-            path("__debug__/", include("debug_toolbar.urls")),
-            path("__reload__/", include("django_browser_reload.urls")),
-        ]
-        + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-        + urlpatterns
-    )
+    urlpatterns = [
+        path("__debug__/", include("debug_toolbar.urls")),
+        path("__reload__/", include("django_browser_reload.urls")),
+        *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),
+        *urlpatterns,
+    ]

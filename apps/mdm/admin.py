@@ -7,7 +7,7 @@ from django.contrib.admin.exceptions import DisallowedModelAdminToField
 from django.contrib.admin.options import IS_POPUP_VAR, TO_FIELD_VAR
 from django.contrib.admin.utils import model_ngettext, unquote
 from django.core.exceptions import PermissionDenied
-from django.db import transaction, models
+from django.db import models, transaction
 from django.db.models.functions import Collate
 from django.shortcuts import redirect
 from django.template.response import TemplateResponse
@@ -18,8 +18,8 @@ from import_export.admin import ImportExportMixin
 from import_export.forms import ExportForm
 from requests.exceptions import RequestException
 
-from apps.publish_mdm.http import HttpRequest
 from apps.mdm.forms import DeviceConfirmImportForm, DeviceImportForm
+from apps.publish_mdm.http import HttpRequest
 
 from .import_export import DeviceResource
 from .mdms import get_active_mdm_instance
@@ -112,7 +112,7 @@ class FleetAdmin(admin.ModelAdmin):
     list_display = ("name", "organization", "mdm_group_id", "policy", "project", "default_app_user")
     search_fields = ("name", "organization__name", "policy__name", "project__name", "mdm_group_id")
     list_filter = ("organization", "policy", "project")
-    actions = ["delete_selected"]
+    actions = ("delete_selected",)
 
     def save_model(self, request, obj, form, change):
         # Always sync with MDM when saving a Fleet in the admin
@@ -160,7 +160,7 @@ class FleetAdmin(admin.ModelAdmin):
 
         to_field = request.POST.get(TO_FIELD_VAR, request.GET.get(TO_FIELD_VAR))
         if to_field and not self.to_field_allowed(request, to_field):
-            raise DisallowedModelAdminToField("The field %s cannot be referenced." % to_field)
+            raise DisallowedModelAdminToField(f"The field {to_field} cannot be referenced.")
 
         obj = self.get_object(request, unquote(object_id), to_field)
 
@@ -351,8 +351,8 @@ class FleetAdmin(admin.ModelAdmin):
             request,
             self.delete_selected_confirmation_template
             or [
-                "admin/{}/{}/delete_selected_confirmation.html".format(app_label, opts.model_name),
-                "admin/%s/delete_selected_confirmation.html" % app_label,
+                f"admin/{app_label}/{opts.model_name}/delete_selected_confirmation.html",
+                f"admin/{app_label}/delete_selected_confirmation.html",
                 "admin/delete_selected_confirmation.html",
             ],
             context,
@@ -375,7 +375,7 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
     import_form_class = DeviceImportForm
     confirm_form_class = DeviceConfirmImportForm
     export_form_class = ExportForm
-    resource_classes = [DeviceResource]
+    resource_classes = (DeviceResource,)
 
     def save_model(self, request, obj, form, change):
         """Always push to MDM when saving a Device in the admin."""
@@ -400,7 +400,7 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
 
     def get_import_data_kwargs(self, request, *args, **kwargs):
         """Prepare kwargs for import_data."""
-        form = kwargs.get("form", None)
+        form = kwargs.get("form")
         if form and hasattr(form, "cleaned_data"):
             kwargs.update({"push_method": form.cleaned_data.get("push_method", None)})
         return kwargs
@@ -469,7 +469,7 @@ class DeviceSnapshotAdmin(admin.ModelAdmin):
     date_hierarchy = "synced_at"
     list_filter = ("manufacturer", "os_version", "enrollment_type")
     ordering = ("-synced_at",)
-    inlines = [DeviceSnapshotAppInline]
+    inlines = (DeviceSnapshotAppInline,)
     raw_id_fields = ("mdm_device",)
     readonly_fields = (
         "device_id",

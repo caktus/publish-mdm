@@ -1,8 +1,6 @@
 from django.http import HttpRequest
-from pydantic import BaseModel
-from typing import Optional
-
 from django.urls import reverse
+from pydantic import BaseModel
 
 
 class Link(BaseModel):
@@ -30,7 +28,7 @@ class Breadcrumbs(BaseModel):
         return iter(self.crumbs)
 
     @classmethod
-    def from_items(cls, request: HttpRequest, items: list[tuple[str, str, Optional[list[str]]]]):
+    def from_items(cls, request: HttpRequest, items: list[tuple[str, str, list[str] | None]]):
         base_args = [request.organization.slug] if request.organization else []
         if request.odk_project:
             base_args.append(request.odk_project.pk)

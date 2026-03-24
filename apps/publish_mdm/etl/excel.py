@@ -1,8 +1,9 @@
 import re
+from collections.abc import Generator
+
 import structlog
 from openpyxl.cell.cell import Cell
 from openpyxl.worksheet.worksheet import Worksheet
-from typing import Generator
 
 logger = structlog.getLogger(__name__)
 
@@ -32,7 +33,7 @@ def get_column_cell_by_value(column_header: Cell, value: str, is_regex=False) ->
     ):
         for cell in row:
             if is_regex:
-                if isinstance(cell.value, (str, bytes)) and re.match(value, cell.value):
+                if isinstance(cell.value, str | bytes) and re.match(value, cell.value):
                     target_cell = cell
                     break
             elif cell.value == value:

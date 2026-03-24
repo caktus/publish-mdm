@@ -1,9 +1,10 @@
-import structlog
+from typing import ClassVar
 
+import structlog
+from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
 from django.utils.html import mark_safe
-from django import forms
 from googleapiclient.errors import Error as GoogleAPIClientError
 from invitations.admin import InvitationAdmin
 from requests.exceptions import RequestException
@@ -11,20 +12,19 @@ from requests.exceptions import RequestException
 from .etl.load import generate_and_save_app_user_collect_qrcodes
 from .forms import CentralServerForm
 from .models import (
-    CentralServer,
-    Project,
-    FormTemplate,
-    FormTemplateVersion,
     AppUser,
     AppUserFormTemplate,
     AppUserFormVersion,
-    TemplateVariable,
-    ProjectAttachment,
-    ProjectTemplateVariable,
+    CentralServer,
+    FormTemplate,
+    FormTemplateVersion,
     Organization,
     OrganizationInvitation,
+    Project,
+    ProjectAttachment,
+    ProjectTemplateVariable,
+    TemplateVariable,
 )
-
 
 logger = structlog.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class ProjectTemplateVariableInline(admin.TabularInline):
     model = ProjectTemplateVariable
     extra = 1
     fields = ("template_variable", "value")
-    autocomplete_fields = ["template_variable"]
+    autocomplete_fields = ("template_variable",)
 
 
 @admin.register(Project)
@@ -101,8 +101,14 @@ class ProjectAdmin(admin.ModelAdmin):
 class FormTemplateForm(forms.ModelForm):
     class Meta:
         model = FormTemplate
-        fields = "__all__"
-        widgets = {
+        fields = (
+            "project",
+            "title_base",
+            "form_id_base",
+            "template_url",
+            "template_url_user",
+        )
+        widgets: ClassVar = {
             "template_url_user": forms.HiddenInput,
         }
 

@@ -1,5 +1,6 @@
 import ipaddress
 from pathlib import Path
+from typing import ClassVar
 from urllib.parse import urlparse
 
 import requests
@@ -147,7 +148,7 @@ class FileFormatChoiceField(forms.ChoiceField):
         choices = [("", "---")] + [
             (i, format().get_title()) for i, format in enumerate(self.formats)
         ]
-        super().__init__(choices=choices, *args, **kwargs)
+        super().__init__(*args, choices=choices, **kwargs)
 
     def clean(self, value):
         """Return the selected file format instance."""
@@ -213,7 +214,7 @@ class ImportForm(ImportExportFormMixin, import_export_forms.ImportForm):
                             "Ensure you have chosen the correct format for the file."
                         )
                     }
-                )
+                ) from None
             self.file_data = data
         return self.cleaned_data
 
@@ -247,7 +248,7 @@ class ConfirmImportForm(import_export_forms.ConfirmImportForm):
                 )
                 raise forms.ValidationError(
                     "An error was encountered while trying to read the file."
-                )
+                ) from None
             finally:
                 if data is not None:
                     # Delete the temp file
@@ -266,8 +267,13 @@ class FormTemplateForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = FormTemplate
-        exclude = ["project"]
-        widgets = {
+        fields = (
+            "title_base",
+            "form_id_base",
+            "template_url",
+            "template_url_user",
+        )
+        widgets: ClassVar = {
             "title_base": TextInput,
             "form_id_base": TextInput,
             "template_url": InputWithAddon(
@@ -290,8 +296,8 @@ class AppUserForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = AppUser
-        fields = ["name"]
-        widgets = {
+        fields = ("name",)
+        widgets: ClassVar = {
             "name": TextInput,
         }
 
@@ -314,8 +320,11 @@ class AppUserTemplateVariableForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = AppUserTemplateVariable
-        fields = ["template_variable", "value"]
-        widgets = {
+        fields = (
+            "template_variable",
+            "value",
+        )
+        widgets: ClassVar = {
             "template_variable": Select,
             "value": TextInput,
         }
@@ -332,8 +341,13 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = Project
-        fields = ["name", "central_server", "template_variables", "app_language"]
-        widgets = {
+        fields = (
+            "name",
+            "central_server",
+            "template_variables",
+            "app_language",
+        )
+        widgets: ClassVar = {
             "name": TextInput,
             "central_server": Select,
             "template_variables": CheckboxSelectMultiple,
@@ -354,8 +368,11 @@ class ProjectTemplateVariableForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = ProjectTemplateVariable
-        fields = ["template_variable", "value"]
-        widgets = {
+        fields = (
+            "template_variable",
+            "value",
+        )
+        widgets: ClassVar = {
             "template_variable": Select,
             "value": TextInput,
         }
@@ -376,8 +393,11 @@ ProjectTemplateVariableFormSet.deletion_widget = CheckboxInput
 class OrganizationForm(PlatformFormMixin, forms.ModelForm):
     class Meta:
         model = Organization
-        fields = ["name", "slug"]
-        widgets = {
+        fields = (
+            "name",
+            "slug",
+        )
+        widgets: ClassVar = {
             "name": TextInput,
             "slug": TextInput,
         }
@@ -418,11 +438,11 @@ class CleanOrganizationInvitationMixin:
         try:
             self.validate_invitation(email, organization)
         except AlreadyInvited:
-            raise forms.ValidationError({"email": errors["already_invited"]})
+            raise forms.ValidationError({"email": errors["already_invited"]}) from None
         except AlreadyAccepted:
-            raise forms.ValidationError({"email": errors["already_accepted"]})
+            raise forms.ValidationError({"email": errors["already_accepted"]}) from None
         except UserRegisteredEmail:
-            raise forms.ValidationError({"email": errors["email_in_use"]})
+            raise forms.ValidationError({"email": errors["email_in_use"]}) from None
         return self.cleaned_data
 
 
@@ -459,8 +479,11 @@ class TemplateVariableForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = TemplateVariable
-        fields = ["name", "transform"]
-        widgets = {
+        fields = (
+            "name",
+            "transform",
+        )
+        widgets: ClassVar = {
             "name": TextInput,
             "transform": Select,
         }
@@ -477,8 +500,13 @@ class CentralServerForm(forms.ModelForm):
 
     class Meta:
         model = CentralServer
-        fields = "__all__"
-        widgets = {
+        fields = (
+            "base_url",
+            "organization",
+            "username",
+            "password",
+        )
+        widgets: ClassVar = {
             "username": BaseEmailInput(render_value=False),
             "password": forms.widgets.PasswordInput,
         }
@@ -500,7 +528,7 @@ class CentralServerForm(forms.ModelForm):
                     field.required = False
 
     # Private / reserved address blocks that must never be used as an ODK Central host.
-    _BLOCKED_NETWORKS = [
+    _BLOCKED_NETWORKS = (
         ipaddress.ip_network(cidr)
         for cidr in (
             "10.0.0.0/8",
@@ -512,7 +540,7 @@ class CentralServerForm(forms.ModelForm):
             "fc00::/7",
             "fe80::/10",
         )
-    ]
+    )
 
     def _validate_base_url(self, url: str) -> None:
         """Reject non-HTTPS URLs and URLs that target private / reserved hosts.
@@ -588,8 +616,12 @@ class CentralServerFrontendForm(PlatformFormMixin, CentralServerForm):
     """A form for adding or editing a CentralServer on the frontend."""
 
     class Meta(CentralServerForm.Meta):
-        fields = ["base_url", "username", "password"]
-        widgets = {
+        fields = (
+            "base_url",
+            "username",
+            "password",
+        )
+        widgets: ClassVar = {
             "base_url": TextInput,
             "username": EmailInput(render_value=False),
             "password": PasswordInput,
@@ -599,8 +631,8 @@ class CentralServerFrontendForm(PlatformFormMixin, CentralServerForm):
 class FleetEditForm(PlatformFormMixin, forms.ModelForm):
     class Meta:
         model = Fleet
-        fields = ["policy", "project", "default_app_user"]
-        widgets = {
+        fields = ("policy", "project", "default_app_user")
+        widgets: ClassVar = {
             "policy": Select,
             "project": Select,
             "default_app_user": Select,
@@ -647,8 +679,13 @@ class FleetEditForm(PlatformFormMixin, forms.ModelForm):
 class FleetAddForm(FleetEditForm):
     class Meta:
         model = Fleet
-        fields = ["name", "policy", "project", "default_app_user"]
-        widgets = {
+        fields = (
+            "name",
+            "policy",
+            "project",
+            "default_app_user",
+        )
+        widgets: ClassVar = {
             "name": TextInput,
             "policy": Select,
             "project": Select,
@@ -727,7 +764,7 @@ class DeviceAppUserForm(forms.ModelForm):
 
     class Meta:
         model = Device
-        fields = ["app_user_name"]
+        fields = ("app_user_name",)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

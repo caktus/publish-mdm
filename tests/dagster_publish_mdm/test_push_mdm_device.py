@@ -4,7 +4,6 @@ import requests
 
 from apps.mdm.mdms import get_active_mdm_class
 from dagster_publish_mdm.assets.mdm_devices import DeviceConfig, push_mdm_device_config
-
 from tests.mdm import TestAllMDMs, TestTinyMDMOnly
 from tests.mdm.factories import DeviceFactory
 

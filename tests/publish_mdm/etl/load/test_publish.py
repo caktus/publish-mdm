@@ -9,8 +9,8 @@ from moto import mock_aws
 
 from apps.publish_mdm.etl.load import (
     PublishTemplateEvent,
-    publish_form_template,
     attachment_paths_for_upload,
+    publish_form_template,
 )
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
 from tests.publish_mdm.factories import (

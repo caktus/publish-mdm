@@ -1,8 +1,9 @@
-import pytest
 import datetime as dt
 
 import faker
+import pytest
 from django.core.exceptions import ValidationError
+
 from apps.mdm.mdms import get_active_mdm_class
 from apps.mdm.models import Policy, PolicyApplication, PolicyVariable
 from tests.mdm import TestAllMDMs

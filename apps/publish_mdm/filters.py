@@ -27,4 +27,4 @@ class DeviceFilter(FilterSet):
 
     class Meta:
         model = Device
-        fields = ["fleet"]
+        fields = ("fleet",)

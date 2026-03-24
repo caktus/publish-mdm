@@ -26,8 +26,9 @@ class TestTinyMDM(TestTinyMDMOnly):
     @pytest.fixture
     def devices(self, fleet):
         """Create 6 Devices, one with a blank device_id."""
-        return DeviceFactory.create_batch(5, fleet=fleet) + [
-            DeviceFactory(fleet=fleet, device_id="")
+        return [
+            *DeviceFactory.create_batch(5, fleet=fleet),
+            DeviceFactory(fleet=fleet, device_id=""),
         ]
 
     def get_fake_device_data(self):
@@ -106,7 +107,7 @@ class TestTinyMDM(TestTinyMDMOnly):
 
     @pytest.fixture
     def fleets(self, fleet):
-        return FleetFactory.create_batch(2) + [fleet]
+        return [*FleetFactory.create_batch(2), fleet]
 
     def test_env_variables_not_set(self):
         """Ensure TinyMDM.session property returns None if the environment variables
