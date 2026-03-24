@@ -33,9 +33,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
     @pytest.fixture
     def devices(self, fleet):
         """Create 6 Devices, one with a blank device_id."""
-        return DeviceFactory.create_batch(5, fleet=fleet) + [
-            DeviceFactory(fleet=fleet, device_id="")
-        ]
+        return [*DeviceFactory.create_batch(5, fleet=fleet), DeviceFactory(fleet=fleet, device_id="")]
 
     def get_fake_device_data(self):
         data = {
@@ -128,7 +126,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
 
     @pytest.fixture
     def fleets(self, fleet):
-        return FleetFactory.create_batch(2) + [fleet]
+        return [*FleetFactory.create_batch(2), fleet]
 
     def test_env_variables_not_set(self):
         """Ensure AndroidEnterprise.is_configured property returns False if the

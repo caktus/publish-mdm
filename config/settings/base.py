@@ -340,7 +340,7 @@ structlog.configure(
 # EMAIL
 # ------------------------------------------------------------------------------
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
-EMAIL_SUBJECT_PREFIX = "[publish-mdm %s] " % ENVIRONMENT.title()
+EMAIL_SUBJECT_PREFIX = f"[publish-mdm {ENVIRONMENT.title()}] "
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@caktusgroup.com")
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 

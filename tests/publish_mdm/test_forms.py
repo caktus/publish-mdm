@@ -307,7 +307,7 @@ class TestCentralServerForm:
         # Creating a new CentralServer
         form = form_class()
         field = form.fields[field_name]
-        assert isinstance(field.widget, (PasswordInput, BaseEmailInput))
+        assert isinstance(field.widget, PasswordInput | BaseEmailInput)
         assert not field.widget.render_value
         assert not field.help_text
         # The field should be required when creating a server
@@ -317,7 +317,7 @@ class TestCentralServerForm:
         server = CentralServerFactory(organization=organization, **{field_name: None})
         form = form_class(instance=server)
         field = form.fields[field_name]
-        assert isinstance(field.widget, (PasswordInput, BaseEmailInput))
+        assert isinstance(field.widget, PasswordInput | BaseEmailInput)
         assert not field.widget.render_value
         assert not field.help_text
         # The field should be required if there is currently no value in the DB
@@ -327,7 +327,7 @@ class TestCentralServerForm:
         server = CentralServerFactory(organization=organization)
         form = form_class(instance=server)
         field = form.fields[field_name]
-        assert isinstance(field.widget, (PasswordInput, BaseEmailInput))
+        assert isinstance(field.widget, PasswordInput | BaseEmailInput)
         assert not field.widget.render_value
         # Help text when editing a server
         assert field.help_text == (

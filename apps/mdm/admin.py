@@ -139,7 +139,7 @@ class FleetAdmin(admin.ModelAdmin):
 
         to_field = request.POST.get(TO_FIELD_VAR, request.GET.get(TO_FIELD_VAR))
         if to_field and not self.to_field_allowed(request, to_field):
-            raise DisallowedModelAdminToField("The field %s cannot be referenced." % to_field)
+            raise DisallowedModelAdminToField(f"The field {to_field} cannot be referenced.")
 
         obj = self.get_object(request, unquote(object_id), to_field)
 
@@ -331,7 +331,7 @@ class FleetAdmin(admin.ModelAdmin):
             self.delete_selected_confirmation_template
             or [
                 f"admin/{app_label}/{opts.model_name}/delete_selected_confirmation.html",
-                "admin/%s/delete_selected_confirmation.html" % app_label,
+                f"admin/{app_label}/delete_selected_confirmation.html",
                 "admin/delete_selected_confirmation.html",
             ],
             context,

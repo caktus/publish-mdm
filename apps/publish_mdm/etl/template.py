@@ -117,7 +117,7 @@ def set_survey_attachments(sheet: Worksheet, attachments: dict | None = None):
         attachments.clear()
         return
     logger.debug("Found media headers", media_headers=media_headers)
-    for name, file in list(attachments.items()):
+    for name, _file in list(attachments.items()):
         found_attachment_name = name in csv_attachments
         if not found_attachment_name:
             for media_header in media_headers:
@@ -214,7 +214,7 @@ def build_entity_list_mapping(workbook: Workbook, app_user: str) -> dict[str, st
     return substitutes
 
 
-def update_entity_references(workbook: Workbook, entity_list_mapping: dict[str, str] = None):
+def update_entity_references(workbook: Workbook, entity_list_mapping: dict[str, str] | None = None):
     """Update references to entity lists in the workbook, based on the mapping.
 
     For example: `filename_APP_USER.csv` -> `filename_11030.csv`

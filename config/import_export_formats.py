@@ -26,7 +26,7 @@ class XLSX(base_formats.XLSX):
         rows = sheet.rows
         dataset.headers = [cell.value for cell in next(rows)]
 
-        for index, row in enumerate(rows):
+        for _index, row in enumerate(rows):
             if not row:
                 # Skip empty row
                 continue

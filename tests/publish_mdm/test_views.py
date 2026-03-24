@@ -1037,7 +1037,7 @@ class TestEditProject(ViewTestBase):
         # Ensure there is a success message
         assert f"Successfully edited {project}." in response.content.decode()
 
-    @pytest.mark.parametrize("changed_field", [None, "admin_pw"] + ProjectForm._meta.fields)
+    @pytest.mark.parametrize("changed_field", [None, "admin_pw", *ProjectForm._meta.fields])
     def test_regenerating_qr_codes(
         self,
         client,

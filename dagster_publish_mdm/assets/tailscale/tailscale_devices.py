@@ -53,7 +53,7 @@ def tailscale_append_device_snapshot_table(
             name=device["name"],
             node_id=device["nodeId"],
             os=device["os"],
-            tags=device["tags"] if "tags" in device else None,
+            tags=device.get("tags", None),
             update_available=device["updateAvailable"],
             user=device["user"],
             # Non-API fields

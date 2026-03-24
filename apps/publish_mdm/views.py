@@ -450,7 +450,7 @@ def change_form_template(
         "form": form,
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
-            items=[("Form Templates", "form-template-list")] + crumbs,
+            items=[("Form Templates", "form-template-list"), *crumbs],
         ),
         # Variables needed for selecting a spreadsheet for the `template_url` using Google Picker
         "google_client_id": settings.GOOGLE_CLIENT_ID,
@@ -496,7 +496,7 @@ def change_app_user(request: HttpRequest, organization_slug, odk_project_pk, app
         "variables_formset": variables_formset,
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
-            items=[("App Users", "app-user-list")] + crumbs,
+            items=[("App Users", "app-user-list"), *crumbs],
         ),
         "app_user": app_user,
     }
