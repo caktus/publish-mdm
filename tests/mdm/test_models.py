@@ -62,6 +62,23 @@ class TestModels(TestAllMDMs):
         device.refresh_from_db()
         assert device.app_user_name == app_user.name
 
+    def test_device_save_auto_assigns_default_app_user_when_update_fields_is_set(self, fleet):
+        """When a device has no app_user_name and the fleet has a default_app_user,
+        the device's app_user_name should be auto-assigned on save even if update_fields
+        was set and did not include app_user_name.
+        """
+        device = DeviceFactory(fleet=fleet, app_user_name="")
+        assert device.app_user_name == ""
+        app_user = AppUserFactory(project=fleet.project)
+        fleet.default_app_user = app_user
+        fleet.save()
+        device.serial_number += "_edited"
+        device.save(update_fields=["serial_number"])
+        device.refresh_from_db()
+        # Both app_user_name and serial_number should be updated
+        assert device.app_user_name == app_user.name
+        assert device.serial_number.endswith("_edited")
+
     def test_device_save_auto_assigns_and_pushes_to_mdm(self, fleet, mocker, set_mdm_env_vars):
         """When auto-assigning the default_app_user, push_device_config should
         still fire if push_to_mdm=True.
