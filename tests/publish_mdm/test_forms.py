@@ -20,12 +20,12 @@ from apps.publish_mdm.forms import (
 )
 from apps.publish_mdm.http import HttpRequest
 from tests.mdm.factories import (
-    FleetFactory,
     DeviceFactory as MDMDeviceFactory,
+)
+from tests.mdm.factories import (
+    FleetFactory,
     PolicyFactory,
 )
-from tests.mdm.factories import DeviceFactory as MDMDeviceFactory
-from tests.mdm.factories import FleetFactory
 from tests.publish_mdm.factories import (
     AppUserFactory,
     AppUserFormTemplateFactory,
