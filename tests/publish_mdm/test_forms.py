@@ -188,7 +188,7 @@ class TestCentralServerForm:
             "organization": organization.id,
         }
         mock_odk_request = requests_mock.post(
-            f'{data["base_url"]}/v1/sessions',
+            f"{data['base_url']}/v1/sessions",
             json={
                 "createdAt": "2018-04-18T03:04:51.695Z",
                 "expiresAt": "2018-04-19T03:04:51.695Z",
@@ -214,7 +214,7 @@ class TestCentralServerForm:
         }
         form = CentralServerForm(data)
         mock_odk_request = requests_mock.post(
-            f'{data["base_url"]}/v1/sessions',
+            f"{data['base_url']}/v1/sessions",
             json={
                 "createdAt": "2018-04-18T03:04:51.695Z",
                 "expiresAt": "2018-04-19T03:04:51.695Z",
@@ -236,7 +236,7 @@ class TestCentralServerForm:
         }
         form = CentralServerForm(data)
         mock_odk_request = requests_mock.post(
-            f'{data["base_url"]}/v1/sessions',
+            f"{data['base_url']}/v1/sessions",
             status_code=401,
             json={
                 "code": 401.2,
@@ -263,7 +263,7 @@ class TestCentralServerForm:
         }
         form = CentralServerForm(data)
         mock_odk_request = requests_mock.post(
-            f'{data["base_url"]}/v1/sessions', exc=ConnectionError()
+            f"{data['base_url']}/v1/sessions", exc=ConnectionError()
         )
         assert not form.is_valid()
         assert mock_odk_request.called_once
@@ -288,7 +288,7 @@ class TestCentralServerForm:
         }
         form = CentralServerForm(data, instance=server)
         requests_mock.post(
-            f'{data["base_url"]}/v1/sessions',
+            f"{data['base_url']}/v1/sessions",
             json={
                 "createdAt": "2018-04-18T03:04:51.695Z",
                 "expiresAt": "2018-04-19T03:04:51.695Z",

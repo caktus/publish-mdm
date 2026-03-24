@@ -21,7 +21,7 @@ class InfisicalKMS:
                 missing_settings.append(setting)
         if missing_settings:
             raise ImproperlyConfigured(
-                f'{get_text_list(missing_settings, "and")} must be defined in settings.'
+                f"{get_text_list(missing_settings, 'and')} must be defined in settings."
             )
         # Create the client
         return InfisicalSDKClient(settings.INFISICAL_API_URL, settings.INFISICAL_TOKEN)
