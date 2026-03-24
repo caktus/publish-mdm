@@ -486,7 +486,7 @@ class TestDeviceAppUserForm:
         form = DeviceAppUserForm(instance=device)
         assert form.fields["app_user_name"].choices == [
             ("", "---"),
-            *sorted((i.name, i.name) for i in app_users),
+            *sorted(((i.name, i.name) for i in app_users), key=lambda i: i[0].lower()),
         ]
 
         device.fleet.project = None
