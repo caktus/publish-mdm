@@ -4,6 +4,7 @@ from tablib import Dataset
 from apps.publish_mdm import import_export, models
 from apps.publish_mdm.etl.load import update_app_users_central_id
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
+from tests.mdm.factories import DeviceFactory
 from tests.publish_mdm.factories import (
     AppUserFactory,
     CentralServerFactory,
@@ -359,3 +360,111 @@ class TestAppUserResource:
         update_app_users_central_id(app_user.project, {app_user.name: odk_central_user})
         app_user.refresh_from_db()
         assert app_user.central_id == odk_central_user.id
+
+
+@pytest.mark.django_db
+class TestDeviceResource:
+    @pytest.fixture
+    def organization(self):
+        return OrganizationFactory()
+
+    def import_data(self, csv_data, organization):
+        dataset = Dataset().load(csv_data)
+        resource = import_export.DeviceResource(organization)
+        result = resource.import_data(
+            dataset, use_transactions=True, rollback_on_validation_errors=True
+        )
+        return result
+
+    def test_export(self, organization):
+        """Only devices from the selected organization should be exported."""
+        devices = DeviceFactory.create_batch(2, fleet__organization=organization)
+        # A device in a different organization
+        DeviceFactory()
+
+        resource = import_export.DeviceResource(organization)
+        dataset = resource.export()
+
+        assert len(dataset) == 2
+        assert dataset.headers == ["device_id", "serial_number", "app_user_name"]
+        assert {row[0] for row in dataset} == {i.device_id for i in devices}
+
+    def test_successful_import(self, organization):
+        """Importing should update app_user_name on existing devices."""
+        devices = DeviceFactory.create_batch(2, fleet__organization=organization)
+        csv_data = "device_id,serial_number,app_user_name\n"
+        for i in devices:
+            csv_data += f"{i.device_id},{i.serial_number},{i.app_user_name}_edited\n"
+
+        result = self.import_data(csv_data, organization)
+
+        assert not result.has_validation_errors()
+        assert not result.has_errors()
+        for device in devices:
+            device.refresh_from_db()
+            assert device.app_user_name.endswith("_edited")
+
+    def test_cannot_import_other_orgs_devices(self, organization):
+        """A device_id from another organization should produce a validation error."""
+        device = DeviceFactory(fleet__organization=organization, app_user_name="app_user")
+        # A device in a different organization
+        other_device = DeviceFactory()
+        csv_data = "device_id,serial_number,app_user_name\n"
+        for i in (device, other_device):
+            csv_data += f"{i.device_id},{i.serial_number},{i.app_user_name}_edited\n"
+
+        result = self.import_data(csv_data, organization)
+
+        assert result.has_validation_errors()
+        assert len(result.invalid_rows) == 1
+        assert result.invalid_rows[0].number == 2
+        assert result.invalid_rows[0].error_dict == {
+            "device_id": [
+                f"A device with ID '{other_device.device_id}' does not exist in the current organization."
+            ]
+        }
+        # The valid device should not be updated due to rollback
+        device.refresh_from_db()
+        assert device.app_user_name == "app_user"
+
+    def test_unknown_device_id(self, organization):
+        """A device_id that doesn't match any device should produce a validation error."""
+        csv_data = "device_id,serial_number,app_user_name\nnonexistent_device,serial,new_user\n"
+        result = self.import_data(csv_data, organization)
+
+        assert result.has_validation_errors()
+        assert len(result.invalid_rows) == 1
+        assert result.invalid_rows[0].error_dict == {
+            "device_id": [
+                "A device with ID 'nonexistent_device' does not exist in the current organization."
+            ]
+        }
+
+    def test_blank_device_id(self, organization):
+        """A blank device_id should produce a validation error instead of attempting
+        to create a new Device.
+        """
+        csv_data = "device_id,serial_number,app_user_name\n,serial,new_user\n"
+        result = self.import_data(csv_data, organization)
+
+        assert result.has_validation_errors()
+        assert len(result.invalid_rows) == 1
+        assert result.invalid_rows[0].error_dict == {
+            "device_id": ["A device_id is required to update an existing device."]
+        }
+
+    def test_unchanged_rows_skipped(self, organization):
+        """Rows where app_user_name hasn't changed should be marked as skip."""
+        devices = DeviceFactory.create_batch(2, fleet__organization=organization)
+        csv_data = "device_id,serial_number,app_user_name\n"
+        for i in devices:
+            csv_data += f"{i.device_id},{i.serial_number},{i.app_user_name}\n"
+
+        result = self.import_data(csv_data, organization)
+
+        assert not result.has_validation_errors()
+        assert not result.has_errors()
+        valid_rows = result.valid_rows()
+        assert len(valid_rows) == 2
+        for row in valid_rows:
+            assert row.import_type == "skip"
