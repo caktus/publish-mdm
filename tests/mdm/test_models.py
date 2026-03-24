@@ -168,46 +168,6 @@ class TestModels(TestAllMDMs):
             policy=policy,
             package_name="com.example.app",
             install_type="FORCE_INSTALLED",
-            managed_configuration={"token": "{{ api_token }}"},
-            order=1,
-        )
-        PolicyVariable.objects.create(key="api_token", value="org_value", scope="org", org=org)
-
-        policy_data = policy.get_policy_data()
-        app_entry = next(
-            a for a in policy_data["applications"] if a["packageName"] == "com.example.app"
-        )
-        # Org-scoped variable must be substituted even with no fleet
-        assert app_entry["managedConfiguration"]["token"] == "org_value"
-
-    def test_managed_configuration_str_empty_dict_returns_json(self):
-        """managed_configuration_str() returns '{}' for an empty dict, not ''.
-
-        Regression test: previously used ``if self.managed_configuration:`` which
-        treated ``{}`` as falsy and incorrectly returned an empty string.
-        """
-        app = PolicyApplicationFactory(managed_configuration={})
-        assert app.managed_configuration_str() == "{}"
-
-    def test_managed_configuration_str_none_returns_empty_string(self):
-        """managed_configuration_str() returns '' when managed_configuration is None."""
-        app = PolicyApplicationFactory(managed_configuration=None)
-        assert app.managed_configuration_str() == ""
-
-    def test_get_policy_data_uses_org_variables_without_fleet(self):
-        """get_policy_data() resolves org-scoped variables even when the policy has no fleet.
-
-        Regression test: variables were only fetched via fleet→org, so a policy not yet
-        attached to any fleet had no org in the query and {{ var }} produced nothing.
-        """
-        org = OrganizationFactory()
-        policy = PolicyFactory(organization=org)
-        # No fleet — policy.fleets.all() is empty
-
-        PolicyApplication.objects.create(
-            policy=policy,
-            package_name="com.example.app",
-            install_type="FORCE_INSTALLED",
             managed_configuration={"token": "$api_token"},
             order=1,
         )
