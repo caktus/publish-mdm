@@ -22,9 +22,9 @@ from invitations.signals import invite_url_sent
 from apps.infisical.api import kms_api
 from apps.infisical.fields import EncryptedCharField, EncryptedEmailField
 from apps.infisical.managers import EncryptedManager
-from apps.users.models import User
-from apps.mdm.models import Fleet, Policy
 from apps.mdm.mdms import get_active_mdm_instance
+from apps.mdm.models import Fleet, Policy
+from apps.users.models import User
 
 from .etl import template
 from .etl.google import download_user_google_sheet
@@ -213,7 +213,8 @@ class Project(AbstractBaseModel):
                     "zu",
                 ]
             ]
-            * 2
+            * 2,
+            strict=False,
         )
     )
 

@@ -1,9 +1,9 @@
 import json
 
 import structlog
-from django.db import models
 from django.conf import settings
 from django.core.validators import RegexValidator
+from django.db import models
 from django.template import Context, Template
 from django.utils.html import mark_safe
 from django.utils.timezone import now

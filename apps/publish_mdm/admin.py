@@ -1,9 +1,8 @@
 import structlog
-
+from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
 from django.utils.html import mark_safe
-from django import forms
 from googleapiclient.errors import Error as GoogleAPIClientError
 from invitations.admin import InvitationAdmin
 from requests.exceptions import RequestException
@@ -11,20 +10,19 @@ from requests.exceptions import RequestException
 from .etl.load import generate_and_save_app_user_collect_qrcodes
 from .forms import CentralServerForm
 from .models import (
-    CentralServer,
-    Project,
-    FormTemplate,
-    FormTemplateVersion,
     AppUser,
     AppUserFormTemplate,
     AppUserFormVersion,
-    TemplateVariable,
-    ProjectAttachment,
-    ProjectTemplateVariable,
+    CentralServer,
+    FormTemplate,
+    FormTemplateVersion,
     Organization,
     OrganizationInvitation,
+    Project,
+    ProjectAttachment,
+    ProjectTemplateVariable,
+    TemplateVariable,
 )
-
 
 logger = structlog.getLogger(__name__)
 

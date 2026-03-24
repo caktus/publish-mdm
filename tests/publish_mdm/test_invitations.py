@@ -4,7 +4,6 @@ from django.urls import reverse
 from invitations.views import accept_invitation
 
 from apps.publish_mdm.invitations import InvitationsAdapter
-
 from tests.publish_mdm.factories import OrganizationInvitationFactory
 from tests.users.factories import UserFactory
 

@@ -4,7 +4,7 @@ from functools import partial
 import structlog
 from django.core.exceptions import ValidationError
 from django.db.models import Prefetch
-from import_export import resources, fields, widgets
+from import_export import fields, resources, widgets
 
 from .models import AppUser, AppUserFormTemplate, AppUserTemplateVariable
 

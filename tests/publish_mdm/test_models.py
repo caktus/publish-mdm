@@ -1,21 +1,8 @@
 import pytest
-from django.db.utils import IntegrityError
-
 from django.core.exceptions import ValidationError
 from django.db import connection
+from django.db.utils import IntegrityError
 
-from .factories import (
-    CentralServerFactory,
-    TemplateVariableFactory,
-    ProjectFactory,
-    ProjectTemplateVariableFactory,
-    FormTemplateFactory,
-    AppUserFormTemplateFactory,
-    FormTemplateVersionFactory,
-    AppUserFactory,
-    AppUserTemplateVariableFactory,
-    OrganizationFactory,
-)
 from apps.infisical.api import InfisicalKMS
 from apps.infisical.fields import EncryptedMixin
 from apps.mdm.mdms import get_active_mdm_class
@@ -23,6 +10,19 @@ from apps.publish_mdm.etl import template
 from apps.publish_mdm.models import CentralServer
 from tests.mdm import TestAllMDMs
 from tests.mdm.factories import PolicyFactory
+
+from .factories import (
+    AppUserFactory,
+    AppUserFormTemplateFactory,
+    AppUserTemplateVariableFactory,
+    CentralServerFactory,
+    FormTemplateFactory,
+    FormTemplateVersionFactory,
+    OrganizationFactory,
+    ProjectFactory,
+    ProjectTemplateVariableFactory,
+    TemplateVariableFactory,
+)
 
 
 @pytest.mark.django_db

@@ -1,6 +1,6 @@
 import pytest
-from django.urls import reverse
 from django.conf import settings
+from django.urls import reverse
 from pytest_django.asserts import assertContains
 
 from apps.publish_mdm.models import CentralServer, Organization, Project
@@ -10,8 +10,8 @@ from tests.publish_mdm.factories import (
     FormTemplateFactory,
     OrganizationFactory,
     ProjectFactory,
-    UserFactory,
     TemplateVariableFactory,
+    UserFactory,
 )
 
 

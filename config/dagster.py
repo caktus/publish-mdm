@@ -1,8 +1,8 @@
-from django.conf import settings
-from dagster_graphql import DagsterGraphQLClient, DagsterGraphQLClientError
-import structlog
 import urllib.parse as urlparse
 
+import structlog
+from dagster_graphql import DagsterGraphQLClient, DagsterGraphQLClientError
+from django.conf import settings
 
 logger = structlog.get_logger(__name__)
 

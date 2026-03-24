@@ -1,7 +1,8 @@
 import django_tables2 as tables
 
-from .models import CentralServer, FormTemplate, FormTemplateVersion
 from apps.mdm.models import Device, Fleet
+
+from .models import CentralServer, FormTemplate, FormTemplateVersion
 
 
 class FormTemplateTable(tables.Table):

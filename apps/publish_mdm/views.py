@@ -21,10 +21,10 @@ from invitations.adapters import get_invitations_adapter
 from invitations.app_settings import app_settings as invitations_settings
 from invitations.utils import get_invitation_model, get_invite_form
 from invitations.views import (
-    accept_invitation,
-    accept_invite_after_signup,
     AcceptInvite,
     SendInvite,
+    accept_invitation,
+    accept_invite_after_signup,
 )
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
@@ -41,36 +41,35 @@ from .etl.load import (
     generate_and_save_app_user_collect_qrcodes,
     sync_central_project,
 )
-
 from .filters import DeviceFilter
 from .forms import (
-    ProjectSyncForm,
     AppUserConfirmImportForm,
     AppUserExportForm,
-    AppUserImportForm,
-    PublishTemplateForm,
-    FormTemplateForm,
     AppUserForm,
+    AppUserImportForm,
     AppUserTemplateVariableFormSet,
-    ProjectForm,
-    ProjectTemplateVariableFormSet,
-    OrganizationForm,
-    TemplateVariableFormSet,
-    FleetAddForm,
-    FleetEditForm,
+    BYODDeviceEnrollmentForm,
     CentralServerFrontendForm,
     DeviceEnrollmentQRCodeForm,
-    BYODDeviceEnrollmentForm,
+    FleetAddForm,
+    FleetEditForm,
+    FormTemplateForm,
+    OrganizationForm,
+    ProjectForm,
+    ProjectSyncForm,
+    ProjectTemplateVariableFormSet,
+    PublishTemplateForm,
     SearchForm,
+    TemplateVariableFormSet,
 )
 from .import_export import AppUserResource
 from .models import (
-    FormTemplateVersion,
-    FormTemplate,
     AppUser,
-    Project,
-    CentralServer,
     AppUserFormTemplate,
+    CentralServer,
+    FormTemplate,
+    FormTemplateVersion,
+    Project,
 )
 from .nav import Breadcrumbs
 from .tables import (
@@ -81,7 +80,6 @@ from .tables import (
     FormTemplateVersionTable,
 )
 from .utils import get_login_url
-
 
 logger = structlog.getLogger(__name__)
 Invitation = get_invitation_model()

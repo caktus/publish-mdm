@@ -2,15 +2,15 @@ import base64
 import io
 import json
 import zlib
-import structlog
 from pathlib import Path
 
+import structlog
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+from apps.publish_mdm.utils import create_qr_code
 
 from .constants import DEFAULT_COLLECT_SETTINGS
 from .publish import ProjectAppUserAssignment
-from apps.publish_mdm.utils import create_qr_code
-
 
 logger = structlog.getLogger(__name__)
 

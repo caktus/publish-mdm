@@ -20,7 +20,7 @@ from django.contrib import admin
 from django.urls import include, path, re_path
 from django.views.generic import TemplateView
 
-from apps.publish_mdm.views import websockets_server_health, AcceptOrganizationInvite
+from apps.publish_mdm.views import AcceptOrganizationInvite, websockets_server_health
 
 urlpatterns = [
     path("accounts/", include("allauth.urls")),

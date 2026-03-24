@@ -7,7 +7,7 @@ from django.contrib.admin.exceptions import DisallowedModelAdminToField
 from django.contrib.admin.options import IS_POPUP_VAR, TO_FIELD_VAR
 from django.contrib.admin.utils import model_ngettext, unquote
 from django.core.exceptions import PermissionDenied
-from django.db import transaction, models
+from django.db import models, transaction
 from django.db.models.functions import Collate
 from django.shortcuts import redirect
 from django.template.response import TemplateResponse
@@ -18,8 +18,8 @@ from import_export.admin import ImportExportMixin
 from import_export.forms import ExportForm
 from requests.exceptions import RequestException
 
-from apps.publish_mdm.http import HttpRequest
 from apps.mdm.forms import DeviceConfirmImportForm, DeviceImportForm
+from apps.publish_mdm.http import HttpRequest
 
 from .import_export import DeviceResource
 from .mdms import get_active_mdm_instance
@@ -330,7 +330,7 @@ class FleetAdmin(admin.ModelAdmin):
             request,
             self.delete_selected_confirmation_template
             or [
-                "admin/{}/{}/delete_selected_confirmation.html".format(app_label, opts.model_name),
+                f"admin/{app_label}/{opts.model_name}/delete_selected_confirmation.html",
                 "admin/%s/delete_selected_confirmation.html" % app_label,
                 "admin/delete_selected_confirmation.html",
             ],
@@ -379,7 +379,7 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
 
     def get_import_data_kwargs(self, request, *args, **kwargs):
         """Prepare kwargs for import_data."""
-        form = kwargs.get("form", None)
+        form = kwargs.get("form")
         if form and hasattr(form, "cleaned_data"):
             kwargs.update({"push_method": form.cleaned_data.get("push_method", None)})
         return kwargs

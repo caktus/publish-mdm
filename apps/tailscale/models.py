@@ -1,6 +1,6 @@
-from django.db import models, transaction
 from django.contrib import postgres
-from django.db.models import Subquery, OuterRef
+from django.db import models, transaction
+from django.db.models import OuterRef, Subquery
 
 
 class Device(models.Model):

@@ -1,8 +1,8 @@
 import datetime as dt
+import os
 
 import dagster as dg
 import django
-import os
 
 from dagster_publish_mdm.resources.tailscale import TailscaleResource
 
@@ -95,7 +95,7 @@ def stale_tailscale_devices(
 
     context.log.info("Scanning for stale devices...")
 
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
     time_delta = now - dt.timedelta(
         minutes=int(
             os.getenv(

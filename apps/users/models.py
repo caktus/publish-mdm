@@ -1,6 +1,5 @@
-from django.contrib.auth.models import AbstractUser
-
 from allauth.socialaccount.models import SocialToken
+from django.contrib.auth.models import AbstractUser
 
 
 class User(AbstractUser):

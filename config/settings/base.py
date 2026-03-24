@@ -12,13 +12,13 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 import logging
 import os
-
 from pathlib import Path
 
 import dj_database_url
 import structlog
 from dotenv import dotenv_values
 from import_export.formats import base_formats
+
 from ..import_export_formats import XLSX
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -366,11 +366,11 @@ AWS_SES_REGION_ENDPOINT = os.getenv("AWS_SES_REGION_ENDPOINT", "email.us-east-2.
 # django-email-bandit
 BANDIT_ALLOW_EMAILS = os.getenv("BANDIT_ALLOW_EMAILS", "").split(":")
 if any(BANDIT_ALLOW_EMAILS):
-    INSTALLED_APPS += ("bandit",)  # noqa: F405
+    INSTALLED_APPS += ("bandit",)
     EMAIL_BACKEND = "config.email_backends.HijackSESBackend"
     BANDIT_EMAIL = ["admin@caktusgroup.com"]
     BANDIT_WHITELIST = BANDIT_ALLOW_EMAILS
-    LOGGING["loggers"]["bandit"] = {  # noqa
+    LOGGING["loggers"]["bandit"] = {
         "handlers": ["console"],
         "level": "DEBUG",
         "propagate": False,

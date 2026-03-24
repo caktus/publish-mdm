@@ -13,7 +13,6 @@ from django.urls import reverse
 
 from tests.publish_mdm.factories import OrganizationFactory, UserFactory
 
-
 # ---------------------------------------------------------------------------
 # VULN-002: SSRF via CentralServer.base_url
 # ---------------------------------------------------------------------------

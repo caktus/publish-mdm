@@ -1,9 +1,9 @@
 import json
-import structlog
 
+import structlog
 from django.http import HttpResponse
-from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
 
 from .forms import FirmwareSnapshotForm
 

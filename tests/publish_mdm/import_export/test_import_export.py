@@ -1,10 +1,9 @@
 import pytest
 from tablib import Dataset
 
-from apps.publish_mdm import models, import_export
+from apps.publish_mdm import import_export, models
 from apps.publish_mdm.etl.load import update_app_users_central_id
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
-
 from tests.publish_mdm.factories import (
     AppUserFactory,
     CentralServerFactory,
@@ -93,6 +92,7 @@ class TestAppUserResource:
             for var, value in zip(
                 template_variables,
                 (center_id, f"Center {center_id}", f"key{center_id}", f"pass{center_id}"),
+                strict=False,
             ):
                 models.AppUserTemplateVariable.objects.create(
                     app_user=app_user, template_variable=var, value=value

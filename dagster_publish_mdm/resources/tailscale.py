@@ -1,14 +1,12 @@
+import logging
+import time
 from urllib.parse import urljoin
 
 import dagster as dg
 import requests
-import logging
-import time
-
 from oauthlib.oauth2 import BackendApplicationClient
 from requests.adapters import HTTPAdapter, Retry
 from requests_oauthlib import OAuth2Session
-
 
 logger = logging.getLogger(__name__)
 

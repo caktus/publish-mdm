@@ -1,8 +1,9 @@
 import re
+from collections.abc import Generator
+
 import structlog
 from openpyxl.cell.cell import Cell
 from openpyxl.worksheet.worksheet import Worksheet
-from typing import Generator
 
 logger = structlog.getLogger(__name__)
 

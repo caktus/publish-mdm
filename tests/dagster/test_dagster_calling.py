@@ -1,6 +1,6 @@
-from config import dagster
-
 import pytest
+
+from config import dagster
 
 
 @pytest.mark.parametrize(

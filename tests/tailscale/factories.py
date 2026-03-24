@@ -15,7 +15,7 @@ class DeviceFactory(factory.django.DjangoModelFactory):
 
     node_id = factory.Faker("uuid4")
     name = factory.Faker("name")
-    last_seen = factory.Faker("date_time", tzinfo=dt.timezone.utc)
+    last_seen = factory.Faker("date_time", tzinfo=dt.UTC)
     tailnet = factory.Faker("word")
     latest_snapshot = factory.SubFactory("tests.tailscale.factories.DeviceSnapshotFactory")
 
@@ -26,10 +26,10 @@ class DeviceSnapshotFactory(factory.django.DjangoModelFactory):
 
     addresses = [factory.Faker("ipv4")]
     client_version = factory.Faker("word")
-    created = fake.date_time(tzinfo=dt.timezone.utc)
-    expires = fake.date_time(tzinfo=dt.timezone.utc)
+    created = fake.date_time(tzinfo=dt.UTC)
+    expires = fake.date_time(tzinfo=dt.UTC)
     hostname = factory.Faker("hostname")
-    last_seen = fake.date_time(tzinfo=dt.timezone.utc)
+    last_seen = fake.date_time(tzinfo=dt.UTC)
     name = factory.Faker("word")
     node_id = factory.Faker("uuid4")
     os = "linux"

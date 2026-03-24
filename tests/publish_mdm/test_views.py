@@ -4,16 +4,16 @@ from urllib.parse import urlencode
 import faker
 import pytest
 from allauth.socialaccount.models import SocialToken
-from django_tables2 import Table
-from django.urls import reverse
 from django.conf import settings
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.core.files.base import ContentFile
 from django.db.models import Count, Q
 from django.shortcuts import resolve_url
 from django.template.loader import render_to_string
-from django.utils.timezone import now, localtime
+from django.urls import reverse
 from django.utils.formats import date_format
+from django.utils.timezone import localtime, now
+from django_tables2 import Table
 from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers.data import JsonLexer
@@ -26,21 +26,7 @@ from pytest_django.asserts import (
 )
 from requests.exceptions import HTTPError
 
-from tests.mdm.factories import PolicyFactory
-from tests.publish_mdm.factories import (
-    AppUserFactory,
-    AppUserFormTemplateFactory,
-    AppUserFormVersionFactory,
-    FormTemplateFactory,
-    FormTemplateVersionFactory,
-    OrganizationFactory,
-    OrganizationInvitationFactory,
-    ProjectFactory,
-    UserFactory,
-    CentralServerFactory,
-    TemplateVariableFactory,
-)
-from apps.mdm.mdms import get_active_mdm_class, TinyMDM
+from apps.mdm.mdms import TinyMDM, get_active_mdm_class
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
 from apps.publish_mdm.etl.template import VariableTransform
@@ -49,8 +35,8 @@ from apps.publish_mdm.forms import (
     AppUserForm,
     AppUserTemplateVariableFormSet,
     BYODDeviceEnrollmentForm,
-    DeviceEnrollmentQRCodeForm,
     CentralServerFrontendForm,
+    DeviceEnrollmentQRCodeForm,
     FleetAddForm,
     FleetEditForm,
     FormTemplateForm,
@@ -75,6 +61,20 @@ from tests.mdm.factories import (
     DeviceSnapshotFactory,
     FirmwareSnapshotFactory,
     FleetFactory,
+    PolicyFactory,
+)
+from tests.publish_mdm.factories import (
+    AppUserFactory,
+    AppUserFormTemplateFactory,
+    AppUserFormVersionFactory,
+    CentralServerFactory,
+    FormTemplateFactory,
+    FormTemplateVersionFactory,
+    OrganizationFactory,
+    OrganizationInvitationFactory,
+    ProjectFactory,
+    TemplateVariableFactory,
+    UserFactory,
 )
 from tests.tailscale.factories import DeviceFactory as TailscaleDeviceFactory
 
@@ -475,8 +475,11 @@ class TestFormTemplateDetail(ViewTestBase):
         versions_table = response.context.get("versions_table")
         assert isinstance(versions_table, Table)
         versions_table_cols = list(versions_table.columns.iterall())
-        assert ["Version number", "Date published", "App users", "Published by"] == [
-            column.header for column in versions_table_cols
+        assert [column.header for column in versions_table_cols] == [
+            "Version number",
+            "Date published",
+            "App users",
+            "Published by",
         ]
         app_user_name_field = "app_user_form_templates__app_user_form_template__app_user__name"
         versions = (

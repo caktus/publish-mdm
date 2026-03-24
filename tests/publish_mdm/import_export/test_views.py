@@ -4,17 +4,17 @@ from io import BytesIO, StringIO
 from pathlib import Path
 
 import pytest
-from tablib import Dataset
-from django.urls import reverse
 from django.conf import settings
+from django.urls import reverse
 from import_export.tmp_storages import MediaStorage
+from tablib import Dataset
 
+from apps.publish_mdm.forms import AppUserConfirmImportForm, AppUserImportForm
+from apps.publish_mdm.models import AppUser
 from tests.publish_mdm.factories import (
     ProjectFactory,
     UserFactory,
 )
-from apps.publish_mdm.forms import AppUserConfirmImportForm, AppUserImportForm
-from apps.publish_mdm.models import AppUser
 
 
 @pytest.mark.django_db

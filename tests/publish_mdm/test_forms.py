@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from django.forms.widgets import PasswordInput
 from django.urls import reverse
-from pytest_django.asserts import assertQuerySetEqual, assertFormError
+from pytest_django.asserts import assertFormError, assertQuerySetEqual
 from requests.exceptions import ConnectionError
 
 from apps.patterns.widgets import BaseEmailInput
@@ -20,11 +20,11 @@ from apps.publish_mdm.forms import (
 from apps.publish_mdm.http import HttpRequest
 from tests.mdm.factories import FleetFactory
 from tests.publish_mdm.factories import (
-    FormTemplateFactory,
-    ProjectFactory,
     AppUserFormTemplateFactory,
-    OrganizationFactory,
     CentralServerFactory,
+    FormTemplateFactory,
+    OrganizationFactory,
+    ProjectFactory,
 )
 
 
