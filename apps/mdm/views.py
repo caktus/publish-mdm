@@ -20,7 +20,7 @@ from .forms import (
     PolicyVariableFormSet,
 )
 from .mdms import get_active_mdm_instance
-from .models import Device, Policy, PolicyApplication, PolicyVariable
+from .models import Device, Policy, PolicyApplication, PolicyVariable, PolicyVariableScope
 
 logger = structlog.get_logger()
 
@@ -194,8 +194,11 @@ def policy_edit(request, organization_slug, policy_id):
                 odk_app.save()
             variables = var_formset.save(commit=False)
             for var in variables:
-                if not var.pk:
+                if var.scope == PolicyVariableScope.ORG:
                     var.org = organization
+                    var.fleet = None
+                elif var.scope == PolicyVariableScope.FLEET:
+                    var.org = None
                 var.save()
             for var in var_formset.deleted_objects:
                 var.delete()
