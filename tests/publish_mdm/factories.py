@@ -29,7 +29,7 @@ class OrganizationFactory(
         model = models.Organization
 
     name = factory.Faker("company")
-    slug = factory.Faker("slug")
+    slug = factory.Sequence(lambda _: fake.unique.slug())
 
 
 class CentralServerFactory(
@@ -38,7 +38,7 @@ class CentralServerFactory(
     class Meta:
         model = models.CentralServer
 
-    base_url = factory.Faker("url")
+    base_url = factory.Faker("url", schemes=["https"])
     organization = factory.SubFactory(OrganizationFactory)
     username = factory.Faker("email")
     password = "password"

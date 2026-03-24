@@ -1,4 +1,7 @@
+from allauth.account.adapter import render_to_string
 import django_tables2 as tables
+
+from apps.publish_mdm.forms import DeviceAppUserForm
 
 from .models import CentralServer, FormTemplate, FormTemplateVersion
 from apps.mdm.models import Device, Fleet
@@ -62,9 +65,26 @@ class CentralServerTable(tables.Table):
         orderable = False
 
 
+class AppUserNameColumn(tables.TemplateColumn):
+    """A TemplateColumn that renders a form for editing a Device's app_user_name but
+    returns the raw value for as_values().
+    """
+
+    def value(self, **kwargs):
+        record = kwargs["record"]
+        return record.app_user_name or None
+
+    def render(self, record, table, value, bound_column, **kwargs):
+        form = DeviceAppUserForm(instance=record)
+        return render_to_string(self.template_name, {"form": form})
+
+
 class DeviceTable(tables.Table):
     """A table for listing MDM Devices."""
 
+    app_user_name = AppUserNameColumn(
+        template_name="includes/device_app_user_select.html", attrs={"td": {"class": "px-4 py-1.5"}}
+    )
     last_seen_mdm = tables.DateTimeColumn(
         accessor="latest_snapshot__last_sync", verbose_name="Last seen (MDM)"
     )

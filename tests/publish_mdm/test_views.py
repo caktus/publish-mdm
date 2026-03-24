@@ -19,6 +19,7 @@ from pygments.formatters import HtmlFormatter
 from pygments.lexers.data import JsonLexer
 from pytest_django.asserts import (
     assertContains,
+    assertFormError,
     assertNotContains,
     assertQuerySetEqual,
     assertRedirects,
@@ -49,6 +50,7 @@ from apps.publish_mdm.forms import (
     AppUserForm,
     AppUserTemplateVariableFormSet,
     BYODDeviceEnrollmentForm,
+    DeviceAppUserForm,
     DeviceEnrollmentQRCodeForm,
     CentralServerFrontendForm,
     FleetAddForm,
@@ -2972,3 +2974,62 @@ class TestCheckMDMLicenseLimit(ViewTestBase, TestTinyMDMOnly):
         response = client.get(url)
         mock_check_license_limit.assert_not_called()
         assertContains(response, "Unable to check if the TinyMDM license limit has been reached.")
+
+
+class TestDeviceUpdateAppUser(ViewTestBase):
+    """Test updating the app user name for a Device."""
+
+    @pytest.fixture
+    def device(self, organization):
+        return DeviceFactory(fleet__organization=organization)
+
+    @pytest.fixture
+    def url(self, device):
+        return reverse(
+            "publish_mdm:device-update-app-user", args=[device.fleet.organization.slug, device.id]
+        )
+
+    def test_get(self, client, url, user):
+        """Accessing the URL using GET method is not allowed."""
+        response = client.get(url)
+        assert response.status_code == 405
+
+    def test_login_required(self, client, url):
+        """Accessing the URL using POST method is only allowed for a logged in user."""
+        client.logout()
+        response = client.post(url, {"app_user_name": ""})
+        assert response.status_code == 302
+
+    @pytest.mark.parametrize("app_user_name", ["", "new_app_user_name"])
+    def test_valid_form(self, client, url, user, device, app_user_name):
+        """Ensure submitting a valid form updates the Device's app_user_name."""
+        if app_user_name:
+            AppUserFactory(name=app_user_name, project=device.fleet.project)
+        data = {
+            "app_user_name": app_user_name,
+        }
+        response = client.post(url, data=data, follow=True)
+        form = response.context.get("form")
+        assert isinstance(form, DeviceAppUserForm)
+        assert not form.errors, form.errors
+        device.refresh_from_db()
+        assert device.app_user_name == app_user_name
+
+    def test_invalid_form(self, client, url, user, device):
+        """Ensure submitting an invalid form doesn't update the Device's app_user_name
+        and the form is displayed with the error message.
+        """
+        app_user_name = "nonexistent_app_user"
+        data = {
+            "app_user_name": app_user_name,
+        }
+        response = client.post(url, data=data, follow=True)
+        form = response.context.get("form")
+        assert isinstance(form, DeviceAppUserForm)
+        expected_error_message = (
+            f"Select a valid choice. {app_user_name} is not one of the available choices."
+        )
+        assertFormError(form, "app_user_name", expected_error_message)
+        device.refresh_from_db()
+        assert device.app_user_name != app_user_name
+        assertContains(response, expected_error_message)

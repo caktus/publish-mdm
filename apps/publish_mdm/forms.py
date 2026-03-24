@@ -1,4 +1,6 @@
+import ipaddress
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 import structlog
@@ -11,7 +13,7 @@ from import_export.tmp_storages import MediaStorage
 from invitations.adapters import get_invitations_adapter
 from invitations.exceptions import AlreadyAccepted, AlreadyInvited, UserRegisteredEmail
 
-from apps.mdm.models import Fleet
+from apps.mdm.models import Device, Fleet
 from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import (
     BaseEmailInput,
@@ -149,12 +151,13 @@ class FileFormatChoiceField(forms.ChoiceField):
 
     def clean(self, value):
         """Return the selected file format instance."""
+        value = super().clean(value)
         Format = self.formats[int(value)]
         return Format()
 
 
-class AppUserImportExportFormMixin(PlatformFormMixin, forms.Form):
-    """Base form for importing and exporting AppUsers."""
+class ImportExportFormMixin(PlatformFormMixin, forms.Form):
+    """Base form for importing and exporting model instances."""
 
     format = FileFormatChoiceField()
 
@@ -168,14 +171,14 @@ class AppUserImportExportFormMixin(PlatformFormMixin, forms.Form):
         pass
 
 
-class AppUserExportForm(AppUserImportExportFormMixin, import_export_forms.ImportExportFormBase):
-    """Form for exporting AppUsers to a file."""
+class ExportForm(ImportExportFormMixin, import_export_forms.ImportExportFormBase):
+    """Form for exporting model instances to a file."""
 
     pass
 
 
-class AppUserImportForm(AppUserImportExportFormMixin, import_export_forms.ImportForm):
-    """Form for importing AppUsers from a file."""
+class ImportForm(ImportExportFormMixin, import_export_forms.ImportForm):
+    """Form for importing model instances from a file."""
 
     import_file = forms.FileField(label="File to import", widget=FileInput)
 
@@ -198,7 +201,7 @@ class AppUserImportForm(AppUserImportExportFormMixin, import_export_forms.Import
                 # Using debug() instead of exception() or error() so that it's not
                 # logged in Sentry
                 logger.debug(
-                    "An error occurred when reading AppUser import file",
+                    "An error occurred when reading import file",
                     selected_format=import_format.get_title(),
                     filename=import_file.name,
                     exc_info=True,
@@ -215,7 +218,7 @@ class AppUserImportForm(AppUserImportExportFormMixin, import_export_forms.Import
         return self.cleaned_data
 
 
-class AppUserConfirmImportForm(import_export_forms.ConfirmImportForm):
+class ConfirmImportForm(import_export_forms.ConfirmImportForm):
     format = FileFormatChoiceField(widget=forms.HiddenInput)
 
     def clean(self):
@@ -238,7 +241,7 @@ class AppUserConfirmImportForm(import_export_forms.ConfirmImportForm):
                 # Either the temp file could not be read, or there was an error
                 # parsing the file using the selected format
                 logger.exception(
-                    "An error occurred when reading AppUser import temp file in confirm stage",
+                    "An error occurred when reading import temp file in confirm stage",
                     selected_format=import_format.get_title(),
                     filename=import_file_name,
                 )
@@ -496,6 +499,44 @@ class CentralServerForm(forms.ModelForm):
                     )
                     field.required = False
 
+    # Private / reserved address blocks that must never be used as an ODK Central host.
+    _BLOCKED_NETWORKS = [
+        ipaddress.ip_network(cidr)
+        for cidr in (
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+            "127.0.0.0/8",
+            "169.254.0.0/16",  # link-local / AWS metadata
+            "::1/128",
+            "fc00::/7",
+            "fe80::/10",
+        )
+    ]
+
+    def _validate_base_url(self, url: str) -> None:
+        """Reject non-HTTPS URLs and URLs that target private / reserved hosts.
+
+        When DEBUG is True (local development), all checks are skipped so that
+        developers can use http:// or private-IP Central instances.
+        """
+        if settings.DEBUG:
+            return
+        parsed = urlparse(url)
+        if parsed.scheme != "https":
+            raise forms.ValidationError("The base URL must use the https:// scheme.")
+        host = parsed.hostname or ""
+        try:
+            addr = ipaddress.ip_address(host)
+            for network in self._BLOCKED_NETWORKS:
+                if addr in network:
+                    raise forms.ValidationError(
+                        "The base URL must not point to a private or reserved IP address."
+                    )
+        except ValueError:
+            # host is a hostname, not a bare IP address — allow it
+            pass
+
     def clean(self):
         if not self.errors and (
             self.cleaned_data["username"]
@@ -504,6 +545,12 @@ class CentralServerForm(forms.ModelForm):
         ):
             # Strip trailing "/" from base_url
             self.cleaned_data["base_url"] = self.cleaned_data["base_url"].rstrip("/")
+            # VULN-002: validate scheme and host before making any outbound request
+            try:
+                self._validate_base_url(self.cleaned_data["base_url"])
+            except forms.ValidationError as exc:
+                self.add_error("base_url", exc)
+                return self.cleaned_data
             # Validate the base URL and credentials by checking if we can log in
             # https://docs.getodk.org/central-api-authentication/#logging-in
             if not (self.cleaned_data["username"] and self.cleaned_data["password"]):
@@ -657,6 +704,37 @@ class BYODDeviceEnrollmentForm(PlatformFormMixin, forms.Form):
     def __init__(self, organization, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["fleet"].queryset = organization.fleets.all()
+
+
+class DeviceAppUserForm(forms.ModelForm):
+    """Form for updating a Device's app_user_name via HTMX."""
+
+    app_user_name = forms.ChoiceField(
+        required=False,
+        choices=[("", "---")],
+        widget=Select(
+            attrs={
+                "hx-target": "closest form",
+                "hx-swap": "outerHTML",
+            }
+        ),
+    )
+
+    class Meta:
+        model = Device
+        fields = ["app_user_name"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.fleet.project:
+            self.fields["app_user_name"].choices = [
+                ("", "---"),
+                *((i.name, i.name) for i in self.instance.fleet.project.app_users.all()),
+            ]
+        self.fields["app_user_name"].widget.attrs["hx-post"] = reverse_lazy(
+            "publish_mdm:device-update-app-user",
+            args=[self.instance.fleet.organization.slug, self.instance.pk],
+        )
 
 
 class SearchForm(PlatformFormMixin, forms.Form):
