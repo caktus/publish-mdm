@@ -1,16 +1,19 @@
 import datetime as dt
+import json
 
 import faker
 import pytest
 from django.core.exceptions import ValidationError
 
 from apps.mdm.mdms import get_active_mdm_class
-from apps.mdm.models import Policy, PolicyApplication, PolicyVariable
+from apps.mdm.models import DeviceSnapshotApp, Policy, PolicyApplication, PolicyVariable
 from tests.mdm import TestAllMDMs
 from tests.publish_mdm.factories import AppUserFactory, OrganizationFactory, ProjectFactory
 
 from .factories import (
     DeviceFactory,
+    DeviceSnapshotFactory,
+    FirmwareSnapshotFactory,
     FleetFactory,
     PolicyApplicationFactory,
     PolicyFactory,
@@ -340,28 +343,18 @@ class TestModels(TestAllMDMs):
 
     def test_policy_variable_clean_raises_when_org_scope_without_org(self):
         """PolicyVariable.clean() raises ValidationError when scope=org but org is None."""
-        from django.core.exceptions import ValidationError
-
-        from apps.mdm.models import PolicyVariable
-
         variable = PolicyVariable(key="k", value="v", scope="org", org=None)
         with pytest.raises(ValidationError, match="Organization is required"):
             variable.clean()
 
     def test_policy_variable_clean_raises_when_fleet_scope_without_fleet(self):
         """PolicyVariable.clean() raises ValidationError when scope=fleet but fleet is None."""
-        from django.core.exceptions import ValidationError
-
-        from apps.mdm.models import PolicyVariable
-
         variable = PolicyVariable(key="k", value="v", scope="fleet", fleet=None)
         with pytest.raises(ValidationError, match="Fleet is required"):
             variable.clean()
 
     def test_policy_variable_clean_clears_fleet_for_org_scope(self):
         """PolicyVariable.clean() sets fleet=None for org-scoped variables."""
-        from apps.mdm.models import PolicyVariable
-
         fleet = FleetFactory()
         variable = PolicyVariable(
             key="k", value="v", scope="org", org=fleet.organization, fleet=fleet
@@ -371,8 +364,6 @@ class TestModels(TestAllMDMs):
 
     def test_policy_variable_clean_clears_org_for_fleet_scope(self):
         """PolicyVariable.clean() sets org=None for fleet-scoped variables."""
-        from apps.mdm.models import PolicyVariable
-
         fleet = FleetFactory()
         variable = PolicyVariable(
             key="k", value="v", scope="fleet", fleet=fleet, org=fleet.organization
@@ -386,23 +377,16 @@ class TestModels(TestAllMDMs):
         result = device.odk_collect_qr_code
         assert isinstance(result, str)
         # It should be a JSON-escaped string (double-quoted empty string if no app user)
-        import json
-
         inner = json.loads(result)
         assert inner == ""  # empty since no AppUser
 
     def test_device_snapshot_str(self):
         """DeviceSnapshot.__str__ returns name (device_id) format."""
-        from tests.mdm.factories import DeviceSnapshotFactory
-
         snapshot = DeviceSnapshotFactory(name="My Device", device_id="abc123")
         assert str(snapshot) == "My Device (abc123)"
 
     def test_device_snapshot_app_str(self):
         """DeviceSnapshotApp.__str__ returns app_name (package_name) snapshot format."""
-        from apps.mdm.models import DeviceSnapshotApp
-        from tests.mdm.factories import DeviceSnapshotFactory
-
         snapshot = DeviceSnapshotFactory()
         app = DeviceSnapshotApp.objects.create(
             device_snapshot=snapshot,
@@ -415,8 +399,6 @@ class TestModels(TestAllMDMs):
 
     def test_firmware_snapshot_str(self, fleet):
         """FirmwareSnapshot.__str__ shows device_identifier, not the FK integer."""
-        from tests.mdm.factories import FirmwareSnapshotFactory
-
         snap = FirmwareSnapshotFactory(
             device=DeviceFactory(fleet=fleet),
             device_identifier="TMDM-DEVICE-99",

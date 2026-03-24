@@ -2657,9 +2657,11 @@ class TestEditFleet(ViewTestBase):
         fleet.project = project
         fleet.save()
         app_user = AppUserFactory(project=project)
+        org_policy = PolicyFactory(organization=organization)
         data = {
             "project": project.id,
             "default_app_user": app_user.id,
+            "policy": org_policy.id,
         }
         response = client.post(url, data=data, follow=True)
         fleet.refresh_from_db()
@@ -2673,8 +2675,10 @@ class TestEditFleet(ViewTestBase):
         fleet.project = project
         fleet.default_app_user = app_user
         fleet.save()
+        org_policy = PolicyFactory(organization=organization)
         data = {
             "project": project.id,
+            "policy": org_policy.id,
         }
         response = client.post(url, data=data, follow=True)
         fleet.refresh_from_db()

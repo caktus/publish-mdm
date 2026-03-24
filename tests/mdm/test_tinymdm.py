@@ -569,8 +569,6 @@ class TestTinyMDM(TestTinyMDMOnly):
         # devices_by_id: {"DIFFERENT-MDM-ID": mdm_device}
         # devices_by_serial: {"SN001": mdm_device}
         # our_device is in the queryset via serial_number, but devices_by_id.get("OUR-DEVICE-ID") → None
-        from apps.mdm.mdms import TinyMDM
-
         active_mdm = TinyMDM()
         original_serial = our_device.serial_number
         active_mdm.update_existing_devices(fleet=fleet, mdm_devices=[mdm_device])

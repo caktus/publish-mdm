@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 import structlog
 from django import forms
 from django.forms import (
@@ -93,8 +95,8 @@ class PolicyNameForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = Policy
-        fields = ["name"]
-        widgets = {"name": TextInput(attrs={"placeholder": "Policy name"})}
+        fields = ("name",)
+        widgets: ClassVar = {"name": TextInput(attrs={"placeholder": "Policy name"})}
 
 
 class PolicyApplicationForm(PlatformFormMixin, forms.ModelForm):
@@ -102,13 +104,13 @@ class PolicyApplicationForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = PolicyApplication
-        fields = ["package_name", "install_type", "disabled"]
-        widgets = {
+        fields = ("package_name", "install_type", "disabled")
+        widgets: ClassVar = {
             "package_name": TextInput,
             "install_type": Select,
             "disabled": CheckboxInput,
         }
-        labels = {
+        labels: ClassVar = {
             "install_type": "Install type",
             "disabled": "Disabled",
         }
@@ -126,8 +128,8 @@ class PolicyApplicationAddForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = PolicyApplication
-        fields = ["package_name"]
-        widgets = {"package_name": TextInput(attrs={"placeholder": "com.example.app"})}
+        fields = ("package_name",)
+        widgets: ClassVar = {"package_name": TextInput(attrs={"placeholder": "com.example.app"})}
 
     def __init__(self, *args, policy=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -152,7 +154,7 @@ class PolicyEditForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = Policy
-        fields = [
+        fields: ClassVar = [
             "name",
             "odk_collect_package",
             "odk_collect_device_id_template",
@@ -172,7 +174,7 @@ class PolicyEditForm(PlatformFormMixin, forms.ModelForm):
             "kiosk_device_settings",
             "developer_settings",
         ]
-        widgets = {
+        widgets: ClassVar = {
             "name": TextInput(attrs={"placeholder": "Policy name"}),
             "odk_collect_package": TextInput(attrs={"placeholder": "org.odk.collect.android"}),
             "odk_collect_device_id_template": TextInput(
@@ -198,7 +200,7 @@ class PolicyEditForm(PlatformFormMixin, forms.ModelForm):
             "kiosk_device_settings": Select,
             "developer_settings": Select,
         }
-        labels = {
+        labels: ClassVar = {
             "odk_collect_package": "Package name override",
             "odk_collect_device_id_template": "Device ID template",
             "device_password_quality": "Quality",
@@ -236,8 +238,8 @@ class PolicyVariableForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = PolicyVariable
-        fields = ["key", "value", "scope", "fleet"]
-        widgets = {
+        fields = ("key", "value", "scope", "fleet")
+        widgets: ClassVar = {
             "key": TextInput(attrs={"placeholder": "variable_name"}),
             "value": TextInput(attrs={"placeholder": "value"}),
             "scope": Select,

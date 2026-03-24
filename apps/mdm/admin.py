@@ -46,7 +46,7 @@ class PolicyApplicationInline(admin.TabularInline):
 class PolicyAdmin(admin.ModelAdmin):
     list_display = ("name", "policy_id")
     search_fields = ("name", "policy_id")
-    inlines = [PolicyApplicationInline]
+    inlines = (PolicyApplicationInline,)
 
     def save_model(self, request, obj, form, change):
         obj.save()

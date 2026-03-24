@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from django.urls import reverse
 
@@ -332,9 +334,7 @@ class TestFirmwareSnapshotView:
 
     @pytest.mark.django_db
     def test_valid_data_saves_and_returns_201(self, client, url):
-        import json as json_module
-
-        data = json_module.dumps({"deviceIdentifier": "SN-VIEW-TEST", "version": "1.0"})
+        data = json.dumps({"deviceIdentifier": "SN-VIEW-TEST", "version": "1.0"})
         response = client.post(url, data=data, content_type="application/json")
         assert response.status_code == 201
 

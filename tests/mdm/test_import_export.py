@@ -1,4 +1,5 @@
 import pytest
+from import_export.results import RowResult
 from tablib import Dataset
 
 from apps.mdm import import_export, models
@@ -197,7 +198,13 @@ class TestDeviceResource(TestAllMDMs):
 class TestDeviceResourceAfterImport(TestAllMDMs):
     """Tests for after_import() behavior when Dagster is enabled."""
 
-    HEADERS = ["id", "fleet", "serial_number", "app_user_name", "device_id"]
+    HEADERS = (
+        "id",
+        "fleet",
+        "serial_number",
+        "app_user_name",
+        "device_id",
+    )
 
     @pytest.fixture
     def fleet(self):
@@ -279,8 +286,6 @@ class TestDeviceResourceSaveInstance(TestAllMDMs):
 
     def test_do_instance_save_dry_run_does_not_push(self, fleet, mocker):
         """do_instance_save() with is_dry_run=True does not call save(push_to_mdm=True)."""
-        from tests.mdm.factories import DeviceFactory
-
         device = DeviceFactory(fleet=fleet)
         mock_save = mocker.patch.object(device, "save")
         resource = import_export.DeviceResource()
@@ -302,7 +307,6 @@ class TestDeviceResourceBulkMode(TestAllMDMs):
 
     def test_save_instance_bulk_create_appends_to_list(self, fleet):
         """save_instance with use_bulk=True and is_create=True appends to create_instances."""
-        from import_export.results import RowResult
 
         class BulkDeviceResource(import_export.DeviceResource):
             class Meta(import_export.DeviceResource.Meta):
@@ -317,7 +321,6 @@ class TestDeviceResourceBulkMode(TestAllMDMs):
 
     def test_save_instance_bulk_update_appends_to_list(self, fleet):
         """save_instance with use_bulk=True and is_create=False appends to update_instances."""
-        from import_export.results import RowResult
 
         class BulkDeviceResource(import_export.DeviceResource):
             class Meta(import_export.DeviceResource.Meta):

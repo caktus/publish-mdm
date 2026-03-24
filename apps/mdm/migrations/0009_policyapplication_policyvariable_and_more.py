@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("mdm", "0008_alter_device_managers_alter_devicesnapshot_managers_and_more"),
         ("publish_mdm", "0014_organization_public_signup_enabled"),
