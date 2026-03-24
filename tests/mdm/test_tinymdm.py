@@ -127,6 +127,7 @@ class TestTinyMDM(TestTinyMDMOnly):
         assert active_mdm.is_configured
         assert active_mdm
 
+    @pytest.mark.parametrize("with_default_app_user", [False, True])
     @pytest.mark.parametrize("device_in_different_fleet", [False, True])
     def test_pull_devices(
         self,
@@ -137,8 +138,14 @@ class TestTinyMDM(TestTinyMDMOnly):
         devices,
         set_mdm_env_vars,
         device_in_different_fleet,
+        with_default_app_user,
     ):
         """Ensures calling pull_devices() updates and creates Devices as expected."""
+        if with_default_app_user:
+            default_app_user = AppUserFactory(project=fleet.project)
+            fleet.default_app_user = default_app_user
+            fleet.save()
+
         if device_in_different_fleet:
             # Change the fleet of one of the devices such that it does not match
             # the API response. The device should still be updated instead of
@@ -174,7 +181,11 @@ class TestTinyMDM(TestTinyMDMOnly):
         else:
             assert fleet.devices.count() == 10
         # 4 devices are new
-        assert fleet.devices.exclude(id__in=[i.id for i in devices]).count() == 4
+        new_devices = fleet.devices.exclude(id__in=[i.id for i in devices])
+        assert new_devices.count() == 4
+        # New devices should have the fleet's default app user name, or blank if none is set
+        expected_app_user_name = fleet.default_app_user.name if with_default_app_user else ""
+        assert all(d.app_user_name == expected_app_user_name for d in new_devices)
         # Ensure the devices have the expected data from the API response
         db_devices = Device.objects.in_bulk(field_name="device_id")
         for device in devices_response["results"]:

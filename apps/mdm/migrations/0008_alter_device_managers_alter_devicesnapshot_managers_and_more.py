@@ -6,7 +6,7 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("mdm", "0006_remove_policy_unique_default_policy_and_more"),
+        ("mdm", "0007_fleet_default_app_user"),
     ]
 
     operations = [

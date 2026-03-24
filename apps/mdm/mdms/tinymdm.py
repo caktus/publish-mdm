@@ -140,6 +140,8 @@ class TinyMDM(MDM):
         received from the API. This list must not contain devices that
         already exist in our database.
         """
+        # bulk_create bypasses Device.save(), so set the default app user name here.
+        default_app_user_name = fleet.default_app_user.name if fleet.default_app_user_id else ""
         mdm_devices_to_create = [
             Device(
                 fleet=fleet,
@@ -147,6 +149,7 @@ class TinyMDM(MDM):
                 device_id=mdm_device["id"],
                 name=mdm_device["nickname"] or mdm_device["name"],
                 raw_mdm_device=mdm_device,
+                app_user_name=default_app_user_name,
             )
             for mdm_device in mdm_devices
         ]

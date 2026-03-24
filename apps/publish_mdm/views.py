@@ -1,3 +1,4 @@
+import contextlib
 import json
 
 import structlog
@@ -507,6 +508,9 @@ def change_app_user(request: HttpRequest, organization_slug, odk_project_pk, app
     if request.method == "POST" and all([form.is_valid(), variables_formset.is_valid()]):
         app_user = form.save()
         variables_formset.save()
+        generate_and_save_app_user_collect_qrcodes(
+            project=request.odk_project, app_users=[app_user]
+        )
         messages.success(
             request,
             f"Successfully {'edit' if app_user_id else 'add'}ed {app_user}.",
@@ -1037,7 +1041,7 @@ def device_update_app_user(request: HttpRequest, organization_slug, device_pk):
 
 @login_required
 def fleets_list(request: HttpRequest, organization_slug):
-    fleets = request.organization.fleets.all()
+    fleets = request.organization.fleets.select_related("project", "default_app_user")
     table = FleetTable(data=fleets, show_footer=False)
     RequestConfig(request, paginate=False).configure(table)
     context = {
@@ -1179,6 +1183,22 @@ def edit_fleet(request: HttpRequest, organization_slug, fleet_id):
     }
 
     return render(request, "publish_mdm/change_fleet.html", context)
+
+
+@login_required
+def fleet_app_users(request: HttpRequest, organization_slug):
+    """Returns the default_app_user select field filtered by the selected project (HTMX partial)."""
+    project_id = request.GET.get("project")
+    fleet = Fleet(organization=request.organization)
+    if project_id:
+        with contextlib.suppress(Project.DoesNotExist, ValueError):
+            fleet.project = request.organization.projects.get(pk=project_id)
+    form = FleetEditForm(instance=fleet)
+    return render(
+        request,
+        "publish_mdm/change_fleet.html#default-app-user-partial",
+        {"form": form},
+    )
 
 
 @login_required
