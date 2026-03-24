@@ -380,6 +380,16 @@ class TestFleetForm:
         form = FleetForm(instance=fleet)
         assertQuerySetEqual(form.fields["default_app_user"].queryset, [])
 
+    def test_default_app_user_empty_when_project_cleared(self, organization, projects):
+        """Ensures the default_app_user queryset is empty when the project field is
+        cleared in a submission, even if the fleet previously had a project set.
+        """
+        fleet = FleetFactory(organization=organization, project=projects[0])
+        AppUserFactory.create_batch(2, project=projects[0])
+        data = {"project": ""}
+        form = FleetEditForm(data=data, instance=fleet)
+        assertQuerySetEqual(form.fields["default_app_user"].queryset, [])
+
     @pytest.mark.parametrize(
         "make_instance",
         [
@@ -393,13 +403,18 @@ class TestFleetForm:
                 lambda org: FleetFactory(organization=org, project=None),
                 id="FleetEditForm-no-project",
             ),
+            # Existing fleet whose project is being changed in the same submission
+            pytest.param(
+                lambda org: FleetFactory(organization=org),
+                id="FleetEditForm-project-change",
+            ),
         ],
     )
     def test_default_app_user_from_post_data(self, organization, projects, make_instance):
-        """Ensures the default_app_user queryset is populated from the submitted project
-        when the instance has no saved project, so that a default_app_user chosen in the
-        same submission passes ModelChoiceField validation.  This covers both new fleets
-        (FleetAddForm) and existing fleets whose project was not previously set.
+        """Ensures the default_app_user queryset is filtered by the submitted project
+        so that a default_app_user chosen in the same submission passes
+        ModelChoiceField validation.  This covers new fleets, existing fleets with no
+        project, and existing fleets whose project is being changed at the same time.
         """
         app_user = AppUserFactory(project=projects[0])
         # App users in a different project — should not appear in the queryset

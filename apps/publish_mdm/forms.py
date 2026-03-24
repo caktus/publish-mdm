@@ -573,16 +573,20 @@ class FleetEditForm(PlatformFormMixin, forms.ModelForm):
             }
         )
         project = self.instance.project
-        # If the instance has no saved project, fall back to the submitted project
-        # (if any) so that default_app_user choices are validated correctly when
-        # both project and default_app_user are set in the same form submission.
-        # This covers both new fleets (FleetAddForm) and existing fleets whose
-        # project field was not previously set.
-        if not (project and project.pk) and self.data.get("project"):
-            try:
-                project = self.instance.organization.projects.get(pk=self.data["project"])
-            except (Project.DoesNotExist, ValueError):
+        # When the form is bound, always derive the project from the submitted
+        # data — not the saved instance — so that the default_app_user queryset
+        # is always correct. On GET requests self.is_bound is False so the saved
+        # project is used.
+        if self.is_bound:
+            project_id = self.data.get("project")
+            if not project_id:
                 project = None
+            elif str(project_id) != str(self.instance.project_id):
+                # Project changed — fetch from DB
+                try:
+                    project = self.instance.organization.projects.get(pk=project_id)
+                except (Project.DoesNotExist, ValueError):
+                    project = None
         if project and project.pk:
             self.fields["default_app_user"].queryset = AppUser.objects.filter(project=project)
         else:
