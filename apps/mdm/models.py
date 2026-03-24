@@ -1,6 +1,7 @@
 import json
 
 import structlog
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.conf import settings
 from django.core.validators import RegexValidator
@@ -151,6 +152,17 @@ class Fleet(models.Model):
 
     def __str__(self):
         return self.name
+
+    def clean(self):
+        if self.default_app_user_id:
+            if not self.project_id:
+                raise ValidationError(
+                    {"default_app_user": "A default app user cannot be set without a project."}
+                )
+            if self.default_app_user.project_id != self.project_id:
+                raise ValidationError(
+                    {"default_app_user": "The default app user must belong to the fleet's project."}
+                )
 
     def save(self, *args, **kwargs):
         from .mdms import get_active_mdm_instance
