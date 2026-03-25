@@ -230,6 +230,45 @@ git branch --set-upstream-to=origin/<branch-name> <branch-name>
 
 Agents may create branches with incorrect merge configs. Always verify before pushing.
 
+## Migration Strategy
+
+**Never squash migrations that already exist on `main`.** Feature branches must preserve
+the migrations from `main` exactly and add only new migration files numbered after the
+highest existing one on `main`.
+
+### Before merging a feature branch
+
+Squash all migrations that were added **only on the feature branch** into a single new
+migration file. Do NOT touch migrations that exist on `main`.
+
+**Steps:**
+
+```bash
+# 1. Find the highest migration number on main
+git ls-tree main apps/<app>/migrations/ | awk '{print $4}' | sort | tail -3
+
+# 2. Remove all feature-branch-only migrations (everything above main's highest)
+rm apps/<app>/migrations/<N+1>_*.py apps/<app>/migrations/<N+2>_*.py ...
+
+# 3. Regenerate as a single migration (schema changes only)
+DATABASE_URL=... uv run manage.py makemigrations <app> --name feature_<short_description>
+
+# 4. If there were any data migrations in the removed files, add them manually
+#    as RunPython operations at the END of the new migration's operations list.
+```
+
+**Example:** if `main` has `0001`–`0007` and the branch added `0008`–`0010`:
+
+```bash
+rm apps/mdm/migrations/0008_*.py apps/mdm/migrations/0009_*.py apps/mdm/migrations/0010_*.py
+DATABASE_URL=... uv run manage.py makemigrations mdm --name feature_policy_editor
+# then manually append any RunPython data migrations to the generated file
+```
+
+The result should be exactly one new migration file (`0008_feature_policy_editor.py`)
+that depends on `main`'s last migration. This keeps the history clean and avoids
+merge conflicts with other branches.
+
 ## Key Conventions
 
 - `Breadcrumbs.from_items()` requires a non-None string `viewname` for every
