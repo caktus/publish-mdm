@@ -13,7 +13,7 @@ from django.db.models.functions import Collate, Lower, NullIf
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.utils.html import mark_safe
+from django.utils.html import format_html, mark_safe
 from django.utils.timezone import localdate
 from django.views.decorators.http import require_POST
 from django_tables2.config import RequestConfig
@@ -1186,9 +1186,11 @@ def edit_fleet(request: HttpRequest, organization_slug, fleet_id):
                 except (GoogleAPIClientError, RequestException) as e:
                     messages.warning(
                         request,
-                        mark_safe(
-                            f"Fleet saved but could not update policy in {active_mdm}: "
-                            f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
+                        format_html(
+                            "Fleet saved but could not update policy in {}: "
+                            '<code class="block text-xs mt-2">{}</code>',
+                            active_mdm,
+                            getattr(e, "api_error", e),
                         ),
                     )
         messages.success(request, f"Successfully edited {fleet}.")
