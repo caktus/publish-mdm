@@ -52,8 +52,7 @@ rather use Docker, see :doc:`../running/docker-compose`.
     export ACTIVE_MDM_CLASS=apps.mdm.mdms.AndroidEnterprise
 
     # Optional: enable real-time AMAPI Pub/Sub device enrollment notifications
-    # AMAPI_PUBSUB_TOPIC_NAME="projects/my-gcp-project/topics/amapi-notifications"
-    # AMAPI_NOTIF_SECRET_TOKEN="<random-secret-for-webhook-auth>"
+    # ANDROID_ENTERPRISE_PUBSUB_TOKEN="<random-secret-for-webhook-auth>"
 
 Update the environment variables as needed for your local setup. You may need to
 add a ``PGPASSWORD`` variable if your database expects a password. If the database

@@ -8,6 +8,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from .forms import FirmwareSnapshotForm
+from .mdms import get_active_mdm_instance
 
 logger = structlog.get_logger()
 
@@ -88,27 +89,24 @@ def amapi_notifications_view(request):
         notification_type=notification_type,
         device_name=device_data.get("name"),
     )
+    mdm = get_active_mdm_instance()
 
-    if notification_type in ("ENROLLMENT", "STATUS_REPORT"):
-        from .mdms import get_active_mdm_instance  # noqa: PLC0415
-
-        mdm = get_active_mdm_instance()
-        if mdm is not None and hasattr(mdm, "handle_device_notification"):
-            try:
-                mdm.handle_device_notification(device_data, notification_type)
-            except Exception:
-                logger.exception(
-                    "Error handling AMAPI notification",
-                    notification_type=notification_type,
-                    device_name=device_data.get("name"),
-                )
-                return HttpResponse(status=500)
-        else:
-            logger.warning(
-                "Active MDM does not support handle_device_notification",
-                mdm=str(mdm) if mdm is not None else None,
+    if mdm.name != "Android Enterprise":
+        logger.warning(
+            "Active MDM is not Android Enterprise. Ignoring",
+            mdm=mdm,
+            notification_type=notification_type,
+        )
+    elif notification_type in ("ENROLLMENT", "STATUS_REPORT"):
+        try:
+            mdm.handle_device_notification(device_data, notification_type)
+        except Exception:
+            logger.exception(
+                "Error handling AMAPI notification",
                 notification_type=notification_type,
+                device_name=device_data.get("name"),
             )
+            return HttpResponse(status=500)
     else:
         logger.info("Ignoring unhandled notification type", notification_type=notification_type)
 

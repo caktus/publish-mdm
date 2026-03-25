@@ -15,17 +15,18 @@ class Command(BaseCommand):
         "The topic and subscription are automatically derived from the service account "
         "credentials (projects/{project_id}/topics/publish-mdm and "
         "projects/{project_id}/subscriptions/publish-mdm). "
-        "The push endpoint defaults to https://{site.domain}/mdm/api/amapi/notifications/ "
-        "with the ANDROID_ENTERPRISE_PUBSUB_TOKEN appended as a query parameter."
+        "The push endpoint is built as https://{domain}/mdm/api/amapi/notifications/?token=<token>. "
+        "When --push-endpoint-domain is omitted, the domain is taken from the current Site object."
     )
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--push-endpoint",
+            "--push-endpoint-domain",
             default=None,
             help=(
-                "HTTPS URL that Pub/Sub will POST messages to. "
-                "Defaults to https://{site.domain}/mdm/api/amapi/notifications/?token=<token>."
+                "Domain (without scheme, e.g. example.com) used to build the full "
+                "Pub/Sub push endpoint. HTTPS is always used. "
+                "Defaults to the domain from the current Site object."
             ),
         )
 
@@ -38,8 +39,8 @@ class Command(BaseCommand):
                 "ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE."
             )
 
-        push_endpoint = options["push_endpoint"]
-        result = mdm.configure_pubsub(push_endpoint=push_endpoint)
+        push_endpoint_domain = options["push_endpoint_domain"]
+        result = mdm.configure_pubsub(push_endpoint_domain=push_endpoint_domain)
         enabled = result.get("enabledNotificationTypes", [])
         self.stdout.write(
             self.style.SUCCESS(

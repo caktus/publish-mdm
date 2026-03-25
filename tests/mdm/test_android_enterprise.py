@@ -682,31 +682,31 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         with pytest.raises(HttpError):
             active_mdm._grant_pubsub_publisher("projects/my-project/topics/my-topic")
 
-    @pytest.mark.parametrize(
-        "push_endpoint", [None, "https://example.com/mdm/api/amapi/notifications/"]
-    )
-    def test_ensure_pubsub_subscription_creates_subscription(self, mock_pubsub_api, push_endpoint):
-        """_ensure_pubsub_subscription() calls subscriptions.create with the expected body."""
+    def test_ensure_pubsub_subscription_creates_subscription(self, mock_pubsub_api):
+        """_ensure_pubsub_subscription() calls subscriptions.create with push config."""
         active_mdm, mock_api = mock_pubsub_api
         topic = "projects/my-project/topics/my-topic"
         sub = "projects/my-project/subscriptions/my-topic"
+        push_endpoint = "https://example.com/mdm/api/amapi/notifications/"
         active_mdm._ensure_pubsub_subscription(topic, sub, push_endpoint)
-        expected_body = {"topic": topic}
-        if push_endpoint:
-            expected_body["pushConfig"] = {"pushEndpoint": push_endpoint}
         mock_api.projects().subscriptions().create.assert_called_once_with(
-            name=sub, body=expected_body
+            name=sub,
+            body={"topic": topic, "pushConfig": {"pushEndpoint": push_endpoint}},
         )
 
     def test_ensure_pubsub_subscription_already_exists(self, mock_pubsub_api):
-        """_ensure_pubsub_subscription() silently ignores a 409 Conflict response."""
+        """_ensure_pubsub_subscription() calls modifyPushConfig on a 409 Conflict response."""
         active_mdm, mock_api = mock_pubsub_api
+        push_endpoint = "https://example.com/mdm/api/amapi/notifications/"
+        sub = "projects/p/subscriptions/t"
         mock_api.projects().subscriptions().create().execute.side_effect = HttpError(
             httplib2.Response({"status": 409}), b"already exists"
         )
         # Should not raise
-        active_mdm._ensure_pubsub_subscription(
-            "projects/p/topics/t", "projects/p/subscriptions/t", None
+        active_mdm._ensure_pubsub_subscription("projects/p/topics/t", sub, push_endpoint)
+        mock_api.projects().subscriptions().modifyPushConfig.assert_called_once_with(
+            subscription=sub,
+            body={"pushConfig": {"pushEndpoint": push_endpoint}},
         )
 
     def test_configure_pubsub_full_flow(self, mock_pubsub_api, monkeypatch):
@@ -716,6 +716,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         expected_sub = active_mdm.pubsub_subscription
         push_endpoint = "https://example.com/mdm/api/amapi/notifications/?token=secret"
 
+        monkeypatch.setattr(active_mdm, "_build_push_endpoint", lambda domain=None: push_endpoint)
         # Successful IAM fetch
         mock_api.projects().topics().getIamPolicy().execute.return_value = {"bindings": []}
 
@@ -730,7 +731,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             lambda resource_method: enterprise_patch_result,
         )
 
-        result = active_mdm.configure_pubsub(push_endpoint=push_endpoint)
+        result = active_mdm.configure_pubsub(push_endpoint_domain="example.com")
         assert result == enterprise_patch_result
         # Verify topic was created with the auto-generated name
         mock_api.projects().topics().create.assert_called_once_with(name=expected_topic, body={})
@@ -748,6 +749,16 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         Site.objects.filter(pk=settings.SITE_ID).update(domain="app.example.com")
         endpoint = active_mdm._build_push_endpoint()
         assert endpoint == "https://app.example.com/mdm/api/amapi/notifications/?token=mysecret"
+
+    @pytest.mark.django_db
+    def test_build_push_endpoint_with_domain(self, mock_pubsub_api, settings):
+        """_build_push_endpoint() uses the supplied domain instead of the Site domain."""
+        active_mdm, _ = mock_pubsub_api
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = "mysecret"
+        endpoint = active_mdm._build_push_endpoint(domain="override.example.com")
+        assert (
+            endpoint == "https://override.example.com/mdm/api/amapi/notifications/?token=mysecret"
+        )
 
     @pytest.mark.django_db
     def test_build_push_endpoint_raises_when_token_not_set(self, mock_pubsub_api, settings):

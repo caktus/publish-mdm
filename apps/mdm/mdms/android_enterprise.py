@@ -4,7 +4,10 @@ import os
 from functools import cached_property
 
 import structlog
+from django.conf import settings
+from django.contrib.sites.models import Site
 from django.db.models import F, OuterRef, Q, Subquery
+from django.urls import reverse
 from django.utils import timezone
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -520,7 +523,7 @@ class AndroidEnterprise(MDM):
 
     def configure_pubsub(
         self,
-        push_endpoint: str | None = None,
+        push_endpoint_domain: str | None = None,
     ) -> dict:
         """Configure Pub/Sub push notifications for the enterprise.
 
@@ -532,26 +535,23 @@ class AndroidEnterprise(MDM):
         2. Grants ``android-mdm-service@system.gserviceaccount.com``
            ``roles/pubsub.publisher`` on the topic so that Android Device Policy
            can publish AMAPI notifications to it.
-        3. Creates a push subscription
-           ``projects/{project_id}/subscriptions/publish-mdm`` if it does not
-           already exist.  When ``push_endpoint`` is ``None`` it is auto-generated
-           from the current ``Site`` domain, the ``amapi_notifications`` URL, and
-           the ``ANDROID_ENTERPRISE_PUBSUB_TOKEN`` setting.
+        3. Creates (or updates) a push subscription
+           ``projects/{project_id}/subscriptions/publish-mdm``.  The push
+           endpoint is built from ``push_endpoint_domain`` when provided,
+           otherwise from the current ``Site`` domain.
         4. Patches the enterprise to set ``pubsubTopic`` and
            ``enabledNotificationTypes``.
 
         Args:
-            push_endpoint: HTTPS URL that Pub/Sub will POST messages to (i.e.
-                the ``/mdm/api/amapi/notifications/`` endpoint of this
-                application).  When ``None`` the endpoint is auto-generated
-                using the current ``Site`` domain and the
-                ``ANDROID_ENTERPRISE_PUBSUB_TOKEN`` Django setting.
+            push_endpoint_domain: Domain (without scheme, e.g. ``example.com``)
+                used to construct the full push endpoint.  When ``None``, the
+                domain is taken from the current ``django.contrib.sites``
+                ``Site`` object.  HTTPS is always used.
 
         Returns:
             The updated enterprise resource dict.
         """
-        if push_endpoint is None:
-            push_endpoint = self._build_push_endpoint()
+        push_endpoint = self._build_push_endpoint(domain=push_endpoint_domain)
         topic_name = self.pubsub_topic
         subscription_name = self.pubsub_subscription
         logger.info(
@@ -575,28 +575,33 @@ class AndroidEnterprise(MDM):
             )
         )
 
-    def _build_push_endpoint(self) -> str:
-        """Build the push endpoint URL from the current ``Site`` and token setting.
+    def _build_push_endpoint(self, domain: str | None = None) -> str:
+        """Build the push endpoint URL.
 
-        Uses the domain from ``django.contrib.sites`` ``Site`` object and
-        reverses the ``mdm:amapi_notifications`` URL.  The
-        ``ANDROID_ENTERPRISE_PUBSUB_TOKEN`` Django setting must be configured;
-        an exception is raised if it is absent so that misconfigured push
-        subscriptions are detected at setup time rather than at runtime.
+        Reverses the ``mdm:amapi_notifications`` URL and appends the
+        ``ANDROID_ENTERPRISE_PUBSUB_TOKEN`` as a query parameter.  HTTPS
+        is always used.  The domain is taken from ``domain`` when supplied,
+        otherwise from the current ``django.contrib.sites`` ``Site`` object.
+
+        Args:
+            domain: Optional domain override (without scheme, e.g.
+                ``example.com``).  When ``None``, the domain is read from
+                the ``Site`` model.
+
+        Returns:
+            Full HTTPS URL for the Pub/Sub push endpoint.
         """
-        from django.conf import settings  # noqa: PLC0415
-        from django.contrib.sites.models import Site  # noqa: PLC0415
-        from django.urls import reverse  # noqa: PLC0415
-
         token = settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN
         if not token:
             raise ValueError(
                 "ANDROID_ENTERPRISE_PUBSUB_TOKEN must be set before configuring Pub/Sub. "
                 "The notification endpoint rejects all requests when this setting is absent."
             )
-        site = Site.objects.get_current()
         path = reverse("mdm:amapi_notifications")
-        return f"https://{site.domain}{path}?token={token}"
+        if domain is None:
+            site = Site.objects.get_current()
+            domain = site.domain
+        return f"https://{domain.rstrip('/')}{path}?token={token}"
 
     def _ensure_pubsub_topic(self, topic_name: str) -> None:
         """Create the Pub/Sub topic if it does not already exist."""
@@ -655,16 +660,10 @@ class AndroidEnterprise(MDM):
         logger.info("Granted Android Device Policy Pub/Sub publisher rights", topic=topic_name)
 
     def _ensure_pubsub_subscription(
-        self, topic_name: str, subscription_name: str, push_endpoint: str | None
+        self, topic_name: str, subscription_name: str, push_endpoint: str
     ) -> None:
-        """Create the Pub/Sub subscription if it does not already exist.
-
-        A push subscription is created when ``push_endpoint`` is provided;
-        otherwise a pull subscription is created.
-        """
-        body: dict = {"topic": topic_name}
-        if push_endpoint:
-            body["pushConfig"] = {"pushEndpoint": push_endpoint}
+        """Create the Pub/Sub push subscription, or update its endpoint if it already exists."""
+        body: dict = {"topic": topic_name, "pushConfig": {"pushEndpoint": push_endpoint}}
         try:
             self.pubsub_api.projects().subscriptions().create(
                 name=subscription_name, body=body
@@ -676,7 +675,20 @@ class AndroidEnterprise(MDM):
             )
         except HttpError as e:
             if e.status_code == 409:
-                logger.info("Pub/Sub subscription already exists", subscription=subscription_name)
+                logger.info(
+                    "Pub/Sub subscription already exists, updating push endpoint",
+                    subscription=subscription_name,
+                    push_endpoint=push_endpoint,
+                )
+                self.pubsub_api.projects().subscriptions().modifyPushConfig(
+                    subscription=subscription_name,
+                    body={"pushConfig": {"pushEndpoint": push_endpoint}},
+                ).execute()
+                logger.info(
+                    "Updated Pub/Sub subscription push endpoint",
+                    subscription=subscription_name,
+                    push_endpoint=push_endpoint,
+                )
             else:
                 raise
 
