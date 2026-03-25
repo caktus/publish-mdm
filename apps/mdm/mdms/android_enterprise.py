@@ -22,7 +22,7 @@ ALL_SCOPES = [
     "https://www.googleapis.com/auth/pubsub",
 ]
 # Google-managed service account that Android Device Policy uses to publish notifications.
-ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT = "android-mdm-service@system.gserviceaccount.com"
+ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT = "android-cloud-policy@system.gserviceaccount.com"
 # Fixed resource name suffix used for this application's Pub/Sub topic and subscription.
 PUBSUB_RESOURCE_NAME = "publish-mdm"
 
@@ -80,7 +80,7 @@ class AndroidEnterprise(MDM):
     @property
     def project_id(self) -> str | None:
         """Google Cloud project ID derived from the service account credentials."""
-        return self.credentials.project_id if self.credentials is not None else None
+        return self.credentials and self.credentials.project_id
 
     @property
     def pubsub_topic(self) -> str | None:
@@ -520,9 +520,8 @@ class AndroidEnterprise(MDM):
 
     def configure_pubsub(
         self,
-        notification_types: list[str] | None = None,
         push_endpoint: str | None = None,
-    ) -> dict | None:
+    ) -> dict:
         """Configure Pub/Sub push notifications for the enterprise.
 
         Performs all required Pub/Sub setup steps, then calls ``enterprises.patch``
@@ -542,8 +541,6 @@ class AndroidEnterprise(MDM):
            ``enabledNotificationTypes``.
 
         Args:
-            notification_types: The notification types to enable.  Defaults to
-                ``["ENROLLMENT", "STATUS_REPORT"]``.
             push_endpoint: HTTPS URL that Pub/Sub will POST messages to (i.e.
                 the ``/mdm/api/amapi/notifications/`` endpoint of this
                 application).  When ``None`` the endpoint is auto-generated
@@ -551,33 +548,29 @@ class AndroidEnterprise(MDM):
                 ``ANDROID_ENTERPRISE_PUBSUB_TOKEN`` Django setting.
 
         Returns:
-            The updated enterprise resource dict, or ``None`` if the AMAPI is
-            not configured.
+            The updated enterprise resource dict.
         """
-        if notification_types is None:
-            notification_types = ["ENROLLMENT", "STATUS_REPORT"]
         if push_endpoint is None:
             push_endpoint = self._build_push_endpoint()
-        pubsub_topic = self.pubsub_topic
+        topic_name = self.pubsub_topic
         subscription_name = self.pubsub_subscription
         logger.info(
             "Configuring AMAPI Pub/Sub notifications",
             enterprise_name=self.enterprise_name,
-            pubsub_topic=pubsub_topic,
-            notification_types=notification_types,
-            push_endpoint=push_endpoint,
+            topic_name=topic_name,
             subscription_name=subscription_name,
+            push_endpoint=push_endpoint,
         )
-        self._ensure_pubsub_topic(pubsub_topic)
-        self._grant_pubsub_publisher(pubsub_topic)
-        self._ensure_pubsub_subscription(pubsub_topic, subscription_name, push_endpoint)
+        self._ensure_pubsub_topic(topic_name)
+        self._ensure_pubsub_subscription(topic_name, subscription_name, push_endpoint)
+        self._grant_pubsub_publisher(topic_name)
         return self.execute(
             self.api.enterprises().patch(
                 name=self.enterprise_name,
                 updateMask="pubsubTopic,enabledNotificationTypes",
                 body={
-                    "pubsubTopic": pubsub_topic,
-                    "enabledNotificationTypes": notification_types,
+                    "pubsubTopic": topic_name,
+                    "enabledNotificationTypes": ["ENROLLMENT", "STATUS_REPORT"],
                 },
             )
         )
@@ -635,20 +628,19 @@ class AndroidEnterprise(MDM):
             )
             raise
         bindings = policy.get("bindings", [])
-        publisher_binding = next(
-            (b for b in bindings if b["role"] == "roles/pubsub.publisher"), None
-        )
-        if publisher_binding is None:
+        for binding in bindings:
+            if binding["role"] == "roles/pubsub.publisher":
+                if member in binding.get("members", []):
+                    logger.info(
+                        "Android Device Policy already has Pub/Sub publisher rights",
+                        topic=topic_name,
+                    )
+                    return
+                binding["members"].append(member)
+                break
+        else:
             bindings.append({"role": "roles/pubsub.publisher", "members": [member]})
             policy["bindings"] = bindings
-        elif member in publisher_binding.get("members", []):
-            logger.info(
-                "Android Device Policy already has Pub/Sub publisher rights",
-                topic=topic_name,
-            )
-            return
-        else:
-            publisher_binding["members"].append(member)
         try:
             self.pubsub_api.projects().topics().setIamPolicy(
                 resource=topic_name, body={"policy": policy}

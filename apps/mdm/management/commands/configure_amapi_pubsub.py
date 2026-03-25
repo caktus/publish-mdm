@@ -40,12 +40,11 @@ class Command(BaseCommand):
 
         push_endpoint = options["push_endpoint"]
         result = mdm.configure_pubsub(push_endpoint=push_endpoint)
+        enabled = result.get("enabledNotificationTypes", [])
         self.stdout.write(
             self.style.SUCCESS(
                 f"Pub/Sub notifications configured for enterprise "
                 f"'{mdm.enterprise_name}' with topic '{mdm.pubsub_topic}'."
+                f"\nEnabled notification types: {', '.join(enabled)}"
             )
         )
-        if result:
-            enabled = result.get("enabledNotificationTypes", [])
-            self.stdout.write(f"Enabled notification types: {', '.join(enabled)}")
