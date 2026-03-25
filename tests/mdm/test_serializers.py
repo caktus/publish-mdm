@@ -124,6 +124,41 @@ class TestPolicySerializer(TestAllMDMs):
         assert result["applications"][2]["packageName"] == "com.example.blocked"
         assert result["applications"][2]["disabled"] is True
 
+    def test_empty_managed_configuration_is_included(self):
+        """An empty dict ({}) managed_configuration should appear in the output, not be omitted.
+
+        Regression test: previously `if app.managed_configuration` was used, which
+        silently dropped an explicitly-set empty dict.
+        """
+        policy = PolicyFactory()
+        app = PolicyApplication.objects.create(
+            policy=policy,
+            package_name="com.example.app",
+            install_type="FORCE_INSTALLED",
+            managed_configuration={},
+            order=1,
+        )
+        serializer = PolicySerializer(policy=policy, applications=[app])
+        result = serializer.to_dict()
+        app_entry = next(a for a in result["applications"] if a["packageName"] == "com.example.app")
+        assert "managedConfiguration" in app_entry
+        assert app_entry["managedConfiguration"] == {}
+
+    def test_none_managed_configuration_is_omitted(self):
+        """A None managed_configuration should not produce a managedConfiguration key."""
+        policy = PolicyFactory()
+        app = PolicyApplication.objects.create(
+            policy=policy,
+            package_name="com.example.app",
+            install_type="FORCE_INSTALLED",
+            managed_configuration=None,
+            order=1,
+        )
+        serializer = PolicySerializer(policy=policy, applications=[app])
+        result = serializer.to_dict()
+        app_entry = next(a for a in result["applications"] if a["packageName"] == "com.example.app")
+        assert "managedConfiguration" not in app_entry
+
     def test_variable_substitution(self):
         """Variables should be substituted in string values."""
         policy = PolicyFactory()

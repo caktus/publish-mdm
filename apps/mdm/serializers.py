@@ -100,7 +100,7 @@ class PolicySerializer:
             }
             if app.disabled:
                 entry["disabled"] = True
-            if app.managed_configuration:
+            if app.managed_configuration is not None:
                 entry["managedConfiguration"] = app.managed_configuration
             apps.append(entry)
 

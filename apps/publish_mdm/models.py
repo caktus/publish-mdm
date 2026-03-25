@@ -24,7 +24,7 @@ from apps.infisical.api import kms_api
 from apps.infisical.fields import EncryptedCharField, EncryptedEmailField
 from apps.infisical.managers import EncryptedManager
 from apps.mdm.mdms import get_active_mdm_instance
-from apps.mdm.models import Fleet, Policy
+from apps.mdm.models import Fleet, Policy, PolicyApplication
 from apps.users.models import User
 
 from .etl import template
@@ -71,6 +71,14 @@ class Organization(AbstractBaseModel):
             policy_id=f"policy_default_{get_random_string(12)}",
             mdm=settings.ACTIVE_MDM["name"],
             organization=self,
+        )
+        # Create the pinned ODK Collect app row (order=0) so new policies are consistent
+        # with those created via the policy editor UI.
+        PolicyApplication.objects.create(
+            policy=policy,
+            package_name=policy.odk_collect_package,
+            install_type="FORCE_INSTALLED",
+            order=0,
         )
         fleet = Fleet(organization=self, name="Default", policy=policy)
         active_mdm.create_group(fleet)

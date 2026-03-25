@@ -1,8 +1,14 @@
 import pytest
 
-from apps.mdm.forms import FirmwareSnapshotForm, PolicyApplicationAddForm, PolicyEditForm
-from apps.mdm.models import Policy
+from apps.mdm.forms import (
+    FirmwareSnapshotForm,
+    PolicyApplicationAddForm,
+    PolicyEditForm,
+    PolicyVariableForm,
+)
+from apps.mdm.models import Policy, PolicyVariable
 from tests.mdm.factories import DeviceFactory, PolicyApplicationFactory, PolicyFactory
+from tests.publish_mdm.factories import OrganizationFactory
 
 
 class TestFirmwareSnapshotForm:
@@ -142,3 +148,30 @@ class TestPolicyEditForm:
         data = {**self._base_data(), "kiosk_custom_launcher_enabled": True}
         form = PolicyEditForm(data, instance=new_policy)
         assert form.is_valid(), form.errors
+
+
+@pytest.mark.django_db
+class TestPolicyVariableForm:
+    """Tests for PolicyVariableForm.clean() duplicate-key validation."""
+
+    def test_org_duplicate_key_caught_when_instance_org_is_none(self):
+        """Duplicate org-scoped key should raise ValidationError even when the instance.org
+        is None (e.g., when changing a fleet-scoped variable to org-scoped).
+
+        Regression: previously used self.instance.org which can be None in this case,
+        causing the duplicate check to be silently skipped.
+        """
+        org = OrganizationFactory()
+        # Create an existing org-scoped variable
+        PolicyVariable.objects.create(key="my_key", value="existing", scope="org", org=org)
+
+        # Try to create another with the same key using the form
+        # instance has org=None (simulating a fleet-scoped var being changed to org)
+        instance = PolicyVariable(key="my_key", value="new", scope="fleet", fleet=None, org=None)
+        form = PolicyVariableForm(
+            data={"key": "my_key", "value": "new", "scope": "org", "fleet": ""},
+            instance=instance,
+            organization=org,
+        )
+        assert not form.is_valid()
+        assert any("my_key" in str(e) for e in form.non_field_errors())

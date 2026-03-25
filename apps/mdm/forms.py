@@ -248,6 +248,7 @@ class PolicyVariableForm(PlatformFormMixin, forms.ModelForm):
 
     def __init__(self, *args, organization=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.organization = organization
         if organization:
             self.fields["fleet"].queryset = organization.fleets.all()
         self.fields["fleet"].required = False
@@ -260,7 +261,9 @@ class PolicyVariableForm(PlatformFormMixin, forms.ModelForm):
             return cleaned_data
         qs = PolicyVariable.objects.exclude(pk=self.instance.pk if self.instance.pk else None)
         if scope == PolicyVariableScope.ORG:
-            org = self.instance.org
+            # Use the organization passed at form init time — self.instance.org may be None
+            # if the variable is being changed from fleet-scoped to org-scoped.
+            org = self.organization
             if org and qs.filter(key=key, org=org, scope=scope).exists():
                 raise forms.ValidationError(
                     f'A policy-level variable with key "{key}" already exists.'
