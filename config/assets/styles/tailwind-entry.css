@@ -86,13 +86,8 @@
   @apply invisible absolute z-10 inline-block max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 opacity-0 shadow-xs transition-opacity duration-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white pointer-events-none;
 }
 
-/* Make tooltip visible when data attribute is set */
-#tooltip-odk-package[data-show],
-#tooltip-device-id[data-show],
-#tooltip-kiosk-launcher[data-show],
-#tooltip-kiosk-power[data-show],
-#tooltip-kiosk-errors[data-show],
-#tooltip-kiosk-nav[data-show],
-#tooltip-kiosk-status[data-show] {
-  @apply visible opacity-100;
+/* Make tooltip visible when Flowbite adds the 'visible' class */
+.tooltip-container.visible {
+  visibility: visible;
+  opacity: 100%;
 }
