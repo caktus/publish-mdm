@@ -3047,3 +3047,33 @@ class TestDeviceUpdateAppUser(ViewTestBase):
         device.refresh_from_db()
         assert device.app_user_name != app_user_name
         assertContains(response, expected_error_message)
+
+    def test_push_device_config_called_on_valid_form(self, client, url, user, device, mocker):
+        """After a valid app_user change, push_device_config is called immediately."""
+        mock_mdm = mocker.MagicMock()
+        mocker.patch("apps.publish_mdm.views.get_active_mdm_instance", return_value=mock_mdm)
+        AppUserFactory(name="pushed_user", project=device.fleet.project)
+        client.post(url, data={"app_user_name": "pushed_user"})
+        device.refresh_from_db()
+        assert device.app_user_name == "pushed_user"
+        mock_mdm.push_device_config.assert_called_once()
+        pushed_device = mock_mdm.push_device_config.call_args[0][0]
+        assert pushed_device.pk == device.pk
+
+    def test_push_device_config_not_called_on_invalid_form(self, client, url, user, device, mocker):
+        """push_device_config is not called when the form is invalid."""
+        mock_mdm = mocker.MagicMock()
+        mocker.patch("apps.publish_mdm.views.get_active_mdm_instance", return_value=mock_mdm)
+        client.post(url, data={"app_user_name": "nonexistent_user"})
+        mock_mdm.push_device_config.assert_not_called()
+
+    def test_push_device_config_error_does_not_break_response(self, client, url, user, device, mocker):
+        """An exception from push_device_config is logged but the view still returns 200."""
+        mock_mdm = mocker.MagicMock()
+        mock_mdm.push_device_config.side_effect = Exception("MDM error")
+        mocker.patch("apps.publish_mdm.views.get_active_mdm_instance", return_value=mock_mdm)
+        AppUserFactory(name="some_user", project=device.fleet.project)
+        response = client.post(url, data={"app_user_name": "some_user"})
+        assert response.status_code == 200
+        device.refresh_from_db()
+        assert device.app_user_name == "some_user"

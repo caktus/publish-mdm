@@ -1022,15 +1022,28 @@ def device_import(request, organization_slug):
 @require_POST
 @login_required
 def device_update_app_user(request: HttpRequest, organization_slug, device_pk):
-    """HTMX endpoint to update a Device's app_user_name."""
+    """HTMX endpoint to update a Device's app_user_name.
+
+    After saving, immediately pushes the updated device-specific policy to the MDM
+    so ODK Collect receives the new settings_json for the changed app user.
+    """
     device = get_object_or_404(
-        Device.objects.select_related("fleet__project", "fleet__organization"),
+        Device.objects.select_related("fleet__project", "fleet__organization", "fleet__policy"),
         pk=device_pk,
         fleet__organization=request.organization,
     )
     form = DeviceAppUserForm(request.POST, instance=device)
     if form.is_valid():
         form.save()
+        if active_mdm := get_active_mdm_instance():
+            try:
+                active_mdm.push_device_config(device)
+            except Exception:
+                logger.error(
+                    "Failed to push device config after app_user update",
+                    device=device,
+                    exc_info=True,
+                )
 
     return render(
         request,
