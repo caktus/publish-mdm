@@ -220,7 +220,7 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
             "class": "apps.mdm.mdms.AndroidEnterprise",
         }
         fleet = FleetFactory()
-        device = DeviceFactory(fleet=fleet, device_id="snapdev1")
+        DeviceFactory(fleet=fleet, device_id="snapdev1")
         device_data = {
             "name": "enterprises/test/devices/snapdev1",
             "state": "ACTIVE",

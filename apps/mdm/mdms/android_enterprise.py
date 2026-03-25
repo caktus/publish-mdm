@@ -17,6 +17,9 @@ from .base import MDM, MDMAPIError
 
 logger = structlog.getLogger(__name__)
 SCOPES = ["https://www.googleapis.com/auth/androidmanagement"]
+PUBSUB_SCOPES = ["https://www.googleapis.com/auth/pubsub"]
+# Google-managed service account that Android Device Policy uses to publish notifications.
+ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT = "android-mdm-service@system.gserviceaccount.com"
 
 
 class MDMDevice(dict):
@@ -51,6 +54,17 @@ class AndroidEnterprise(MDM):
             scopes=SCOPES,
         )
         return build("androidmanagement", "v1", credentials=credentials)
+
+    @cached_property
+    def pubsub_api(self):
+        if not self.is_configured:
+            logger.warning("Android Enterprise API credentials not configured.")
+            return None
+        credentials = Credentials.from_service_account_file(
+            self.service_account_file,
+            scopes=PUBSUB_SCOPES,
+        )
+        return build("pubsub", "v1", credentials=credentials)
 
     @property
     def is_configured(self):
@@ -475,31 +489,58 @@ class AndroidEnterprise(MDM):
         self.execute(self.api.enterprises().policies().patch(name=policy_name, body=policy_data))
 
     def configure_pubsub(
-        self, pubsub_topic: str, notification_types: list[str] | None = None
+        self,
+        pubsub_topic: str,
+        notification_types: list[str] | None = None,
+        push_endpoint: str | None = None,
+        subscription_name: str | None = None,
     ) -> dict | None:
         """Configure Pub/Sub push notifications for the enterprise.
 
-        Calls ``enterprises.patch`` to set the ``pubsubTopic`` and
-        ``enabledNotificationTypes`` fields on the enterprise resource.
+        Performs all required Pub/Sub setup steps, then calls ``enterprises.patch``
+        to register the topic with the AMAPI enterprise:
+
+        1. Creates the Pub/Sub topic if it does not already exist.
+        2. Grants ``android-mdm-service@system.gserviceaccount.com``
+           ``roles/pubsub.publisher`` on the topic so that Android Device Policy
+           can publish AMAPI notifications to it.
+        3. Creates a subscription (push or pull) if it does not already exist.
+        4. Patches the enterprise to set ``pubsubTopic`` and
+           ``enabledNotificationTypes``.
 
         Args:
             pubsub_topic: The Cloud Pub/Sub topic name in the format
                 ``projects/{project}/topics/{topic}``.
             notification_types: The notification types to enable.  Defaults to
                 ``["ENROLLMENT", "STATUS_REPORT"]``.
+            push_endpoint: HTTPS URL that Pub/Sub will POST messages to (i.e.
+                the ``/mdm/api/amapi/notifications/`` endpoint of this
+                application).  When ``None`` a pull subscription is created
+                instead.
+            subscription_name: The fully-qualified subscription resource name in
+                the format ``projects/{project}/subscriptions/{subscription}``.
+                Defaults to the topic name with ``/topics/`` replaced by
+                ``/subscriptions/``.
 
         Returns:
-            The updated enterprise resource, or ``None`` if the API is not
-            configured.
+            The updated enterprise resource dict, or ``None`` if the AMAPI is
+            not configured.
         """
         if notification_types is None:
             notification_types = ["ENROLLMENT", "STATUS_REPORT"]
+        if subscription_name is None:
+            subscription_name = pubsub_topic.replace("/topics/", "/subscriptions/", 1)
         logger.info(
             "Configuring AMAPI Pub/Sub notifications",
             enterprise_name=self.enterprise_name,
             pubsub_topic=pubsub_topic,
             notification_types=notification_types,
+            push_endpoint=push_endpoint,
+            subscription_name=subscription_name,
         )
+        self._ensure_pubsub_topic(pubsub_topic)
+        self._grant_pubsub_publisher(pubsub_topic)
+        self._ensure_pubsub_subscription(pubsub_topic, subscription_name, push_endpoint)
         return self.execute(
             self.api.enterprises().patch(
                 name=self.enterprise_name,
@@ -510,6 +551,89 @@ class AndroidEnterprise(MDM):
                 },
             )
         )
+
+    def _ensure_pubsub_topic(self, topic_name: str) -> None:
+        """Create the Pub/Sub topic if it does not already exist."""
+        try:
+            self.pubsub_api.projects().topics().create(name=topic_name, body={}).execute()
+            logger.info("Created Pub/Sub topic", topic=topic_name)
+        except HttpError as e:
+            if e.status_code == 409:
+                logger.info("Pub/Sub topic already exists", topic=topic_name)
+            else:
+                raise
+
+    def _grant_pubsub_publisher(self, topic_name: str) -> None:
+        """Grant Android Device Policy the publisher role on the Pub/Sub topic.
+
+        Fetches the current IAM policy for the topic, appends
+        ``android-mdm-service@system.gserviceaccount.com`` to the
+        ``roles/pubsub.publisher`` binding (creating the binding if it is
+        absent), and writes the updated policy back.
+        """
+        member = f"serviceAccount:{ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT}"
+        try:
+            policy = self.pubsub_api.projects().topics().getIamPolicy(resource=topic_name).execute()
+        except HttpError as e:
+            logger.error(
+                "Failed to get IAM policy for Pub/Sub topic",
+                topic=topic_name,
+                status_code=e.status_code,
+            )
+            raise
+        bindings = policy.get("bindings", [])
+        publisher_binding = next(
+            (b for b in bindings if b["role"] == "roles/pubsub.publisher"), None
+        )
+        if publisher_binding is None:
+            bindings.append({"role": "roles/pubsub.publisher", "members": [member]})
+            policy["bindings"] = bindings
+        elif member in publisher_binding.get("members", []):
+            logger.info(
+                "Android Device Policy already has Pub/Sub publisher rights",
+                topic=topic_name,
+            )
+            return
+        else:
+            publisher_binding["members"].append(member)
+        try:
+            self.pubsub_api.projects().topics().setIamPolicy(
+                resource=topic_name, body={"policy": policy}
+            ).execute()
+        except HttpError as e:
+            logger.error(
+                "Failed to set IAM policy for Pub/Sub topic",
+                topic=topic_name,
+                status_code=e.status_code,
+            )
+            raise
+        logger.info("Granted Android Device Policy Pub/Sub publisher rights", topic=topic_name)
+
+    def _ensure_pubsub_subscription(
+        self, topic_name: str, subscription_name: str, push_endpoint: str | None
+    ) -> None:
+        """Create the Pub/Sub subscription if it does not already exist.
+
+        A push subscription is created when ``push_endpoint`` is provided;
+        otherwise a pull subscription is created.
+        """
+        body: dict = {"topic": topic_name}
+        if push_endpoint:
+            body["pushConfig"] = {"pushEndpoint": push_endpoint}
+        try:
+            self.pubsub_api.projects().subscriptions().create(
+                name=subscription_name, body=body
+            ).execute()
+            logger.info(
+                "Created Pub/Sub subscription",
+                subscription=subscription_name,
+                push_endpoint=push_endpoint,
+            )
+        except HttpError as e:
+            if e.status_code == 409:
+                logger.info("Pub/Sub subscription already exists", subscription=subscription_name)
+            else:
+                raise
 
     def handle_device_notification(self, device_data: dict, notification_type: str) -> None:
         """Handle a device notification received from AMAPI via Pub/Sub.

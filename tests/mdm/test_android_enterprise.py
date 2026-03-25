@@ -1,6 +1,7 @@
 import datetime as dt
 import json
 from collections import namedtuple
+from unittest.mock import MagicMock, PropertyMock
 
 import faker
 import httplib2
@@ -9,6 +10,7 @@ from googleapiclient.errors import HttpError
 from googleapiclient.http import RequestMockBuilder
 
 from apps.mdm.mdms import AndroidEnterprise, MDMAPIError
+from apps.mdm.mdms.android_enterprise import ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT
 from apps.mdm.models import Device
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from tests.mdm import TestAndroidEnterpriseOnly
@@ -550,3 +552,146 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         active_mdm.push_device_config(device)
         mock_get_policy_data.assert_called_once()
         mock_execute.assert_not_called()
+
+    # ------------------------------------------------------------------
+    # configure_pubsub helpers
+    # ------------------------------------------------------------------
+
+    @pytest.fixture
+    def mock_pubsub_api(self, mocker, set_mdm_env_vars):
+        """Return a MagicMock wired up as the pubsub_api on a fresh AndroidEnterprise instance."""
+        active_mdm = AndroidEnterprise()
+        mock_api = MagicMock()
+        mocker.patch.object(
+            type(active_mdm), "pubsub_api", new_callable=PropertyMock, return_value=mock_api
+        )
+        return active_mdm, mock_api
+
+    def test_ensure_pubsub_topic_creates_topic(self, mock_pubsub_api):
+        """_ensure_pubsub_topic() calls topics.create when the topic does not exist."""
+        active_mdm, mock_api = mock_pubsub_api
+        topic = "projects/my-project/topics/my-topic"
+        active_mdm._ensure_pubsub_topic(topic)
+        mock_api.projects().topics().create.assert_called_once_with(name=topic, body={})
+        mock_api.projects().topics().create().execute.assert_called_once()
+
+    def test_ensure_pubsub_topic_already_exists(self, mock_pubsub_api):
+        """_ensure_pubsub_topic() silently ignores a 409 Conflict response."""
+        active_mdm, mock_api = mock_pubsub_api
+        mock_api.projects().topics().create().execute.side_effect = HttpError(
+            httplib2.Response({"status": 409}), b"already exists"
+        )
+        topic = "projects/my-project/topics/my-topic"
+        # Should not raise
+        active_mdm._ensure_pubsub_topic(topic)
+
+    def test_ensure_pubsub_topic_reraises_other_errors(self, mock_pubsub_api):
+        """_ensure_pubsub_topic() re-raises non-409 HttpErrors."""
+        active_mdm, mock_api = mock_pubsub_api
+        mock_api.projects().topics().create().execute.side_effect = HttpError(
+            httplib2.Response({"status": 403}), b"permission denied"
+        )
+        with pytest.raises(HttpError):
+            active_mdm._ensure_pubsub_topic("projects/my-project/topics/my-topic")
+
+    def test_grant_pubsub_publisher_adds_binding(self, mock_pubsub_api):
+        """_grant_pubsub_publisher() adds the ADP service account to the IAM policy."""
+        active_mdm, mock_api = mock_pubsub_api
+        topic = "projects/my-project/topics/my-topic"
+        # No existing bindings
+        mock_api.projects().topics().getIamPolicy().execute.return_value = {"bindings": []}
+        active_mdm._grant_pubsub_publisher(topic)
+        # setIamPolicy should have been called with the new binding
+        call_args = mock_api.projects().topics().setIamPolicy.call_args
+        policy = call_args.kwargs["body"]["policy"]
+        expected_member = f"serviceAccount:{ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT}"
+        assert any(
+            b["role"] == "roles/pubsub.publisher" and expected_member in b["members"]
+            for b in policy["bindings"]
+        )
+
+    def test_grant_pubsub_publisher_already_granted(self, mock_pubsub_api):
+        """_grant_pubsub_publisher() skips setIamPolicy when ADP already has publish rights."""
+        active_mdm, mock_api = mock_pubsub_api
+        topic = "projects/my-project/topics/my-topic"
+        member = f"serviceAccount:{ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT}"
+        mock_api.projects().topics().getIamPolicy().execute.return_value = {
+            "bindings": [{"role": "roles/pubsub.publisher", "members": [member]}]
+        }
+        active_mdm._grant_pubsub_publisher(topic)
+        mock_api.projects().topics().setIamPolicy.assert_not_called()
+
+    def test_grant_pubsub_publisher_get_iam_policy_error(self, mock_pubsub_api):
+        """_grant_pubsub_publisher() re-raises errors from getIamPolicy."""
+        active_mdm, mock_api = mock_pubsub_api
+        mock_api.projects().topics().getIamPolicy().execute.side_effect = HttpError(
+            httplib2.Response({"status": 403}), b"permission denied"
+        )
+        with pytest.raises(HttpError):
+            active_mdm._grant_pubsub_publisher("projects/my-project/topics/my-topic")
+        mock_api.projects().topics().setIamPolicy.assert_not_called()
+
+    def test_grant_pubsub_publisher_set_iam_policy_error(self, mock_pubsub_api):
+        """_grant_pubsub_publisher() re-raises errors from setIamPolicy."""
+        active_mdm, mock_api = mock_pubsub_api
+        mock_api.projects().topics().getIamPolicy().execute.return_value = {"bindings": []}
+        mock_api.projects().topics().setIamPolicy().execute.side_effect = HttpError(
+            httplib2.Response({"status": 403}), b"permission denied"
+        )
+        with pytest.raises(HttpError):
+            active_mdm._grant_pubsub_publisher("projects/my-project/topics/my-topic")
+
+    @pytest.mark.parametrize(
+        "push_endpoint", [None, "https://example.com/mdm/api/amapi/notifications/"]
+    )
+    def test_ensure_pubsub_subscription_creates_subscription(self, mock_pubsub_api, push_endpoint):
+        """_ensure_pubsub_subscription() calls subscriptions.create with the expected body."""
+        active_mdm, mock_api = mock_pubsub_api
+        topic = "projects/my-project/topics/my-topic"
+        sub = "projects/my-project/subscriptions/my-topic"
+        active_mdm._ensure_pubsub_subscription(topic, sub, push_endpoint)
+        expected_body = {"topic": topic}
+        if push_endpoint:
+            expected_body["pushConfig"] = {"pushEndpoint": push_endpoint}
+        mock_api.projects().subscriptions().create.assert_called_once_with(
+            name=sub, body=expected_body
+        )
+
+    def test_ensure_pubsub_subscription_already_exists(self, mock_pubsub_api):
+        """_ensure_pubsub_subscription() silently ignores a 409 Conflict response."""
+        active_mdm, mock_api = mock_pubsub_api
+        mock_api.projects().subscriptions().create().execute.side_effect = HttpError(
+            httplib2.Response({"status": 409}), b"already exists"
+        )
+        # Should not raise
+        active_mdm._ensure_pubsub_subscription(
+            "projects/p/topics/t", "projects/p/subscriptions/t", None
+        )
+
+    def test_configure_pubsub_full_flow(self, mock_pubsub_api, monkeypatch):
+        """configure_pubsub() calls all setup steps and patches the enterprise."""
+        active_mdm, mock_api = mock_pubsub_api
+        topic = "projects/my-project/topics/amapi-notifs"
+        push_endpoint = "https://example.com/mdm/api/amapi/notifications/?token=secret"
+
+        # Successful IAM fetch
+        mock_api.projects().topics().getIamPolicy().execute.return_value = {"bindings": []}
+
+        enterprise_patch_result = {
+            "name": active_mdm.enterprise_name,
+            "pubsubTopic": topic,
+            "enabledNotificationTypes": ["ENROLLMENT", "STATUS_REPORT"],
+        }
+        monkeypatch.setattr(
+            active_mdm,
+            "execute",
+            lambda resource_method: enterprise_patch_result,
+        )
+
+        result = active_mdm.configure_pubsub(topic, push_endpoint=push_endpoint)
+        assert result == enterprise_patch_result
+        # Verify subscription was created with push endpoint
+        sub = topic.replace("/topics/", "/subscriptions/", 1)
+        mock_api.projects().subscriptions().create.assert_called_once_with(
+            name=sub, body={"topic": topic, "pushConfig": {"pushEndpoint": push_endpoint}}
+        )

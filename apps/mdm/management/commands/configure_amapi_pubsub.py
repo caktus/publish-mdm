@@ -11,6 +11,9 @@ logger = structlog.getLogger(__name__)
 class Command(BaseCommand):
     help = (
         "Configure AMAPI Pub/Sub notifications for the Android Enterprise enterprise. "
+        "Creates the Pub/Sub topic and subscription (if they do not exist), grants "
+        "Android Device Policy the right to publish to the topic, and patches the "
+        "enterprise resource with the topic name. "
         "Reads the pubsub topic from the AMAPI_PUBSUB_TOPIC_NAME environment variable."
     )
 
@@ -22,6 +25,25 @@ class Command(BaseCommand):
                 "Cloud Pub/Sub topic name "
                 "(e.g. projects/my-project/topics/my-topic). "
                 "Overrides the AMAPI_PUBSUB_TOPIC_NAME environment variable."
+            ),
+        )
+        parser.add_argument(
+            "--push-endpoint",
+            default=None,
+            help=(
+                "HTTPS URL that Pub/Sub will POST messages to "
+                "(e.g. https://example.com/mdm/api/amapi/notifications/?token=secret). "
+                "When omitted a pull subscription is created instead."
+            ),
+        )
+        parser.add_argument(
+            "--subscription",
+            default=None,
+            metavar="SUBSCRIPTION_NAME",
+            help=(
+                "Fully-qualified Pub/Sub subscription resource name "
+                "(e.g. projects/my-project/subscriptions/my-sub). "
+                "Defaults to the topic name with '/topics/' replaced by '/subscriptions/'."
             ),
         )
         parser.add_argument(
@@ -53,7 +75,14 @@ class Command(BaseCommand):
             )
 
         notification_types = options["notification_types"]
-        result = mdm.configure_pubsub(pubsub_topic, notification_types)
+        push_endpoint = options["push_endpoint"]
+        subscription_name = options["subscription"]
+        result = mdm.configure_pubsub(
+            pubsub_topic,
+            notification_types,
+            push_endpoint=push_endpoint,
+            subscription_name=subscription_name,
+        )
         self.stdout.write(
             self.style.SUCCESS(
                 f"Pub/Sub notifications configured for enterprise "
