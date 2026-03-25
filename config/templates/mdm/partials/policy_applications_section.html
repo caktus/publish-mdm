@@ -11,7 +11,6 @@
                 <tr>
                     <th class="px-3 py-2">Package Name</th>
                     <th class="px-3 py-2">Install Type</th>
-                    <th class="px-3 py-2">Disabled</th>
                     <th class="px-3 py-2">Permission Policy</th>
                     <th class="px-3 py-2">Managed Config</th>
                     <th class="px-3 py-2"></th>
@@ -27,6 +26,7 @@
                                     <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">
                                         {{ app_form.id }}
                                         {{ app_form.package_name.as_hidden }}
+                                        {{ app_form.disabled.as_hidden }}
                                         {{ app.package_name }}
                                         <span class="text-xs text-blue-600 dark:text-blue-400">(pinned)</span>
                                     </td>
@@ -34,8 +34,10 @@
                                         {{ app_form.install_type }}
                                         {{ app_form.install_type.errors }}
                                     </td>
-                                    <td class="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">—</td>
-                                    <td class="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">—</td>
+                                    <td class="px-3 py-2">
+                                        {{ app_form.default_permission_policy }}
+                                        {{ app_form.default_permission_policy.errors }}
+                                    </td>
                                     <td class="px-3 py-2">
                                         <span class="text-xs italic text-gray-400 dark:text-gray-500">auto-injected</span>
                                     </td>
@@ -50,6 +52,7 @@
                                         :class="{ 'line-through': markDelete }">
                                         {{ app_form.id }}
                                         {{ app_form.package_name.as_hidden }}
+                                        {{ app_form.disabled.as_hidden }}
                                         <input type="checkbox"
                                                name="{{ app_form.DELETE.html_name }}"
                                                id="{{ app_form.DELETE.id_for_label }}"
@@ -60,18 +63,6 @@
                                     <td class="px-3 py-2">
                                         {{ app_form.install_type }}
                                         {{ app_form.install_type.errors }}
-                                    </td>
-                                    <td class="px-3 py-2">
-                                        <label class="inline-flex cursor-pointer items-center gap-3"
-                                               for="{{ app_form.disabled.id_for_label }}">
-                                            <input type="checkbox"
-                                                   name="{{ app_form.disabled.html_name }}"
-                                                   id="{{ app_form.disabled.id_for_label }}"
-                                                   {% if app_form.disabled.value %}checked{% endif %}
-                                                   class="sr-only peer">
-                                            <div class="relative h-5 w-9 rounded-full bg-gray-200 after:absolute after:start-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 rtl:peer-checked:after:-translate-x-full dark:border-gray-600 dark:bg-gray-700 dark:peer-checked:bg-blue-600 dark:peer-focus:ring-primary-800">
-                                            </div>
-                                        </label>
                                     </td>
                                     <td class="px-3 py-2">
                                         {{ app_form.default_permission_policy }}
@@ -125,17 +116,6 @@
                                     {{ app_form.install_type }}
                                     {{ app_form.install_type.errors }}
                                 </td>
-                                <td class="px-3 py-2">
-                                    <label class="inline-flex cursor-pointer items-center gap-3"
-                                           for="{{ app_form.disabled.id_for_label }}">
-                                        <input type="checkbox"
-                                               name="{{ app_form.disabled.html_name }}"
-                                               id="{{ app_form.disabled.id_for_label }}"
-                                               class="sr-only peer">
-                                        <div class="relative h-5 w-9 rounded-full bg-gray-200 after:absolute after:start-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 rtl:peer-checked:after:-translate-x-full dark:border-gray-600 dark:bg-gray-700 dark:peer-checked:bg-blue-600 dark:peer-focus:ring-primary-800">
-                                        </div>
-                                    </label>
-                                </td>
                                 <td class="px-3 py-2">{{ app_form.default_permission_policy }}</td>
                                 <td class="px-3 py-2 text-xs italic text-gray-400 dark:text-gray-500">—</td>
                                 <td class="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">Fill package name to add</td>
@@ -154,17 +134,6 @@
                     {{ empty.package_name }}
                 </td>
                 <td class="px-3 py-2">{{ empty.install_type }}</td>
-                <td class="px-3 py-2">
-                    <label class="inline-flex cursor-pointer items-center gap-3"
-                           for="{{ empty.disabled.id_for_label }}">
-                        <input type="checkbox"
-                               name="{{ empty.disabled.html_name }}"
-                               id="{{ empty.disabled.id_for_label }}"
-                               class="sr-only peer">
-                        <div class="relative h-5 w-9 rounded-full bg-gray-200 after:absolute after:start-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 rtl:peer-checked:after:-translate-x-full dark:border-gray-600 dark:bg-gray-700 dark:peer-checked:bg-blue-600 dark:peer-focus:ring-primary-800">
-                        </div>
-                    </label>
-                </td>
                 <td class="px-3 py-2">{{ empty.default_permission_policy }}</td>
                 <td class="px-3 py-2 text-xs italic text-gray-400 dark:text-gray-500">—</td>
                 <td class="px-3 py-2"></td>

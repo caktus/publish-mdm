@@ -1,8 +1,12 @@
 <div class="policy-section">
     <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Policy Variables</h3>
     <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-        Define key/value pairs that can be referenced as <code class="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-gray-700">$variable_name</code> or <code class="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-gray-700">${variable_name}</code>
-        in application managed configurations. Fleet-level values override policy-level values for the same key.
+        Define key/value pairs that can be referenced as
+        <code class="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-gray-700">$variable_name</code>
+        or
+        <code class="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-gray-700">${variable_name}</code>
+        in application managed configurations. Fleet-level values override policy-level values for the
+        same key. Encrypted values are stored securely and are not shown after saving.
     </p>
     <div class="mb-4 rounded-lg bg-gray-50 p-3 dark:bg-gray-700">
         <p class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Built-in system variables</p>
@@ -36,6 +40,7 @@
                 <tr>
                     <th class="px-3 py-2">Variable Name</th>
                     <th class="px-3 py-2">Value</th>
+                    <th class="px-3 py-2">Encrypted</th>
                     <th class="px-3 py-2">Scope</th>
                     <th class="px-3 py-2">Fleet</th>
                     <th class="px-3 py-2"></th>
@@ -47,7 +52,7 @@
                         {% if var.pk %}
                             {# Existing variable row #}
                             <tr class="border-b dark:border-gray-600"
-                                x-data="{ markDelete: false, scope: '{{ var_form.scope.value }}' }"
+                                x-data="{ markDelete: false, scope: '{{ var_form.scope.value }}', isEncrypted: {{ var_form.is_encrypted.value|yesno:'true,false' }} }"
                                 :class="{ 'opacity-50': markDelete }">
                                 <td class="px-3 py-2">
                                     {{ var_form.id }}
@@ -60,8 +65,28 @@
                                     {{ var_form.key.errors }}
                                 </td>
                                 <td class="px-3 py-2">
-                                    {{ var_form.value }}
-                                    {{ var_form.value.errors }}
+                                    <div x-show="!isEncrypted">
+                                        {{ var_form.value }}
+                                        {{ var_form.value.errors }}
+                                    </div>
+                                    <div x-show="isEncrypted">
+                                        {% if var.is_encrypted %}
+                                            <span class="text-xs italic text-gray-400 dark:text-gray-500">encrypted — enter new value to replace</span>
+                                        {% endif %}
+                                        {{ var_form.value }}
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <label class="inline-flex cursor-pointer items-center gap-2">
+                                        <input type="checkbox"
+                                               name="{{ var_form.is_encrypted.html_name }}"
+                                               id="{{ var_form.is_encrypted.id_for_label }}"
+                                               class="sr-only peer"
+                                               {% if var_form.is_encrypted.value %}checked{% endif %}
+                                               @change="isEncrypted = $event.target.checked">
+                                        <div class="relative h-5 w-9 rounded-full bg-gray-200 after:absolute after:start-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 rtl:peer-checked:after:-translate-x-full dark:border-gray-600 dark:bg-gray-700 dark:peer-checked:bg-blue-600 dark:peer-focus:ring-primary-800">
+                                        </div>
+                                    </label>
                                 </td>
                                 <td class="px-3 py-2"
                                     @change.capture="if ($event.target.name === '{{ var_form.scope.html_name }}') scope = $event.target.value">
@@ -89,7 +114,7 @@
                         {% else %}
                             {# Extra row: add a new variable (re-rendered on validation error) #}
                             <tr class="border-b dark:border-gray-600"
-                                x-data="{ scope: '' }"
+                                x-data="{ scope: '', isEncrypted: false }"
                                 @change.capture="if ($event.target.name === '{{ var_form.scope.html_name }}') scope = $event.target.value">
                                 <td class="px-3 py-2">
                                     {{ var_form.id }}
@@ -99,6 +124,17 @@
                                 <td class="px-3 py-2">
                                     {{ var_form.value }}
                                     {{ var_form.value.errors }}
+                                </td>
+                                <td class="px-3 py-2">
+                                    <label class="inline-flex cursor-pointer items-center gap-2">
+                                        <input type="checkbox"
+                                               name="{{ var_form.is_encrypted.html_name }}"
+                                               id="{{ var_form.is_encrypted.id_for_label }}"
+                                               class="sr-only peer"
+                                               @change="isEncrypted = $event.target.checked">
+                                        <div class="relative h-5 w-9 rounded-full bg-gray-200 after:absolute after:start-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 rtl:peer-checked:after:-translate-x-full dark:border-gray-600 dark:bg-gray-700 dark:peer-checked:bg-blue-600 dark:peer-focus:ring-primary-800">
+                                        </div>
+                                    </label>
                                 </td>
                                 <td class="px-3 py-2">
                                     {{ var_form.scope }}
@@ -121,13 +157,24 @@
     {% with empty=var_formset.empty_form %}
         <template id="vars-empty-row">
             <tr class="border-b dark:border-gray-600"
-                x-data="{ scope: '' }"
+                x-data="{ scope: '', isEncrypted: false }"
                 @change.capture="if ($event.target.name === '{{ empty.scope.html_name }}') scope = $event.target.value">
                 <td class="px-3 py-2">
                     {{ empty.id }}
                     {{ empty.key }}
                 </td>
                 <td class="px-3 py-2">{{ empty.value }}</td>
+                <td class="px-3 py-2">
+                    <label class="inline-flex cursor-pointer items-center gap-2">
+                        <input type="checkbox"
+                               name="{{ empty.is_encrypted.html_name }}"
+                               id="{{ empty.is_encrypted.id_for_label }}"
+                               class="sr-only peer"
+                               @change="isEncrypted = $event.target.checked">
+                        <div class="relative h-5 w-9 rounded-full bg-gray-200 after:absolute after:start-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 rtl:peer-checked:after:-translate-x-full dark:border-gray-600 dark:bg-gray-700 dark:peer-checked:bg-blue-600 dark:peer-focus:ring-primary-800">
+                        </div>
+                    </label>
+                </td>
                 <td class="px-3 py-2">{{ empty.scope }}</td>
                 <td class="px-3 py-2">
                     <div x-show="scope === 'fleet'">{{ empty.fleet }}</div>

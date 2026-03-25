@@ -253,7 +253,9 @@ class TestModels(TestAllMDMs):
             managed_configuration={"token": "$api_token"},
             order=1,
         )
-        PolicyVariable.objects.create(key="api_token", value="org_value", scope="org", org=org)
+        PolicyVariable.objects.create(
+            key="api_token", value="policy_value", scope="policy", policy=policy
+        )
         PolicyVariable.objects.create(
             key="api_token", value="fleet_value", scope="fleet", fleet=fleet
         )
@@ -265,12 +267,8 @@ class TestModels(TestAllMDMs):
         # Fleet-scoped variable must override org-scoped variable
         assert app_entry["managedConfiguration"]["token"] == "fleet_value"
 
-    def test_get_policy_data_uses_org_variables_without_fleet(self):
-        """get_policy_data() resolves org-scoped variables even when the policy has no fleet.
-
-        Regression test: variables were only fetched via fleet→org, so a policy not yet
-        attached to any fleet had no org in the query and {{ var }} produced nothing.
-        """
+    def test_get_policy_data_uses_policy_variables_without_fleet(self):
+        """get_policy_data() resolves policy-scoped variables even when the policy has no fleet."""
         org = OrganizationFactory()
         policy = PolicyFactory(organization=org)
         # No fleet — policy.fleets.all() is empty
@@ -282,14 +280,16 @@ class TestModels(TestAllMDMs):
             managed_configuration={"token": "$api_token"},
             order=1,
         )
-        PolicyVariable.objects.create(key="api_token", value="org_value", scope="org", org=org)
+        PolicyVariable.objects.create(
+            key="api_token", value="policy_value", scope="policy", policy=policy
+        )
 
         policy_data = policy.get_policy_data()
         app_entry = next(
             a for a in policy_data["applications"] if a["packageName"] == "com.example.app"
         )
-        # Org-scoped variable must be substituted even with no fleet
-        assert app_entry["managedConfiguration"]["token"] == "org_value"
+        # Policy-scoped variable must be substituted even with no fleet
+        assert app_entry["managedConfiguration"]["token"] == "policy_value"
 
     def test_managed_configuration_str_empty_dict_returns_json(self):
         """managed_configuration_str() returns '{}' for an empty dict, not ''.
@@ -338,13 +338,15 @@ class TestModels(TestAllMDMs):
     def test_policy_variable_str(self):
         """PolicyVariable.__str__ returns key=value (scope) format."""
 
-        variable = PolicyVariableFactory(key="server_url", value="https://example.com", scope="org")
-        assert str(variable) == "server_url=https://example.com (Policy)"
+        variable = PolicyVariableFactory(
+            key="server_url", value="https://example.com", scope="policy"
+        )
+        assert str(variable) == "server_url (Policy)"
 
-    def test_policy_variable_clean_raises_when_org_scope_without_org(self):
-        """PolicyVariable.clean() raises ValidationError when scope=org but org is None."""
-        variable = PolicyVariable(key="k", value="v", scope="org", org=None)
-        with pytest.raises(ValidationError, match="Organization is required"):
+    def test_policy_variable_clean_raises_when_policy_scope_without_policy(self):
+        """PolicyVariable.clean() raises ValidationError when scope=policy but policy is None."""
+        variable = PolicyVariable(key="k", value="v", scope="policy", policy=None)
+        with pytest.raises(ValidationError, match="Policy is required"):
             variable.clean()
 
     def test_policy_variable_clean_raises_when_fleet_scope_without_fleet(self):
@@ -353,23 +355,21 @@ class TestModels(TestAllMDMs):
         with pytest.raises(ValidationError, match="Fleet is required"):
             variable.clean()
 
-    def test_policy_variable_clean_clears_fleet_for_org_scope(self):
-        """PolicyVariable.clean() sets fleet=None for org-scoped variables."""
+    def test_policy_variable_clean_clears_fleet_for_policy_scope(self):
+        """PolicyVariable.clean() sets fleet=None for policy-scoped variables."""
         fleet = FleetFactory()
         variable = PolicyVariable(
-            key="k", value="v", scope="org", org=fleet.organization, fleet=fleet
+            key="k", value="v", scope="policy", policy=fleet.policy, fleet=fleet
         )
         variable.clean()
         assert variable.fleet is None
 
-    def test_policy_variable_clean_clears_org_for_fleet_scope(self):
-        """PolicyVariable.clean() sets org=None for fleet-scoped variables."""
+    def test_policy_variable_clean_clears_policy_for_fleet_scope(self):
+        """PolicyVariable.clean() sets policy=None for fleet-scoped variables."""
         fleet = FleetFactory()
-        variable = PolicyVariable(
-            key="k", value="v", scope="fleet", fleet=fleet, org=fleet.organization
-        )
+        variable = PolicyVariable(key="k", value="v", scope="fleet", fleet=fleet)
         variable.clean()
-        assert variable.org is None
+        assert variable.policy is None
 
     def test_device_odk_collect_qr_code_property(self, fleet):
         """Device.odk_collect_qr_code returns a mark_safe JSON string."""

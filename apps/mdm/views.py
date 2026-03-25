@@ -61,11 +61,11 @@ def _get_policy_or_404(policy_id, organization):
     return get_object_or_404(Policy, pk=policy_id, organization=organization)
 
 
-def _get_org_variables(organization):
-    """Return all PolicyVariables for an org — both org-scoped and fleet-scoped."""
-    return PolicyVariable.objects.filter(
-        Q(org=organization) | Q(fleet__organization=organization)
-    ).select_related("fleet")
+def _get_policy_variables(policy):
+    """Return all PolicyVariables for a policy — both policy-scoped and fleet-scoped."""
+    return PolicyVariable.objects.filter(Q(policy=policy) | Q(fleet__policy=policy)).select_related(
+        "fleet"
+    )
 
 
 def _push_policy_to_mdm(policy):
@@ -168,9 +168,10 @@ def policy_edit(request, organization_slug, policy_id):
         app_formset = PolicyApplicationFormSet(request.POST, instance=policy, prefix="apps")
         var_formset = PolicyVariableFormSet(
             request.POST,
-            queryset=_get_org_variables(organization),
+            queryset=_get_policy_variables(policy),
             prefix="vars",
             organization=organization,
+            policy=policy,
         )
         if form.is_valid() and app_formset.is_valid() and var_formset.is_valid():
             policy = form.save()
@@ -198,11 +199,17 @@ def policy_edit(request, organization_slug, policy_id):
                 odk_app.save()
             variables = var_formset.save(commit=False)
             for var in variables:
-                if var.scope == PolicyVariableScope.ORG:
-                    var.org = organization
+                if var.scope == PolicyVariableScope.POLICY:
+                    var.policy = policy
                     var.fleet = None
                 elif var.scope == PolicyVariableScope.FLEET:
-                    var.org = None
+                    var.policy = None
+                # Move plaintext value to encrypted field if is_encrypted is toggled
+                if var.is_encrypted and var.value:
+                    var.value_encrypted = var.value
+                    var.value = ""
+                elif not var.is_encrypted:
+                    var.value_encrypted = None
                 var.save()
             for var in var_formset.deleted_objects:
                 var.delete()
@@ -213,9 +220,10 @@ def policy_edit(request, organization_slug, policy_id):
         form = PolicyEditForm(instance=policy)
         app_formset = PolicyApplicationFormSet(instance=policy, prefix="apps")
         var_formset = PolicyVariableFormSet(
-            queryset=_get_org_variables(organization),
+            queryset=_get_policy_variables(policy),
             prefix="vars",
             organization=organization,
+            policy=policy,
         )
 
     context = {

@@ -22,11 +22,11 @@
                 </div>
             </div>
             {% include "mdm/partials/policy_password_section.html" %}
-            {% include "mdm/partials/policy_vpn_section.html" %}
             {% include "mdm/partials/policy_kiosk_section.html" %}
-            {% include "mdm/partials/policy_developer_section.html" %}
             {% include "mdm/partials/policy_location_section.html" %}
+            {% include "mdm/partials/policy_developer_section.html" %}
             {% include "mdm/partials/policy_connectivity_section.html" %}
+            {% include "mdm/partials/policy_vpn_section.html" %}
             {% include "mdm/partials/policy_odk_collect_section.html" %}
             {# Applications formset — management_form must be inside the form #}
             {{ app_formset.management_form }}

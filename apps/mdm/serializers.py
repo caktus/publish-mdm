@@ -86,6 +86,11 @@ class PolicySerializer:
             "packageName": self.policy.odk_collect_package,
             "installType": raw_install_type,
         }
+        if pinned_app and pinned_app.default_permission_policy not in (
+            "",
+            "PERMISSION_POLICY_UNSPECIFIED",
+        ):
+            odk_app["defaultPermissionPolicy"] = pinned_app.default_permission_policy
         # Inject managed configuration from device's app user QR code at push time
         if self.device:
             qr_code_string = self.device.get_odk_collect_qr_code_string()
@@ -185,18 +190,23 @@ class PolicySerializer:
         return result or None
 
     def _merge_variables(self) -> dict[str, str]:
-        """Merge variables: fleet-level wins over org-level for the same key."""
+        """Merge variables: fleet-level wins over policy-level for the same key."""
         merged: dict[str, str] = {}
 
-        # Org-level first
+        def _effective_value(var) -> str:
+            if var.is_encrypted and var.value_encrypted:
+                return var.value_encrypted
+            return var.value
+
+        # Policy-level first
         for var in self.variables:
-            if var.scope == "org":
-                merged[var.key] = var.value
+            if var.scope == "policy":
+                merged[var.key] = _effective_value(var)
 
         # Fleet-level overrides
         for var in self.variables:
             if var.scope == "fleet":
-                merged[var.key] = var.value
+                merged[var.key] = _effective_value(var)
 
         # Built-in system variables from device (accessible as {{ imei }}, {{ serial_number }}, etc.)
         if self.device:

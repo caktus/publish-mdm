@@ -106,7 +106,7 @@ class PolicyVariableFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = PolicyVariable
 
-    org = factory.SubFactory(OrganizationFactory)
+    policy = factory.SubFactory(PolicyFactory)
     key = factory.Sequence(lambda n: f"var_key_{n}")
     value = factory.Faker("word")
-    scope = "org"
+    scope = "policy"

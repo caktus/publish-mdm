@@ -102,7 +102,7 @@ class PolicyAdmin(admin.ModelAdmin):
 
 @admin.register(PolicyVariable)
 class PolicyVariableAdmin(admin.ModelAdmin):
-    list_display = ("key", "value", "scope", "org", "fleet")
+    list_display = ("key", "value", "scope", "policy", "fleet")
     list_filter = ("scope",)
     search_fields = ("key", "value")
 

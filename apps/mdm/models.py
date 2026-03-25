@@ -9,6 +9,9 @@ from django.db.models import Q
 from django.utils.html import mark_safe
 from django.utils.timezone import now
 
+from apps.infisical.fields import EncryptedCharField
+from apps.infisical.managers import EncryptedManager
+
 from .serializers import PolicySerializer
 
 logger = structlog.get_logger()
@@ -97,7 +100,7 @@ class LocationMode(models.TextChoices):
     SENSORS_ONLY = "SENSORS_ONLY", "Sensors only / GPS (deprecated, Android 8 and below)"
     BATTERY_SAVING = "BATTERY_SAVING", "Battery saving (deprecated, Android 8 and below)"
     OFF = "OFF", "Off (deprecated, Android 8 and below)"
-    LOCATION_ENFORCED = "LOCATION_ENFORCED", "Enforced on (Android 9+)"
+    LOCATION_ENFORCED = "LOCATION_ENFORCED", "Enforced (Android 9+)"
     LOCATION_DISABLED = "LOCATION_DISABLED", "Disabled (Android 9+)"
     LOCATION_USER_CHOICE = "LOCATION_USER_CHOICE", "User choice (Android 9+)"
 
@@ -130,7 +133,7 @@ class WifiDirectSettings(models.TextChoices):
 
 
 class PolicyVariableScope(models.TextChoices):
-    ORG = "org", "Policy"
+    POLICY = "policy", "Policy"
     FLEET = "fleet", "Fleet"
 
 
@@ -316,15 +319,8 @@ class Policy(models.Model):
         """Generates policy data using the PolicySerializer."""
         device = kwargs.get("device")
         applications = list(self.applications.select_related("policy").order_by("order", "pk"))
-        # Collect organization IDs from fleets using this policy.
-        org_ids = list(self.fleets.values_list("organization", flat=True))
-        # Also include the policy's own organization, if present, so that
-        # org-scoped variables for a new policy (not yet attached to any fleet)
-        # are still available for template substitution.
-        if self.organization_id is not None and self.organization_id not in org_ids:
-            org_ids.append(self.organization_id)
         variables = list(
-            PolicyVariable.objects.filter(Q(org__in=org_ids) | Q(fleet__in=self.fleets.all()))
+            PolicyVariable.decrypted.filter(Q(policy=self) | Q(fleet__in=self.fleets.all()))
         )
         serializer = PolicySerializer(
             policy=self,
@@ -386,10 +382,12 @@ class PolicyVariable(models.Model):
     """User-defined key/value pairs for variable interpolation at push time."""
 
     key = models.CharField(max_length=255)
-    value = models.CharField(max_length=2048)
+    value = models.CharField(max_length=2048, blank=True)
+    value_encrypted = EncryptedCharField(null=True, blank=True)
+    is_encrypted = models.BooleanField(default=False)
     scope = models.CharField(max_length=10, choices=PolicyVariableScope)
-    org = models.ForeignKey(
-        "publish_mdm.Organization",
+    policy = models.ForeignKey(
+        "mdm.Policy",
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -403,12 +401,15 @@ class PolicyVariable(models.Model):
         related_name="policy_variables",
     )
 
+    objects = models.Manager()
+    decrypted = EncryptedManager()
+
     class Meta:
         constraints = (
             models.UniqueConstraint(
-                fields=["key", "org"],
-                condition=models.Q(scope="org"),
-                name="unique_org_policy_variable",
+                fields=["key", "policy"],
+                condition=models.Q(scope="policy"),
+                name="unique_policy_policy_variable",
             ),
             models.UniqueConstraint(
                 fields=["key", "fleet"],
@@ -418,17 +419,17 @@ class PolicyVariable(models.Model):
         )
 
     def __str__(self):
-        return f"{self.key}={self.value} ({self.get_scope_display()})"
+        return f"{self.key} ({self.get_scope_display()})"
 
     def clean(self):
-        if self.scope == PolicyVariableScope.ORG:
-            if not self.org:
-                raise ValidationError("Organization is required for org-scoped variables.")
+        if self.scope == PolicyVariableScope.POLICY:
+            if not self.policy:
+                raise ValidationError("Policy is required for policy-scoped variables.")
             self.fleet = None
         elif self.scope == PolicyVariableScope.FLEET:
             if not self.fleet:
                 raise ValidationError("Fleet is required for fleet-scoped variables.")
-            self.org = None
+            self.policy = None
 
 
 def enroll_qr_code_path(fleet, filename):

@@ -531,13 +531,12 @@ class TestPolicyEditFormsets(PolicyViewBase):
         new_app = policy.applications.get(package_name="com.brand.new")
         assert new_app.order > 0
 
-    def test_variable_scope_change_clears_stale_org_or_fleet(
+    def test_variable_scope_change_clears_stale_policy_or_fleet(
         self, client, url, organization, policy, pinned_app
     ):
-        """A new fleet-scoped variable saves with org=None (not a stale org reference).
+        """A new fleet-scoped variable saves with policy=None (not a stale policy reference).
 
-        Regression test: the old code unconditionally set ``var.org = organization``
-        for all new variables, leaving a stale org FK even on fleet-scoped variables.
+        Regression test: the old code set stale FKs on variables with the wrong scope.
         """
         fleet = FleetFactory(policy=policy, organization=organization)
         data = self._policy_base_data()
@@ -564,5 +563,5 @@ class TestPolicyEditFormsets(PolicyViewBase):
         assert response.status_code == 302
         var = PolicyVariable.objects.get(key="api_token", fleet=fleet)
         assert var.scope == "fleet"
-        # org must NOT be set; the old code left a stale org FK on fleet-scoped variables
-        assert var.org is None
+        # policy must NOT be set on fleet-scoped variables
+        assert var.policy is None

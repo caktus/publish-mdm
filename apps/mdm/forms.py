@@ -255,20 +255,25 @@ class PolicyVariableForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = PolicyVariable
-        fields = ("key", "value", "scope", "fleet")
+        fields = ("key", "value", "is_encrypted", "scope", "fleet")
         widgets: ClassVar = {
             "key": TextInput(attrs={"placeholder": "variable_name"}),
             "value": TextInput(attrs={"placeholder": "value"}),
+            "is_encrypted": CheckboxInput,
             "scope": Select,
             "fleet": Select,
         }
+        labels: ClassVar = {
+            "is_encrypted": "Encrypted",
+        }
 
-    def __init__(self, *args, organization=None, **kwargs):
+    def __init__(self, *args, organization=None, policy=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.organization = organization
         if organization:
             self.fields["fleet"].queryset = organization.fleets.all()
         self.fields["fleet"].required = False
+        self.fields["value"].required = False
 
     def clean(self):
         cleaned_data = super().clean()
@@ -277,11 +282,9 @@ class PolicyVariableForm(PlatformFormMixin, forms.ModelForm):
         if not key or not scope:
             return cleaned_data
         qs = PolicyVariable.objects.exclude(pk=self.instance.pk if self.instance.pk else None)
-        if scope == PolicyVariableScope.ORG:
-            # Use the organization passed at form init time — self.instance.org may be None
-            # if the variable is being changed from fleet-scoped to org-scoped.
-            org = self.organization
-            if org and qs.filter(key=key, org=org, scope=scope).exists():
+        if scope == PolicyVariableScope.POLICY:
+            policy_obj = self.instance.policy
+            if policy_obj and qs.filter(key=key, policy=policy_obj, scope=scope).exists():
                 raise forms.ValidationError(
                     f'A policy-level variable with key "{key}" already exists.'
                 )
@@ -337,19 +340,21 @@ PolicyApplicationFormSet = inlineformset_factory(
 
 
 class PolicyVariableBaseFormSet(BaseModelFormSet):
-    def __init__(self, *args, organization=None, **kwargs):
+    def __init__(self, *args, organization=None, policy=None, **kwargs):
         self.organization = organization
+        self.policy = policy
         super().__init__(*args, **kwargs)
 
     def get_form_kwargs(self, index):
         kwargs = super().get_form_kwargs(index)
         kwargs["organization"] = self.organization
+        kwargs["policy"] = self.policy
         return kwargs
 
     def _construct_form(self, i, **kwargs):
         form = super()._construct_form(i, **kwargs)
-        if not form.instance.pk and self.organization:
-            form.instance.org = self.organization
+        if not form.instance.pk and self.policy:
+            form.instance.policy = self.policy
         return form
 
 
