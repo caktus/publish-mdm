@@ -7,6 +7,8 @@ from apps.mdm.models import Device, DeviceSnapshot
 from tests.mdm import TestAndroidEnterpriseOnly
 from tests.mdm.factories import DeviceFactory, FleetFactory
 
+TOKEN = "test-pubsub-token-secret"
+
 
 def build_pubsub_body(device_data: dict, notification_type: str = "ENROLLMENT") -> dict:
     """Build a minimal Pub/Sub push notification body."""
@@ -28,7 +30,12 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
 
     url = "/mdm/api/amapi/notifications/"
 
-    def post(self, client, body, token=None):
+    @pytest.fixture(autouse=True)
+    def set_pubsub_token(self, settings):
+        """Set ANDROID_ENTERPRISE_PUBSUB_TOKEN for all tests in this class."""
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = TOKEN
+
+    def post(self, client, body, token=TOKEN):
         url = self.url
         if token:
             url = f"{url}?token={token}"
@@ -42,51 +49,49 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
     # Authentication
     # ------------------------------------------------------------------
 
-    def test_no_token_required_when_env_var_not_set(self, client, monkeypatch):
-        """When AMAPI_NOTIF_SECRET_TOKEN is not set, all requests are accepted."""
-        monkeypatch.delenv("AMAPI_NOTIF_SECRET_TOKEN", raising=False)
+    def test_missing_token_setting_rejects_all_requests(self, client, settings):
+        """When ANDROID_ENTERPRISE_PUBSUB_TOKEN is not set, all requests are rejected."""
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = None
         body = build_pubsub_body({"name": "enterprises/test/devices/abc"})
         response = self.post(client, body)
-        assert response.status_code == 204
+        assert response.status_code == 403
 
-    def test_valid_token_accepted(self, client, monkeypatch):
+    def test_valid_token_accepted(self, client):
         """A request with the correct token is accepted."""
-        monkeypatch.setenv("AMAPI_NOTIF_SECRET_TOKEN", "secret123")
         body = build_pubsub_body({"name": "enterprises/test/devices/abc"})
-        response = self.post(client, body, token="secret123")
+        response = self.post(client, body, token=TOKEN)
         assert response.status_code == 204
 
-    def test_invalid_token_rejected(self, client, monkeypatch):
+    def test_invalid_token_rejected(self, client):
         """A request with an incorrect token is rejected with 403."""
-        monkeypatch.setenv("AMAPI_NOTIF_SECRET_TOKEN", "secret123")
         body = build_pubsub_body({"name": "enterprises/test/devices/abc"})
         response = self.post(client, body, token="wrong")
         assert response.status_code == 403
 
-    def test_missing_token_rejected(self, client, monkeypatch):
-        """A request without a token is rejected with 403 when the env var is set."""
-        monkeypatch.setenv("AMAPI_NOTIF_SECRET_TOKEN", "secret123")
+    def test_missing_token_rejected(self, client):
+        """A request without a token is rejected with 403."""
         body = build_pubsub_body({"name": "enterprises/test/devices/abc"})
-        response = self.post(client, body)
+        response = self.post(client, body, token=None)
         assert response.status_code == 403
 
     # ------------------------------------------------------------------
     # Payload validation
     # ------------------------------------------------------------------
 
-    def test_empty_body_returns_400(self, client, monkeypatch):
-        monkeypatch.delenv("AMAPI_NOTIF_SECRET_TOKEN", raising=False)
-        response = client.post(self.url, data="", content_type="application/json")
+    def test_empty_body_returns_400(self, client):
+        response = client.post(
+            f"{self.url}?token={TOKEN}", data="", content_type="application/json"
+        )
         assert response.status_code == 400
 
-    def test_invalid_json_returns_400(self, client, monkeypatch):
-        monkeypatch.delenv("AMAPI_NOTIF_SECRET_TOKEN", raising=False)
-        response = client.post(self.url, data="not-json", content_type="application/json")
+    def test_invalid_json_returns_400(self, client):
+        response = client.post(
+            f"{self.url}?token={TOKEN}", data="not-json", content_type="application/json"
+        )
         assert response.status_code == 400
 
-    def test_missing_data_field_returns_204(self, client, monkeypatch):
+    def test_missing_data_field_returns_204(self, client):
         """A message without a data payload is accepted (acknowledged) silently."""
-        monkeypatch.delenv("AMAPI_NOTIF_SECRET_TOKEN", raising=False)
         body = {
             "message": {
                 "attributes": {"notificationType": "ENROLLMENT"},
@@ -97,8 +102,7 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
         response = self.post(client, body)
         assert response.status_code == 204
 
-    def test_invalid_base64_data_returns_400(self, client, monkeypatch):
-        monkeypatch.delenv("AMAPI_NOTIF_SECRET_TOKEN", raising=False)
+    def test_invalid_base64_data_returns_400(self, client):
         body = {
             "message": {
                 "attributes": {"notificationType": "ENROLLMENT"},
@@ -110,9 +114,8 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
         response = self.post(client, body)
         assert response.status_code == 400
 
-    def test_unknown_notification_type_returns_204(self, client, monkeypatch):
+    def test_unknown_notification_type_returns_204(self, client):
         """An unknown notification type is acknowledged without processing."""
-        monkeypatch.delenv("AMAPI_NOTIF_SECRET_TOKEN", raising=False)
         body = build_pubsub_body(
             {"name": "enterprises/test/devices/abc"}, notification_type="COMMAND"
         )
@@ -123,9 +126,8 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
     # ENROLLMENT notification handling
     # ------------------------------------------------------------------
 
-    def test_enrollment_creates_new_device(self, client, monkeypatch, settings):
+    def test_enrollment_creates_new_device(self, client, settings):
         """An ENROLLMENT notification for a new device creates a Device record."""
-        monkeypatch.delenv("AMAPI_NOTIF_SECRET_TOKEN", raising=False)
         settings.ACTIVE_MDM = {
             "name": "Android Enterprise",
             "class": "apps.mdm.mdms.AndroidEnterprise",
@@ -145,9 +147,8 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
         assert device.serial_number == "SN-NEW-001"
         assert device.name == device_data["name"]
 
-    def test_enrollment_updates_existing_device(self, client, monkeypatch, settings):
+    def test_enrollment_updates_existing_device(self, client, settings):
         """An ENROLLMENT notification for an existing device updates it."""
-        monkeypatch.delenv("AMAPI_NOTIF_SECRET_TOKEN", raising=False)
         settings.ACTIVE_MDM = {
             "name": "Android Enterprise",
             "class": "apps.mdm.mdms.AndroidEnterprise",
@@ -166,9 +167,8 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
         device.refresh_from_db()
         assert device.serial_number == "NEW-SN"
 
-    def test_enrollment_without_fleet_data_skips_creation(self, client, monkeypatch, settings):
+    def test_enrollment_without_fleet_data_skips_creation(self, client, settings):
         """An ENROLLMENT notification without fleet info does not create a device."""
-        monkeypatch.delenv("AMAPI_NOTIF_SECRET_TOKEN", raising=False)
         settings.ACTIVE_MDM = {
             "name": "Android Enterprise",
             "class": "apps.mdm.mdms.AndroidEnterprise",
@@ -188,9 +188,8 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
     # STATUS_REPORT notification handling
     # ------------------------------------------------------------------
 
-    def test_status_report_updates_existing_device(self, client, monkeypatch, settings):
+    def test_status_report_updates_existing_device(self, client, settings):
         """A STATUS_REPORT notification updates the device metadata."""
-        monkeypatch.delenv("AMAPI_NOTIF_SECRET_TOKEN", raising=False)
         settings.ACTIVE_MDM = {
             "name": "Android Enterprise",
             "class": "apps.mdm.mdms.AndroidEnterprise",
@@ -212,9 +211,8 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
         assert device.serial_number == "STATUS-SN"
         assert device.raw_mdm_device == device_data
 
-    def test_status_report_creates_snapshot(self, client, monkeypatch, settings):
+    def test_status_report_creates_snapshot(self, client, settings):
         """A STATUS_REPORT with sufficient data creates a DeviceSnapshot."""
-        monkeypatch.delenv("AMAPI_NOTIF_SECRET_TOKEN", raising=False)
         settings.ACTIVE_MDM = {
             "name": "Android Enterprise",
             "class": "apps.mdm.mdms.AndroidEnterprise",
@@ -234,9 +232,8 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
         assert response.status_code == 204
         assert DeviceSnapshot.objects.count() == snapshot_count_before + 1
 
-    def test_status_report_for_unknown_device_returns_204(self, client, monkeypatch, settings):
+    def test_status_report_for_unknown_device_returns_204(self, client, settings):
         """A STATUS_REPORT for a device not in our DB is acknowledged silently."""
-        monkeypatch.delenv("AMAPI_NOTIF_SECRET_TOKEN", raising=False)
         settings.ACTIVE_MDM = {
             "name": "Android Enterprise",
             "class": "apps.mdm.mdms.AndroidEnterprise",

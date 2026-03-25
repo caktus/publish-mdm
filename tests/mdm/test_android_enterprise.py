@@ -6,11 +6,15 @@ from unittest.mock import MagicMock, PropertyMock
 import faker
 import httplib2
 import pytest
+from django.contrib.sites.models import Site
 from googleapiclient.errors import HttpError
 from googleapiclient.http import RequestMockBuilder
 
 from apps.mdm.mdms import AndroidEnterprise, MDMAPIError
-from apps.mdm.mdms.android_enterprise import ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT
+from apps.mdm.mdms.android_enterprise import (
+    ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT,
+    PUBSUB_RESOURCE_NAME,
+)
 from apps.mdm.models import Device
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from tests.mdm import TestAndroidEnterpriseOnly
@@ -559,13 +563,50 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
 
     @pytest.fixture
     def mock_pubsub_api(self, mocker, set_mdm_env_vars):
-        """Return a MagicMock wired up as the pubsub_api on a fresh AndroidEnterprise instance."""
+        """Return a MagicMock wired up as the pubsub_api on a fresh AndroidEnterprise instance.
+
+        Also mocks ``project_id``, ``pubsub_topic``, and ``pubsub_subscription``
+        so that tests do not depend on real service-account key file content.
+        """
         active_mdm = AndroidEnterprise()
         mock_api = MagicMock()
         mocker.patch.object(
             type(active_mdm), "pubsub_api", new_callable=PropertyMock, return_value=mock_api
         )
+        mocker.patch.object(
+            type(active_mdm),
+            "project_id",
+            new_callable=PropertyMock,
+            return_value="my-project",
+        )
+        mocker.patch.object(
+            type(active_mdm),
+            "pubsub_topic",
+            new_callable=PropertyMock,
+            return_value="projects/my-project/topics/publish-mdm",
+        )
+        mocker.patch.object(
+            type(active_mdm),
+            "pubsub_subscription",
+            new_callable=PropertyMock,
+            return_value="projects/my-project/subscriptions/publish-mdm",
+        )
         return active_mdm, mock_api
+
+    def test_pubsub_topic_and_subscription_names(self, mocker, set_mdm_env_vars):
+        """pubsub_topic and pubsub_subscription are derived from the project_id."""
+        active_mdm = AndroidEnterprise()
+        mocker.patch.object(
+            type(active_mdm),
+            "project_id",
+            new_callable=PropertyMock,
+            return_value="test-project",
+        )
+        assert active_mdm.pubsub_topic == f"projects/test-project/topics/{PUBSUB_RESOURCE_NAME}"
+        assert (
+            active_mdm.pubsub_subscription
+            == f"projects/test-project/subscriptions/{PUBSUB_RESOURCE_NAME}"
+        )
 
     def test_ensure_pubsub_topic_creates_topic(self, mock_pubsub_api):
         """_ensure_pubsub_topic() calls topics.create when the topic does not exist."""
@@ -671,7 +712,8 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
     def test_configure_pubsub_full_flow(self, mock_pubsub_api, monkeypatch):
         """configure_pubsub() calls all setup steps and patches the enterprise."""
         active_mdm, mock_api = mock_pubsub_api
-        topic = "projects/my-project/topics/amapi-notifs"
+        expected_topic = active_mdm.pubsub_topic
+        expected_sub = active_mdm.pubsub_subscription
         push_endpoint = "https://example.com/mdm/api/amapi/notifications/?token=secret"
 
         # Successful IAM fetch
@@ -679,7 +721,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
 
         enterprise_patch_result = {
             "name": active_mdm.enterprise_name,
-            "pubsubTopic": topic,
+            "pubsubTopic": expected_topic,
             "enabledNotificationTypes": ["ENROLLMENT", "STATUS_REPORT"],
         }
         monkeypatch.setattr(
@@ -688,10 +730,29 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             lambda resource_method: enterprise_patch_result,
         )
 
-        result = active_mdm.configure_pubsub(topic, push_endpoint=push_endpoint)
+        result = active_mdm.configure_pubsub(push_endpoint=push_endpoint)
         assert result == enterprise_patch_result
+        # Verify topic was created with the auto-generated name
+        mock_api.projects().topics().create.assert_called_once_with(name=expected_topic, body={})
         # Verify subscription was created with push endpoint
-        sub = topic.replace("/topics/", "/subscriptions/", 1)
         mock_api.projects().subscriptions().create.assert_called_once_with(
-            name=sub, body={"topic": topic, "pushConfig": {"pushEndpoint": push_endpoint}}
+            name=expected_sub,
+            body={"topic": expected_topic, "pushConfig": {"pushEndpoint": push_endpoint}},
         )
+
+    @pytest.mark.django_db
+    def test_build_push_endpoint(self, mock_pubsub_api, settings):
+        """_build_push_endpoint() returns the correct URL using the Site domain and token."""
+        active_mdm, _ = mock_pubsub_api
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = "mysecret"
+        Site.objects.filter(pk=settings.SITE_ID).update(domain="app.example.com")
+        endpoint = active_mdm._build_push_endpoint()
+        assert endpoint == "https://app.example.com/mdm/api/amapi/notifications/?token=mysecret"
+
+    @pytest.mark.django_db
+    def test_build_push_endpoint_raises_when_token_not_set(self, mock_pubsub_api, settings):
+        """_build_push_endpoint() raises ValueError when ANDROID_ENTERPRISE_PUBSUB_TOKEN is unset."""
+        active_mdm, _ = mock_pubsub_api
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = None
+        with pytest.raises(ValueError, match="ANDROID_ENTERPRISE_PUBSUB_TOKEN"):
+            active_mdm._build_push_endpoint()

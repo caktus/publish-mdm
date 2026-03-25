@@ -16,10 +16,15 @@ from apps.publish_mdm.utils import create_qr_code
 from .base import MDM, MDMAPIError
 
 logger = structlog.getLogger(__name__)
-SCOPES = ["https://www.googleapis.com/auth/androidmanagement"]
-PUBSUB_SCOPES = ["https://www.googleapis.com/auth/pubsub"]
+# Single set of scopes used for the combined credentials object.
+ALL_SCOPES = [
+    "https://www.googleapis.com/auth/androidmanagement",
+    "https://www.googleapis.com/auth/pubsub",
+]
 # Google-managed service account that Android Device Policy uses to publish notifications.
 ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT = "android-mdm-service@system.gserviceaccount.com"
+# Fixed resource name suffix used for this application's Pub/Sub topic and subscription.
+PUBSUB_RESOURCE_NAME = "publish-mdm"
 
 
 class MDMDevice(dict):
@@ -45,26 +50,51 @@ class AndroidEnterprise(MDM):
         return f"enterprises/{self.enterprise_id}"
 
     @cached_property
+    def credentials(self):
+        """Single :class:`~google.oauth2.service_account.Credentials` object with
+        both the Android Management and Pub/Sub OAuth scopes.  All API clients
+        share this object so that only one service-account key file read is needed.
+        """
+        if not self.is_configured:
+            logger.warning("Android Enterprise API credentials not configured.")
+            return None
+        return Credentials.from_service_account_file(
+            self.service_account_file,
+            scopes=ALL_SCOPES,
+        )
+
+    @cached_property
     def api(self):
         if not self.is_configured:
             logger.warning("Android Enterprise API credentials not configured.")
             return None
-        credentials = Credentials.from_service_account_file(
-            self.service_account_file,
-            scopes=SCOPES,
-        )
-        return build("androidmanagement", "v1", credentials=credentials)
+        return build("androidmanagement", "v1", credentials=self.credentials)
 
     @cached_property
     def pubsub_api(self):
         if not self.is_configured:
             logger.warning("Android Enterprise API credentials not configured.")
             return None
-        credentials = Credentials.from_service_account_file(
-            self.service_account_file,
-            scopes=PUBSUB_SCOPES,
-        )
-        return build("pubsub", "v1", credentials=credentials)
+        return build("pubsub", "v1", credentials=self.credentials)
+
+    @property
+    def project_id(self) -> str | None:
+        """Google Cloud project ID derived from the service account credentials."""
+        return self.credentials.project_id if self.credentials is not None else None
+
+    @property
+    def pubsub_topic(self) -> str | None:
+        """Fully-qualified Pub/Sub topic resource name for this application."""
+        if self.project_id is None:
+            return None
+        return f"projects/{self.project_id}/topics/{PUBSUB_RESOURCE_NAME}"
+
+    @property
+    def pubsub_subscription(self) -> str | None:
+        """Fully-qualified Pub/Sub subscription resource name for this application."""
+        if self.project_id is None:
+            return None
+        return f"projects/{self.project_id}/subscriptions/{PUBSUB_RESOURCE_NAME}"
 
     @property
     def is_configured(self):
@@ -490,37 +520,35 @@ class AndroidEnterprise(MDM):
 
     def configure_pubsub(
         self,
-        pubsub_topic: str,
         notification_types: list[str] | None = None,
         push_endpoint: str | None = None,
-        subscription_name: str | None = None,
     ) -> dict | None:
         """Configure Pub/Sub push notifications for the enterprise.
 
         Performs all required Pub/Sub setup steps, then calls ``enterprises.patch``
         to register the topic with the AMAPI enterprise:
 
-        1. Creates the Pub/Sub topic if it does not already exist.
+        1. Creates the Pub/Sub topic ``projects/{project_id}/topics/publish-mdm``
+           if it does not already exist.
         2. Grants ``android-mdm-service@system.gserviceaccount.com``
            ``roles/pubsub.publisher`` on the topic so that Android Device Policy
            can publish AMAPI notifications to it.
-        3. Creates a subscription (push or pull) if it does not already exist.
+        3. Creates a push subscription
+           ``projects/{project_id}/subscriptions/publish-mdm`` if it does not
+           already exist.  When ``push_endpoint`` is ``None`` it is auto-generated
+           from the current ``Site`` domain, the ``amapi_notifications`` URL, and
+           the ``ANDROID_ENTERPRISE_PUBSUB_TOKEN`` setting.
         4. Patches the enterprise to set ``pubsubTopic`` and
            ``enabledNotificationTypes``.
 
         Args:
-            pubsub_topic: The Cloud Pub/Sub topic name in the format
-                ``projects/{project}/topics/{topic}``.
             notification_types: The notification types to enable.  Defaults to
                 ``["ENROLLMENT", "STATUS_REPORT"]``.
             push_endpoint: HTTPS URL that Pub/Sub will POST messages to (i.e.
                 the ``/mdm/api/amapi/notifications/`` endpoint of this
-                application).  When ``None`` a pull subscription is created
-                instead.
-            subscription_name: The fully-qualified subscription resource name in
-                the format ``projects/{project}/subscriptions/{subscription}``.
-                Defaults to the topic name with ``/topics/`` replaced by
-                ``/subscriptions/``.
+                application).  When ``None`` the endpoint is auto-generated
+                using the current ``Site`` domain and the
+                ``ANDROID_ENTERPRISE_PUBSUB_TOKEN`` Django setting.
 
         Returns:
             The updated enterprise resource dict, or ``None`` if the AMAPI is
@@ -528,8 +556,10 @@ class AndroidEnterprise(MDM):
         """
         if notification_types is None:
             notification_types = ["ENROLLMENT", "STATUS_REPORT"]
-        if subscription_name is None:
-            subscription_name = pubsub_topic.replace("/topics/", "/subscriptions/", 1)
+        if push_endpoint is None:
+            push_endpoint = self._build_push_endpoint()
+        pubsub_topic = self.pubsub_topic
+        subscription_name = self.pubsub_subscription
         logger.info(
             "Configuring AMAPI Pub/Sub notifications",
             enterprise_name=self.enterprise_name,
@@ -551,6 +581,29 @@ class AndroidEnterprise(MDM):
                 },
             )
         )
+
+    def _build_push_endpoint(self) -> str:
+        """Build the push endpoint URL from the current ``Site`` and token setting.
+
+        Uses the domain from ``django.contrib.sites`` ``Site`` object and
+        reverses the ``mdm:amapi_notifications`` URL.  The
+        ``ANDROID_ENTERPRISE_PUBSUB_TOKEN`` Django setting must be configured;
+        an exception is raised if it is absent so that misconfigured push
+        subscriptions are detected at setup time rather than at runtime.
+        """
+        from django.conf import settings  # noqa: PLC0415
+        from django.contrib.sites.models import Site  # noqa: PLC0415
+        from django.urls import reverse  # noqa: PLC0415
+
+        token = settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN
+        if not token:
+            raise ValueError(
+                "ANDROID_ENTERPRISE_PUBSUB_TOKEN must be set before configuring Pub/Sub. "
+                "The notification endpoint rejects all requests when this setting is absent."
+            )
+        site = Site.objects.get_current()
+        path = reverse("mdm:amapi_notifications")
+        return f"https://{site.domain}{path}?token={token}"
 
     def _ensure_pubsub_topic(self, topic_name: str) -> None:
         """Create the Pub/Sub topic if it does not already exist."""

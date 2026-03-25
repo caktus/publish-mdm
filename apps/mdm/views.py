@@ -1,8 +1,8 @@
 import base64
 import json
-import os
 
 import structlog
+from django.conf import settings
 from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
@@ -41,20 +41,21 @@ def amapi_notifications_view(request):
     and a ``notificationType`` attribute.
 
     Authentication is performed by comparing the ``token`` query parameter
-    against the ``AMAPI_NOTIF_SECRET_TOKEN`` environment variable.  When the
-    environment variable is not set all requests are accepted (useful in
-    development).
+    against the ``ANDROID_ENTERPRISE_PUBSUB_TOKEN`` Django setting.  All
+    requests are rejected if the setting is not configured.
 
     Returns HTTP 204 on success so that Pub/Sub acknowledges the message and
     does not retry.
     """
-    secret_token = os.getenv("AMAPI_NOTIF_SECRET_TOKEN")
-    if secret_token:
-        # The push subscription URL should include ?token=<secret>
-        request_token = request.GET.get("token", "")
-        if not (request_token and request_token == secret_token):
-            logger.warning("AMAPI notification received with invalid or missing token")
-            return HttpResponse(status=403)
+    secret_token = settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN
+    if not secret_token:
+        logger.warning("AMAPI notification rejected: ANDROID_ENTERPRISE_PUBSUB_TOKEN is not set")
+        return HttpResponse(status=403)
+    # The push subscription URL should include ?token=<secret>
+    request_token = request.GET.get("token", "")
+    if not (request_token and request_token == secret_token):
+        logger.warning("AMAPI notification received with invalid or missing token")
+        return HttpResponse(status=403)
 
     if not request.body:
         return HttpResponse(status=400)
