@@ -42,7 +42,7 @@ def push_mdm_device_config(context: dg.AssetExecutionContext, config: DeviceConf
         raise ValueError(f"Devices with IDs {config.device_pks} not found.")
     failed_pks = []
     # Group devices by organization so we use the correct MDM instance per org.
-    devices_by_org: dict = {}
+    devices_by_org: dict[Organization, list[Device]] = {}
     for device in devices:
         org = device.fleet.organization
         devices_by_org.setdefault(org, []).append(device)
