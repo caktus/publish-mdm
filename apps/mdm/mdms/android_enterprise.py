@@ -36,6 +36,11 @@ class AndroidEnterprise(MDM):
         self.api_errors = []
         self.enterprise_id = os.getenv("ANDROID_ENTERPRISE_ID")
         self.service_account_file = os.getenv("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE")
+        if (self.enterprise_id or self.service_account_file) and not self.is_configured:
+            raise ValueError(
+                "Android Enterprise MDM credentials are not properly configured or service account file is missing."
+                f"{self.enterprise_id=}, {self.service_account_file=}"
+            )
 
     @property
     def enterprise_name(self):
@@ -44,7 +49,6 @@ class AndroidEnterprise(MDM):
     @cached_property
     def api(self):
         if not self.is_configured:
-            logger.warning("Android Enterprise API credentials not configured.")
             return None
         credentials = Credentials.from_service_account_file(
             self.service_account_file,
