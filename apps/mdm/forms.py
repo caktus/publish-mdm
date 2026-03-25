@@ -104,15 +104,17 @@ class PolicyApplicationForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = PolicyApplication
-        fields = ("package_name", "install_type", "disabled")
+        fields = ("package_name", "install_type", "disabled", "default_permission_policy")
         widgets: ClassVar = {
             "package_name": TextInput,
             "install_type": Select,
             "disabled": CheckboxInput,
+            "default_permission_policy": Select,
         }
         labels: ClassVar = {
             "install_type": "Install type",
             "disabled": "Disabled",
+            "default_permission_policy": "Permission policy",
         }
 
     def has_changed(self):
@@ -173,6 +175,11 @@ class PolicyEditForm(PlatformFormMixin, forms.ModelForm):
             "kiosk_status_bar",
             "kiosk_device_settings",
             "developer_settings",
+            "location_mode",
+            "connectivity_usb_data_access",
+            "connectivity_configure_wifi",
+            "connectivity_tethering_settings",
+            "connectivity_wifi_direct_settings",
         ]
         widgets: ClassVar = {
             "name": TextInput(attrs={"placeholder": "Policy name"}),
@@ -199,6 +206,11 @@ class PolicyEditForm(PlatformFormMixin, forms.ModelForm):
             "kiosk_status_bar": Select,
             "kiosk_device_settings": Select,
             "developer_settings": Select,
+            "location_mode": Select,
+            "connectivity_usb_data_access": Select,
+            "connectivity_configure_wifi": Select,
+            "connectivity_tethering_settings": Select,
+            "connectivity_wifi_direct_settings": Select,
         }
         labels: ClassVar = {
             "odk_collect_package": "Package name override",
@@ -218,6 +230,11 @@ class PolicyEditForm(PlatformFormMixin, forms.ModelForm):
             "kiosk_status_bar": "Status bar",
             "kiosk_device_settings": "Device settings",
             "developer_settings": "Developer options",
+            "location_mode": "Location mode",
+            "connectivity_usb_data_access": "USB data access",
+            "connectivity_configure_wifi": "Wi-Fi configuration",
+            "connectivity_tethering_settings": "Tethering",
+            "connectivity_wifi_direct_settings": "Wi-Fi Direct",
         }
 
     def clean(self):

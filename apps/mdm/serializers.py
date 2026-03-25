@@ -60,6 +60,13 @@ class PolicySerializer:
         if kiosk_customization:
             result["kioskCustomization"] = kiosk_customization
 
+        if self.policy.location_mode not in ("", "LOCATION_MODE_UNSPECIFIED"):
+            result["locationMode"] = self.policy.location_mode
+
+        connectivity = self._build_device_connectivity_management()
+        if connectivity:
+            result["deviceConnectivityManagement"] = connectivity
+
         # Resolve variable placeholders in all string values
         merged_vars = self._merge_variables()
         self._resolve_variables(result, merged_vars)
@@ -98,6 +105,8 @@ class PolicySerializer:
                 "packageName": app.package_name,
                 "installType": app.install_type,
             }
+            if app.default_permission_policy not in ("", "PERMISSION_POLICY_UNSPECIFIED"):
+                entry["defaultPermissionPolicy"] = app.default_permission_policy
             if app.disabled:
                 entry["disabled"] = True
             if app.managed_configuration is not None:
@@ -161,6 +170,19 @@ class PolicySerializer:
         if not ds:
             return None
         return {"developerSettings": ds}
+
+    def _build_device_connectivity_management(self) -> dict | None:
+        p = self.policy
+        result = {}
+        if p.connectivity_usb_data_access not in ("", "USB_DATA_ACCESS_UNSPECIFIED"):
+            result["usbDataAccess"] = p.connectivity_usb_data_access
+        if p.connectivity_configure_wifi not in ("", "CONFIGURE_WIFI_UNSPECIFIED"):
+            result["configureWifi"] = p.connectivity_configure_wifi
+        if p.connectivity_tethering_settings not in ("", "TETHERING_SETTINGS_UNSPECIFIED"):
+            result["tetheringSettings"] = p.connectivity_tethering_settings
+        if p.connectivity_wifi_direct_settings not in ("", "WIFI_DIRECT_SETTINGS_UNSPECIFIED"):
+            result["wifiDirectSettings"] = p.connectivity_wifi_direct_settings
+        return result or None
 
     def _merge_variables(self) -> dict[str, str]:
         """Merge variables: fleet-level wins over org-level for the same key."""

@@ -1,11 +1,16 @@
 import pytest
 
 from apps.mdm.models import (
+    ConfigureWifi,
     DeveloperSettings,
+    LocationMode,
     PasswordQuality,
     PolicyApplication,
     PolicyVariable,
     RequirePasswordUnlock,
+    TetheringSettings,
+    UsbDataAccess,
+    WifiDirectSettings,
 )
 from apps.mdm.serializers import PolicySerializer
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
@@ -374,3 +379,113 @@ class TestPolicySerializer(TestAllMDMs):
         result = serializer.to_dict()
         odk_app = result["applications"][0]
         assert "device_id" not in odk_app["managedConfiguration"]
+
+    def test_default_permission_policy_included_when_set(self):
+        """defaultPermissionPolicy should appear in the app entry when not UNSPECIFIED."""
+        policy = PolicyFactory()
+        app = PolicyApplication.objects.create(
+            policy=policy,
+            package_name="com.example.app",
+            install_type="FORCE_INSTALLED",
+            default_permission_policy="GRANT",
+            order=1,
+        )
+        serializer = PolicySerializer(policy=policy, applications=[app])
+        result = serializer.to_dict()
+        app_entry = next(a for a in result["applications"] if a["packageName"] == "com.example.app")
+        assert app_entry["defaultPermissionPolicy"] == "GRANT"
+
+    def test_default_permission_policy_omitted_when_unspecified(self):
+        """defaultPermissionPolicy should be absent when PERMISSION_POLICY_UNSPECIFIED."""
+        policy = PolicyFactory()
+        app = PolicyApplication.objects.create(
+            policy=policy,
+            package_name="com.example.app",
+            install_type="FORCE_INSTALLED",
+            default_permission_policy="PERMISSION_POLICY_UNSPECIFIED",
+            order=1,
+        )
+        serializer = PolicySerializer(policy=policy, applications=[app])
+        result = serializer.to_dict()
+        app_entry = next(a for a in result["applications"] if a["packageName"] == "com.example.app")
+        assert "defaultPermissionPolicy" not in app_entry
+
+    def test_default_permission_policy_deny(self):
+        """DENY value for defaultPermissionPolicy should appear correctly."""
+        policy = PolicyFactory()
+        app = PolicyApplication.objects.create(
+            policy=policy,
+            package_name="com.example.app",
+            install_type="FORCE_INSTALLED",
+            default_permission_policy="DENY",
+            order=1,
+        )
+        serializer = PolicySerializer(policy=policy, applications=[app])
+        result = serializer.to_dict()
+        app_entry = next(a for a in result["applications"] if a["packageName"] == "com.example.app")
+        assert app_entry["defaultPermissionPolicy"] == "DENY"
+
+    def test_location_mode_enforced_included(self):
+        """locationMode should appear in the output when set to LOCATION_ENFORCED."""
+        policy = PolicyFactory(location_mode=LocationMode.LOCATION_ENFORCED)
+        serializer = PolicySerializer(policy=policy)
+        result = serializer.to_dict()
+        assert result["locationMode"] == "LOCATION_ENFORCED"
+
+    def test_location_mode_disabled_included(self):
+        """locationMode should appear when set to LOCATION_DISABLED."""
+        policy = PolicyFactory(location_mode=LocationMode.LOCATION_DISABLED)
+        serializer = PolicySerializer(policy=policy)
+        result = serializer.to_dict()
+        assert result["locationMode"] == "LOCATION_DISABLED"
+
+    def test_location_mode_unspecified_omitted(self):
+        """locationMode should be absent when LOCATION_MODE_UNSPECIFIED."""
+        policy = PolicyFactory(location_mode=LocationMode.LOCATION_MODE_UNSPECIFIED)
+        serializer = PolicySerializer(policy=policy)
+        result = serializer.to_dict()
+        assert "locationMode" not in result
+
+    def test_device_connectivity_management_usb_restriction(self):
+        """deviceConnectivityManagement.usbDataAccess should be emitted when set."""
+        policy = PolicyFactory(
+            connectivity_usb_data_access=UsbDataAccess.DISALLOW_USB_DATA_TRANSFER
+        )
+        serializer = PolicySerializer(policy=policy)
+        result = serializer.to_dict()
+        assert result["deviceConnectivityManagement"] == {
+            "usbDataAccess": "DISALLOW_USB_DATA_TRANSFER"
+        }
+
+    def test_device_connectivity_management_omitted_when_all_unspecified(self):
+        """deviceConnectivityManagement should be absent when all sub-fields are UNSPECIFIED."""
+        policy = PolicyFactory()
+        serializer = PolicySerializer(policy=policy)
+        result = serializer.to_dict()
+        assert "deviceConnectivityManagement" not in result
+
+    def test_device_connectivity_management_multiple_fields(self):
+        """deviceConnectivityManagement should include all non-unspecified sub-fields."""
+        policy = PolicyFactory(
+            connectivity_usb_data_access=UsbDataAccess.DISALLOW_USB_FILE_TRANSFER,
+            connectivity_configure_wifi=ConfigureWifi.DISALLOW_CONFIGURING_WIFI,
+            connectivity_tethering_settings=TetheringSettings.DISALLOW_ALL_TETHERING,
+        )
+        serializer = PolicySerializer(policy=policy)
+        result = serializer.to_dict()
+        connectivity = result["deviceConnectivityManagement"]
+        assert connectivity["usbDataAccess"] == "DISALLOW_USB_FILE_TRANSFER"
+        assert connectivity["configureWifi"] == "DISALLOW_CONFIGURING_WIFI"
+        assert connectivity["tetheringSettings"] == "DISALLOW_ALL_TETHERING"
+        assert "wifiDirectSettings" not in connectivity
+
+    def test_device_connectivity_management_wifi_direct(self):
+        """deviceConnectivityManagement.wifiDirectSettings should be emitted when set."""
+        policy = PolicyFactory(
+            connectivity_wifi_direct_settings=WifiDirectSettings.DISALLOW_WIFI_DIRECT
+        )
+        serializer = PolicySerializer(policy=policy)
+        result = serializer.to_dict()
+        assert result["deviceConnectivityManagement"] == {
+            "wifiDirectSettings": "DISALLOW_WIFI_DIRECT"
+        }

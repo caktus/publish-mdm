@@ -76,12 +76,57 @@ class KioskDeviceSettings(models.TextChoices):
     BLOCKED = "SETTINGS_ACCESS_BLOCKED", "Settings access blocked"
 
 
+class PermissionPolicy(models.TextChoices):
+    PERMISSION_POLICY_UNSPECIFIED = "PERMISSION_POLICY_UNSPECIFIED", "Unspecified"
+    PROMPT = "PROMPT", "Prompt user"
+    GRANT = "GRANT", "Grant automatically"
+    DENY = "DENY", "Deny automatically"
+
+
 class InstallType(models.TextChoices):
     FORCE_INSTALLED = "FORCE_INSTALLED", "Force installed"
     PREINSTALLED = "PREINSTALLED", "Pre-installed"
     AVAILABLE = "AVAILABLE", "Available"
     KIOSK = "KIOSK", "Kiosk"
     BLOCKED = "BLOCKED", "Blocked"
+
+
+class LocationMode(models.TextChoices):
+    LOCATION_MODE_UNSPECIFIED = "LOCATION_MODE_UNSPECIFIED", "Unspecified"
+    HIGH_ACCURACY = "HIGH_ACCURACY", "High accuracy (deprecated, Android 8 and below)"
+    SENSORS_ONLY = "SENSORS_ONLY", "Sensors only / GPS (deprecated, Android 8 and below)"
+    BATTERY_SAVING = "BATTERY_SAVING", "Battery saving (deprecated, Android 8 and below)"
+    OFF = "OFF", "Off (deprecated, Android 8 and below)"
+    LOCATION_ENFORCED = "LOCATION_ENFORCED", "Enforced on (Android 9+)"
+    LOCATION_DISABLED = "LOCATION_DISABLED", "Disabled (Android 9+)"
+    LOCATION_USER_CHOICE = "LOCATION_USER_CHOICE", "User choice (Android 9+)"
+
+
+class UsbDataAccess(models.TextChoices):
+    USB_DATA_ACCESS_UNSPECIFIED = "USB_DATA_ACCESS_UNSPECIFIED", "Unspecified"
+    ALLOW_USB_DATA_TRANSFER = "ALLOW_USB_DATA_TRANSFER", "Allow USB data transfer"
+    DISALLOW_USB_FILE_TRANSFER = "DISALLOW_USB_FILE_TRANSFER", "Disallow USB file transfer"
+    DISALLOW_USB_DATA_TRANSFER = "DISALLOW_USB_DATA_TRANSFER", "Disallow all USB data transfer"
+
+
+class ConfigureWifi(models.TextChoices):
+    CONFIGURE_WIFI_UNSPECIFIED = "CONFIGURE_WIFI_UNSPECIFIED", "Unspecified"
+    ALLOW_CONFIGURING_WIFI = "ALLOW_CONFIGURING_WIFI", "Allow configuring Wi-Fi"
+    DISALLOW_ADD_WIFI_CONFIG = "DISALLOW_ADD_WIFI_CONFIG", "Disallow adding Wi-Fi networks"
+    DISALLOW_CONFIGURING_WIFI = "DISALLOW_CONFIGURING_WIFI", "Disallow configuring Wi-Fi"
+
+
+class TetheringSettings(models.TextChoices):
+    TETHERING_SETTINGS_UNSPECIFIED = "TETHERING_SETTINGS_UNSPECIFIED", "Unspecified"
+    ALLOW_ALL_TETHERING = "ALLOW_ALL_TETHERING", "Allow all tethering"
+    DISALLOW_WIFI_TETHERING = "DISALLOW_WIFI_TETHERING", "Disallow Wi-Fi tethering"
+    DISALLOW_ALL_TETHERING = "DISALLOW_ALL_TETHERING", "Disallow all tethering"
+
+
+class WifiDirectSettings(models.TextChoices):
+    WIFI_DIRECT_SETTINGS_UNSPECIFIED = "WIFI_DIRECT_SETTINGS_UNSPECIFIED", "Unspecified"
+    ALLOW_WIFI_DIRECT = "ALLOW_WIFI_DIRECT", "Allow Wi-Fi Direct"
+    DISALLOW_WIFI_DIRECT = "DISALLOW_WIFI_DIRECT", "Disallow Wi-Fi Direct"
 
 
 class PolicyVariableScope(models.TextChoices):
@@ -211,6 +256,40 @@ class Policy(models.Model):
         help_text="Enable the custom launcher when the device is in kiosk mode.",
     )
 
+    # Location
+    location_mode = models.CharField(
+        max_length=50,
+        choices=LocationMode,
+        default=LocationMode.LOCATION_MODE_UNSPECIFIED,
+        blank=True,
+    )
+
+    # Device Connectivity Management
+    connectivity_usb_data_access = models.CharField(
+        max_length=50,
+        choices=UsbDataAccess,
+        default=UsbDataAccess.USB_DATA_ACCESS_UNSPECIFIED,
+        blank=True,
+    )
+    connectivity_configure_wifi = models.CharField(
+        max_length=50,
+        choices=ConfigureWifi,
+        default=ConfigureWifi.CONFIGURE_WIFI_UNSPECIFIED,
+        blank=True,
+    )
+    connectivity_tethering_settings = models.CharField(
+        max_length=50,
+        choices=TetheringSettings,
+        default=TetheringSettings.TETHERING_SETTINGS_UNSPECIFIED,
+        blank=True,
+    )
+    connectivity_wifi_direct_settings = models.CharField(
+        max_length=50,
+        choices=WifiDirectSettings,
+        default=WifiDirectSettings.WIFI_DIRECT_SETTINGS_UNSPECIFIED,
+        blank=True,
+    )
+
     all_mdms = models.Manager()
     objects = PolicyManager()
 
@@ -277,6 +356,12 @@ class PolicyApplication(models.Model):
         help_text="Managed configuration for this app (from Play Store iframe).",
     )
     order = models.PositiveSmallIntegerField(default=0)
+    default_permission_policy = models.CharField(
+        max_length=50,
+        choices=PermissionPolicy,
+        default=PermissionPolicy.PERMISSION_POLICY_UNSPECIFIED,
+        blank=True,
+    )
 
     class Meta:
         ordering = ("order", "pk")

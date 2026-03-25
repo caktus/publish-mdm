@@ -12,6 +12,7 @@
                     <th class="px-3 py-2">Package Name</th>
                     <th class="px-3 py-2">Install Type</th>
                     <th class="px-3 py-2">Disabled</th>
+                    <th class="px-3 py-2">Permission Policy</th>
                     <th class="px-3 py-2">Managed Config</th>
                     <th class="px-3 py-2"></th>
                 </tr>
@@ -33,6 +34,7 @@
                                         {{ app_form.install_type }}
                                         {{ app_form.install_type.errors }}
                                     </td>
+                                    <td class="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">—</td>
                                     <td class="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">—</td>
                                     <td class="px-3 py-2">
                                         <span class="text-xs italic text-gray-400 dark:text-gray-500">auto-injected</span>
@@ -70,6 +72,10 @@
                                             <div class="relative h-5 w-9 rounded-full bg-gray-200 after:absolute after:start-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 rtl:peer-checked:after:-translate-x-full dark:border-gray-600 dark:bg-gray-700 dark:peer-checked:bg-blue-600 dark:peer-focus:ring-primary-800">
                                             </div>
                                         </label>
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        {{ app_form.default_permission_policy }}
+                                        {{ app_form.default_permission_policy.errors }}
                                     </td>
                                     <td class="px-3 py-2">
                                         {% if app.managed_configuration != None %}
@@ -130,6 +136,7 @@
                                         </div>
                                     </label>
                                 </td>
+                                <td class="px-3 py-2">{{ app_form.default_permission_policy }}</td>
                                 <td class="px-3 py-2 text-xs italic text-gray-400 dark:text-gray-500">—</td>
                                 <td class="px-3 py-2 text-xs text-gray-400 dark:text-gray-500">Fill package name to add</td>
                             </tr>
@@ -158,6 +165,7 @@
                         </div>
                     </label>
                 </td>
+                <td class="px-3 py-2">{{ empty.default_permission_policy }}</td>
                 <td class="px-3 py-2 text-xs italic text-gray-400 dark:text-gray-500">—</td>
                 <td class="px-3 py-2"></td>
             </tr>
