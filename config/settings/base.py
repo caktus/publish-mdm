@@ -439,3 +439,7 @@ ACTIVE_MDM = {
     "name": os.getenv("ACTIVE_MDM_NAME", "TinyMDM"),
     "class": os.getenv("ACTIVE_MDM_CLASS", "apps.mdm.mdms.TinyMDM"),
 }
+
+# API key required to POST to the firmware snapshot endpoint.
+# If empty, the endpoint rejects all requests and returns 401.
+MDM_FIRMWARE_API_KEY = os.getenv("MDM_FIRMWARE_API_KEY", "")
