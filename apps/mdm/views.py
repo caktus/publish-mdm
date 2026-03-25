@@ -1,4 +1,6 @@
+import base64
 import json
+import os
 
 import structlog
 from django.http import HttpResponse
@@ -27,3 +29,86 @@ def firmware_snapshot_view(request):
     else:
         logger.error("Firmware snapshot validation failed", errors=form.errors)
         return HttpResponse(status=400)
+
+
+@csrf_exempt
+@require_POST
+def amapi_notifications_view(request):
+    """Handle push notifications from AMAPI via Google Cloud Pub/Sub.
+
+    Google Cloud Pub/Sub delivers messages as HTTP POST requests to this endpoint.
+    Each message contains a base64-encoded Device resource in the ``data`` field
+    and a ``notificationType`` attribute.
+
+    Authentication is performed by comparing the ``token`` query parameter
+    against the ``AMAPI_NOTIF_SECRET_TOKEN`` environment variable.  When the
+    environment variable is not set all requests are accepted (useful in
+    development).
+
+    Returns HTTP 204 on success so that Pub/Sub acknowledges the message and
+    does not retry.
+    """
+    secret_token = os.getenv("AMAPI_NOTIF_SECRET_TOKEN")
+    if secret_token:
+        # The push subscription URL should include ?token=<secret>
+        request_token = request.GET.get("token", "")
+        if not (request_token and request_token == secret_token):
+            logger.warning("AMAPI notification received with invalid or missing token")
+            return HttpResponse(status=403)
+
+    if not request.body:
+        return HttpResponse(status=400)
+
+    try:
+        body = json.loads(request.body)
+    except json.JSONDecodeError:
+        logger.error("AMAPI notification body is not valid JSON")
+        return HttpResponse(status=400)
+
+    message = body.get("message", {})
+    notification_type = message.get("attributes", {}).get("notificationType", "")
+    data_b64 = message.get("data", "")
+
+    if not data_b64:
+        logger.warning(
+            "AMAPI notification received without data payload",
+            notification_type=notification_type,
+        )
+        return HttpResponse(status=204)
+
+    try:
+        device_data = json.loads(base64.b64decode(data_b64).decode("utf-8"))
+    except (ValueError, json.JSONDecodeError):
+        logger.error("Failed to decode AMAPI notification data payload")
+        return HttpResponse(status=400)
+
+    logger.info(
+        "AMAPI notification received",
+        notification_type=notification_type,
+        device_name=device_data.get("name"),
+    )
+
+    if notification_type in ("ENROLLMENT", "STATUS_REPORT"):
+        from .mdms import get_active_mdm_instance  # noqa: PLC0415
+
+        mdm = get_active_mdm_instance()
+        if mdm is not None and hasattr(mdm, "handle_device_notification"):
+            try:
+                mdm.handle_device_notification(device_data, notification_type)
+            except Exception:
+                logger.exception(
+                    "Error handling AMAPI notification",
+                    notification_type=notification_type,
+                    device_name=device_data.get("name"),
+                )
+                return HttpResponse(status=500)
+        else:
+            logger.warning(
+                "Active MDM does not support handle_device_notification",
+                mdm=str(mdm) if mdm is not None else None,
+                notification_type=notification_type,
+            )
+    else:
+        logger.info("Ignoring unhandled notification type", notification_type=notification_type)
+
+    return HttpResponse(status=204)

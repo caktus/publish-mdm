@@ -473,3 +473,177 @@ class AndroidEnterprise(MDM):
             return
         policy_name = f"{self.enterprise_name}/policies/{policy.policy_id}"
         self.execute(self.api.enterprises().policies().patch(name=policy_name, body=policy_data))
+
+    def configure_pubsub(
+        self, pubsub_topic: str, notification_types: list[str] | None = None
+    ) -> dict | None:
+        """Configure Pub/Sub push notifications for the enterprise.
+
+        Calls ``enterprises.patch`` to set the ``pubsubTopic`` and
+        ``enabledNotificationTypes`` fields on the enterprise resource.
+
+        Args:
+            pubsub_topic: The Cloud Pub/Sub topic name in the format
+                ``projects/{project}/topics/{topic}``.
+            notification_types: The notification types to enable.  Defaults to
+                ``["ENROLLMENT", "STATUS_REPORT"]``.
+
+        Returns:
+            The updated enterprise resource, or ``None`` if the API is not
+            configured.
+        """
+        if notification_types is None:
+            notification_types = ["ENROLLMENT", "STATUS_REPORT"]
+        logger.info(
+            "Configuring AMAPI Pub/Sub notifications",
+            enterprise_name=self.enterprise_name,
+            pubsub_topic=pubsub_topic,
+            notification_types=notification_types,
+        )
+        return self.execute(
+            self.api.enterprises().patch(
+                name=self.enterprise_name,
+                updateMask="pubsubTopic,enabledNotificationTypes",
+                body={
+                    "pubsubTopic": pubsub_topic,
+                    "enabledNotificationTypes": notification_types,
+                },
+            )
+        )
+
+    def handle_device_notification(self, device_data: dict, notification_type: str) -> None:
+        """Handle a device notification received from AMAPI via Pub/Sub.
+
+        For ``ENROLLMENT`` notifications a new :class:`~apps.mdm.models.Device`
+        record is created (or an existing one updated) using the Device resource
+        payload.
+
+        For ``STATUS_REPORT`` notifications the existing
+        :class:`~apps.mdm.models.Device` record is updated and a new
+        :class:`~apps.mdm.models.DeviceSnapshot` is created when sufficient
+        data is present.
+
+        Args:
+            device_data: The decoded Device resource dict from the Pub/Sub
+                message ``data`` field.
+            notification_type: The value of the ``notificationType`` Pub/Sub
+                message attribute (e.g. ``"ENROLLMENT"`` or
+                ``"STATUS_REPORT"``).
+        """
+        mdm_device = MDMDevice(device_data)
+        logger.info(
+            "Handling AMAPI device notification",
+            notification_type=notification_type,
+            device_id=mdm_device.id,
+            device_name=mdm_device.get("name"),
+        )
+
+        if notification_type == "ENROLLMENT":
+            self._handle_enrollment_notification(mdm_device)
+        elif notification_type == "STATUS_REPORT":
+            self._handle_status_report_notification(mdm_device)
+        else:
+            logger.info("Ignoring notification type", notification_type=notification_type)
+
+    def _handle_enrollment_notification(self, mdm_device: "MDMDevice") -> None:
+        """Create or update a Device record from an ENROLLMENT notification."""
+        fleet = self._get_fleet_from_enrollment_token_data(mdm_device)
+        if fleet is None:
+            logger.warning(
+                "Could not determine fleet for ENROLLMENT notification; skipping",
+                device_id=mdm_device.id,
+            )
+            return
+
+        serial_number = mdm_device.get("hardwareInfo", {}).get("serialNumber", "")
+
+        existing_device = Device.objects.filter(device_id=mdm_device.id).first()
+        if existing_device:
+            logger.info(
+                "Updating existing device from ENROLLMENT notification",
+                device_id=mdm_device.id,
+            )
+            existing_device.name = mdm_device["name"]
+            existing_device.raw_mdm_device = dict(mdm_device)
+            if serial_number:
+                existing_device.serial_number = serial_number
+            existing_device.save(
+                update_fields=["name", "raw_mdm_device", "serial_number"],
+                push_to_mdm=False,
+            )
+        else:
+            logger.info(
+                "Creating new device from ENROLLMENT notification",
+                device_id=mdm_device.id,
+                fleet=fleet,
+            )
+            default_app_user_name = fleet.default_app_user.name if fleet.default_app_user_id else ""
+            Device.objects.create(
+                fleet=fleet,
+                device_id=mdm_device.id,
+                name=mdm_device["name"],
+                serial_number=serial_number,
+                raw_mdm_device=dict(mdm_device),
+                app_user_name=default_app_user_name,
+            )
+
+    def _handle_status_report_notification(self, mdm_device: "MDMDevice") -> None:
+        """Update device metadata and create a snapshot from a STATUS_REPORT notification."""
+        existing_device = Device.objects.filter(device_id=mdm_device.id).first()
+        if existing_device is None:
+            logger.warning(
+                "Received STATUS_REPORT for unknown device; skipping",
+                device_id=mdm_device.id,
+            )
+            return
+
+        logger.info(
+            "Updating device from STATUS_REPORT notification",
+            device_id=mdm_device.id,
+        )
+        serial_number = mdm_device.get("hardwareInfo", {}).get("serialNumber", "")
+        if serial_number:
+            existing_device.serial_number = serial_number
+        existing_device.raw_mdm_device = dict(mdm_device)
+        existing_device.save(
+            update_fields=["raw_mdm_device", "serial_number"],
+            push_to_mdm=False,
+        )
+
+        # Only create a snapshot when the notification carries enough information.
+        if "lastPolicySyncTime" in mdm_device and "hardwareInfo" in mdm_device:
+            self.create_device_snapshots(existing_device.fleet, [mdm_device])
+            # Link the newly created snapshot(s) to the device (create_device_snapshots
+            # leaves mdm_device_id as NULL; we resolve it here, scoped to this device).
+            # `device_id` in DeviceSnapshot stores the MDM device ID (not the Django pk).
+            DeviceSnapshot.all_mdms.filter(
+                mdm_device_id=None,
+                device_id=mdm_device.id,
+            ).update(mdm_device_id=existing_device.pk)
+            # Refresh latest_snapshot_id for this device only.
+            Device.objects.filter(pk=existing_device.pk).update(
+                latest_snapshot_id=Subquery(
+                    DeviceSnapshot.all_mdms.filter(mdm_device_id=existing_device.pk)
+                    .order_by("-synced_at")
+                    .values("id")[:1]
+                )
+            )
+
+    @staticmethod
+    def _get_fleet_from_enrollment_token_data(mdm_device: "MDMDevice") -> "Fleet | None":
+        """Return the Fleet referenced by the device's enrollmentTokenData, or ``None``."""
+        enrollment_token_data = mdm_device.get("enrollmentTokenData")
+        if not enrollment_token_data:
+            return None
+        try:
+            token_data = json.loads(enrollment_token_data)
+        except (json.JSONDecodeError, TypeError):
+            logger.warning(
+                "Could not parse enrollmentTokenData",
+                enrollment_token_data=enrollment_token_data,
+            )
+            return None
+        fleet_pk = token_data.get("fleet") if isinstance(token_data, dict) else None
+        if fleet_pk is None:
+            return None
+        return Fleet.objects.filter(pk=fleet_pk).first()
