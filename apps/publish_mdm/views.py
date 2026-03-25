@@ -10,7 +10,7 @@ from django.contrib.postgres.aggregates import ArrayAgg
 from django.db import models, transaction
 from django.db.models import OuterRef, Q, Subquery, Value
 from django.db.models.functions import Collate, Lower, NullIf
-from django.http import Http404, HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.html import mark_safe
@@ -35,7 +35,7 @@ from pygments.lexers.data import JsonLexer
 from pyodk.errors import PyODKError
 from requests.exceptions import RequestException
 
-from apps.mdm.mdms import get_active_mdm_instance
+from apps.mdm.mdms import AndroidEnterprise, get_active_mdm_instance
 from apps.mdm.models import Device, FirmwareSnapshot, Fleet, Policy
 from apps.tailscale.models import Device as TailscaleDevice
 
@@ -68,6 +68,7 @@ from .forms import (
 )
 from .import_export import AppUserResource, DeviceResource
 from .models import (
+    AndroidEnterpriseAccount,
     AppUser,
     AppUserFormTemplate,
     CentralServer,
@@ -851,7 +852,7 @@ def devices_list(request: HttpRequest, organization_slug):
 
     if "sync" in request.POST:
         # Sync devices from the MDM
-        if active_mdm := get_active_mdm_instance():
+        if active_mdm := get_active_mdm_instance(organization=request.organization):
             fleets = request.organization.fleets.all()
             logger.info(
                 "Syncing MDM devices from the Devices list page",
@@ -947,6 +948,7 @@ def devices_list(request: HttpRequest, organization_slug):
         "table_messages": devices_list_messages,
         "filter": filter_,
         "search_form": search_form,
+        "active_mdm_name": settings.ACTIVE_MDM["name"],
     }
 
     if settings.ACTIVE_MDM["name"] == "TinyMDM":
@@ -1062,7 +1064,7 @@ def fleets_list(request: HttpRequest, organization_slug):
 def add_fleet(request: HttpRequest, organization_slug):
     """Add a Fleet."""
     default_policy = Policy.get_default()
-    active_mdm = get_active_mdm_instance()
+    active_mdm = get_active_mdm_instance(organization=request.organization)
 
     if not default_policy or not active_mdm:
         logger.warning(
@@ -1210,7 +1212,7 @@ def fleet_qr_code(request: HttpRequest, organization_slug):
     if form.is_valid():
         fleet = form.cleaned_data["fleet"]
         if fleet and (not fleet.enroll_qr_code or fleet.enroll_token_expired):
-            if active_mdm := get_active_mdm_instance():
+            if active_mdm := get_active_mdm_instance(organization=request.organization):
                 # The QR code is not saved. Get it from the MDM and save it
                 try:
                     active_mdm.get_enrollment_qr_code(fleet)
@@ -1241,7 +1243,7 @@ def add_byod_device(request: HttpRequest, organization_slug):
     if form.is_valid():
         success = False
         error = None
-        if active_mdm := get_active_mdm_instance():
+        if active_mdm := get_active_mdm_instance(organization=request.organization):
             try:
                 active_mdm.create_user(**form.cleaned_data)
             except RequestException as e:
@@ -1280,7 +1282,7 @@ def check_mdm_license_limit(request: HttpRequest):
     if settings.ACTIVE_MDM["name"] != "TinyMDM":
         raise Http404
     message = None
-    if active_mdm := get_active_mdm_instance():
+    if active_mdm := get_active_mdm_instance(organization=None):
         try:
             limit, enrolled = active_mdm.check_license_limit()
         except RequestException as e:
@@ -1300,3 +1302,59 @@ def check_mdm_license_limit(request: HttpRequest):
             request, "includes/messages.html", {"messages": [message], "id_prefix": "license-limit"}
         )
     return HttpResponse()
+
+
+@login_required
+def enterprise_setup(request: HttpRequest, organization_slug):
+    """Generate a Google Android Enterprise signup URL and redirect the user to it."""
+    account, _ = AndroidEnterpriseAccount.objects.get_or_create(organization=request.organization)
+    if account.is_enrolled:
+        messages.info(request, "Android Enterprise is already set up.")
+        return redirect("publish_mdm:devices-list", organization_slug)
+
+    callback_url = request.build_absolute_uri(
+        reverse(
+            "publish_mdm:enterprise-callback",
+            kwargs={"callback_token": account.callback_token},
+        )
+    )
+    try:
+        signup = AndroidEnterprise.get_signup_url(callback_url=callback_url)
+    except Exception as e:
+        messages.error(request, f"Failed to generate Android Enterprise signup URL: {e}")
+        return redirect("publish_mdm:devices-list", organization_slug)
+
+    account.signup_url_name = signup["name"]
+    account.signup_url = signup["url"]
+    account.save(update_fields=["signup_url_name", "signup_url", "modified_at"])
+    return redirect(signup["url"])
+
+
+def enterprise_callback(request: HttpRequest, callback_token):
+    """Google calls this URL after the org admin completes enterprise signup."""
+    account = get_object_or_404(AndroidEnterpriseAccount, callback_token=callback_token)
+
+    if account.is_enrolled:
+        return HttpResponseBadRequest("Enterprise already enrolled; this callback has expired.")
+
+    enterprise_token = request.GET.get("enterpriseToken", "")
+    signup_name = request.GET.get("signupName", "")
+
+    if not signup_name or signup_name != account.signup_url_name:
+        return HttpResponseBadRequest("Invalid signupName.")
+    if not enterprise_token:
+        return HttpResponseBadRequest("Missing enterpriseToken.")
+
+    try:
+        enterprise = AndroidEnterprise.create_enterprise(
+            signup_name=signup_name,
+            enterprise_token=enterprise_token,
+            display_name=account.organization.name,
+        )
+    except Exception as e:
+        return HttpResponseBadRequest(f"Failed to create enterprise: {e}")
+
+    account.enterprise_name = enterprise["name"]
+    account.save(update_fields=["enterprise_name", "modified_at"])
+
+    return HttpResponse(f"<p>Android Enterprise enrolled: {enterprise['name']}</p>")

@@ -158,7 +158,9 @@ class Fleet(models.Model):
 
         sync_with_mdm = kwargs.pop("sync_with_mdm", False)
         super().save(*args, **kwargs)
-        if sync_with_mdm and (active_mdm := get_active_mdm_instance()):
+        if sync_with_mdm and (
+            active_mdm := get_active_mdm_instance(organization=self.organization)
+        ):
             active_mdm.pull_devices(self)
 
     def clean(self):
@@ -275,7 +277,9 @@ class Device(models.Model):
             app_user_name=self.app_user_name,
         )
 
-        if push_to_mdm and (active_mdm := get_active_mdm_instance()):
+        if push_to_mdm and (
+            active_mdm := get_active_mdm_instance(organization=self.fleet.organization)
+        ):
             active_mdm.push_device_config(self)
 
     def get_odk_collect_qr_code_string(self):

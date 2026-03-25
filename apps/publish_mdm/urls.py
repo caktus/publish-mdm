@@ -182,4 +182,14 @@ urlpatterns = [
         views.check_mdm_license_limit,
         name="check-mdm-license-limit",
     ),
+    path(
+        "o/<slug:organization_slug>/enterprise/setup/",
+        views.enterprise_setup,
+        name="enterprise-setup",
+    ),
+    path(
+        "enterprise/callback/<uuid:callback_token>/",
+        views.enterprise_callback,
+        name="enterprise-callback",
+    ),
 ]
