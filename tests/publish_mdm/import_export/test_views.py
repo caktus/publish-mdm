@@ -408,7 +408,9 @@ class TestDeviceImport(ImportTestBase):
     ):
         """Confirming a CSV import triggers push_device_config for each updated device."""
         mock_mdm = mocker.MagicMock()
-        mocker.patch("apps.publish_mdm.import_export.get_active_mdm_instance", return_value=mock_mdm)
+        mocker.patch(
+            "apps.publish_mdm.import_export.get_active_mdm_instance", return_value=mock_mdm
+        )
         mock_push = mock_mdm.push_device_config
 
         import_format_cls, _, form_format = self.FORMATS["csv"]
@@ -435,7 +437,9 @@ class TestDeviceImport(ImportTestBase):
     ):
         """During the dry-run preview stage, push_device_config is not called."""
         mock_mdm = mocker.MagicMock()
-        mocker.patch("apps.publish_mdm.import_export.get_active_mdm_instance", return_value=mock_mdm)
+        mocker.patch(
+            "apps.publish_mdm.import_export.get_active_mdm_instance", return_value=mock_mdm
+        )
         mock_push = mock_mdm.push_device_config
 
         _, io_class, form_format = self.FORMATS["csv"]

@@ -3067,7 +3067,9 @@ class TestDeviceUpdateAppUser(ViewTestBase):
         client.post(url, data={"app_user_name": "nonexistent_user"})
         mock_mdm.push_device_config.assert_not_called()
 
-    def test_push_device_config_error_does_not_break_response(self, client, url, user, device, mocker):
+    def test_push_device_config_error_does_not_break_response(
+        self, client, url, user, device, mocker
+    ):
         """An exception from push_device_config is logged but the view still returns 200."""
         mock_mdm = mocker.MagicMock()
         mock_mdm.push_device_config.side_effect = Exception("MDM error")
