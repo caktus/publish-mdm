@@ -788,14 +788,29 @@ class AndroidEnterprise(MDM):
             "Updating device from STATUS_REPORT notification",
             device_id=mdm_device.id,
         )
+        previous_state = (existing_device.raw_mdm_device or {}).get("state")
         self._update_device(existing_device, mdm_device)
         existing_device.save(
             update_fields=["name", "device_id", "raw_mdm_device", "serial_number"],
             push_to_mdm=False,
         )
 
+        # If the device just finished enrolling, has an assigned app user, and hasn't
+        # yet received a device-specific policy, push its config now.
+        if (
+            previous_state == "PROVISIONING"
+            and mdm_device.get("state") == "ACTIVE"
+            and existing_device.app_user_name
+            and not mdm_device.get("policyName", "").endswith(mdm_device.id)
+        ):
+            logger.info(
+                "Device transitioned from PROVISIONING to ACTIVE; pushing device config",
+                device_id=mdm_device.id,
+                app_user_name=existing_device.app_user_name,
+            )
+            self.push_device_config(existing_device)
         # Only create a snapshot when the notification carries enough information.
-        if "lastPolicySyncTime" in mdm_device and "hardwareInfo" in mdm_device:
+        elif "lastPolicySyncTime" in mdm_device and "hardwareInfo" in mdm_device:
             self.create_device_snapshots(existing_device.fleet, [mdm_device])
             # Link the newly created snapshot(s) to the device (create_device_snapshots
             # leaves mdm_device_id as NULL; we resolve it here, scoped to this device).
