@@ -52,6 +52,7 @@ def amapi_notifications_view(request):
     if not secret_token:
         logger.warning("AMAPI notification rejected: ANDROID_ENTERPRISE_PUBSUB_TOKEN is not set")
         return HttpResponse(status=403)
+
     # The push subscription URL should include ?token=<secret>
     request_token = request.GET.get("token", "")
     if not (request_token and request_token == secret_token):
