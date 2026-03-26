@@ -97,17 +97,7 @@ def amapi_notifications_view(request):
             mdm=mdm,
             notification_type=notification_type,
         )
-    elif notification_type in ("ENROLLMENT", "STATUS_REPORT"):
-        try:
-            mdm.handle_device_notification(device_data, notification_type)
-        except Exception:
-            logger.exception(
-                "Error handling AMAPI notification",
-                notification_type=notification_type,
-                device_name=device_data.get("name"),
-            )
-            return HttpResponse(status=500)
     else:
-        logger.info("Ignoring unhandled notification type", notification_type=notification_type)
+        mdm.handle_device_notification(device_data, notification_type)
 
     return HttpResponse(status=204)

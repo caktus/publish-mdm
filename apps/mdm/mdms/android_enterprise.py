@@ -59,8 +59,7 @@ class AndroidEnterprise(MDM):
         share this object so that only one service-account key file read is needed.
         """
         if not self.is_configured:
-            logger.warning("Android Enterprise API credentials not configured.")
-            return None
+            raise ValueError("Android Enterprise API credentials not configured.")
         return Credentials.from_service_account_file(
             self.service_account_file,
             scopes=ALL_SCOPES,
@@ -83,20 +82,16 @@ class AndroidEnterprise(MDM):
     @property
     def project_id(self) -> str | None:
         """Google Cloud project ID derived from the service account credentials."""
-        return self.credentials and self.credentials.project_id
+        return self.credentials.project_id
 
     @property
-    def pubsub_topic(self) -> str | None:
+    def pubsub_topic(self) -> str:
         """Fully-qualified Pub/Sub topic resource name for this application."""
-        if self.project_id is None:
-            return None
         return f"projects/{self.project_id}/topics/{PUBSUB_RESOURCE_NAME}"
 
     @property
-    def pubsub_subscription(self) -> str | None:
+    def pubsub_subscription(self) -> str:
         """Fully-qualified Pub/Sub subscription resource name for this application."""
-        if self.project_id is None:
-            return None
         return f"projects/{self.project_id}/subscriptions/{PUBSUB_RESOURCE_NAME}"
 
     @property
@@ -176,21 +171,13 @@ class AndroidEnterprise(MDM):
             if device.id in current_fleet_device_ids:
                 # The device is currently linked to this Fleet in the DB
                 fleet_devices.append(device)
-            elif device.id not in other_fleets_device_ids and (
-                enrollment_token_data := device.get("enrollmentTokenData")
+            elif (
+                device.id not in other_fleets_device_ids
+                and self._get_fleet_pk_from_enrollment_token_data(device) == fleet.pk
             ):
                 # The device has not been assigned to another Fleet in the DB.
-                # Check if it enrolled using an enrollment token created for
-                # this Fleet
-                try:
-                    enrollment_token_data = json.loads(enrollment_token_data)
-                except json.JSONDecodeError:
-                    continue
-                if (
-                    isinstance(enrollment_token_data, dict)
-                    and enrollment_token_data.get("fleet") == fleet.pk
-                ):
-                    fleet_devices.append(device)
+                # and it enrolled using an enrollment token created for this Fleet.
+                fleet_devices.append(device)
         return fleet_devices
 
     def create_enrollment_token(self, fleet: Fleet):
@@ -246,10 +233,7 @@ class AndroidEnterprise(MDM):
                 db_serial_number=our_device.serial_number,
                 db_device_id=our_device.device_id,
             )
-            our_device.serial_number = mdm_device["hardwareInfo"]["serialNumber"]
-            our_device.device_id = mdm_device.id
-            our_device.name = mdm_device["name"]
-            our_device.raw_mdm_device = mdm_device
+            self._update_device(our_device, mdm_device)
 
         logger.debug("Updating existing devices", our_devices=our_devices, count=len(our_devices))
         Device.objects.bulk_update(
@@ -263,18 +247,8 @@ class AndroidEnterprise(MDM):
         received from the API. This list must not contain devices that
         already exist in our database.
         """
-        # bulk_create bypasses Device.save(), so set the default app user name here.
-        default_app_user_name = fleet.default_app_user.name if fleet.default_app_user_id else ""
         mdm_devices_to_create = [
-            Device(
-                fleet=fleet,
-                serial_number=mdm_device["hardwareInfo"]["serialNumber"],
-                device_id=mdm_device.id,
-                name=mdm_device["name"],
-                raw_mdm_device=mdm_device,
-                app_user_name=default_app_user_name,
-            )
-            for mdm_device in mdm_devices
+            self._create_device(fleet, mdm_device) for mdm_device in mdm_devices
         ]
         logger.debug(
             "Creating new devices",
@@ -704,6 +678,8 @@ class AndroidEnterprise(MDM):
         :class:`~apps.mdm.models.DeviceSnapshot` is created when sufficient
         data is present.
 
+        Ignore all other notifications.
+
         Args:
             device_data: The decoded Device resource dict from the Pub/Sub
                 message ``data`` field.
@@ -726,7 +702,49 @@ class AndroidEnterprise(MDM):
         else:
             logger.info("Ignoring notification type", notification_type=notification_type)
 
-    def _handle_enrollment_notification(self, mdm_device: "MDMDevice") -> None:
+    def _create_device(self, fleet: Fleet, mdm_device: MDMDevice) -> Device:
+        """Build a new :class:`~apps.mdm.models.Device` instance from MDM data.
+
+        The returned instance is **not** saved to the database; callers are
+        responsible for calling ``save()`` or passing it to ``bulk_create()``.
+
+        Args:
+            fleet: The fleet the device belongs to.
+            mdm_device: The MDM device data.
+
+        Returns:
+            An unsaved ``Device`` instance.
+        """
+        default_app_user_name = fleet.default_app_user.name if fleet.default_app_user_id else ""
+        serial_number = mdm_device.get("hardwareInfo", {}).get("serialNumber", "")
+        return Device(
+            fleet=fleet,
+            device_id=mdm_device.id,
+            name=mdm_device["name"],
+            serial_number=serial_number,
+            raw_mdm_device=dict(mdm_device),
+            app_user_name=default_app_user_name,
+        )
+
+    def _update_device(self, device: Device, mdm_device: MDMDevice) -> None:
+        """Apply MDM device data to an existing :class:`~apps.mdm.models.Device` instance.
+
+        Updates ``device_id``, ``name``, ``raw_mdm_device``, and (when non-empty)
+        ``serial_number`` in-place.  The caller is responsible for persisting the
+        changes via ``save()`` or ``bulk_update()``.
+
+        Args:
+            device: The existing ``Device`` instance to update.
+            mdm_device: The MDM device data.
+        """
+        device.device_id = mdm_device.id
+        device.name = mdm_device["name"]
+        serial_number = mdm_device.get("hardwareInfo", {}).get("serialNumber", "")
+        if serial_number:
+            device.serial_number = serial_number
+        device.raw_mdm_device = dict(mdm_device)
+
+    def _handle_enrollment_notification(self, mdm_device: MDMDevice) -> None:
         """Create or update a Device record from an ENROLLMENT notification."""
         fleet = self._get_fleet_from_enrollment_token_data(mdm_device)
         if fleet is None:
@@ -736,20 +754,15 @@ class AndroidEnterprise(MDM):
             )
             return
 
-        serial_number = mdm_device.get("hardwareInfo", {}).get("serialNumber", "")
-
         existing_device = Device.objects.filter(device_id=mdm_device.id).first()
         if existing_device:
             logger.info(
                 "Updating existing device from ENROLLMENT notification",
                 device_id=mdm_device.id,
             )
-            existing_device.name = mdm_device["name"]
-            existing_device.raw_mdm_device = dict(mdm_device)
-            if serial_number:
-                existing_device.serial_number = serial_number
+            self._update_device(existing_device, mdm_device)
             existing_device.save(
-                update_fields=["name", "raw_mdm_device", "serial_number"],
+                update_fields=["name", "device_id", "raw_mdm_device", "serial_number"],
                 push_to_mdm=False,
             )
         else:
@@ -758,17 +771,10 @@ class AndroidEnterprise(MDM):
                 device_id=mdm_device.id,
                 fleet=fleet,
             )
-            default_app_user_name = fleet.default_app_user.name if fleet.default_app_user_id else ""
-            Device.objects.create(
-                fleet=fleet,
-                device_id=mdm_device.id,
-                name=mdm_device["name"],
-                serial_number=serial_number,
-                raw_mdm_device=dict(mdm_device),
-                app_user_name=default_app_user_name,
-            )
+            device = self._create_device(fleet, mdm_device)
+            device.save(push_to_mdm=False)
 
-    def _handle_status_report_notification(self, mdm_device: "MDMDevice") -> None:
+    def _handle_status_report_notification(self, mdm_device: MDMDevice) -> None:
         """Update device metadata and create a snapshot from a STATUS_REPORT notification."""
         existing_device = Device.objects.filter(device_id=mdm_device.id).first()
         if existing_device is None:
@@ -782,12 +788,9 @@ class AndroidEnterprise(MDM):
             "Updating device from STATUS_REPORT notification",
             device_id=mdm_device.id,
         )
-        serial_number = mdm_device.get("hardwareInfo", {}).get("serialNumber", "")
-        if serial_number:
-            existing_device.serial_number = serial_number
-        existing_device.raw_mdm_device = dict(mdm_device)
+        self._update_device(existing_device, mdm_device)
         existing_device.save(
-            update_fields=["raw_mdm_device", "serial_number"],
+            update_fields=["name", "device_id", "raw_mdm_device", "serial_number"],
             push_to_mdm=False,
         )
 
@@ -811,8 +814,12 @@ class AndroidEnterprise(MDM):
             )
 
     @staticmethod
-    def _get_fleet_from_enrollment_token_data(mdm_device: "MDMDevice") -> "Fleet | None":
-        """Return the Fleet referenced by the device's enrollmentTokenData, or ``None``."""
+    def _get_fleet_pk_from_enrollment_token_data(mdm_device: MDMDevice) -> int | None:
+        """Extract the fleet primary key from the device's ``enrollmentTokenData``.
+
+        Returns the ``fleet`` value from the parsed JSON, or ``None`` when the
+        field is absent, not valid JSON, or does not contain a ``fleet`` key.
+        """
         enrollment_token_data = mdm_device.get("enrollmentTokenData")
         if not enrollment_token_data:
             return None
@@ -824,7 +831,12 @@ class AndroidEnterprise(MDM):
                 enrollment_token_data=enrollment_token_data,
             )
             return None
-        fleet_pk = token_data.get("fleet") if isinstance(token_data, dict) else None
+        return token_data.get("fleet") if isinstance(token_data, dict) else None
+
+    @staticmethod
+    def _get_fleet_from_enrollment_token_data(mdm_device: MDMDevice) -> Fleet | None:
+        """Return the Fleet referenced by the device's enrollmentTokenData, or ``None``."""
+        fleet_pk = AndroidEnterprise._get_fleet_pk_from_enrollment_token_data(mdm_device)
         if fleet_pk is None:
             return None
         return Fleet.objects.filter(pk=fleet_pk).first()
