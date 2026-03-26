@@ -506,13 +506,13 @@ class AndroidEnterprise(MDM):
 
         1. Creates the Pub/Sub topic ``projects/{project_id}/topics/publish-mdm``
            if it does not already exist.
-        2. Grants ``android-mdm-service@system.gserviceaccount.com``
-           ``roles/pubsub.publisher`` on the topic so that Android Device Policy
-           can publish AMAPI notifications to it.
-        3. Creates (or updates) a push subscription
+        2. Creates (or updates) a push subscription
            ``projects/{project_id}/subscriptions/publish-mdm``.  The push
            endpoint is built from ``push_endpoint_domain`` when provided,
            otherwise from the current ``Site`` domain.
+        3. Grants ``android-mdm-service@system.gserviceaccount.com``
+           ``roles/pubsub.publisher`` on the topic so that Android Device Policy
+           can publish AMAPI notifications to it.
         4. Patches the enterprise to set ``pubsubTopic`` and
            ``enabledNotificationTypes``.
 
@@ -526,24 +526,22 @@ class AndroidEnterprise(MDM):
             The updated enterprise resource dict.
         """
         push_endpoint = self._build_push_endpoint(domain=push_endpoint_domain)
-        topic_name = self.pubsub_topic
-        subscription_name = self.pubsub_subscription
         logger.info(
             "Configuring AMAPI Pub/Sub notifications",
             enterprise_name=self.enterprise_name,
-            topic_name=topic_name,
-            subscription_name=subscription_name,
+            topic_name=self.pubsub_topic,
+            subscription_name=self.pubsub_subscription,
             push_endpoint=push_endpoint,
         )
-        self._ensure_pubsub_topic(topic_name)
-        self._ensure_pubsub_subscription(topic_name, subscription_name, push_endpoint)
-        self._grant_pubsub_publisher(topic_name)
+        self._ensure_pubsub_topic()
+        self._ensure_pubsub_subscription(push_endpoint)
+        self._grant_pubsub_publisher()
         return self.execute(
             self.api.enterprises().patch(
                 name=self.enterprise_name,
                 updateMask="pubsubTopic,enabledNotificationTypes",
                 body={
-                    "pubsubTopic": topic_name,
+                    "pubsubTopic": self.pubsub_topic,
                     "enabledNotificationTypes": ["ENROLLMENT", "STATUS_REPORT"],
                 },
             )
@@ -577,8 +575,9 @@ class AndroidEnterprise(MDM):
             domain = site.domain
         return f"https://{domain.rstrip('/')}{path}?token={token}"
 
-    def _ensure_pubsub_topic(self, topic_name: str) -> None:
+    def _ensure_pubsub_topic(self) -> None:
         """Create the Pub/Sub topic if it does not already exist."""
+        topic_name = self.pubsub_topic
         try:
             self.pubsub_api.projects().topics().create(name=topic_name, body={}).execute()
             logger.info("Created Pub/Sub topic", topic=topic_name)
@@ -588,7 +587,7 @@ class AndroidEnterprise(MDM):
             else:
                 raise
 
-    def _grant_pubsub_publisher(self, topic_name: str) -> None:
+    def _grant_pubsub_publisher(self) -> None:
         """Grant Android Device Policy the publisher role on the Pub/Sub topic.
 
         Fetches the current IAM policy for the topic, appends
@@ -596,6 +595,7 @@ class AndroidEnterprise(MDM):
         ``roles/pubsub.publisher`` binding (creating the binding if it is
         absent), and writes the updated policy back.
         """
+        topic_name = self.pubsub_topic
         member = f"serviceAccount:{ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT}"
         try:
             policy = self.pubsub_api.projects().topics().getIamPolicy(resource=topic_name).execute()
@@ -633,10 +633,10 @@ class AndroidEnterprise(MDM):
             raise
         logger.info("Granted Android Device Policy Pub/Sub publisher rights", topic=topic_name)
 
-    def _ensure_pubsub_subscription(
-        self, topic_name: str, subscription_name: str, push_endpoint: str
-    ) -> None:
+    def _ensure_pubsub_subscription(self, push_endpoint: str) -> None:
         """Create the Pub/Sub push subscription, or update its endpoint if it already exists."""
+        topic_name = self.pubsub_topic
+        subscription_name = self.pubsub_subscription
         body: dict = {"topic": topic_name, "pushConfig": {"pushEndpoint": push_endpoint}}
         try:
             self.pubsub_api.projects().subscriptions().create(

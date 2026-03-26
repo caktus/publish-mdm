@@ -35,8 +35,7 @@ class Command(BaseCommand):
         if not mdm.is_configured:
             raise CommandError(
                 "Android Enterprise is not configured. "
-                "Set ANDROID_ENTERPRISE_ID and "
-                "ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE."
+                "Set ANDROID_ENTERPRISE_ID and ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE."
             )
 
         push_endpoint_domain = options["push_endpoint_domain"]
