@@ -83,7 +83,7 @@
 
 /* Flowbite tooltip container */
 .tooltip-container {
-  @apply invisible absolute z-10 inline-block max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 opacity-0 shadow-xs transition-opacity duration-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white pointer-events-none;
+  @apply invisible absolute z-50 inline-block max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 opacity-0 shadow-xs transition-opacity duration-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white pointer-events-none;
 }
 
 /* Make tooltip visible when Flowbite adds the 'visible' class */
