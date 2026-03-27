@@ -1,6 +1,9 @@
+from unittest.mock import call
+
 import pytest
 from tablib import Dataset
 
+from apps.mdm.mdms import get_active_mdm_class
 from apps.publish_mdm import import_export, models
 from apps.publish_mdm.etl.load import update_app_users_central_id
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
@@ -368,11 +371,11 @@ class TestDeviceResource:
     def organization(self):
         return OrganizationFactory()
 
-    def import_data(self, csv_data, organization):
+    def import_data(self, csv_data, organization, dry_run=False):
         dataset = Dataset().load(csv_data)
         resource = import_export.DeviceResource(organization)
         result = resource.import_data(
-            dataset, use_transactions=True, rollback_on_validation_errors=True
+            dataset, use_transactions=True, rollback_on_validation_errors=True, dry_run=dry_run
         )
         return result
 
@@ -468,3 +471,33 @@ class TestDeviceResource:
         assert len(valid_rows) == 2
         for row in valid_rows:
             assert row.import_type == "skip"
+
+    @pytest.mark.parametrize("dry_run", [True, False])
+    def test_valid_import_dry_run(self, organization, mocker, dry_run, set_mdm_env_vars):
+        """Ensure we only push to the MDM when an import is confirmed and not
+        during the dry run (preview).
+        """
+        devices = DeviceFactory.create_batch(3, fleet__organization=organization)
+        csv_data = "device_id,serial_number,app_user_name\n"
+        # Update 2 of the 3 devices
+        for n, i in enumerate(devices):
+            app_user_name = i.app_user_name
+            if n:
+                app_user_name += "_edited"
+            csv_data += f"{i.device_id},{i.serial_number},{app_user_name}\n"
+
+        MDM = get_active_mdm_class()
+        mock_push_device_config = mocker.patch.object(MDM, "push_device_config")
+        result = self.import_data(csv_data, organization, dry_run=dry_run)
+
+        # Ensure there are no validation errors
+        assert len(result.valid_rows()) == 3
+        # Ensure push_device_config() is only called for the edited devices if
+        # the import is not a dry run
+        if dry_run:
+            mock_push_device_config.assert_not_called()
+        else:
+            assert mock_push_device_config.call_count == 2
+            mock_push_device_config.assert_has_calls(
+                [call(device) for device in devices[1:]], any_order=True
+            )

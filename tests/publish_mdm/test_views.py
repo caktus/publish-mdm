@@ -3004,19 +3004,22 @@ class TestDeviceUpdateAppUser(ViewTestBase):
         assert response.status_code == 302
 
     @pytest.mark.parametrize("app_user_name", ["", "new_app_user_name"])
-    def test_valid_form(self, client, url, user, device, app_user_name):
+    def test_valid_form(self, client, url, user, device, app_user_name, mocker, set_mdm_env_vars):
         """Ensure submitting a valid form updates the Device's app_user_name."""
         if app_user_name:
             AppUserFactory(name=app_user_name, project=device.fleet.project)
         data = {
             "app_user_name": app_user_name,
         }
+        MDM = get_active_mdm_class()
+        mock_push_device_config = mocker.patch.object(MDM, "push_device_config")
         response = client.post(url, data=data, follow=True)
         form = response.context.get("form")
         assert isinstance(form, DeviceAppUserForm)
         assert not form.errors, form.errors
         device.refresh_from_db()
         assert device.app_user_name == app_user_name
+        mock_push_device_config.assert_called_once_with(device)
 
     def test_invalid_form(self, client, url, user, device):
         """Ensure submitting an invalid form doesn't update the Device's app_user_name

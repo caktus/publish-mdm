@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.db.models import Prefetch
 from import_export import fields, resources, widgets
 
+from apps.mdm.mdms import get_active_mdm_instance
 from apps.mdm.models import Device
 
 from .models import AppUser, AppUserFormTemplate, AppUserTemplateVariable
@@ -313,3 +314,10 @@ class DeviceResource(resources.ModelResource):
                 {"device_id": "A device_id is required to update an existing device."}
             )
         return instance
+
+    def after_save_instance(self, instance, row, **kwargs):
+        """The device has been saved with push_to_mdm=False. Push to MDM here
+        if it's not the preview stage of the import.
+        """
+        if not self._is_dry_run(kwargs) and (active_mdm := get_active_mdm_instance()):
+            active_mdm.push_device_config(instance)
