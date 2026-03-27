@@ -1030,7 +1030,8 @@ def device_update_app_user(request: HttpRequest, organization_slug, device_pk):
     )
     form = DeviceAppUserForm(request.POST, instance=device)
     if form.is_valid():
-        form.save()
+        device = form.save(commit=False)
+        device.save(push_to_mdm=True)
 
     return render(
         request,
