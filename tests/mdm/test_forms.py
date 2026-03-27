@@ -8,7 +8,6 @@ from apps.mdm.forms import (
 )
 from apps.mdm.models import Policy, PolicyVariable
 from tests.mdm.factories import DeviceFactory, PolicyApplicationFactory, PolicyFactory
-from tests.publish_mdm.factories import OrganizationFactory
 
 
 class TestFirmwareSnapshotForm:
@@ -154,24 +153,17 @@ class TestPolicyEditForm:
 class TestPolicyVariableForm:
     """Tests for PolicyVariableForm.clean() duplicate-key validation."""
 
-    def test_org_duplicate_key_caught_when_instance_org_is_none(self):
-        """Duplicate org-scoped key should raise ValidationError even when the instance.org
-        is None (e.g., when changing a fleet-scoped variable to org-scoped).
+    def test_policy_duplicate_key_caught(self):
+        """Duplicate policy-scoped key should raise ValidationError."""
+        policy = PolicyFactory()
+        # Create an existing policy-scoped variable
+        PolicyVariable.objects.create(key="my_key", value="existing", scope="policy", policy=policy)
 
-        Regression: previously used self.instance.org which can be None in this case,
-        causing the duplicate check to be silently skipped.
-        """
-        org = OrganizationFactory()
-        # Create an existing org-scoped variable
-        PolicyVariable.objects.create(key="my_key", value="existing", scope="org", org=org)
-
-        # Try to create another with the same key using the form
-        # instance has org=None (simulating a fleet-scoped var being changed to org)
-        instance = PolicyVariable(key="my_key", value="new", scope="fleet", fleet=None, org=None)
+        # Try to create another with the same key and policy using the form
+        instance = PolicyVariable(key="my_key", value="new", scope="policy", policy=policy)
         form = PolicyVariableForm(
-            data={"key": "my_key", "value": "new", "scope": "org", "fleet": ""},
+            data={"key": "my_key", "value": "new", "scope": "policy", "fleet": ""},
             instance=instance,
-            organization=org,
         )
         assert not form.is_valid()
         assert any("my_key" in str(e) for e in form.non_field_errors())
