@@ -303,18 +303,6 @@ class Policy(models.Model):
     def __str__(self):
         return f"{self.name} ({self.policy_id})"
 
-    @classmethod
-    def get_default(cls):
-        """Gets or creates a default policy from the MDM_DEFAULT_POLICY setting."""
-        if settings.MDM_DEFAULT_POLICY:
-            policy = cls.objects.get_or_create(
-                policy_id=settings.MDM_DEFAULT_POLICY,
-                mdm=settings.ACTIVE_MDM["name"],
-                defaults={"name": "Default"},
-            )[0]
-            return policy
-        return cls.objects.first()
-
     def get_policy_data(self, **kwargs):
         """Generates policy data using the PolicySerializer."""
         device = kwargs.get("device")

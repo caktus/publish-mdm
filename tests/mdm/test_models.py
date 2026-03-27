@@ -6,7 +6,7 @@ import pytest
 from django.core.exceptions import ValidationError
 
 from apps.mdm.mdms import get_active_mdm_class
-from apps.mdm.models import DeviceSnapshotApp, Policy, PolicyApplication, PolicyVariable
+from apps.mdm.models import DeviceSnapshotApp, PolicyApplication, PolicyVariable
 from tests.mdm import TestAllMDMs
 from tests.publish_mdm.factories import AppUserFactory, OrganizationFactory, ProjectFactory
 
@@ -173,22 +173,6 @@ class TestModels(TestAllMDMs):
         '<org name>: <fleet name>'.
         """
         assert fleet.group_name == f"{fleet.organization.name}: {fleet.name}"
-
-    def test_policy_get_default(self, settings):
-        """Tests the Policy.get_default() method."""
-        settings.MDM_DEFAULT_POLICY = None
-        # Cannot determine a default from the database or using the setting
-        assert not Policy.get_default()
-
-        settings.MDM_DEFAULT_POLICY = "12345"
-        # The default policy is created in the database and returned
-        policy = Policy.get_default()
-        assert policy
-        assert policy.policy_id == settings.MDM_DEFAULT_POLICY
-
-        # Calling again returns the same policy (get_or_create)
-        same_policy = Policy.get_default()
-        assert same_policy == policy
 
     def test_get_policy_data(self):
         """Tests the Policy.get_policy_data() method using the new serializer."""
