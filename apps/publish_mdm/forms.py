@@ -765,7 +765,7 @@ class DeviceAppUserForm(forms.ModelForm):
         if self.instance.fleet.project:
             self.fields["app_user_name"].choices = [
                 ("", "---"),
-                *((i.name, i.name) for i in self.instance.fleet.project.app_users.all()),
+                *((i.name, i.name) for i in self.instance.fleet.project.app_users.order_by("name")),
             ]
         self.fields["app_user_name"].widget.attrs["hx-post"] = reverse_lazy(
             "publish_mdm:device-update-app-user",
