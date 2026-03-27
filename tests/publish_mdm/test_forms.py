@@ -482,13 +482,12 @@ class TestDeviceAppUserForm:
         linked to the fleet's project.
         """
         device = MDMDeviceFactory()
-        app_users = AppUserFactory.create_batch(10, project=device.fleet.project)
+        AppUserFactory.create_batch(10, project=device.fleet.project)
         AppUserFactory.create_batch(2)
         form = DeviceAppUserForm(instance=device)
-        assert form.fields["app_user_name"].choices == [
-            ("", "---"),
-            *sorted(((i.name, i.name) for i in app_users), key=lambda i: i[0].lower()),
-        ]
+        expected_names = device.fleet.project.app_users.values_list("name", "name").order_by("name")
+        assert len(expected_names) == 10
+        assert form.fields["app_user_name"].choices == [("", "---"), *expected_names]
 
         device.fleet.project = None
         device.fleet.save()
