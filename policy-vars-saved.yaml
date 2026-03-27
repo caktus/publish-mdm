@@ -1,0 +1,403 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - navigation [ref=e3]:
+      - generic [ref=e4]:
+        - link "Publish MDM Test Org" [ref=e6] [cursor=pointer]:
+          - /url: /
+          - generic "Publish MDM" [ref=e7]:
+            - img [ref=e8]
+          - generic [ref=e10]: Publish MDM Test Org
+        - generic [ref=e11]:
+          - list [ref=e12]:
+            - listitem [ref=e13]:
+              - link "Admin" [ref=e14] [cursor=pointer]:
+                - /url: /admin/
+          - button [ref=e16] [cursor=pointer]:
+            - img [ref=e17]
+          - button "Open user menu" [ref=e21] [cursor=pointer]:
+            - generic [ref=e22]: Open user menu
+  - generic [ref=e24]:
+    - complementary [ref=e25]:
+      - generic [ref=e26]:
+        - list [ref=e27]:
+          - listitem [ref=e28]:
+            - link [ref=e29] [cursor=pointer]:
+              - /url: /o/test/users/
+              - img [ref=e30]
+              - generic [ref=e32]: Users
+          - listitem [ref=e33]:
+            - link [ref=e34] [cursor=pointer]:
+              - /url: /o/test/fleets/
+              - img [ref=e35]
+              - generic [ref=e37]: Fleets
+          - listitem [ref=e38]:
+            - link [ref=e39] [cursor=pointer]:
+              - /url: /o/test/policies/
+              - img [ref=e40]
+              - generic [ref=e42]: Policies
+          - listitem [ref=e43]:
+            - link [ref=e44] [cursor=pointer]:
+              - /url: /o/test/devices/
+              - img [ref=e45]
+              - generic [ref=e47]: Devices
+          - listitem [ref=e48]:
+            - link [ref=e49] [cursor=pointer]:
+              - /url: /o/test/central-servers/
+              - img [ref=e50]
+              - generic [ref=e52]: Central Servers
+          - listitem [ref=e53]:
+            - link [ref=e54] [cursor=pointer]:
+              - /url: /o/test/template-variables/
+              - img [ref=e55]
+              - generic [ref=e57]: Template Variables
+        - heading [level=3] [ref=e59]: Project
+        - list [ref=e60]:
+          - listitem [ref=e61]:
+            - link [ref=e62] [cursor=pointer]:
+              - /url: /o/test/add-project/
+              - img [ref=e63]
+              - generic [ref=e65]: Add Project
+          - listitem [ref=e66]:
+            - link [ref=e67] [cursor=pointer]:
+              - /url: /o/test/servers/sync/
+              - img [ref=e68]
+              - generic [ref=e70]: Sync Project
+        - button [ref=e71] [cursor=pointer]:
+          - generic [ref=e72]: Open project menu
+          - generic [ref=e74]:
+            - generic [ref=e75]: Select project...
+            - generic [ref=e76]: "-"
+          - img [ref=e77]
+    - main [ref=e79]:
+      - generic [ref=e80]:
+        - navigation "Breadcrumb" [ref=e81]:
+          - list [ref=e82]:
+            - listitem [ref=e83]:
+              - link "Home" [ref=e84] [cursor=pointer]:
+                - /url: "#"
+                - img [ref=e85]
+                - text: Home
+            - listitem [ref=e87]:
+              - generic [ref=e88]:
+                - img [ref=e89]
+                - link "Policies" [ref=e91] [cursor=pointer]:
+                  - /url: /o/test/policies/
+            - listitem [ref=e92]:
+              - generic [ref=e93]:
+                - img [ref=e94]
+                - generic [ref=e96]: Test Android Policy QA
+        - heading "Test Android Policy QA" [level=2] [ref=e97]
+        - alert [ref=e99]:
+          - img [ref=e100]
+          - generic [ref=e102]: Success
+          - generic [ref=e103]: Policy saved.
+          - button "Close" [ref=e104]:
+            - generic [ref=e105]: Dismiss
+            - img [ref=e106]
+        - generic [ref=e109]:
+          - generic [ref=e110]:
+            - heading "Policy Settings" [level=3] [ref=e111]
+            - generic [ref=e113]:
+              - generic [ref=e114]:
+                - generic [ref=e115]: "Name: *"
+                - img [ref=e117]
+              - 'textbox "Name: *" [ref=e119]':
+                - /placeholder: Policy name
+                - text: Test Android Policy QA
+          - generic [ref=e120]:
+            - heading "Password Policy" [level=3] [ref=e121]
+            - generic [ref=e122]:
+              - generic [ref=e123]:
+                - heading "Device scope" [level=4] [ref=e124]:
+                  - text: Device scope
+                  - img [ref=e126]
+                - generic [ref=e128]:
+                  - generic [ref=e129]:
+                    - generic [ref=e131]: "Quality:"
+                    - combobox "Quality:" [ref=e132]:
+                      - option "---------"
+                      - option "Unspecified" [selected]
+                      - option "Biometric weak"
+                      - option "Something"
+                      - option "Numeric"
+                      - option "Numeric complex"
+                      - option "Alphabetic"
+                      - option "Alphanumeric"
+                      - option "Complex"
+                  - generic [ref=e133]:
+                    - generic [ref=e135]: "Minimum length:"
+                    - spinbutton "Minimum length:" [ref=e136]
+                  - generic [ref=e137]:
+                    - generic [ref=e139]: "Require unlock after:"
+                    - combobox "Require unlock after:" [ref=e140]:
+                      - option "---------"
+                      - option "Unspecified" [selected]
+                      - option "Use default device timeout"
+                      - option "Require every day"
+              - generic [ref=e141]:
+                - heading "Work profile scope" [level=4] [ref=e142]:
+                  - text: Work profile scope
+                  - img [ref=e144]
+                - generic [ref=e146]:
+                  - generic [ref=e147]:
+                    - generic [ref=e149]: "Quality:"
+                    - combobox "Quality:" [ref=e150]:
+                      - option "---------"
+                      - option "Unspecified" [selected]
+                      - option "Biometric weak"
+                      - option "Something"
+                      - option "Numeric"
+                      - option "Numeric complex"
+                      - option "Alphabetic"
+                      - option "Alphanumeric"
+                      - option "Complex"
+                  - generic [ref=e151]:
+                    - generic [ref=e153]: "Minimum length:"
+                    - spinbutton "Minimum length:" [ref=e154]
+                  - generic [ref=e155]:
+                    - generic [ref=e157]: "Require unlock after:"
+                    - combobox "Require unlock after:" [ref=e158]:
+                      - option "---------"
+                      - option "Unspecified" [selected]
+                      - option "Use default device timeout"
+                      - option "Require every day"
+            - paragraph [ref=e159]:
+              - text: Leave quality set to
+              - emphasis [ref=e160]: Unspecified
+              - text: to disable that scope's policy.
+          - generic [ref=e161]:
+            - heading "Always-on VPN" [level=3] [ref=e162]
+            - generic [ref=e163]:
+              - generic [ref=e164]:
+                - generic [ref=e165]:
+                  - generic [ref=e166]: "VPN app package name:"
+                  - img [ref=e168]
+                - textbox "VPN app package name:" [ref=e170]:
+                  - /placeholder: com.tailscale.ipn
+              - generic [ref=e171]:
+                - generic [ref=e172] [cursor=pointer]:
+                  - checkbox "Lockdown mode" [ref=e173]
+                  - generic [ref=e175]: Lockdown mode
+                - paragraph [ref=e176]: When enabled, network traffic is blocked if the VPN disconnects.
+          - generic [ref=e177]:
+            - heading "Kiosk Mode" [level=3] [ref=e178]
+            - paragraph [ref=e179]: Lock devices to a single app or a curated set of apps. Enable the custom launcher for a fully managed kiosk experience, or configure individual options to restrict navigation and system access.
+            - generic [ref=e180]:
+              - generic [ref=e182] [cursor=pointer]:
+                - checkbox "Custom launcher" [ref=e183]
+                - generic [ref=e185]: Custom launcher
+                - img [ref=e187]
+              - generic [ref=e189]:
+                - generic [ref=e190]:
+                  - text: Power button actions
+                  - img [ref=e192]
+                - combobox "Power button actions" [ref=e194]:
+                  - option "---------"
+                  - option "Unspecified" [selected]
+                  - option "Available"
+                  - option "Blocked"
+              - generic [ref=e195]:
+                - generic [ref=e196]:
+                  - text: System error warnings
+                  - img [ref=e198]
+                - combobox "System error warnings" [ref=e200]:
+                  - option "---------"
+                  - option "Unspecified" [selected]
+                  - option "Enabled"
+                  - option "Muted"
+              - generic [ref=e201]:
+                - generic [ref=e202]:
+                  - text: System navigation
+                  - img [ref=e204]
+                - combobox "System navigation" [ref=e206]:
+                  - option "---------"
+                  - option "Unspecified" [selected]
+                  - option "Enabled"
+                  - option "Disabled"
+                  - option "Home button only"
+              - generic [ref=e207]:
+                - generic [ref=e208]:
+                  - text: Status bar
+                  - img [ref=e210]
+                - combobox "Status bar" [ref=e212]:
+                  - option "---------"
+                  - option "Unspecified" [selected]
+                  - option "Notifications and system info enabled"
+                  - option "Notifications and system info disabled"
+                  - option "System info only"
+              - generic [ref=e213]:
+                - generic [ref=e214]:
+                  - text: Device settings
+                  - img [ref=e216]
+                - combobox "Device settings" [ref=e218]:
+                  - option "---------"
+                  - option "Unspecified" [selected]
+                  - option "Settings access allowed"
+                  - option "Settings access blocked"
+          - generic [ref=e219]:
+            - heading "Developer Options" [level=3] [ref=e220]
+            - generic [ref=e222]:
+              - generic [ref=e223]:
+                - text: Developer options
+                - img [ref=e225]
+              - combobox "Developer options" [ref=e227]:
+                - option "Disallowed" [selected]
+                - option "Allowed"
+          - generic [ref=e228]:
+            - heading "ODK Collect Settings" [level=3] [ref=e229]
+            - generic [ref=e230]:
+              - generic [ref=e231]:
+                - paragraph [ref=e232]: ODK Collect (always included)
+                - generic [ref=e233]:
+                  - text: Package name override
+                  - img [ref=e235]
+                - textbox "Package name override" [ref=e237]:
+                  - /placeholder: org.odk.collect.android
+                  - text: org.odk.collect.android
+              - generic [ref=e238]:
+                - generic [ref=e239]:
+                  - text: Device ID template
+                  - img [ref=e241]
+                - textbox "Device ID template" [ref=e243]:
+                  - /placeholder: "e.g. ${app_user_name}-${device_id}"
+                  - text: "${app_user_name}-${device_id}"
+                - paragraph [ref=e244]: Supports all built-in variables (see Policy Variables section below).
+          - generic [ref=e245]:
+            - heading "Applications" [level=3] [ref=e246]
+            - table [ref=e248]:
+              - rowgroup [ref=e249]:
+                - row "Package Name Install Type Disabled Managed Config" [ref=e250]:
+                  - columnheader "Package Name" [ref=e251]
+                  - columnheader "Install Type" [ref=e252]
+                  - columnheader "Disabled" [ref=e253]
+                  - columnheader "Managed Config" [ref=e254]
+                  - columnheader [ref=e255]
+              - rowgroup
+            - button "+ Add app" [ref=e256]
+          - generic [ref=e257]:
+            - heading "Policy Variables" [level=3] [ref=e258]
+            - paragraph [ref=e259]:
+              - text: Define key/value pairs that can be referenced as
+              - code [ref=e260]: $variable_name
+              - text: or
+              - code [ref=e261]: "${variable_name}"
+              - text: in application managed configurations. Fleet-level values override policy-level values for the same key.
+            - generic [ref=e262]:
+              - paragraph [ref=e263]: Built-in system variables
+              - table [ref=e264]:
+                - rowgroup [ref=e265]:
+                  - 'row "${app_user_name} ODK app user assigned to the device" [ref=e266]':
+                    - 'cell "${app_user_name}" [ref=e267]'
+                    - cell "ODK app user assigned to the device" [ref=e268]
+                  - 'row "${device_id} MDM device ID" [ref=e269]':
+                    - 'cell "${device_id}" [ref=e270]'
+                    - cell "MDM device ID" [ref=e271]
+                  - 'row "${imei} Device IMEI from hardware info" [ref=e272]':
+                    - 'cell "${imei}" [ref=e273]'
+                    - cell "Device IMEI from hardware info" [ref=e274]
+                  - 'row "${serial_number} Device serial number" [ref=e275]':
+                    - 'cell "${serial_number}" [ref=e276]'
+                    - cell "Device serial number" [ref=e277]
+            - table [ref=e279]:
+              - rowgroup [ref=e280]:
+                - row "Variable Name Value Scope Fleet" [ref=e281]:
+                  - columnheader "Variable Name" [ref=e282]
+                  - columnheader "Value" [ref=e283]
+                  - columnheader "Scope" [ref=e284]
+                  - columnheader "Fleet" [ref=e285]
+                  - columnheader [ref=e286]
+              - rowgroup [ref=e287]:
+                - row "test_var test_value Policy — Delete" [ref=e288]:
+                  - cell "test_var" [ref=e289]:
+                    - checkbox [ref=e290]
+                    - textbox "variable_name" [ref=e291]: test_var
+                  - cell "test_value" [ref=e292]:
+                    - textbox "value" [ref=e293]: test_value
+                  - cell "Policy" [ref=e294]:
+                    - combobox [ref=e295]:
+                      - option "---------"
+                      - option "Policy" [selected]
+                      - option "Fleet"
+                  - cell "—" [ref=e296]
+                  - cell "Delete" [ref=e297]:
+                    - button "Delete" [ref=e298]
+            - button "+ Add variable" [ref=e299]
+          - generic [ref=e300]:
+            - button "Save policy" [ref=e301] [cursor=pointer]
+            - link "Cancel" [ref=e302] [cursor=pointer]:
+              - /url: /o/test/policies/
+  - list [ref=e304]:
+    - listitem [ref=e305]:
+      - link "Hide »" [ref=e306] [cursor=pointer]:
+        - /url: "#"
+    - listitem [ref=e307]:
+      - link "Toggle Theme" [ref=e308] [cursor=pointer]:
+        - /url: "#"
+        - text: Toggle Theme
+        - img [ref=e309]
+    - listitem [ref=e311]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e312]
+      - link "History /o/test/policies/2/" [ref=e313] [cursor=pointer]:
+        - /url: "#"
+        - text: History
+        - text: /o/test/policies/2/
+    - listitem [ref=e314]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e315]
+      - link "Versions Django 5.2.12" [ref=e316] [cursor=pointer]:
+        - /url: "#"
+        - text: Versions
+        - text: Django 5.2.12
+    - listitem [ref=e317]:
+      - checkbox "Enable for next and successive requests" [ref=e318]
+      - generic [ref=e319]: Time
+    - listitem [ref=e320]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e321]
+      - link "Settings" [ref=e322] [cursor=pointer]:
+        - /url: "#"
+    - listitem [ref=e323]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e324]
+      - link "Headers" [ref=e325] [cursor=pointer]:
+        - /url: "#"
+    - listitem [ref=e326]:
+      - checkbox "Enable for next and successive requests" [ref=e327]
+      - generic [ref=e328]: Request
+    - listitem [ref=e329]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e330]
+      - link "SQL 8 queries in 2.77ms" [ref=e331] [cursor=pointer]:
+        - /url: "#"
+        - text: SQL
+        - text: 8 queries in 2.77ms
+    - listitem [ref=e332]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e333]
+      - link "Static files 6 files used" [ref=e334] [cursor=pointer]:
+        - /url: "#"
+        - text: Static files
+        - text: 6 files used
+    - listitem [ref=e335]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e336]
+      - link "Templates mdm/policy_form.html" [ref=e337] [cursor=pointer]:
+        - /url: "#"
+        - text: Templates
+        - text: mdm/policy_form.html
+    - listitem [ref=e338]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e339]
+      - link "Alerts" [ref=e340] [cursor=pointer]:
+        - /url: "#"
+    - listitem [ref=e341]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e342]
+      - link "Cache 0 calls in 0.00ms" [ref=e343] [cursor=pointer]:
+        - /url: "#"
+        - text: Cache
+        - text: 0 calls in 0.00ms
+    - listitem [ref=e344]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e345]
+      - link "Signals 56 receivers of 15 signals" [ref=e346] [cursor=pointer]:
+        - /url: "#"
+        - text: Signals
+        - text: 56 receivers of 15 signals
+    - listitem [ref=e347]:
+      - checkbox "Enable for next and successive requests" [ref=e348]
+      - generic [ref=e349]: Intercept redirects
+    - listitem [ref=e350]:
+      - checkbox "Enable for next and successive requests" [ref=e351]
+      - generic [ref=e352]: Profiling

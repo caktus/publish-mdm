@@ -1,0 +1,240 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - heading "Page not found (404)" [level=1] [ref=e3]
+    - table [ref=e4]:
+      - rowgroup [ref=e5]:
+        - 'row "Request Method: GET" [ref=e6]':
+          - rowheader "Request Method:" [ref=e7]
+          - cell "GET" [ref=e8]
+        - 'row "Request URL: http://localhost:8000/o/test/fleets/add/" [ref=e9]':
+          - rowheader "Request URL:" [ref=e10]
+          - cell "http://localhost:8000/o/test/fleets/add/" [ref=e11]
+  - main [ref=e12]:
+    - paragraph [ref=e13]:
+      - text: Using the URLconf defined in
+      - code [ref=e14]: config.urls
+      - text: ", Django tried these URL patterns, in this order:"
+    - list [ref=e15]:
+      - listitem [ref=e16]:
+        - code [ref=e17]: __debug__/
+      - listitem [ref=e18]:
+        - code [ref=e19]: __reload__/
+      - listitem [ref=e20]:
+        - code [ref=e21]: ^media/(?P<path>.*)$
+      - listitem [ref=e22]:
+        - code [ref=e23]: accounts/
+      - listitem [ref=e24]:
+        - code [ref=e25]: admin/
+      - listitem [ref=e26]:
+        - code
+        - code [ref=e27]: o/<slug:organization_slug>/ [name='organization-home']
+      - listitem [ref=e28]:
+        - code
+        - code [ref=e29]: o/<slug:organization_slug>/servers/sync/ [name='server-sync']
+      - listitem [ref=e30]:
+        - code
+        - code [ref=e31]: o/<slug:organization_slug>/servers/sync/projects/ [name='server-sync-projects']
+      - listitem [ref=e32]:
+        - code
+        - code [ref=e33]: o/<slug:organization_slug>/<int:odk_project_pk>/edit/ [name='edit-project']
+      - listitem [ref=e34]:
+        - code
+        - code [ref=e35]: o/<slug:organization_slug>/add-project/ [name='add-project']
+      - listitem [ref=e36]:
+        - code
+        - code [ref=e37]: o/<slug:organization_slug>/<int:odk_project_pk>/app-users/ [name='app-user-list']
+      - listitem [ref=e38]:
+        - code
+        - code [ref=e39]: o/<slug:organization_slug>/<int:odk_project_pk>/app-users/<int:app_user_pk>/ [name='app-user-detail']
+      - listitem [ref=e40]:
+        - code
+        - code [ref=e41]: o/<slug:organization_slug>/<int:odk_project_pk>/app-users/generate-qr-codes/ [name='app-users-generate-qr-codes']
+      - listitem [ref=e42]:
+        - code
+        - code [ref=e43]: o/<slug:organization_slug>/<int:odk_project_pk>/app-users/export/ [name='app-users-export']
+      - listitem [ref=e44]:
+        - code
+        - code [ref=e45]: o/<slug:organization_slug>/<int:odk_project_pk>/app-users/import/ [name='app-users-import']
+      - listitem [ref=e46]:
+        - code
+        - code [ref=e47]: o/<slug:organization_slug>/<int:odk_project_pk>/form-templates/ [name='form-template-list']
+      - listitem [ref=e48]:
+        - code
+        - code [ref=e49]: o/<slug:organization_slug>/<int:odk_project_pk>/form-templates/<int:form_template_id>/ [name='form-template-detail']
+      - listitem [ref=e50]:
+        - code
+        - code [ref=e51]: o/<slug:organization_slug>/<int:odk_project_pk>/form-templates/<int:form_template_id>/publish/ [name='form-template-publish']
+      - listitem [ref=e52]:
+        - code
+        - code [ref=e53]: o/<slug:organization_slug>/<int:odk_project_pk>/form-templates/add/ [name='add-form-template']
+      - listitem [ref=e54]:
+        - code
+        - code [ref=e55]: o/<slug:organization_slug>/<int:odk_project_pk>/form-templates/<int:form_template_id>/edit/ [name='edit-form-template']
+      - listitem [ref=e56]:
+        - code
+        - code [ref=e57]: o/<slug:organization_slug>/<int:odk_project_pk>/app-users/add/ [name='add-app-user']
+      - listitem [ref=e58]:
+        - code
+        - code [ref=e59]: o/<slug:organization_slug>/<int:odk_project_pk>/app-users/<int:app_user_id>/edit/ [name='edit-app-user']
+      - listitem [ref=e60]:
+        - code
+        - code [ref=e61]: create-organization/ [name='create-organization']
+      - listitem [ref=e62]:
+        - code
+        - code [ref=e63]: o/<slug:organization_slug>/send-invite/ [name='send-invite']
+      - listitem [ref=e64]:
+        - code
+        - code [ref=e65]: o/<slug:organization_slug>/request-invite/ [name='request-invite']
+      - listitem [ref=e66]:
+        - code
+        - code [ref=e67]: o/<slug:organization_slug>/users/ [name='organization-users-list']
+      - listitem [ref=e68]:
+        - code
+        - code [ref=e69]: o/<slug:organization_slug>/template-variables/ [name='organization-template-variables']
+      - listitem [ref=e70]:
+        - code
+        - code [ref=e71]: o/<slug:organization_slug>/central-servers/ [name='central-servers-list']
+      - listitem [ref=e72]:
+        - code
+        - code [ref=e73]: o/<slug:organization_slug>/central-servers/<int:central_server_id>/ [name='edit-central-server']
+      - listitem [ref=e74]:
+        - code
+        - code [ref=e75]: o/<slug:organization_slug>/central-servers/add/ [name='add-central-server']
+      - listitem [ref=e76]:
+        - code
+        - code [ref=e77]: o/<slug:organization_slug>/devices/ [name='devices-list']
+      - listitem [ref=e78]:
+        - code
+        - code [ref=e79]: o/<slug:organization_slug>/devices/<int:device_pk>/update-app-user/ [name='device-update-app-user']
+      - listitem [ref=e80]:
+        - code
+        - code [ref=e81]: o/<slug:organization_slug>/devices/export/ [name='devices-export']
+      - listitem [ref=e82]:
+        - code
+        - code [ref=e83]: o/<slug:organization_slug>/devices/import/ [name='devices-import']
+      - listitem [ref=e84]:
+        - code
+        - code [ref=e85]: o/<slug:organization_slug>/fleets/ [name='fleets-list']
+      - listitem [ref=e86]:
+        - code
+        - code [ref=e87]: o/<slug:organization_slug>/fleet/<int:fleet_id>/ [name='edit-fleet']
+      - listitem [ref=e88]:
+        - code
+        - code [ref=e89]: o/<slug:organization_slug>/fleet/add/ [name='add-fleet']
+      - listitem [ref=e90]:
+        - code
+        - code [ref=e91]: o/<slug:organization_slug>/fleet/app-users/ [name='fleet-app-users']
+      - listitem [ref=e92]:
+        - code
+        - code [ref=e93]: o/<slug:organization_slug>/fleet-qr-code/ [name='fleet-qr-code']
+      - listitem [ref=e94]:
+        - code
+        - code [ref=e95]: o/<slug:organization_slug>/add-byod-device/ [name='add-byod-device']
+      - listitem [ref=e96]:
+        - code
+        - code [ref=e97]: check-mdm-license-limit/ [name='check-mdm-license-limit']
+      - listitem [ref=e98]:
+        - code
+        - code [ref=e99]: mdm/api/firmware/ [name='firmware_snapshot']
+      - listitem [ref=e100]:
+        - code
+        - code [ref=e101]: o/<slug:organization_slug>/policies/ [name='policy-list']
+      - listitem [ref=e102]:
+        - code
+        - code [ref=e103]: o/<slug:organization_slug>/policies/add/ [name='policy-add']
+      - listitem [ref=e104]:
+        - code
+        - code [ref=e105]: o/<slug:organization_slug>/policies/<int:policy_id>/ [name='policy-edit']
+      - listitem [ref=e106]:
+        - code
+        - code [ref=e107]: o/<slug:organization_slug>/policies/<int:policy_id>/applications/<int:app_id>/configure/ [name='policy-save-managed-config']
+      - listitem [ref=e108]:
+        - code [ref=e109]: ws/health/
+      - listitem [ref=e110]:
+        - code [ref=e111]: ^accept-invite/(?P<key>\w+)/?$ [name='accept-invite']
+      - listitem [ref=e112]:
+        - code [ref=e113]: "[name='home']"
+    - paragraph [ref=e114]:
+      - text: The current path,
+      - code [ref=e115]: o/test/fleets/add/
+      - text: ", didn’t match any of these."
+  - contentinfo [ref=e116]:
+    - paragraph [ref=e117]:
+      - text: You’re seeing this error because you have
+      - code [ref=e118]: DEBUG = True
+      - text: in your Django settings file. Change that to
+      - code [ref=e119]: "False"
+      - text: ", and Django will display a standard 404 page."
+  - list [ref=e121]:
+    - listitem [ref=e122]:
+      - link "Hide »" [ref=e123] [cursor=pointer]:
+        - /url: "#"
+    - listitem [ref=e124]:
+      - link "Toggle Theme" [ref=e125] [cursor=pointer]:
+        - /url: "#"
+        - text: Toggle Theme
+        - img [ref=e126]
+    - listitem [ref=e128]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e129]
+      - link "History /o/test/fleets/add/" [ref=e130] [cursor=pointer]:
+        - /url: "#"
+        - text: History
+        - text: /o/test/fleets/add/
+    - listitem [ref=e131]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e132]
+      - link "Versions Django 5.2.12" [ref=e133] [cursor=pointer]:
+        - /url: "#"
+        - text: Versions
+        - text: Django 5.2.12
+    - listitem [ref=e134]:
+      - checkbox "Enable for next and successive requests" [ref=e135]
+      - generic [ref=e136]: Time
+    - listitem [ref=e137]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e138]
+      - link "Settings" [ref=e139] [cursor=pointer]:
+        - /url: "#"
+    - listitem [ref=e140]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e141]
+      - link "Headers" [ref=e142] [cursor=pointer]:
+        - /url: "#"
+    - listitem [ref=e143]:
+      - checkbox "Enable for next and successive requests" [ref=e144]
+      - generic [ref=e145]: Request
+    - listitem [ref=e146]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e147]
+      - link "SQL 0 queries in 0.00ms" [ref=e148] [cursor=pointer]:
+        - /url: "#"
+        - text: SQL
+        - text: 0 queries in 0.00ms
+    - listitem [ref=e149]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e150]
+      - link "Static files 0 files used" [ref=e151] [cursor=pointer]:
+        - /url: "#"
+        - text: Static files
+        - text: 0 files used
+    - listitem [ref=e152]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e153]
+      - link "Templates" [ref=e154] [cursor=pointer]:
+        - /url: "#"
+    - listitem [ref=e155]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e156]
+      - link "Alerts" [ref=e157] [cursor=pointer]:
+        - /url: "#"
+    - listitem [ref=e158]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e159]
+      - link "Cache 0 calls in 0.00ms" [ref=e160] [cursor=pointer]:
+        - /url: "#"
+        - text: Cache
+        - text: 0 calls in 0.00ms
+    - listitem [ref=e161]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e162]
+      - link "Signals 56 receivers of 15 signals" [ref=e163] [cursor=pointer]:
+        - /url: "#"
+        - text: Signals
+        - text: 56 receivers of 15 signals
+    - listitem [ref=e164]:
+      - checkbox "Enable for next and successive requests" [ref=e165]
+      - generic [ref=e166]: Intercept redirects
+    - listitem [ref=e167]:
+      - checkbox "Enable for next and successive requests" [ref=e168]
+      - generic [ref=e169]: Profiling

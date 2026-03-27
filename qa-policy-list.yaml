@@ -1,0 +1,170 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - navigation [ref=e3]:
+      - generic [ref=e4]:
+        - link "Publish MDM Test Org" [ref=e6] [cursor=pointer]:
+          - /url: /
+          - generic "Publish MDM" [ref=e7]:
+            - img [ref=e8]
+          - generic [ref=e10]: Publish MDM Test Org
+        - generic [ref=e11]:
+          - list [ref=e12]:
+            - listitem [ref=e13]:
+              - link "Admin" [ref=e14] [cursor=pointer]:
+                - /url: /admin/
+          - button [ref=e16] [cursor=pointer]:
+            - img [ref=e17]
+          - button "Open user menu" [ref=e21] [cursor=pointer]:
+            - generic [ref=e22]: Open user menu
+  - generic [ref=e24]:
+    - complementary [ref=e25]:
+      - generic [ref=e26]:
+        - list [ref=e27]:
+          - listitem [ref=e28]:
+            - link [ref=e29] [cursor=pointer]:
+              - /url: /o/test/users/
+              - img [ref=e30]
+              - generic [ref=e32]: Users
+          - listitem [ref=e33]:
+            - link [ref=e34] [cursor=pointer]:
+              - /url: /o/test/fleets/
+              - img [ref=e35]
+              - generic [ref=e37]: Fleets
+          - listitem [ref=e38]:
+            - link [ref=e39] [cursor=pointer]:
+              - /url: /o/test/policies/
+              - img [ref=e40]
+              - generic [ref=e42]: Policies
+          - listitem [ref=e43]:
+            - link [ref=e44] [cursor=pointer]:
+              - /url: /o/test/devices/
+              - img [ref=e45]
+              - generic [ref=e47]: Devices
+          - listitem [ref=e48]:
+            - link [ref=e49] [cursor=pointer]:
+              - /url: /o/test/central-servers/
+              - img [ref=e50]
+              - generic [ref=e52]: Central Servers
+          - listitem [ref=e53]:
+            - link [ref=e54] [cursor=pointer]:
+              - /url: /o/test/template-variables/
+              - img [ref=e55]
+              - generic [ref=e57]: Template Variables
+        - heading [level=3] [ref=e59]: Project
+        - list [ref=e60]:
+          - listitem [ref=e61]:
+            - link [ref=e62] [cursor=pointer]:
+              - /url: /o/test/add-project/
+              - img [ref=e63]
+              - generic [ref=e65]: Add Project
+          - listitem [ref=e66]:
+            - link [ref=e67] [cursor=pointer]:
+              - /url: /o/test/servers/sync/
+              - img [ref=e68]
+              - generic [ref=e70]: Sync Project
+        - button [ref=e71] [cursor=pointer]:
+          - generic [ref=e72]: Open project menu
+          - generic [ref=e74]:
+            - generic [ref=e75]: Select project...
+            - generic [ref=e76]: "-"
+          - img [ref=e77]
+    - main [ref=e79]:
+      - generic [ref=e80]:
+        - navigation "Breadcrumb" [ref=e81]:
+          - list [ref=e82]:
+            - listitem [ref=e83]:
+              - link "Home" [ref=e84] [cursor=pointer]:
+                - /url: "#"
+                - img [ref=e85]
+                - text: Home
+            - listitem [ref=e87]:
+              - generic [ref=e88]:
+                - img [ref=e89]
+                - generic [ref=e91]: Policies
+        - heading "Policies" [level=2] [ref=e92]
+        - link "Add policy" [ref=e94] [cursor=pointer]:
+          - /url: /o/test/policies/add/
+        - table [ref=e96]:
+          - rowgroup [ref=e97]:
+            - row "Name Policy ID" [ref=e98]:
+              - columnheader "Name" [ref=e99]
+              - columnheader "Policy ID" [ref=e100]
+              - columnheader [ref=e101]
+          - rowgroup [ref=e102]:
+            - row "No policies found. Click \"Add policy\" to create one." [ref=e103]:
+              - cell "No policies found. Click \"Add policy\" to create one." [ref=e104]
+  - list [ref=e106]:
+    - listitem [ref=e107]:
+      - link "Hide »" [ref=e108] [cursor=pointer]:
+        - /url: "#"
+    - listitem [ref=e109]:
+      - link "Toggle Theme" [ref=e110] [cursor=pointer]:
+        - /url: "#"
+        - text: Toggle Theme
+        - img [ref=e111]
+    - listitem [ref=e113]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e114]
+      - link "History /o/test/policies/" [ref=e115] [cursor=pointer]:
+        - /url: "#"
+        - text: History
+        - text: /o/test/policies/
+    - listitem [ref=e116]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e117]
+      - link "Versions Django 5.2.12" [ref=e118] [cursor=pointer]:
+        - /url: "#"
+        - text: Versions
+        - text: Django 5.2.12
+    - listitem [ref=e119]:
+      - checkbox "Enable for next and successive requests" [ref=e120]
+      - generic [ref=e121]: Time
+    - listitem [ref=e122]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e123]
+      - link "Settings" [ref=e124] [cursor=pointer]:
+        - /url: "#"
+    - listitem [ref=e125]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e126]
+      - link "Headers" [ref=e127] [cursor=pointer]:
+        - /url: "#"
+    - listitem [ref=e128]:
+      - checkbox "Enable for next and successive requests" [ref=e129]
+      - generic [ref=e130]: Request
+    - listitem [ref=e131]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e132]
+      - link "SQL 4 queries in 1.26ms" [ref=e133] [cursor=pointer]:
+        - /url: "#"
+        - text: SQL
+        - text: 4 queries in 1.26ms
+    - listitem [ref=e134]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e135]
+      - link "Static files 2 files used" [ref=e136] [cursor=pointer]:
+        - /url: "#"
+        - text: Static files
+        - text: 2 files used
+    - listitem [ref=e137]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e138]
+      - link "Templates mdm/policy_list.html" [ref=e139] [cursor=pointer]:
+        - /url: "#"
+        - text: Templates
+        - text: mdm/policy_list.html
+    - listitem [ref=e140]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e141]
+      - link "Alerts" [ref=e142] [cursor=pointer]:
+        - /url: "#"
+    - listitem [ref=e143]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e144]
+      - link "Cache 0 calls in 0.00ms" [ref=e145] [cursor=pointer]:
+        - /url: "#"
+        - text: Cache
+        - text: 0 calls in 0.00ms
+    - listitem [ref=e146]:
+      - checkbox "Disable for next and successive requests" [checked] [ref=e147]
+      - link "Signals 56 receivers of 15 signals" [ref=e148] [cursor=pointer]:
+        - /url: "#"
+        - text: Signals
+        - text: 56 receivers of 15 signals
+    - listitem [ref=e149]:
+      - checkbox "Enable for next and successive requests" [ref=e150]
+      - generic [ref=e151]: Intercept redirects
+    - listitem [ref=e152]:
+      - checkbox "Enable for next and successive requests" [ref=e153]
+      - generic [ref=e154]: Profiling
