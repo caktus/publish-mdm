@@ -63,9 +63,9 @@ def _get_policy_or_404(policy_id, organization):
 
 def _get_policy_variables(policy):
     """Return all PolicyVariables for a policy — both policy-scoped and fleet-scoped."""
-    return PolicyVariable.objects.filter(Q(policy=policy) | Q(fleet__policy=policy)).select_related(
-        "fleet"
-    )
+    return PolicyVariable.objects.filter(
+        Q(policy=policy) | Q(fleet__policy=policy, fleet__organization=policy.organization)
+    ).select_related("fleet")
 
 
 def _push_policy_to_mdm(policy):
