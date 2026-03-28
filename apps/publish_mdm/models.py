@@ -1,4 +1,5 @@
 import datetime
+import uuid
 from functools import cached_property
 from typing import ClassVar
 from urllib.parse import urlparse
@@ -677,3 +678,49 @@ class OrganizationInvitation(AbstractBaseInvitation):
 
     def __str__(self):
         return f"Invite: {self.email}"
+
+
+class AndroidEnterpriseAccount(AbstractBaseModel):
+    organization = models.OneToOneField(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="android_enterprise",
+    )
+    signup_url_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="signupUrls resource name from AMAPI, e.g. 'signupUrls/C455570ef9b12bfc'.",
+    )
+    signup_url = models.URLField(
+        max_length=2048,
+        blank=True,
+        default="",
+        help_text="Google Enterprise signup URL. Navigate here to complete enterprise creation.",
+    )
+    callback_token = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        help_text="Embedded in the callback URL to authenticate Google's redirect.",
+    )
+    enterprise_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Full AMAPI enterprise resource name, e.g. 'enterprises/LC00lvvue0'.",
+    )
+
+    def __str__(self):
+        return self.enterprise_name or f"(pending) {self.organization}"
+
+    @property
+    def enterprise_id(self):
+        """Short ID, e.g. 'LC00lvvue0'. Empty string until enrollment completes."""
+        if self.enterprise_name:
+            return self.enterprise_name.split("/")[-1]
+        return ""
+
+    @property
+    def is_enrolled(self):
+        return bool(self.enterprise_name)

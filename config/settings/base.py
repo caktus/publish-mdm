@@ -435,3 +435,5 @@ ACTIVE_MDM = {
     "name": os.getenv("ACTIVE_MDM_NAME", "TinyMDM"),
     "class": os.getenv("ACTIVE_MDM_CLASS", "apps.mdm.mdms.TinyMDM"),
 }
+
+ANDROID_ENTERPRISE_PROJECT_ID = os.getenv("ANDROID_ENTERPRISE_PROJECT_ID", "")
