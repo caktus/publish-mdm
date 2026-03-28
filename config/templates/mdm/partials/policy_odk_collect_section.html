@@ -1,0 +1,45 @@
+{% load mdm_tags %}
+<div class="policy-section">
+    <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">ODK Collect Settings</h3>
+    <div class="max-w-md space-y-4">
+        <div>
+            <p class="mb-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+                ODK Collect <span class="text-gray-400 dark:text-gray-500">(always included)</span>
+            </p>
+            <label class="form-label-with-icon"
+                   for="{{ form.odk_collect_package.id_for_label }}">
+                {{ form.odk_collect_package.label }}
+                {% info_icon "tooltip-odk-package" %}
+            </label>
+            <div id="tooltip-odk-package" role="tooltip" class="tooltip-container">
+                Override only if you use a custom ODK Collect build. Leave as default for standard
+                installs.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+            {{ form.odk_collect_package }}
+            {{ form.odk_collect_package.errors }}
+        </div>
+        <div>
+            <label class="form-label-with-icon"
+                   for="{{ form.odk_collect_device_id_template.id_for_label }}">
+                {{ form.odk_collect_device_id_template.label }}
+                {% info_icon "tooltip-device-id" %}
+            </label>
+            <div id="tooltip-device-id" role="tooltip" class="tooltip-container">
+                This value is passed as <code>device_id</code> in ODK Collect's managed
+                configuration. Use template variables such as
+                <code>$app_user_name</code>,
+                <code>$device_id</code>,
+                <code>$serial_number</code>,
+                or <code>$imei</code>.
+                Leave blank to omit this field from the managed configuration entirely.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+            {{ form.odk_collect_device_id_template }}
+            {{ form.odk_collect_device_id_template.errors }}
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Supports all built-in variables (see Policy Variables section below).
+            </p>
+        </div>
+    </div>
+</div>

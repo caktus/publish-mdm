@@ -14,6 +14,10 @@ class Link(BaseModel):
 
     @property
     def path(self):
+        # If viewname already contains a namespace prefix (e.g. "mdm:policy-list"),
+        # reverse it directly without prepending the default namespace.
+        if ":" in self.viewname:
+            return reverse(self.viewname, args=self.args)
         return reverse(f"{self.namespace}:{self.viewname}", args=self.args)
 
 

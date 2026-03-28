@@ -1,0 +1,205 @@
+<div class="policy-section">
+    <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Policy Variables</h3>
+    <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
+        Define key/value pairs that can be referenced as
+        <code class="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-gray-700">$variable_name</code>
+        or
+        <code class="rounded bg-gray-100 px-1 py-0.5 text-xs dark:bg-gray-700">${variable_name}</code>
+        in application managed configurations. Fleet-level values override policy-level values for the
+        same key. Encrypted values are stored securely and are not shown after saving.
+    </p>
+    <div class="mb-4 rounded-lg bg-gray-50 p-3 dark:bg-gray-700">
+        <p class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">Built-in system variables</p>
+        <table class="w-full text-xs text-gray-600 dark:text-gray-400">
+            <tr>
+                <td class="py-1 font-mono">${app_user_name}</td>
+                <td class="py-1">ODK app user assigned to the device</td>
+            </tr>
+            <tr>
+                <td class="py-1 font-mono">${device_id}</td>
+                <td class="py-1">MDM device ID</td>
+            </tr>
+            <tr>
+                <td class="py-1 font-mono">${imei}</td>
+                <td class="py-1">Device IMEI from hardware info</td>
+            </tr>
+            <tr>
+                <td class="py-1 font-mono">${serial_number}</td>
+                <td class="py-1">Device serial number</td>
+            </tr>
+        </table>
+    </div>
+    {% if var_formset.non_form_errors %}
+        <div class="mb-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+            {{ var_formset.non_form_errors }}
+        </div>
+    {% endif %}
+    <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm text-gray-500 dark:text-gray-400">
+            <thead class="bg-gray-50 text-xs uppercase text-gray-700 dark:bg-gray-700 dark:text-gray-400">
+                <tr>
+                    <th class="px-3 py-2">Variable Name</th>
+                    <th class="px-3 py-2">Value</th>
+                    <th class="px-3 py-2">Encrypted</th>
+                    <th class="px-3 py-2">Scope</th>
+                    <th class="px-3 py-2">Fleet</th>
+                    <th class="px-3 py-2"></th>
+                </tr>
+            </thead>
+            <tbody id="vars-tbody">
+                {% for var_form in var_formset %}
+                    {% with var=var_form.instance %}
+                        {% if var.pk %}
+                            {# Existing variable row #}
+                            <tr class="border-b dark:border-gray-600"
+                                x-data="{ markDelete: false, scope: '{{ var_form.scope.value }}', isEncrypted: {{ var_form.is_encrypted.value|yesno:'true,false' }} }"
+                                :class="{ 'opacity-50': markDelete }">
+                                <td class="px-3 py-2">
+                                    {{ var_form.id }}
+                                    <input type="checkbox"
+                                           name="{{ var_form.DELETE.html_name }}"
+                                           id="{{ var_form.DELETE.id_for_label }}"
+                                           class="sr-only"
+                                           x-model="markDelete">
+                                    {{ var_form.key }}
+                                    {{ var_form.key.errors }}
+                                </td>
+                                <td class="px-3 py-2">
+                                    <div x-show="!isEncrypted">
+                                        {{ var_form.value }}
+                                        {{ var_form.value.errors }}
+                                    </div>
+                                    <div x-show="isEncrypted">
+                                        {% if var.is_encrypted %}
+                                            <span class="text-xs italic text-gray-400 dark:text-gray-500">encrypted — enter new value to replace</span>
+                                        {% endif %}
+                                        {{ var_form.value }}
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <label class="inline-flex cursor-pointer items-center gap-2">
+                                        <input type="checkbox"
+                                               name="{{ var_form.is_encrypted.html_name }}"
+                                               id="{{ var_form.is_encrypted.id_for_label }}"
+                                               class="sr-only peer"
+                                               {% if var_form.is_encrypted.value %}checked{% endif %}
+                                               @change="isEncrypted = $event.target.checked">
+                                        <div class="relative h-5 w-9 rounded-full bg-gray-200 after:absolute after:start-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 rtl:peer-checked:after:-translate-x-full dark:border-gray-600 dark:bg-gray-700 dark:peer-checked:bg-blue-600 dark:peer-focus:ring-primary-800">
+                                        </div>
+                                    </label>
+                                </td>
+                                <td class="px-3 py-2"
+                                    @change.capture="if ($event.target.name === '{{ var_form.scope.html_name }}') scope = $event.target.value">
+                                    {{ var_form.scope }}
+                                    {{ var_form.scope.errors }}
+                                </td>
+                                <td class="px-3 py-2">
+                                    <div x-show="scope === 'fleet'">
+                                        {{ var_form.fleet }}
+                                        {{ var_form.fleet.errors }}
+                                    </div>
+                                    <span x-show="scope !== 'fleet'"
+                                          class="text-xs text-gray-400 dark:text-gray-500">—</span>
+                                </td>
+                                <td class="px-3 py-2">
+                                    <button type="button"
+                                            @click="markDelete = !markDelete"
+                                            class="text-sm"
+                                            :class="markDelete ? 'text-gray-500 hover:text-gray-700 dark:text-gray-400' : 'text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300'">
+                                        <span x-show="!markDelete">Delete</span>
+                                        <span x-show="markDelete">Undo</span>
+                                    </button>
+                                </td>
+                            </tr>
+                        {% else %}
+                            {# Extra row: add a new variable (re-rendered on validation error) #}
+                            <tr class="border-b dark:border-gray-600"
+                                x-data="{ scope: '', isEncrypted: false }"
+                                @change.capture="if ($event.target.name === '{{ var_form.scope.html_name }}') scope = $event.target.value">
+                                <td class="px-3 py-2">
+                                    {{ var_form.id }}
+                                    {{ var_form.key }}
+                                    {{ var_form.key.errors }}
+                                </td>
+                                <td class="px-3 py-2">
+                                    {{ var_form.value }}
+                                    {{ var_form.value.errors }}
+                                </td>
+                                <td class="px-3 py-2">
+                                    <label class="inline-flex cursor-pointer items-center gap-2">
+                                        <input type="checkbox"
+                                               name="{{ var_form.is_encrypted.html_name }}"
+                                               id="{{ var_form.is_encrypted.id_for_label }}"
+                                               class="sr-only peer"
+                                               @change="isEncrypted = $event.target.checked">
+                                        <div class="relative h-5 w-9 rounded-full bg-gray-200 after:absolute after:start-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 rtl:peer-checked:after:-translate-x-full dark:border-gray-600 dark:bg-gray-700 dark:peer-checked:bg-blue-600 dark:peer-focus:ring-primary-800">
+                                        </div>
+                                    </label>
+                                </td>
+                                <td class="px-3 py-2">
+                                    {{ var_form.scope }}
+                                    {{ var_form.scope.errors }}
+                                </td>
+                                <td class="px-3 py-2">
+                                    <div x-show="scope === 'fleet'">
+                                        {{ var_form.fleet }}
+                                        {{ var_form.fleet.errors }}
+                                    </div>
+                                </td>
+                                <td class="px-3 py-2 text-xs italic text-gray-400 dark:text-gray-500">new</td>
+                            </tr>
+                        {% endif %}
+                    {% endwith %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% with empty=var_formset.empty_form %}
+        <template id="vars-empty-row">
+            <tr class="border-b dark:border-gray-600"
+                x-data="{ scope: '', isEncrypted: false }"
+                @change.capture="if ($event.target.name === '{{ empty.scope.html_name }}') scope = $event.target.value">
+                <td class="px-3 py-2">
+                    {{ empty.id }}
+                    {{ empty.key }}
+                </td>
+                <td class="px-3 py-2">{{ empty.value }}</td>
+                <td class="px-3 py-2">
+                    <label class="inline-flex cursor-pointer items-center gap-2">
+                        <input type="checkbox"
+                               name="{{ empty.is_encrypted.html_name }}"
+                               id="{{ empty.is_encrypted.id_for_label }}"
+                               class="sr-only peer"
+                               @change="isEncrypted = $event.target.checked">
+                        <div class="relative h-5 w-9 rounded-full bg-gray-200 after:absolute after:start-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 rtl:peer-checked:after:-translate-x-full dark:border-gray-600 dark:bg-gray-700 dark:peer-checked:bg-blue-600 dark:peer-focus:ring-primary-800">
+                        </div>
+                    </label>
+                </td>
+                <td class="px-3 py-2">{{ empty.scope }}</td>
+                <td class="px-3 py-2">
+                    <div x-show="scope === 'fleet'">{{ empty.fleet }}</div>
+                </td>
+                <td class="px-3 py-2"></td>
+            </tr>
+        </template>
+    {% endwith %}
+    <button type="button"
+            onclick="addVarRow()"
+            class="mt-2 inline-flex items-center gap-1 text-sm text-blue-600 hover:underline dark:text-blue-400">
+        + Add variable
+    </button>
+    <script>
+        function addVarRow() {
+            const totalForms = document.getElementById("id_vars-TOTAL_FORMS");
+            const count = parseInt(totalForms.value);
+            const template = document.getElementById("vars-empty-row");
+            const html = template.innerHTML.replace(/__prefix__/g, count);
+            const temp = document.createElement("table");
+            temp.innerHTML = "<tbody>" + html + "</tbody>";
+            const row = temp.querySelector("tr");
+            document.getElementById("vars-tbody").appendChild(row);
+            Alpine.initTree(row);
+            totalForms.value = count + 1;
+        }
+    </script>
+</div>

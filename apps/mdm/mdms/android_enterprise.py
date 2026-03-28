@@ -38,6 +38,11 @@ class AndroidEnterprise(MDM):
         self.api_errors = []
         self.organization = organization
         self.service_account_file = os.getenv("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE")
+        if (self.enterprise_id or self.service_account_file) and not self.is_configured:
+            raise ValueError(
+                "Android Enterprise MDM credentials are not properly configured or service account file is missing."
+                f"{self.enterprise_id=}, {self.service_account_file=}"
+            )
 
     @property
     def enterprise_id(self):
@@ -62,7 +67,6 @@ class AndroidEnterprise(MDM):
     @cached_property
     def api(self):
         if not self.is_configured:
-            logger.warning("Android Enterprise API credentials not configured.")
             return None
         credentials = Credentials.from_service_account_file(
             self.service_account_file,
@@ -396,14 +400,12 @@ class AndroidEnterprise(MDM):
 
     def push_device_config(self, device: Device):
         """Create or update a device-specific policy in the MDM based on the
-        json_template of the device's Policy.
+        normalized fields of the device's Policy.
         """
         if not device.raw_mdm_device:
             logger.debug("New device. Cannot sync", device=device)
             return
-        policy_data = device.fleet.policy.get_policy_data(
-            device=device, tailscale_auth_key=os.getenv("TAILSCALE_AUTH_KEY")
-        )
+        policy_data = device.fleet.policy.get_policy_data(device=device)
         if not policy_data:
             logger.debug(
                 "Could not generate policy data. Cannot sync",
@@ -464,7 +466,7 @@ class AndroidEnterprise(MDM):
         logger.info("Syncing fleet to Android Enterprise devices", fleet=fleet)
         self.pull_devices(fleet)
         if push_config:
-            for device in fleet.devices.exclude(app_user_name="").select_related("fleet").all():
+            for device in fleet.devices.select_related("fleet").all():
                 self.push_device_config(device=device)
 
     def sync_fleets(self, push_config: bool = True):
@@ -515,11 +517,11 @@ class AndroidEnterprise(MDM):
         return True
 
     def create_or_update_policy(self, policy: Policy):
-        """Creates or updates a policy in the MDM based on the template in the
-        Policy.json_template field.
+        """Creates or updates a policy in the MDM based on the normalized
+        Policy fields.
         """
         logger.debug("Create/update policy", policy=policy)
-        policy_data = policy.get_policy_data(tailscale_auth_key=os.getenv("TAILSCALE_AUTH_KEY"))
+        policy_data = policy.get_policy_data()
         if not policy_data:
             logger.debug(
                 "Could not generate policy data. Cannot create/update the policy",

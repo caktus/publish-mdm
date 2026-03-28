@@ -11,7 +11,6 @@ from apps.mdm.mdms import get_active_mdm_class
 from apps.publish_mdm.etl import template
 from apps.publish_mdm.models import CentralServer
 from tests.mdm import TestAllMDMs
-from tests.mdm.factories import PolicyFactory
 
 from .factories import (
     AppUserFactory,
@@ -298,9 +297,9 @@ class TestAppUser:
 
 @pytest.mark.django_db
 class TestOrganization(TestAllMDMs):
-    def test_create_default_fleet(self, set_mdm_env_vars, mocker, settings):
-        """Ensures calling create_default_fleet() creates a default Fleet for an
-        organization if a default policy exists.
+    def test_create_default_fleet(self, set_mdm_env_vars, mocker):
+        """Ensures calling create_default_fleet() creates a default Fleet and
+        org-specific policy for an organization when the active MDM is configured.
         """
         organization = OrganizationFactory()
         MDM = get_active_mdm_class()
@@ -309,18 +308,30 @@ class TestOrganization(TestAllMDMs):
         mock_get_enrollment_qr_code = mocker.patch.object(MDM, "get_enrollment_qr_code")
         mocker.patch.object(MDM, "pull_devices")
 
-        # No default policy. The default fleet should not be created
-        settings.MDM_DEFAULT_POLICY = None
-        organization.create_default_fleet()
-        assert not organization.fleets.exists()
-        mock_create_group.assert_not_called()
-        mock_add_group_to_policy.assert_not_called()
-        mock_get_enrollment_qr_code.assert_not_called()
-
-        # Create a default policy and call create_default_fleet() again
-        default_policy = PolicyFactory(default_policy=True)
-        organization.create_default_fleet()
-        assert organization.fleets.filter(name="Default", policy=default_policy).exists()
+        fleet = organization.create_default_fleet()
+        assert fleet is not None
+        assert fleet.name == "Default"
+        assert fleet.policy.organization == organization
+        assert fleet.policy.name == "Default"
         mock_create_group.assert_called_once()
         mock_add_group_to_policy.assert_called_once()
         mock_get_enrollment_qr_code.assert_called_once()
+
+    def test_create_default_fleet_policy_id_is_unique(self, set_mdm_env_vars, mocker):
+        """Two calls to create_default_fleet() must produce distinct policy_id values.
+
+        Regression test: the previous implementation used
+        ``f"policy_default_{Policy.all_mdms.count()}"`` which produces collisions
+        under concurrency or after deletions.
+        """
+        MDM = get_active_mdm_class()
+        mocker.patch.object(MDM, "create_group")
+        mocker.patch.object(MDM, "add_group_to_policy")
+        mocker.patch.object(MDM, "get_enrollment_qr_code")
+        mocker.patch.object(MDM, "pull_devices")
+
+        org1 = OrganizationFactory()
+        org2 = OrganizationFactory()
+        fleet1 = org1.create_default_fleet()
+        fleet2 = org2.create_default_fleet()
+        assert fleet1.policy.policy_id != fleet2.policy.policy_id

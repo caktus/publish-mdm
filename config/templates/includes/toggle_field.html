@@ -1,0 +1,21 @@
+{% load mdm_tags %}
+{#
+  Flowbite toggle switch for a boolean form field.
+  Usage: {% include "includes/toggle_field.html" with field=form.my_bool_field only %}
+  Optional: pass tooltip_id to render an info icon after the label.
+#}
+<label class="inline-flex cursor-pointer items-center gap-3"
+       for="{{ field.id_for_label }}">
+    <input type="checkbox"
+           name="{{ field.html_name }}"
+           id="{{ field.id_for_label }}"
+           {% if field.value %}checked{% endif %}
+           class="sr-only peer">
+    <div class="relative h-5 w-9 rounded-full bg-gray-200 after:absolute after:start-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-blue-600 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 rtl:peer-checked:after:-translate-x-full dark:border-gray-600 dark:bg-gray-700 dark:peer-checked:bg-blue-600 dark:peer-focus:ring-primary-800">
+    </div>
+    <span class="text-sm font-medium text-gray-900 dark:text-white">{{ field.label }}</span>
+    {% if tooltip_id %}
+        {% info_icon tooltip_id %}
+    {% endif %}
+</label>
+{{ field.errors }}

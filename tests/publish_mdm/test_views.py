@@ -2240,7 +2240,7 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
         assert mock_sync_fleet.call_count == len(fleets)
         assert {
             (call.args[0], call.kwargs["push_config"]) for call in mock_sync_fleet.mock_calls
-        } == {(fleet, False) for fleet in fleets}
+        } == {(fleet, True) for fleet in fleets}
         # Ensure the expected devices list is included in the response
         table = response.context.get("table")
         assert isinstance(table, Table)
@@ -2395,36 +2395,35 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         return reverse("publish_mdm:add-fleet", args=[organization.slug])
 
     def test_get(self, client, url, user, organization, mocker, all_mdms, set_mdm_env_vars):
-        PolicyFactory.create_batch(2)
-        default_policy = PolicyFactory(default_policy=True)
+        PolicyFactory.create_batch(2)  # other-org policies, should not be pre-selected
+        org_policy = PolicyFactory(organization=organization)
         response = client.get(url)
         assert response.status_code == 200
         assert isinstance(response.context.get("form"), FleetAddForm)
         form_instance = response.context["form"].instance
         assert form_instance.organization == organization
-        assert form_instance.policy == default_policy
+        assert form_instance.policy == org_policy
 
     def test_get_no_mdm_credentials(self, client, url, user, organization, all_mdms):
         """Ensures a warning message that a fleet cannot be created is shown if
         API credentials are not configured for the active MDM.
         """
-        PolicyFactory(default_policy=True)
         response = client.get(url, follow=True)
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
         assertContains(
             response, "Sorry, cannot create a fleet at this time. Please try again later."
         )
 
-    def test_get_no_default_policy(self, client, url, user, organization, settings, all_mdms):
-        """Ensures a warning message that a fleet cannot be created is shown if
-        there is no default policy.
-        """
-        settings.MDM_DEFAULT_POLICY = None
-        response = client.get(url, follow=True)
-        assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
-        assertContains(
-            response, "Sorry, cannot create a fleet at this time. Please try again later."
-        )
+    def test_get_no_org_policy(
+        self, client, url, user, organization, settings, all_mdms, set_mdm_env_vars
+    ):
+        """Ensures the form renders when there is no org-scoped policy (policy defaults to None)."""
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), FleetAddForm)
+        form_instance = response.context["form"].instance
+        assert form_instance.organization == organization
+        assert form_instance.policy_id is None
 
     def test_valid_form(
         self, client, url, user, organization, project, all_mdms, set_mdm_env_vars, mocker
@@ -2432,8 +2431,10 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         """Ensure submitting a valid form creates a Fleet with the expected data
         and makes the expected MDM API requests.
         """
+        org_policy = PolicyFactory(organization=organization)
         data = {
             "name": "My Fleet",
+            "policy": org_policy.id,
             "project": project.id,
         }
         MDM = get_active_mdm_class()
@@ -2452,7 +2453,6 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
         mock_get_enrollment_qr_code = mocker.patch.object(MDM, "get_enrollment_qr_code")
         mocker.patch.object(MDM, "pull_devices")
-        PolicyFactory(default_policy=True)
 
         response = client.post(url, data=data, follow=True)
         fleet = organization.fleets.get()
@@ -2480,14 +2480,15 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         """Ensure submitting a valid form does not create a Fleet if the API request
         to create a group in the MDM fails.
         """
+        org_policy = PolicyFactory(organization=organization)
         data = {
             "name": "My Fleet",
+            "policy": org_policy.id,
             "project": project.id,
         }
         MDM = get_active_mdm_class()
         mock_create_group = mocker.patch.object(MDM, "create_group", side_effect=mdm_api_error)
         mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
-        PolicyFactory(default_policy=True)
 
         response = client.post(url, data=data, follow=True)
         assert not organization.fleets.exists()
@@ -2517,8 +2518,10 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         creates a group in the MDM, and shows a warning message if the MDM API
         request for adding the group to the default policy fails.
         """
+        org_policy = PolicyFactory(organization=organization)
         data = {
             "name": "My Fleet",
+            "policy": org_policy.id,
             "project": project.id,
         }
         MDM = get_active_mdm_class()
@@ -2538,7 +2541,6 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
             MDM, "add_group_to_policy", side_effect=mdm_api_error
         )
         mocker.patch.object(MDM, "pull_devices")
-        PolicyFactory(default_policy=True)
 
         response = client.post(url, data=data, follow=True)
         fleet = organization.fleets.get()
@@ -2573,8 +2575,10 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         and shows a warning message if the MDM API request for getting the
         fleet's enrollment QR code fails.
         """
+        org_policy = PolicyFactory(organization=organization)
         data = {
             "name": "My Fleet",
+            "policy": org_policy.id,
             "project": project.id,
         }
         MDM = get_active_mdm_class()
@@ -2595,7 +2599,6 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         )
         mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
         mocker.patch.object(MDM, "pull_devices")
-        PolicyFactory(default_policy=True)
 
         response = client.post(url, data=data, follow=True)
         fleet = organization.fleets.get()
@@ -2634,12 +2637,16 @@ class TestEditFleet(ViewTestBase):
 
     def test_valid_form(self, client, url, user, fleet, organization, project):
         """Ensure submitting a valid form updates the Fleet."""
+        # Create an org-scoped policy (fleet.policy belongs to a different org)
+        org_policy = PolicyFactory(organization=organization)
         data = {
+            "policy": org_policy.id,
             "project": project.id,
         }
         response = client.post(url, data=data, follow=True)
         fleet.refresh_from_db()
         assert fleet.project_id == data["project"]
+        assert fleet.policy == org_policy
         assertContains(response, f"Successfully edited {fleet}.")
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
 
@@ -2650,9 +2657,11 @@ class TestEditFleet(ViewTestBase):
         fleet.project = project
         fleet.save()
         app_user = AppUserFactory(project=project)
+        org_policy = PolicyFactory(organization=organization)
         data = {
             "project": project.id,
             "default_app_user": app_user.id,
+            "policy": org_policy.id,
         }
         response = client.post(url, data=data, follow=True)
         fleet.refresh_from_db()
@@ -2666,8 +2675,10 @@ class TestEditFleet(ViewTestBase):
         fleet.project = project
         fleet.default_app_user = app_user
         fleet.save()
+        org_policy = PolicyFactory(organization=organization)
         data = {
             "project": project.id,
+            "policy": org_policy.id,
         }
         response = client.post(url, data=data, follow=True)
         fleet.refresh_from_db()
@@ -3004,19 +3015,22 @@ class TestDeviceUpdateAppUser(ViewTestBase):
         assert response.status_code == 302
 
     @pytest.mark.parametrize("app_user_name", ["", "new_app_user_name"])
-    def test_valid_form(self, client, url, user, device, app_user_name):
+    def test_valid_form(self, client, url, user, device, app_user_name, mocker, set_mdm_env_vars):
         """Ensure submitting a valid form updates the Device's app_user_name."""
         if app_user_name:
             AppUserFactory(name=app_user_name, project=device.fleet.project)
         data = {
             "app_user_name": app_user_name,
         }
+        MDM = get_active_mdm_class()
+        mock_push_device_config = mocker.patch.object(MDM, "push_device_config")
         response = client.post(url, data=data, follow=True)
         form = response.context.get("form")
         assert isinstance(form, DeviceAppUserForm)
         assert not form.errors, form.errors
         device.refresh_from_db()
         assert device.app_user_name == app_user_name
+        mock_push_device_config.assert_called_once_with(device)
 
     def test_invalid_form(self, client, url, user, device):
         """Ensure submitting an invalid form doesn't update the Device's app_user_name
@@ -3036,3 +3050,35 @@ class TestDeviceUpdateAppUser(ViewTestBase):
         device.refresh_from_db()
         assert device.app_user_name != app_user_name
         assertContains(response, expected_error_message)
+
+    def test_push_device_config_called_on_valid_form(self, client, url, user, device, mocker):
+        """After a valid app_user change, push_device_config is called immediately."""
+        mock_mdm = mocker.MagicMock()
+        mocker.patch("apps.publish_mdm.views.get_active_mdm_instance", return_value=mock_mdm)
+        AppUserFactory(name="pushed_user", project=device.fleet.project)
+        client.post(url, data={"app_user_name": "pushed_user"})
+        device.refresh_from_db()
+        assert device.app_user_name == "pushed_user"
+        mock_mdm.push_device_config.assert_called_once()
+        pushed_device = mock_mdm.push_device_config.call_args[0][0]
+        assert pushed_device.pk == device.pk
+
+    def test_push_device_config_not_called_on_invalid_form(self, client, url, user, device, mocker):
+        """push_device_config is not called when the form is invalid."""
+        mock_mdm = mocker.MagicMock()
+        mocker.patch("apps.publish_mdm.views.get_active_mdm_instance", return_value=mock_mdm)
+        client.post(url, data={"app_user_name": "nonexistent_user"})
+        mock_mdm.push_device_config.assert_not_called()
+
+    def test_push_device_config_error_does_not_break_response(
+        self, client, url, user, device, mocker
+    ):
+        """An exception from push_device_config is logged but the view still returns 200."""
+        mock_mdm = mocker.MagicMock()
+        mock_mdm.push_device_config.side_effect = Exception("MDM error")
+        mocker.patch("apps.publish_mdm.views.get_active_mdm_instance", return_value=mock_mdm)
+        AppUserFactory(name="some_user", project=device.fleet.project)
+        response = client.post(url, data={"app_user_name": "some_user"})
+        assert response.status_code == 200
+        device.refresh_from_db()
+        assert device.app_user_name == "some_user"

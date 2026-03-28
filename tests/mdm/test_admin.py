@@ -1,5 +1,6 @@
 import pytest
 from django.conf import settings
+from django.contrib.auth.models import Permission
 from django.urls import reverse
 from django.utils.html import linebreaks
 from import_export.tmp_storages import TempFolderStorage
@@ -437,14 +438,21 @@ class TestPolicyAdmin(TestAdmin):
     @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
     def test_new_policy(self, user, client, mocker, set_mdm_env_vars, mdm_api_error):
         """Ensures the create_or_update_policy() method is called for a new Policy
-        if json_template is set and the active MDM has the method.
+        when the active MDM has the method.
         """
         MDM = get_active_mdm_class()
         data = {
             "name": "New policy",
             "policy_id": "policy",
             "mdm": MDM.name,
-            "json_template": "{}",
+            "odk_collect_package": "org.odk.collect.android",
+            "device_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
+            "device_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+            "work_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
+            "work_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+            "developer_settings": "DEVELOPER_SETTINGS_DISABLED",
+            "applications-TOTAL_FORMS": "0",
+            "applications-INITIAL_FORMS": "0",
         }
         mdm_has_method = hasattr(MDM, "create_or_update_policy")
         if mdm_has_method:
@@ -473,14 +481,21 @@ class TestPolicyAdmin(TestAdmin):
         self, user, client, mocker, set_mdm_env_vars, mdm_api_error, mdm_api_error_class
     ):
         """Ensures the create_or_update_policy() method is called when editing a Policy
-        if json_template is changed and the active MDM has the method.
+        and the active MDM has the method.
         """
-        policy = PolicyFactory(json_template="")
+        policy = PolicyFactory()
         data = {
             "name": policy.name,
             "policy_id": policy.policy_id,
             "mdm": policy.mdm,
-            "json_template": "{}",
+            "odk_collect_package": policy.odk_collect_package,
+            "device_password_quality": policy.device_password_quality,
+            "device_password_require_unlock": policy.device_password_require_unlock,
+            "work_password_quality": policy.work_password_quality,
+            "work_password_require_unlock": policy.work_password_require_unlock,
+            "developer_settings": policy.developer_settings,
+            "applications-TOTAL_FORMS": "0",
+            "applications-INITIAL_FORMS": "0",
         }
         MDM = get_active_mdm_class()
         mdm_has_method = hasattr(MDM, "create_or_update_policy")
@@ -538,3 +553,131 @@ class TestPolicyAdmin(TestAdmin):
             )
         else:
             mock_push_device_config.assert_not_called()
+
+    def test_policy_push_happens_after_inline_applications_saved(
+        self, user, client, mocker, set_mdm_env_vars
+    ):
+        """MDM push is triggered in save_related(), so inline applications added in the
+        same POST are already persisted when create_or_update_policy() is called.
+
+        Regression test: the push was previously in save_model(), which runs before
+        Django's save_related() persists inline formset rows.
+        """
+        MDM = get_active_mdm_class()
+        if not hasattr(MDM, "create_or_update_policy"):
+            pytest.skip("MDM does not have create_or_update_policy")
+
+        pushed_package_names = []
+
+        def capture_policy(policy):
+            pushed_package_names.extend(
+                list(policy.applications.values_list("package_name", flat=True))
+            )
+
+        mocker.patch.object(MDM, "create_or_update_policy", side_effect=capture_policy)
+        mocker.patch.object(MDM, "push_device_config")
+
+        data = {
+            "name": "Test Policy",
+            "policy_id": "test_policy_inline",
+            "mdm": MDM.name,
+            "odk_collect_package": "org.odk.collect.android",
+            "device_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
+            "device_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+            "work_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
+            "work_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+            "developer_settings": "DEVELOPER_SETTINGS_DISABLED",
+            "applications-TOTAL_FORMS": "1",
+            "applications-INITIAL_FORMS": "0",
+            "applications-MIN_NUM_FORMS": "0",
+            "applications-MAX_NUM_FORMS": "1000",
+            "applications-0-package_name": "com.example.inline",
+            "applications-0-install_type": "FORCE_INSTALLED",
+            "applications-0-order": "1",
+        }
+        response = client.post(reverse("admin:mdm_policy_add"), data=data, follow=True)
+        assert response.status_code == 200
+        # The inline application must already be in the DB when the MDM push fires
+        assert "com.example.inline" in pushed_package_names
+
+
+class TestFleetAdminDeleteConfirmation(TestAdmin):
+    """Tests for the GET paths in FleetAdmin that render confirmation pages."""
+
+    def test_delete_view_shows_confirmation_page(self, user, client):
+        """GET to the fleet delete URL renders the confirmation page (not the delete action)."""
+        fleet = FleetFactory()
+        response = client.get(reverse("admin:mdm_fleet_delete", args=[fleet.id]))
+        assert response.status_code == 200
+        # Confirmation page lists the object to be deleted
+        assert fleet in response.context["deleted_objects"] or fleet.name in str(response.content)
+
+    def test_delete_view_nonexistent_fleet_redirects(self, user, client):
+        """GET to the fleet delete URL with a non-existent ID redirects to changelist."""
+        response = client.get(reverse("admin:mdm_fleet_delete", args=[999999]))
+        assert response.status_code == 302
+
+    def test_delete_view_no_delete_permission_raises_403(self, client):
+        """GET to the fleet delete URL by a user without delete permission returns 403."""
+        # Staff user without delete_fleet permission
+        staff_user = UserFactory(is_staff=True, is_superuser=False)
+        staff_user.user_permissions.set(
+            Permission.objects.filter(codename__in=["view_fleet", "change_fleet"])
+        )
+        staff_user.save()
+        client.force_login(staff_user)
+        fleet = FleetFactory()
+        response = client.get(reverse("admin:mdm_fleet_delete", args=[fleet.id]))
+        assert response.status_code == 403
+
+    def test_delete_view_disallowed_to_field_raises_400(self, user, client):
+        """GET to fleet delete URL with a non-unique _to_field returns 400."""
+        fleet = FleetFactory()
+        # 'name' is not a primary key or unique field, so it's not allowed as to_field
+        response = client.get(
+            reverse("admin:mdm_fleet_delete", args=[fleet.id]) + "?_to_field=name"
+        )
+        assert response.status_code == 400
+
+    def test_delete_view_cannot_delete_title_when_related_perms_lacking(self, client):
+        """Confirmation page shows 'Cannot delete' title when user lacks delete
+        permission for a related object (device linked to the fleet)."""
+        # Staff user with delete_fleet but NOT delete_device
+        staff_user = UserFactory(is_staff=True, is_superuser=False)
+        staff_user.user_permissions.set(
+            Permission.objects.filter(
+                codename__in=[
+                    "view_fleet",
+                    "change_fleet",
+                    "delete_fleet",
+                    "view_device",
+                    "change_device",
+                    "view_policy",
+                    "change_policy",
+                    "add_policy",
+                ]
+            )
+        )
+        staff_user.save()
+        client.force_login(staff_user)
+        fleet = FleetFactory()
+        DeviceFactory(fleet=fleet)  # linked device requires delete_device permission
+        response = client.get(reverse("admin:mdm_fleet_delete", args=[fleet.id]))
+        assert response.status_code == 200
+        # With missing device delete perm, title should indicate cannot delete
+        assert "Cannot delete" in str(response.content) or response.context.get("perms_lacking")
+
+    def test_delete_selected_shows_confirmation_page(self, user, client, mocker):
+        """Posting delete_selected without 'post=yes' renders the confirmation page."""
+        fleets = FleetFactory.create_batch(2)
+        data = {
+            "action": "delete_selected",
+            "_selected_action": [fleet.pk for fleet in fleets],
+        }
+        response = client.post(reverse("admin:mdm_fleet_changelist"), data=data)
+        assert response.status_code == 200
+        # Should show confirmation page, not redirect
+        assert (
+            "delete" in response.context.get("title", "").lower()
+            or b"delete" in response.content.lower()
+        )

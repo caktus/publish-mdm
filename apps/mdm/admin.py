@@ -23,32 +23,45 @@ from apps.publish_mdm.http import HttpRequest
 
 from .import_export import DeviceResource
 from .mdms import get_active_mdm_instance
-from .models import Device, DeviceSnapshot, DeviceSnapshotApp, FirmwareSnapshot, Fleet, Policy
+from .models import (
+    Device,
+    DeviceSnapshot,
+    DeviceSnapshotApp,
+    FirmwareSnapshot,
+    Fleet,
+    Policy,
+    PolicyApplication,
+    PolicyVariable,
+)
 
 logger = structlog.getLogger(__name__)
 
 
+class PolicyApplicationInline(admin.TabularInline):
+    model = PolicyApplication
+    extra = 0
+
+
 @admin.register(Policy)
 class PolicyAdmin(admin.ModelAdmin):
-    list_display = ("name", "policy_id", "default_policy")
+    list_display = ("name", "policy_id")
     search_fields = ("name", "policy_id")
+    inlines = (PolicyApplicationInline,)
 
     def save_model(self, request, obj, form, change):
         obj.save()
-        # Update the policy in the MDM if the json_template has changed.
-        # Currently only implemented for Android Enterprise MDM
-        if (
-            settings.ACTIVE_MDM["name"] == "Android Enterprise"
-            and "json_template" in form.changed_data
-            and obj.json_template
-            and (active_mdm := get_active_mdm_instance())
-        ):
+
+    def save_related(self, request, form, formsets, change):
+        # Save inlines first so applications are persisted before pushing to MDM.
+        super().save_related(request, form, formsets, change)
+        policy = form.instance
+        if active_mdm := get_active_mdm_instance():
             try:
-                active_mdm.create_or_update_policy(obj)
-            except GoogleAPIClientError as e:
+                active_mdm.create_or_update_policy(policy)
+            except (GoogleAPIClientError, RequestException) as e:
                 logger.debug(
                     f"Unable to update the policy in {active_mdm}",
-                    policy=obj,
+                    policy=policy,
                     exc_info=True,
                 )
                 messages.warning(
@@ -61,19 +74,20 @@ class PolicyAdmin(admin.ModelAdmin):
                 )
             if change:
                 # Update the policies for all related Devices that have a child
-                # policy (generated using this policy's json_template)
+                # policy (device-specific policy)
                 devices = Device.objects.filter(
-                    fleet__policy=obj, raw_mdm_device__policyName__endswith=models.F("device_id")
+                    fleet__policy=policy,
+                    raw_mdm_device__policyName__endswith=models.F("device_id"),
                 )
                 logger.debug("Updating child policies", count=len(devices))
                 for device in devices:
                     try:
                         active_mdm.push_device_config(device)
-                    except GoogleAPIClientError as e:
+                    except (GoogleAPIClientError, RequestException) as e:
                         logger.debug(
                             f"Unable to update the policy for {device} in {active_mdm}",
                             device=device,
-                            policy=obj,
+                            policy=policy,
                             exc_info=True,
                         )
                         messages.warning(
@@ -84,6 +98,13 @@ class PolicyAdmin(admin.ModelAdmin):
                                 f"<br><code>{getattr(e, 'api_error', e)}</code>"
                             ),
                         )
+
+
+@admin.register(PolicyVariable)
+class PolicyVariableAdmin(admin.ModelAdmin):
+    list_display = ("key", "value", "scope", "policy", "fleet")
+    list_filter = ("scope",)
+    search_fields = ("key", "value")
 
 
 @admin.register(Fleet)

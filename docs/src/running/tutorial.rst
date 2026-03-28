@@ -53,8 +53,6 @@ Development <../local-development/index>` guide to run Publish MDM locally.
 
    - To use TinyMDM as your MDM service provider (the default if ``ACTIVE_MDM_NAME`` is not set),
      set ``TINYMDM_ACCOUNT_ID``, ``TINYMDM_APIKEY_PUBLIC``, and ``TINYMDM_APIKEY_SECRET``.
-     You can also set the ID of your default :ref:`mdm-policy` in ``MDM_DEFAULT_POLICY``, or you
-     can create a default policy in Admin once your server is up and running (see Step 5 below).
 
 2. Start the Publish MDM server, login with your Google account, and make
    yourself an admin.
@@ -69,16 +67,6 @@ Development <../local-development/index>` guide to run Publish MDM locally.
 
 4. Sync your ODK Central project by visiting
    http://localhost:8000/odk/servers/sync/.
-
-5. Create a default MDM policy in Admin (``/admin/mdm/policy/``). If Android EMM is your MDM service provider,
-   add a JSON template for the policy, which will be used to create device-specific policies. This can be a
-   Django template which will get the following in its context:
-
-    - ``device``: A ``mdm.models.Device`` object.
-    - ``tailscale_auth_key``: The value of the ``TAILSCALE_AUTH_KEY`` environment variable, if set.
-
-   See the `Google docs <https://developers.google.com/android/management/reference/rest/v1/enterprises.policies>`_
-   for the expected JSON format.
 
 3. Setup project in Publish MDM
 -------------------------------
