@@ -81,7 +81,7 @@ class Organization(AbstractBaseModel):
             install_type="FORCE_INSTALLED",
             order=0,
         )
-        fleet = Fleet(organization=self, name="Default", policy=default_policy)
+        fleet = Fleet(organization=self, name="Default", policy=policy)
         active_mdm.create_group(fleet)
         active_mdm.add_group_to_policy(fleet)
         active_mdm.get_enrollment_qr_code(fleet)
