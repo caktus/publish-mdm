@@ -5,9 +5,14 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
-from django.template import Context, Template
+from django.db.models import Q
 from django.utils.html import mark_safe
 from django.utils.timezone import now
+
+from apps.infisical.fields import EncryptedCharField
+from apps.infisical.managers import EncryptedManager
+
+from .serializers import PolicySerializer
 
 logger = structlog.get_logger()
 
@@ -15,6 +20,121 @@ logger = structlog.get_logger()
 class MDMChoices(models.TextChoices):
     TINYMDM = "TinyMDM", "TinyMDM"
     ANDROID_ENTERPRISE = "Android Enterprise", "Android Enterprise"
+
+
+class PasswordQuality(models.TextChoices):
+    PASSWORD_QUALITY_UNSPECIFIED = "PASSWORD_QUALITY_UNSPECIFIED", "Unspecified"
+    BIOMETRIC_WEAK = "BIOMETRIC_WEAK", "Biometric weak"
+    SOMETHING = "SOMETHING", "Something"
+    NUMERIC = "NUMERIC", "Numeric"
+    NUMERIC_COMPLEX = "NUMERIC_COMPLEX", "Numeric complex"
+    ALPHABETIC = "ALPHABETIC", "Alphabetic"
+    ALPHANUMERIC = "ALPHANUMERIC", "Alphanumeric"
+    COMPLEX = "COMPLEX", "Complex"
+
+
+class RequirePasswordUnlock(models.TextChoices):
+    REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED = (
+        "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+        "Unspecified",
+    )
+    USE_DEFAULT_DEVICE_TIMEOUT = "USE_DEFAULT_DEVICE_TIMEOUT", "Use default device timeout"
+    REQUIRE_EVERY_DAY = "REQUIRE_EVERY_DAY", "Require every day"
+
+
+class DeveloperSettings(models.TextChoices):
+    DEVELOPER_SETTINGS_DISABLED = "DEVELOPER_SETTINGS_DISABLED", "Disallowed"
+    DEVELOPER_SETTINGS_ALLOWED = "DEVELOPER_SETTINGS_ALLOWED", "Allowed"
+
+
+class KioskPowerButtonActions(models.TextChoices):
+    UNSPECIFIED = "POWER_BUTTON_ACTIONS_UNSPECIFIED", "Unspecified"
+    AVAILABLE = "POWER_BUTTON_AVAILABLE", "Available"
+    BLOCKED = "POWER_BUTTON_BLOCKED", "Blocked"
+
+
+class KioskSystemErrorWarnings(models.TextChoices):
+    UNSPECIFIED = "SYSTEM_ERROR_WARNINGS_UNSPECIFIED", "Unspecified"
+    ENABLED = "ERROR_AND_WARNINGS_ENABLED", "Enabled"
+    MUTED = "ERROR_AND_WARNINGS_MUTED", "Muted"
+
+
+class KioskSystemNavigation(models.TextChoices):
+    UNSPECIFIED = "SYSTEM_NAVIGATION_UNSPECIFIED", "Unspecified"
+    ENABLED = "NAVIGATION_ENABLED", "Enabled"
+    DISABLED = "NAVIGATION_DISABLED", "Disabled"
+    HOME_ONLY = "HOME_BUTTON_ONLY", "Home button only"
+
+
+class KioskStatusBar(models.TextChoices):
+    UNSPECIFIED = "STATUS_BAR_UNSPECIFIED", "Unspecified"
+    ENABLED = "NOTIFICATIONS_AND_SYSTEM_INFO_ENABLED", "Notifications and system info enabled"
+    DISABLED = "NOTIFICATIONS_AND_SYSTEM_INFO_DISABLED", "Notifications and system info disabled"
+    SYSTEM_INFO_ONLY = "SYSTEM_INFO_ONLY", "System info only"
+
+
+class KioskDeviceSettings(models.TextChoices):
+    UNSPECIFIED = "DEVICE_SETTINGS_UNSPECIFIED", "Unspecified"
+    ALLOWED = "SETTINGS_ACCESS_ALLOWED", "Settings access allowed"
+    BLOCKED = "SETTINGS_ACCESS_BLOCKED", "Settings access blocked"
+
+
+class PermissionPolicy(models.TextChoices):
+    PERMISSION_POLICY_UNSPECIFIED = "PERMISSION_POLICY_UNSPECIFIED", "Unspecified"
+    PROMPT = "PROMPT", "Prompt user"
+    GRANT = "GRANT", "Grant automatically"
+    DENY = "DENY", "Deny automatically"
+
+
+class InstallType(models.TextChoices):
+    FORCE_INSTALLED = "FORCE_INSTALLED", "Force installed"
+    PREINSTALLED = "PREINSTALLED", "Pre-installed"
+    AVAILABLE = "AVAILABLE", "Available"
+    KIOSK = "KIOSK", "Kiosk"
+    BLOCKED = "BLOCKED", "Blocked"
+
+
+class LocationMode(models.TextChoices):
+    LOCATION_MODE_UNSPECIFIED = "LOCATION_MODE_UNSPECIFIED", "Unspecified"
+    HIGH_ACCURACY = "HIGH_ACCURACY", "High accuracy (deprecated, Android 8 and below)"
+    SENSORS_ONLY = "SENSORS_ONLY", "Sensors only / GPS (deprecated, Android 8 and below)"
+    BATTERY_SAVING = "BATTERY_SAVING", "Battery saving (deprecated, Android 8 and below)"
+    OFF = "OFF", "Off (deprecated, Android 8 and below)"
+    LOCATION_ENFORCED = "LOCATION_ENFORCED", "Enforced (Android 9+)"
+    LOCATION_DISABLED = "LOCATION_DISABLED", "Disabled (Android 9+)"
+    LOCATION_USER_CHOICE = "LOCATION_USER_CHOICE", "User choice (Android 9+)"
+
+
+class UsbDataAccess(models.TextChoices):
+    USB_DATA_ACCESS_UNSPECIFIED = "USB_DATA_ACCESS_UNSPECIFIED", "Unspecified"
+    ALLOW_USB_DATA_TRANSFER = "ALLOW_USB_DATA_TRANSFER", "Allow USB data transfer"
+    DISALLOW_USB_FILE_TRANSFER = "DISALLOW_USB_FILE_TRANSFER", "Disallow USB file transfer"
+    DISALLOW_USB_DATA_TRANSFER = "DISALLOW_USB_DATA_TRANSFER", "Disallow all USB data transfer"
+
+
+class ConfigureWifi(models.TextChoices):
+    CONFIGURE_WIFI_UNSPECIFIED = "CONFIGURE_WIFI_UNSPECIFIED", "Unspecified"
+    ALLOW_CONFIGURING_WIFI = "ALLOW_CONFIGURING_WIFI", "Allow configuring Wi-Fi"
+    DISALLOW_ADD_WIFI_CONFIG = "DISALLOW_ADD_WIFI_CONFIG", "Disallow adding Wi-Fi networks"
+    DISALLOW_CONFIGURING_WIFI = "DISALLOW_CONFIGURING_WIFI", "Disallow configuring Wi-Fi"
+
+
+class TetheringSettings(models.TextChoices):
+    TETHERING_SETTINGS_UNSPECIFIED = "TETHERING_SETTINGS_UNSPECIFIED", "Unspecified"
+    ALLOW_ALL_TETHERING = "ALLOW_ALL_TETHERING", "Allow all tethering"
+    DISALLOW_WIFI_TETHERING = "DISALLOW_WIFI_TETHERING", "Disallow Wi-Fi tethering"
+    DISALLOW_ALL_TETHERING = "DISALLOW_ALL_TETHERING", "Disallow all tethering"
+
+
+class WifiDirectSettings(models.TextChoices):
+    WIFI_DIRECT_SETTINGS_UNSPECIFIED = "WIFI_DIRECT_SETTINGS_UNSPECIFIED", "Unspecified"
+    ALLOW_WIFI_DIRECT = "ALLOW_WIFI_DIRECT", "Allow Wi-Fi Direct"
+    DISALLOW_WIFI_DIRECT = "DISALLOW_WIFI_DIRECT", "Disallow Wi-Fi Direct"
+
+
+class PolicyVariableScope(models.TextChoices):
+    POLICY = "policy", "Policy"
+    FLEET = "fleet", "Fleet"
 
 
 class PolicyManager(models.Manager):
@@ -29,13 +149,148 @@ class Policy(models.Model):
     policy_id = models.CharField(
         verbose_name="Policy ID", max_length=255, help_text="The ID of the policy in the MDM."
     )
-    default_policy = models.BooleanField(default=False)
     mdm = models.CharField(max_length=50, choices=MDMChoices, verbose_name="MDM")
-    json_template = models.TextField(
+    organization = models.ForeignKey(
+        "publish_mdm.Organization",
+        on_delete=models.CASCADE,
+        related_name="policies",
+        null=True,
         blank=True,
-        verbose_name="JSON template",
-        help_text="A JSON template (using Django template syntax) that can be used "
-        "to create this policy and its child policies.",
+    )
+
+    # ODK Collect
+    odk_collect_package = models.CharField(
+        max_length=255,
+        default="org.odk.collect.android",
+        help_text="Package name for ODK Collect.",
+    )
+    odk_collect_device_id_template = models.CharField(
+        max_length=255,
+        blank=True,
+        default="${app_user_name}-${device_id}",
+        help_text=(
+            "Template for the device_id field passed to ODK Collect's managed configuration. "
+            "Supports built-in variables: $app_user_name, $device_id, "
+            "$serial_number, $imei. Leave blank to omit device_id from the managed configuration."
+        ),
+    )
+
+    # Device-scope password policy
+    device_password_quality = models.CharField(
+        max_length=50,
+        choices=PasswordQuality,
+        default=PasswordQuality.PASSWORD_QUALITY_UNSPECIFIED,
+        blank=True,
+    )
+    device_password_min_length = models.PositiveSmallIntegerField(null=True, blank=True)
+    device_password_require_unlock = models.CharField(
+        max_length=50,
+        choices=RequirePasswordUnlock,
+        default=RequirePasswordUnlock.REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED,
+        blank=True,
+    )
+
+    # Work-profile-scope password policy
+    work_password_quality = models.CharField(
+        max_length=50,
+        choices=PasswordQuality,
+        default=PasswordQuality.PASSWORD_QUALITY_UNSPECIFIED,
+        blank=True,
+    )
+    work_password_min_length = models.PositiveSmallIntegerField(null=True, blank=True)
+    work_password_require_unlock = models.CharField(
+        max_length=50,
+        choices=RequirePasswordUnlock,
+        default=RequirePasswordUnlock.REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED,
+        blank=True,
+    )
+
+    # Always-on VPN
+    vpn_package_name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Package name for always-on VPN. Leave blank to disable.",
+    )
+    vpn_lockdown = models.BooleanField(
+        default=False,
+        help_text="If enabled, all networking is blocked when VPN is not connected.",
+    )
+
+    # Developer options
+    developer_settings = models.CharField(
+        max_length=50,
+        choices=DeveloperSettings,
+        default=DeveloperSettings.DEVELOPER_SETTINGS_DISABLED,
+    )
+
+    # Kiosk mode
+    kiosk_power_button_actions = models.CharField(
+        max_length=60,
+        choices=KioskPowerButtonActions,
+        default=KioskPowerButtonActions.UNSPECIFIED,
+        blank=True,
+    )
+    kiosk_system_error_warnings = models.CharField(
+        max_length=60,
+        choices=KioskSystemErrorWarnings,
+        default=KioskSystemErrorWarnings.UNSPECIFIED,
+        blank=True,
+    )
+    kiosk_system_navigation = models.CharField(
+        max_length=60,
+        choices=KioskSystemNavigation,
+        default=KioskSystemNavigation.UNSPECIFIED,
+        blank=True,
+    )
+    kiosk_status_bar = models.CharField(
+        max_length=60,
+        choices=KioskStatusBar,
+        default=KioskStatusBar.UNSPECIFIED,
+        blank=True,
+    )
+    kiosk_device_settings = models.CharField(
+        max_length=60,
+        choices=KioskDeviceSettings,
+        default=KioskDeviceSettings.UNSPECIFIED,
+        blank=True,
+    )
+    kiosk_custom_launcher_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable the custom launcher when the device is in kiosk mode.",
+    )
+
+    # Location
+    location_mode = models.CharField(
+        max_length=50,
+        choices=LocationMode,
+        default=LocationMode.LOCATION_MODE_UNSPECIFIED,
+        blank=True,
+    )
+
+    # Device Connectivity Management
+    connectivity_usb_data_access = models.CharField(
+        max_length=50,
+        choices=UsbDataAccess,
+        default=UsbDataAccess.USB_DATA_ACCESS_UNSPECIFIED,
+        blank=True,
+    )
+    connectivity_configure_wifi = models.CharField(
+        max_length=50,
+        choices=ConfigureWifi,
+        default=ConfigureWifi.CONFIGURE_WIFI_UNSPECIFIED,
+        blank=True,
+    )
+    connectivity_tethering_settings = models.CharField(
+        max_length=50,
+        choices=TetheringSettings,
+        default=TetheringSettings.TETHERING_SETTINGS_UNSPECIFIED,
+        blank=True,
+    )
+    connectivity_wifi_direct_settings = models.CharField(
+        max_length=50,
+        choices=WifiDirectSettings,
+        default=WifiDirectSettings.WIFI_DIRECT_SETTINGS_UNSPECIFIED,
+        blank=True,
     )
 
     all_mdms = models.Manager()
@@ -43,48 +298,126 @@ class Policy(models.Model):
 
     class Meta:
         verbose_name_plural = "policies"
-        constraints = (
-            models.UniqueConstraint(
-                fields=["default_policy", "mdm"],
-                condition=models.Q(default_policy=True),
-                name="unique_default_policy",
-                violation_error_message="A default policy already exists.",
-            ),
-        )
-        # Default policy first
-        ordering = ("-default_policy", "id")
+        ordering = ("name",)
 
     def __str__(self):
         return f"{self.name} ({self.policy_id})"
 
-    @classmethod
-    def get_default(cls):
-        """Gets the default policy. First tries to get the Policy marked as default.
-        If none exists and the MDM_DEFAULT_POLICY setting is set, get or create
-        a Policy with that policy_id.
-        """
-        policy = cls.objects.filter(default_policy=True).first()
-        if not policy and settings.MDM_DEFAULT_POLICY:
-            policy = cls.objects.get_or_create(
-                policy_id=settings.MDM_DEFAULT_POLICY,
-                mdm=settings.ACTIVE_MDM["name"],
-                defaults={"name": "Default", "default_policy": True},
-            )[0]
-        return policy
-
     def get_policy_data(self, **kwargs):
-        """Generates policy data that can be used to create/update this policy
-        and its child policies in the MDM.
-        """
-        if self.json_template:
-            template = Template(self.json_template)
-            context = Context(kwargs)
-            policy = template.render(context)
-            try:
-                return json.loads(policy)
-            except json.JSONDecodeError:
-                pass
-        return None
+        """Generates policy data using the PolicySerializer."""
+        device = kwargs.get("device")
+        applications = list(self.applications.select_related("policy").order_by("order", "pk"))
+        variables = list(
+            PolicyVariable.decrypted.filter(Q(policy=self) | Q(fleet__in=self.fleets.all()))
+        )
+        serializer = PolicySerializer(
+            policy=self,
+            applications=applications,
+            variables=variables,
+            device=device,
+        )
+        return serializer.to_dict()
+
+
+class PolicyApplication(models.Model):
+    """One row per app in the policy's applications array."""
+
+    policy = models.ForeignKey(
+        Policy,
+        on_delete=models.CASCADE,
+        related_name="applications",
+    )
+    package_name = models.CharField(max_length=255)
+    install_type = models.CharField(
+        max_length=20,
+        choices=InstallType,
+        default=InstallType.FORCE_INSTALLED,
+    )
+    disabled = models.BooleanField(default=False)
+    managed_configuration = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Managed configuration for this app (from Play Store iframe).",
+    )
+    order = models.PositiveSmallIntegerField(default=0)
+    default_permission_policy = models.CharField(
+        max_length=50,
+        choices=PermissionPolicy,
+        default=PermissionPolicy.PERMISSION_POLICY_UNSPECIFIED,
+        blank=True,
+    )
+
+    class Meta:
+        ordering = ("order", "pk")
+        constraints = (
+            models.UniqueConstraint(
+                fields=["policy", "package_name"],
+                name="unique_policy_application",
+            ),
+        )
+
+    def __str__(self):
+        return f"{self.package_name} ({self.get_install_type_display()})"
+
+    def managed_configuration_str(self):
+        """Return managed_configuration JSON as a formatted string for display."""
+        if self.managed_configuration is None:
+            return ""
+        return json.dumps(self.managed_configuration, indent=2)
+
+
+class PolicyVariable(models.Model):
+    """User-defined key/value pairs for variable interpolation at push time."""
+
+    key = models.CharField(max_length=255)
+    value = models.CharField(max_length=2048, blank=True)
+    value_encrypted = EncryptedCharField(null=True, blank=True)
+    is_encrypted = models.BooleanField(default=False)
+    scope = models.CharField(max_length=10, choices=PolicyVariableScope)
+    policy = models.ForeignKey(
+        "mdm.Policy",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="policy_variables",
+    )
+    fleet = models.ForeignKey(
+        "mdm.Fleet",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="policy_variables",
+    )
+
+    objects = models.Manager()
+    decrypted = EncryptedManager()
+
+    class Meta:
+        constraints = (
+            models.UniqueConstraint(
+                fields=["key", "policy"],
+                condition=models.Q(scope="policy"),
+                name="unique_policy_policy_variable",
+            ),
+            models.UniqueConstraint(
+                fields=["key", "fleet"],
+                condition=models.Q(scope="fleet"),
+                name="unique_fleet_policy_variable",
+            ),
+        )
+
+    def __str__(self):
+        return f"{self.key} ({self.get_scope_display()})"
+
+    def clean(self):
+        if self.scope == PolicyVariableScope.POLICY:
+            if not self.policy:
+                raise ValidationError("Policy is required for policy-scoped variables.")
+            self.fleet = None
+        elif self.scope == PolicyVariableScope.FLEET:
+            if not self.fleet:
+                raise ValidationError("Fleet is required for fleet-scoped variables.")
+            self.policy = None
 
 
 def enroll_qr_code_path(fleet, filename):
@@ -456,4 +789,4 @@ class FirmwareSnapshot(models.Model):
         indexes = (models.Index(fields=["synced_at"]),)
 
     def __str__(self):
-        return f"{self.device_id} ({self.version}) firmware snapshot"
+        return f"{self.device_identifier} ({self.version}) firmware snapshot"

@@ -13,7 +13,7 @@ from django.db.models.functions import Collate, Lower, NullIf
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.utils.html import mark_safe
+from django.utils.html import format_html, mark_safe
 from django.utils.timezone import localdate
 from django.views.decorators.http import require_POST
 from django_tables2.config import RequestConfig
@@ -861,7 +861,7 @@ def devices_list(request: HttpRequest, organization_slug):
             synced = 0
             for fleet in fleets:
                 try:
-                    active_mdm.sync_fleet(fleet, push_config=False)
+                    active_mdm.sync_fleet(fleet, push_config=True)
                 except (GoogleAPIClientError, RequestException) as e:
                     logger.debug(
                         "Unable to sync fleet",
@@ -1022,16 +1022,28 @@ def device_import(request, organization_slug):
 @require_POST
 @login_required
 def device_update_app_user(request: HttpRequest, organization_slug, device_pk):
-    """HTMX endpoint to update a Device's app_user_name."""
+    """HTMX endpoint to update a Device's app_user_name.
+
+    After saving, immediately pushes the updated device-specific policy to the MDM
+    so ODK Collect receives the new settings_json for the changed app user.
+    """
     device = get_object_or_404(
-        Device.objects.select_related("fleet__project", "fleet__organization"),
+        Device.objects.select_related("fleet__project", "fleet__organization", "fleet__policy"),
         pk=device_pk,
         fleet__organization=request.organization,
     )
     form = DeviceAppUserForm(request.POST, instance=device)
     if form.is_valid():
-        device = form.save(commit=False)
-        device.save(push_to_mdm=True)
+        form.save()
+        if active_mdm := get_active_mdm_instance():
+            try:
+                active_mdm.push_device_config(device)
+            except Exception:
+                logger.error(
+                    "Failed to push device config after app_user update",
+                    device=device,
+                    exc_info=True,
+                )
 
     return render(
         request,
@@ -1062,14 +1074,11 @@ def fleets_list(request: HttpRequest, organization_slug):
 @login_required
 def add_fleet(request: HttpRequest, organization_slug):
     """Add a Fleet."""
-    default_policy = Policy.get_default()
     active_mdm = get_active_mdm_instance()
+    default_policy = Policy.objects.filter(organization=request.organization).first()
 
-    if not default_policy or not active_mdm:
-        logger.warning(
-            f"Cannot create Fleets. Please set up a default {active_mdm} policy "
-            f"({default_policy=}) and/or credentials ({active_mdm.is_configured=})."
-        )
+    if not active_mdm:
+        logger.warning(f"Cannot create Fleets. Please check {active_mdm} credentials.")
         messages.error(
             request, "Sorry, cannot create a fleet at this time. Please try again later."
         )
@@ -1164,10 +1173,26 @@ def add_fleet(request: HttpRequest, organization_slug):
 def edit_fleet(request: HttpRequest, organization_slug, fleet_id):
     """Edit a Fleet."""
     fleet = get_object_or_404(request.organization.fleets, pk=fleet_id)
+    old_policy_id = fleet.policy_id
     form = FleetEditForm(request.POST or None, instance=fleet)
 
     if request.method == "POST" and form.is_valid():
-        form.save()
+        fleet = form.save()
+        if fleet.policy_id != old_policy_id:
+            active_mdm = get_active_mdm_instance()
+            if active_mdm:
+                try:
+                    active_mdm.add_group_to_policy(fleet)
+                except (GoogleAPIClientError, RequestException) as e:
+                    messages.warning(
+                        request,
+                        format_html(
+                            "Fleet saved but could not update policy in {}: "
+                            '<code class="block text-xs mt-2">{}</code>',
+                            active_mdm,
+                            getattr(e, "api_error", e),
+                        ),
+                    )
         messages.success(request, f"Successfully edited {fleet}.")
         return redirect("publish_mdm:fleets-list", organization_slug)
 

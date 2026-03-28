@@ -1,0 +1,94 @@
+{% load mdm_tags %}
+<div class="policy-section">
+    <h3 class="mb-1 text-lg font-semibold text-gray-900 dark:text-white">Device Connectivity</h3>
+    <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
+        Control device connectivity features such as USB data access, Wi-Fi configuration, tethering,
+        and Wi-Fi Direct. Leave a setting as <em>Unspecified</em> to defer to the device default.
+    </p>
+    <div class="max-w-md space-y-3">
+        <div>
+            <label class="form-label-with-icon"
+                   for="{{ form.connectivity_usb_data_access.id_for_label }}">
+                {{ form.connectivity_usb_data_access.label }}
+                {% info_icon "tooltip-connectivity-usb" %}
+            </label>
+            <div id="tooltip-connectivity-usb"
+                 role="tooltip"
+                 class="tooltip-container">
+                Controls whether users can transfer files over USB. <em>Disallow all USB data
+                transfer</em> is the most restrictive, blocking both file transfer and charging
+                data. Supported on company-owned devices running Android 12+.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+            {{ form.connectivity_usb_data_access }}
+            {{ form.connectivity_usb_data_access.errors }}
+        </div>
+        <div x-data="{ wifiValue: '{{ form.connectivity_configure_wifi.value }}' }">
+            <label class="form-label-with-icon"
+                   for="{{ form.connectivity_configure_wifi.id_for_label }}">
+                {{ form.connectivity_configure_wifi.label }}
+                {% info_icon "tooltip-connectivity-wifi" %}
+            </label>
+            <div id="tooltip-connectivity-wifi"
+                 role="tooltip"
+                 class="tooltip-container">
+                Controls whether users can configure Wi-Fi networks. <em>Disallow adding Wi-Fi
+                networks</em> prevents adding new networks while allowing changes to existing ones.
+                <em>Disallow configuring Wi-Fi</em> blocks all user configuration. Supported on
+                company-owned devices.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+            <div @change.capture="wifiValue = $event.target.value">
+                {{ form.connectivity_configure_wifi }}
+                {{ form.connectivity_configure_wifi.errors }}
+            </div>
+            <div x-show="wifiValue === 'DISALLOW_CONFIGURING_WIFI'"
+                 x-cloak
+                 class="mt-2 flex items-start gap-2 rounded-lg border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-800 dark:border-yellow-600 dark:bg-yellow-900/20 dark:text-yellow-300">
+                <svg class="mt-0.5 h-4 w-4 flex-shrink-0"
+                     fill="currentColor"
+                     viewBox="0 0 20 20"
+                     aria-hidden="true">
+                    <path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+                </svg>
+                <span>
+                    <strong>Warning:</strong> Disallowing Wi-Fi configuration will prevent the device
+                    from receiving policy updates unless it has an alternative internet connection
+                    (ethernet or mobile data).
+                </span>
+            </div>
+        </div>
+        <div>
+            <label class="form-label-with-icon"
+                   for="{{ form.connectivity_tethering_settings.id_for_label }}">
+                {{ form.connectivity_tethering_settings.label }}
+                {% info_icon "tooltip-connectivity-tethering" %}
+            </label>
+            <div id="tooltip-connectivity-tethering"
+                 role="tooltip"
+                 class="tooltip-container">
+                Controls whether users can share the device's internet connection via Wi-Fi, USB,
+                or Bluetooth hotspot. Supported on company-owned devices.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+            {{ form.connectivity_tethering_settings }}
+            {{ form.connectivity_tethering_settings.errors }}
+        </div>
+        <div>
+            <label class="form-label-with-icon"
+                   for="{{ form.connectivity_wifi_direct_settings.id_for_label }}">
+                {{ form.connectivity_wifi_direct_settings.label }}
+                {% info_icon "tooltip-connectivity-wifi-direct" %}
+            </label>
+            <div id="tooltip-connectivity-wifi-direct"
+                 role="tooltip"
+                 class="tooltip-container">
+                Controls whether users can use Wi-Fi Direct to connect directly to other devices.
+                Supported on company-owned fully managed devices running Android 13+.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+            {{ form.connectivity_wifi_direct_settings }}
+            {{ form.connectivity_wifi_direct_settings.errors }}
+        </div>
+    </div>
+</div>

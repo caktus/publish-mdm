@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+    <div class="max-w-4xl">
+        <form method="post" autocomplete="off" class="space-y-6">
+            {% csrf_token %}
+            {% if form.non_field_errors or app_formset.non_form_errors or var_formset.non_form_errors %}
+                <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+                    {{ form.non_field_errors }}
+                    {{ app_formset.non_form_errors }}
+                    {{ var_formset.non_form_errors }}
+                </div>
+            {% endif %}
+            {# Policy settings: name + ODK package #}
+            <div class="policy-section">
+                <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Policy Settings</h3>
+                <div class="max-w-md space-y-3">
+                    <div>
+                        {{ form.name.label_tag }}
+                        {{ form.name }}
+                        {{ form.name.errors }}
+                    </div>
+                </div>
+            </div>
+            {% include "mdm/partials/policy_password_section.html" %}
+            {% include "mdm/partials/policy_kiosk_section.html" %}
+            {% include "mdm/partials/policy_location_section.html" %}
+            {% include "mdm/partials/policy_developer_section.html" %}
+            {% include "mdm/partials/policy_connectivity_section.html" %}
+            {% include "mdm/partials/policy_vpn_section.html" %}
+            {% include "mdm/partials/policy_odk_collect_section.html" %}
+            {# Applications formset — management_form must be inside the form #}
+            {{ app_formset.management_form }}
+            {% include "mdm/partials/policy_applications_section.html" %}
+            {# Variables formset — management_form must be inside the form #}
+            {{ var_formset.management_form }}
+            {% include "mdm/partials/policy_variables_section.html" %}
+            <div class="flex items-center gap-4">
+                <button type="submit" class="btn btn-outline btn-primary">Save policy</button>
+                <a href="{% url 'mdm:policy-list' request.organization.slug %}"
+                   class="btn btn-outline">Cancel</a>
+            </div>
+        </form>
+        {# Managed config modals must be OUTSIDE the main form tag to avoid nested forms #}
+        {% for app_form in app_formset %}
+            {% if app_form.instance.pk %}
+                {% with app=app_form.instance %}
+                    <div id="config-modal-{{ app.pk }}"
+                         tabindex="-1"
+                         aria-hidden="true"
+                         class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
+                        <div class="relative p-4 w-full max-w-2xl max-h-full">
+                            <div class="relative rounded-lg bg-white shadow dark:bg-gray-700">
+                                <div class="flex items-center justify-between rounded-t border-b p-4 dark:border-gray-600">
+                                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Managed Configuration — {{ app.package_name }}</h3>
+                                    <button type="button"
+                                            data-modal-hide="config-modal-{{ app.pk }}"
+                                            class="ms-auto inline-flex h-8 w-8 items-center justify-center rounded-lg bg-transparent text-sm text-gray-400 hover:bg-gray-200 hover:text-gray-900 dark:hover:bg-gray-600 dark:hover:text-white">
+                                        <svg class="h-3 w-3"
+                                             aria-hidden="true"
+                                             xmlns="http://www.w3.org/2000/svg"
+                                             fill="none"
+                                             viewBox="0 0 14 14">
+                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
+                                        </svg>
+                                        <span class="sr-only">Close modal</span>
+                                    </button>
+                                </div>
+                                <div class="p-4">
+                                    <div id="config-form-{{ app.pk }}">{% include "mdm/partials/policy_managed_config_form.html" %}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endwith %}
+            {% endif %}
+        {% endfor %}
+    </div>
+{% endblock content %}

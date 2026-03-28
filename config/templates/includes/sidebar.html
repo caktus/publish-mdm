@@ -37,6 +37,21 @@
                     </a>
                 </li>
                 <li>
+                    <a href="{% url 'mdm:policy-list' request.organization.slug %}"
+                       class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
+                        <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"
+                             aria-hidden="true"
+                             xmlns="http://www.w3.org/2000/svg"
+                             width="24"
+                             height="24"
+                             fill="none"
+                             viewBox="0 0 24 24">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 3v4a1 1 0 0 1-1 1H5m4 6 2 2 4-4m-8 8h10a1 1 0 0 0 1-1V7.914a1 1 0 0 0-.293-.707l-3.914-3.914A1 1 0 0 0 13.586 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1Z" />
+                        </svg>
+                        <span class="ml-3">Policies</span>
+                    </a>
+                </li>
+                <li>
                     <a href="{% url 'publish_mdm:devices-list' request.organization.slug %}"
                        class="flex items-center p-2 text-base font-normal text-gray-900 rounded-lg dark:text-white hover:text-primary-700 dark:hover:bg-gray-700 group">
                         <svg class="w-[20px] h-[20px] flex-shrink-0 text-gray-400 group-hover:text-primary-700 dark:text-gray-400 dark:group-hover:text-white"

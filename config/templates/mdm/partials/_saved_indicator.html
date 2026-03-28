@@ -1,0 +1,9 @@
+{% if saved %}
+    <span x-data="{ vis: true }"
+          x-init="setTimeout(() => { vis = false }, 2500)"
+          x-show="vis"
+          x-transition:leave="transition-opacity duration-500"
+          x-transition:leave-start="opacity-100"
+          x-transition:leave-end="opacity-0"
+          class="{{ saved_class|default:'mt-3 block' }} text-sm text-green-600 dark:text-green-400">✓ Saved</span>
+{% endif %}

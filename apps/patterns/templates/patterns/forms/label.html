@@ -9,13 +9,13 @@
             text-error
         {% endif %}
         ">
-        {{ label|title }}
+        {{ label }}
         {% if field.field.required %}<span class="text-red">*</span>{% endif %}
         </{{ tag }}>
         {% if field.help_text %}
             <span data-popover-target="{{ attrs.for }}_popover"
                   data-tooltip-placement="right"
-                  class="ml-2 mb-2">
+                  class="ml-2 mb-2 tooltip-icon">
                 <svg class="w-4 h-4 text-gray-500 dark:text-gray-200"
                      aria-hidden="true"
                      xmlns="http://www.w3.org/2000/svg"
@@ -36,7 +36,7 @@
     </div>
 {% else %}
     <span>
-        {{ label|title }}
+        {{ label }}
         {% if field.field.required %}<span class="text-red">*</span>{% endif %}
     </span>
 {% endif %}

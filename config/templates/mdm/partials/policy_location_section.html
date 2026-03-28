@@ -1,0 +1,22 @@
+{% load mdm_tags %}
+<div class="policy-section">
+    <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Location</h3>
+    <div class="max-w-md">
+        <div>
+            <label class="form-label-with-icon"
+                   for="{{ form.location_mode.id_for_label }}">
+                {{ form.location_mode.label }}
+                {% info_icon "tooltip-location-mode" %}
+            </label>
+            <div id="tooltip-location-mode" role="tooltip" class="tooltip-container">
+                Controls location services on the device. <em>Enforced on</em> and <em>Disabled</em>
+                prevent users from changing the setting. The legacy values (High accuracy, Sensors
+                only, Battery saving, Off) are deprecated and only effective on Android 8 and below;
+                use <em>Enforced on</em> or <em>Disabled</em> for Android 9+ devices.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+            {{ form.location_mode }}
+            {{ form.location_mode.errors }}
+        </div>
+    </div>
+</div>

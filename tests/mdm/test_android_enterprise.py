@@ -9,6 +9,7 @@ from googleapiclient.errors import HttpError
 from googleapiclient.http import RequestMockBuilder
 
 from apps.mdm.mdms import AndroidEnterprise, MDMAPIError
+from apps.mdm.mdms.android_enterprise import MDMDevice
 from apps.mdm.models import Device
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from tests.mdm import TestAndroidEnterpriseOnly
@@ -293,11 +294,12 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
 
     def test_sync_fleet(self, fleet, devices, mocker, set_mdm_env_vars):
         """Ensure calling sync_fleet() calls pull_devices() for the specified fleet
-        and push_device_config() for the fleet's devices whose app_user_name field is set.
+        and push_device_config() for ALL devices in the fleet, regardless of whether
+        app_user_name is set (every Android Enterprise device needs its own AMAPI policy).
         """
         # Make app_user_name blank for some devices
         fleet.devices.filter(id__in=[d.id for d in devices][:3]).update(app_user_name="")
-        devices_to_push = fleet.devices.exclude(app_user_name="")
+        all_devices = list(fleet.devices.all())
 
         active_mdm = AndroidEnterprise()
         mock_pull_devices = mocker.patch.object(active_mdm, "pull_devices")
@@ -305,13 +307,13 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         active_mdm.sync_fleet(fleet)
 
         mock_pull_devices.assert_called_once()
-        # push_device_config should be called only for the devices where
-        # app_user_name is set
+        # push_device_config should be called for ALL devices, including those
+        # without an app_user_name, so each device gets its own AMAPI policy
         mock_push_device_config.assert_has_calls(
-            [mocker.call(device=device) for device in devices_to_push],
+            [mocker.call(device=device) for device in all_devices],
             any_order=True,
         )
-        assert mock_push_device_config.call_count == len(devices_to_push)
+        assert mock_push_device_config.call_count == len(all_devices)
 
     def test_sync_fleet_with_push_config_false(self, fleet, devices, mocker, set_mdm_env_vars):
         """Ensure calling sync_fleet() with push_config=False calls pull_devices()
@@ -332,8 +334,8 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         active_mdm.sync_fleets()
 
         assert mock_sync_fleet.call_count == len(fleets)
-        for call in mock_sync_fleet.call_list_args:
-            assert call.args[0] in fleets
+        called_fleets = [call.kwargs["fleet"] for call in mock_sync_fleet.call_args_list]
+        assert set(called_fleets) == set(fleets)
 
     @pytest.mark.parametrize("new_fleet", [True, False])
     def test_get_enrollment_qr_code(self, set_mdm_env_vars, monkeypatch, new_fleet):
@@ -550,3 +552,34 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         active_mdm.push_device_config(device)
         mock_get_policy_data.assert_called_once()
         mock_execute.assert_not_called()
+
+    def test_get_devices_breaks_on_empty_response(self, set_mdm_env_vars, mocker):
+        """get_devices() breaks out of the pagination loop when execute() returns
+        an empty/falsy response instead of a dict with 'devices'."""
+        active_mdm = AndroidEnterprise()
+        mocker.patch.object(active_mdm, "execute", return_value=None)
+        result = active_mdm.get_devices()
+        assert result == []
+
+    def test_update_existing_devices_skips_device_with_unmatched_id(self, fleet, set_mdm_env_vars):
+        """update_existing_devices() skips devices whose device_id is set but not found
+        in the MDM response by ID — matched into the queryset via serial number only."""
+        # Our device has device_id that does NOT match the MDM device name suffix
+        our_device = DeviceFactory(fleet=fleet, device_id="OUR-DEVICE-ID", serial_number="SN999")
+        # MDM device name has a different ID suffix; serial_number matches our_device
+        mdm_device = MDMDevice(
+            {
+                "name": "enterprises/test/devices/DIFFERENT-MDM-ID",
+                "hardwareInfo": {
+                    "serialNumber": "SN999",
+                    "imei": "123456789",
+                },
+                "policyName": "enterprises/test/policies/base",
+            }
+        )
+        active_mdm = AndroidEnterprise()
+        original_name = our_device.name
+        active_mdm.update_existing_devices(fleet=fleet, mdm_devices=[mdm_device])
+        our_device.refresh_from_db()
+        # Device was skipped — name unchanged
+        assert our_device.name == original_name
