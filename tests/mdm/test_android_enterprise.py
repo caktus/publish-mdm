@@ -9,11 +9,16 @@ from googleapiclient.errors import HttpError
 from googleapiclient.http import RequestMockBuilder
 
 from apps.mdm.mdms import AndroidEnterprise, MDMAPIError
-from apps.mdm.mdms.android_enterprise import MDMDevice
+from apps.mdm.mdms.android_enterprise import SCOPES, MDMDevice
 from apps.mdm.models import Device
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from tests.mdm import TestAndroidEnterpriseOnly
-from tests.publish_mdm.factories import AppUserFactory, ProjectFactory
+from tests.publish_mdm.factories import (
+    AndroidEnterpriseAccountFactory,
+    AppUserFactory,
+    OrganizationFactory,
+    ProjectFactory,
+)
 
 from .factories import DeviceFactory, FleetFactory, PolicyFactory
 
@@ -150,6 +155,50 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         assert active_mdm
         assert active_mdm.api
         assert active_mdm.enterprise_name == f"enterprises/{active_mdm.enterprise_id}"
+
+    def test_env_variables_partially_set(self, set_mdm_env_vars, monkeypatch):
+        """If either enterprise_id or service_account_file is set but not both,
+        instantiating a AndroidEnterprise should raise a ValueError.
+        """
+        monkeypatch.delenv("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE")
+        with pytest.raises(
+            ValueError,
+            match="credentials are not properly configured or service account file is missing",
+        ):
+            AndroidEnterprise()
+
+    @pytest.mark.parametrize(
+        "organization,account_obj_enterprise_id",
+        [(True, ""), (True, "enterprises/LC00lvvue0"), (True, None), (False, None)],
+    )
+    def test_enterprise_id(self, set_mdm_env_vars, organization, account_obj_enterprise_id, caplog):
+        """enterprise_id resolves from AndroidEnterpriseAccount first, then falls back to the
+        ANDROID_ENTERPRISE_ID env var, logging a deprecation warning when the fallback is used.
+        """
+        # Fallback value from the ANDROID_ENTERPRISE_ID env var
+        expected_enterprise_id = "test"
+        if organization:
+            organization = OrganizationFactory()
+            if account_obj_enterprise_id is not None:
+                AndroidEnterpriseAccountFactory(
+                    organization=organization, enterprise_name=account_obj_enterprise_id
+                )
+                if account_obj_enterprise_id:
+                    expected_enterprise_id = account_obj_enterprise_id.split("/")[-1]
+        else:
+            organization = None
+        mdm = AndroidEnterprise(organization=organization)
+        assert mdm.enterprise_id == expected_enterprise_id
+        if account_obj_enterprise_id:
+            assert not caplog.records
+        else:
+            record = caplog.records[0]
+            assert record.levelname == "WARNING"
+            expected_msg = {
+                "event": "android_enterprise.deprecated_global_enterprise_id",
+                "organization": organization and organization.slug,
+            }
+            assert expected_msg.items() <= record.msg.items()
 
     def get_mock_request_builder(self, *responses):
         """Creates a RequestMockBuilder that can be used to mock API responses
@@ -583,3 +632,97 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         our_device.refresh_from_db()
         # Device was skipped — name unchanged
         assert our_device.name == original_name
+
+
+@pytest.mark.django_db
+class TestBuildCredentials(TestAndroidEnterpriseOnly):
+    """Tests for AndroidEnterprise._build_credentials classmethod."""
+
+    def test_no_env_var_raises(self):
+        """Raises RuntimeError when ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE is not set."""
+        with pytest.raises(
+            RuntimeError, match="ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE is not configured"
+        ):
+            AndroidEnterprise._build_credentials()
+
+    def test_nonexistent_file_raises(self, monkeypatch):
+        """Raises RuntimeError when ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE points to a non-existent path."""
+        monkeypatch.setenv("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE", "/nonexistent/path/sa.json")
+        with pytest.raises(
+            RuntimeError, match="ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE is not configured"
+        ):
+            AndroidEnterprise._build_credentials()
+
+    def test_valid_file_returns_credentials(self, set_mdm_env_vars):
+        """Returns Credentials with the expected project_id and scopes when a valid file is configured."""
+        credentials = AndroidEnterprise._build_credentials()
+        assert credentials is not None
+        assert credentials.project_id == "example-project"
+        assert set(credentials.scopes) == set(SCOPES)
+
+
+@pytest.mark.django_db
+class TestGetSignupUrl(TestAndroidEnterpriseOnly):
+    """Tests for AndroidEnterprise.get_signup_url classmethod."""
+
+    def test_calls_api_and_returns_result(self, set_mdm_env_vars, mocker):
+        """Calls signupUrls.create with the correct projectId and callbackUrl, and returns the API result."""
+        expected = {
+            "name": "signupUrls/C455570ef9b12bfc",
+            "url": "https://enterprise.google.com/signup?token=abc",
+        }
+        mock_api = mocker.MagicMock()
+        mock_api.signupUrls.return_value.create.return_value.execute.return_value = expected
+        mocker.patch("apps.mdm.mdms.android_enterprise.build", return_value=mock_api)
+
+        result = AndroidEnterprise.get_signup_url(callback_url="https://app.example.com/callback")
+
+        assert result == expected
+        mock_api.signupUrls.return_value.create.assert_called_once_with(
+            projectId="example-project",
+            callbackUrl="https://app.example.com/callback",
+        )
+
+    def test_raises_when_not_configured(self):
+        """Raises RuntimeError (from _build_credentials) when the service account file is not set."""
+        with pytest.raises(
+            RuntimeError, match="ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE is not configured"
+        ):
+            AndroidEnterprise.get_signup_url(callback_url="https://app.example.com/callback")
+
+
+@pytest.mark.django_db
+class TestCreateEnterprise(TestAndroidEnterpriseOnly):
+    """Tests for AndroidEnterprise.create_enterprise classmethod."""
+
+    def test_calls_api_and_returns_result(self, set_mdm_env_vars, mocker):
+        """Calls enterprises.create with the correct parameters and returns the API result."""
+        expected = {"name": "enterprises/LC00lvvue0"}
+        mock_api = mocker.MagicMock()
+        mock_api.enterprises.return_value.create.return_value.execute.return_value = expected
+        mocker.patch("apps.mdm.mdms.android_enterprise.build", return_value=mock_api)
+
+        result = AndroidEnterprise.create_enterprise(
+            signup_name="signupUrls/C455570ef9b12bfc",
+            enterprise_token="T1234abcd",
+            display_name="Acme Corp",
+        )
+
+        assert result == expected
+        mock_api.enterprises.return_value.create.assert_called_once_with(
+            projectId="example-project",
+            signupUrlName="signupUrls/C455570ef9b12bfc",
+            enterpriseToken="T1234abcd",
+            body={"enterpriseDisplayName": "Acme Corp"},
+        )
+
+    def test_raises_when_not_configured(self):
+        """Raises RuntimeError (from _build_credentials) when the service account file is not set."""
+        with pytest.raises(
+            RuntimeError, match="ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE is not configured"
+        ):
+            AndroidEnterprise.create_enterprise(
+                signup_name="signupUrls/C455570ef9b12bfc",
+                enterprise_token="T1234abcd",
+                display_name="Acme Corp",
+            )

@@ -161,6 +161,3 @@ class AndroidEnterpriseAccountFactory(
         model = models.AndroidEnterpriseAccount
 
     organization = factory.SubFactory(OrganizationFactory)
-    signup_url_name = ""
-    signup_url = ""
-    enterprise_name = ""

@@ -1334,6 +1334,9 @@ def check_mdm_license_limit(request: HttpRequest):
 @login_required
 def enterprise_setup(request: HttpRequest, organization_slug):
     """Generate a Google Android Enterprise signup URL and redirect the user to it."""
+    if settings.ACTIVE_MDM["name"] != "Android Enterprise":
+        raise Http404
+
     account, _ = AndroidEnterpriseAccount.objects.get_or_create(organization=request.organization)
     if account.is_enrolled:
         messages.info(request, "Android Enterprise is already set up.")

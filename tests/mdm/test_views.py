@@ -4,7 +4,6 @@ import pytest
 from django.urls import reverse
 
 from apps.mdm.models import Policy, PolicyApplication, PolicyVariable
-from apps.publish_mdm.models import AndroidEnterpriseAccount
 from tests.mdm.factories import (
     FleetFactory,
     PolicyApplicationFactory,
@@ -566,47 +565,3 @@ class TestPolicyEditFormsets(PolicyViewBase):
         assert var.scope == "fleet"
         # policy must NOT be set on fleet-scoped variables
         assert var.policy is None
-
-
-@pytest.mark.django_db
-class TestPolicyListBanner(PolicyViewBase):
-    """Tests the 'Android Enterprise not configured' banner on the policy list page."""
-
-    @pytest.fixture
-    def url(self, organization):
-        return reverse("mdm:policy-list", args=[organization.slug])
-
-    def test_banner_shown_when_android_enterprise_not_enrolled(
-        self, client, url, user, organization, settings
-    ):
-        """Banner appears when Android Enterprise is active and org has no enterprise."""
-        settings.ACTIVE_MDM = {
-            "name": "Android Enterprise",
-            "class": "apps.mdm.mdms.AndroidEnterprise",
-        }
-        response = client.get(url)
-        assert response.status_code == 200
-        assert "Android Enterprise not configured" in response.content.decode()
-        assert (
-            reverse("publish_mdm:enterprise-setup", args=[organization.slug])
-            in response.content.decode()
-        )
-
-    def test_banner_hidden_when_enrolled(self, client, url, user, organization, settings):
-        """Banner is hidden once the org's enterprise is enrolled."""
-        settings.ACTIVE_MDM = {
-            "name": "Android Enterprise",
-            "class": "apps.mdm.mdms.AndroidEnterprise",
-        }
-        AndroidEnterpriseAccount.objects.create(
-            organization=organization, enterprise_name="enterprises/LC00lvvue0"
-        )
-        response = client.get(url)
-        assert "Android Enterprise not configured" not in response.content.decode()
-
-    def test_banner_not_shown_for_tinymdm(self, client, url, user, settings):
-        """Banner is not shown when TinyMDM is the active MDM."""
-        settings.ACTIVE_MDM = {"name": "TinyMDM", "class": "apps.mdm.mdms.TinyMDM"}
-        response = client.get(url)
-        assert response.status_code == 200
-        assert "Android Enterprise not configured" not in response.content.decode()

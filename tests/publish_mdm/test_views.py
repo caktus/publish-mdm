@@ -59,7 +59,7 @@ from apps.publish_mdm.models import (
     OrganizationInvitation,
     Project,
 )
-from tests.mdm import TestAllMDMsNoAutouse, TestTinyMDMOnly
+from tests.mdm import TestAllMDMsNoAutouse, TestAndroidEnterpriseOnly, TestTinyMDMOnly
 from tests.mdm.factories import (
     DeviceFactory,
     DeviceSnapshotFactory,
@@ -68,6 +68,7 @@ from tests.mdm.factories import (
     PolicyFactory,
 )
 from tests.publish_mdm.factories import (
+    AndroidEnterpriseAccountFactory,
     AppUserFactory,
     AppUserFormTemplateFactory,
     AppUserFormVersionFactory,
@@ -3087,7 +3088,7 @@ class TestDeviceUpdateAppUser(ViewTestBase):
 
 
 @pytest.mark.django_db
-class TestAndroidEnterpriseBanner(TestAllMDMsNoAutouse):
+class TestAndroidEnterpriseBanner(TestAndroidEnterpriseOnly):
     """Tests the 'Android Enterprise not configured' banner on list pages."""
 
     @pytest.fixture
@@ -3103,13 +3104,14 @@ class TestAndroidEnterpriseBanner(TestAllMDMsNoAutouse):
         organization.users.add(user)
         return organization
 
-    def test_devices_list_banner_shown_when_not_enrolled(
-        self, client, organization, all_mdms, settings
-    ):
-        """Banner appears on the devices list when AE is active and org has no enterprise."""
-        if settings.ACTIVE_MDM["name"] != "Android Enterprise":
-            pytest.skip("Banner only shown for Android Enterprise")
-        url = reverse("publish_mdm:devices-list", args=[organization.slug])
+    @pytest.fixture(
+        params=["publish_mdm:fleets-list", "publish_mdm:devices-list", "mdm:policy-list"]
+    )
+    def url(self, request, organization):
+        return reverse(request.param, args=[organization.slug])
+
+    def test_banner_shown_when_android_enterprise_not_enrolled(self, client, url, organization):
+        """Banner appears when Android Enterprise is active and org has no enterprise."""
         response = client.get(url)
         assertContains(response, "Android Enterprise not configured")
         assertContains(
@@ -3117,69 +3119,23 @@ class TestAndroidEnterpriseBanner(TestAllMDMsNoAutouse):
             reverse("publish_mdm:enterprise-setup", args=[organization.slug]),
         )
 
-    def test_devices_list_banner_hidden_when_enrolled(
-        self, client, organization, all_mdms, settings
-    ):
-        """Banner is hidden on the devices list once the org's enterprise is enrolled."""
-        if settings.ACTIVE_MDM["name"] != "Android Enterprise":
-            pytest.skip("Banner only shown for Android Enterprise")
-        AndroidEnterpriseAccount.objects.create(
+    def test_banner_not_shown_when_android_enterprise_enrolled(self, client, url, organization):
+        """Banner is hidden once the org's enterprise is enrolled."""
+        AndroidEnterpriseAccountFactory(
             organization=organization, enterprise_name="enterprises/LC00lvvue0"
         )
-        url = reverse("publish_mdm:devices-list", args=[organization.slug])
         response = client.get(url)
         assertNotContains(response, "Android Enterprise not configured")
 
-    def test_devices_list_banner_not_shown_for_tinymdm(
-        self, client, organization, all_mdms, settings
-    ):
-        """Banner is not shown when TinyMDM is the active MDM."""
-        if settings.ACTIVE_MDM["name"] != "TinyMDM":
-            pytest.skip("This test is for TinyMDM only")
-        url = reverse("publish_mdm:devices-list", args=[organization.slug])
-        response = client.get(url)
-        assertNotContains(response, "Android Enterprise not configured")
-
-    def test_fleets_list_banner_shown_when_not_enrolled(
-        self, client, organization, all_mdms, settings
-    ):
-        """Banner appears on the fleets list when AE is active and org has no enterprise."""
-        if settings.ACTIVE_MDM["name"] != "Android Enterprise":
-            pytest.skip("Banner only shown for Android Enterprise")
-        url = reverse("publish_mdm:fleets-list", args=[organization.slug])
-        response = client.get(url)
-        assertContains(response, "Android Enterprise not configured")
-        assertContains(
-            response,
-            reverse("publish_mdm:enterprise-setup", args=[organization.slug]),
-        )
-
-    def test_fleets_list_banner_hidden_when_enrolled(
-        self, client, organization, all_mdms, settings
-    ):
-        """Banner is hidden on the fleets list once the org's enterprise is enrolled."""
-        if settings.ACTIVE_MDM["name"] != "Android Enterprise":
-            pytest.skip("Banner only shown for Android Enterprise")
-        AndroidEnterpriseAccount.objects.create(
-            organization=organization, enterprise_name="enterprises/LC00lvvue0"
-        )
-        url = reverse("publish_mdm:fleets-list", args=[organization.slug])
-        response = client.get(url)
-        assertNotContains(response, "Android Enterprise not configured")
-
-    def test_fleets_list_banner_not_shown_for_tinymdm(
-        self, client, organization, all_mdms, settings
-    ):
-        """Banner is not shown when TinyMDM is the active MDM."""
-        if settings.ACTIVE_MDM["name"] != "TinyMDM":
-            pytest.skip("This test is for TinyMDM only")
-        url = reverse("publish_mdm:fleets-list", args=[organization.slug])
+    def test_banner_not_shown_for_different_active_mdm(self, client, url, settings):
+        """Banner is not shown when Android Enterprise is not the active MDM."""
+        settings.ACTIVE_MDM = {"name": "TinyMDM", "class": "apps.mdm.mdms.TinyMDM"}
         response = client.get(url)
         assertNotContains(response, "Android Enterprise not configured")
 
 
 @pytest.mark.django_db
-class TestEnterpriseSetup(TestAllMDMsNoAutouse):
+class TestEnterpriseSetup(TestAndroidEnterpriseOnly):
     """Tests the enterprise_setup view."""
 
     @pytest.fixture
@@ -3199,15 +3155,15 @@ class TestEnterpriseSetup(TestAllMDMsNoAutouse):
     def url(self, organization):
         return reverse("publish_mdm:enterprise-setup", args=[organization.slug])
 
-    def test_login_required(self, client, url, all_mdms):
+    def test_login_required(self, client, url):
         client.logout()
         response = client.get(url)
         assert response.status_code == 302
         assert "/login" in response["Location"] or "/accounts" in response["Location"]
 
-    def test_already_enrolled_redirects(self, client, url, organization, all_mdms):
+    def test_already_enrolled_redirects(self, client, url, organization):
         """If the org's enterprise is already enrolled, redirect to devices list."""
-        AndroidEnterpriseAccount.objects.create(
+        AndroidEnterpriseAccountFactory(
             organization=organization, enterprise_name="enterprises/LC00lvvue0"
         )
         response = client.get(url)
@@ -3217,27 +3173,20 @@ class TestEnterpriseSetup(TestAllMDMsNoAutouse):
             fetch_redirect_response=False,
         )
 
-    def test_get_signup_url_error_redirects_with_message(
-        self, client, url, organization, mocker, all_mdms
-    ):
+    def test_get_signup_url_error_redirects_with_message(self, client, url, organization, mocker):
         """If get_signup_url raises, redirect to devices list with an error message."""
         mocker.patch(
             "apps.publish_mdm.views.AndroidEnterprise.get_signup_url",
             side_effect=RuntimeError("API unavailable"),
         )
-        response = client.get(url)
+        response = client.get(url, follow=True)
         assertRedirects(
             response,
             reverse("publish_mdm:devices-list", args=[organization.slug]),
-            fetch_redirect_response=False,
         )
-        # Follow redirect and verify the error message is shown
-        response = client.get(reverse("publish_mdm:devices-list", args=[organization.slug]))
         assertContains(response, "Failed to generate Android Enterprise signup URL")
 
-    def test_get_creates_account_and_redirects_to_google(
-        self, client, url, organization, mocker, all_mdms
-    ):
+    def test_get_creates_account_and_redirects_to_google(self, client, url, organization, mocker):
         """On success, saves signup URL fields and redirects to the Google URL."""
         signup_result = {
             "name": "signupUrls/C455570ef9b12bfc",
@@ -3258,9 +3207,9 @@ class TestEnterpriseSetup(TestAllMDMsNoAutouse):
             fetch_redirect_response=False,
         )
 
-    def test_get_updates_existing_account(self, client, url, organization, mocker, all_mdms):
+    def test_get_updates_existing_account(self, client, url, organization, mocker):
         """Re-visiting the setup URL updates the existing account's signup fields."""
-        account = AndroidEnterpriseAccount.objects.create(organization=organization)
+        account = AndroidEnterpriseAccountFactory(organization=organization)
         signup_result = {
             "name": "signupUrls/NEWNAME",
             "url": "https://enterprise.google.com/signup?token=xyz",
@@ -3273,9 +3222,15 @@ class TestEnterpriseSetup(TestAllMDMsNoAutouse):
         account.refresh_from_db()
         assert account.signup_url_name == "signupUrls/NEWNAME"
 
+    def test_404_if_different_active_mdm(self, client, url, settings):
+        """Should return a 404 response when Android Enterprise is not the active MDM."""
+        settings.ACTIVE_MDM = {"name": "TinyMDM", "class": "apps.mdm.mdms.TinyMDM"}
+        response = client.get(url)
+        assert response.status_code == 404
+
 
 @pytest.mark.django_db
-class TestEnterpriseCallback(TestAllMDMsNoAutouse):
+class TestEnterpriseCallback(TestAndroidEnterpriseOnly):
     """Tests the enterprise_callback view (unauthenticated — called by Google)."""
 
     @pytest.fixture
@@ -3284,7 +3239,7 @@ class TestEnterpriseCallback(TestAllMDMsNoAutouse):
 
     @pytest.fixture
     def account(self, organization):
-        return AndroidEnterpriseAccount.objects.create(
+        return AndroidEnterpriseAccountFactory(
             organization=organization,
             signup_url_name="signupUrls/C455570ef9b12bfc",
             signup_url="https://enterprise.google.com/signup?token=abc",
@@ -3297,7 +3252,7 @@ class TestEnterpriseCallback(TestAllMDMsNoAutouse):
             kwargs={"callback_token": account.callback_token},
         )
 
-    def test_invalid_token_returns_404(self, client, all_mdms):
+    def test_invalid_token_returns_404(self, client):
         """A request with an unknown callback_token returns 404."""
         url = reverse(
             "publish_mdm:enterprise-callback",
@@ -3306,7 +3261,7 @@ class TestEnterpriseCallback(TestAllMDMsNoAutouse):
         response = client.get(url)
         assert response.status_code == 404
 
-    def test_already_enrolled_returns_400(self, client, account, url, all_mdms):
+    def test_already_enrolled_returns_400(self, client, account, url):
         """If the enterprise is already enrolled, return 400."""
         account.enterprise_name = "enterprises/EXISTING"
         account.save()
@@ -3317,22 +3272,22 @@ class TestEnterpriseCallback(TestAllMDMsNoAutouse):
         assert response.status_code == 400
         assert b"already enrolled" in response.content
 
-    def test_missing_signup_name_returns_400(self, client, url, all_mdms):
+    def test_missing_signup_name_returns_400(self, client, url):
         """Missing signupName query param returns 400."""
         response = client.get(url, {"enterpriseToken": "tok"})
         assert response.status_code == 400
 
-    def test_wrong_signup_name_returns_400(self, client, url, all_mdms):
+    def test_wrong_signup_name_returns_400(self, client, url):
         """signupName that does not match the stored one returns 400."""
         response = client.get(url, {"enterpriseToken": "tok", "signupName": "signupUrls/WRONGNAME"})
         assert response.status_code == 400
 
-    def test_missing_enterprise_token_returns_400(self, client, url, account, all_mdms):
+    def test_missing_enterprise_token_returns_400(self, client, url, account):
         """Missing enterpriseToken query param returns 400."""
         response = client.get(url, {"signupName": account.signup_url_name})
         assert response.status_code == 400
 
-    def test_create_enterprise_error_returns_400(self, client, url, account, mocker, all_mdms):
+    def test_create_enterprise_error_returns_400(self, client, url, account, mocker):
         """If create_enterprise raises, return 400."""
         mocker.patch(
             "apps.publish_mdm.views.AndroidEnterprise.create_enterprise",
@@ -3345,9 +3300,7 @@ class TestEnterpriseCallback(TestAllMDMsNoAutouse):
         assert response.status_code == 400
         assert b"Failed to create enterprise" in response.content
 
-    def test_successful_callback_saves_enterprise_name(
-        self, client, url, account, mocker, all_mdms
-    ):
+    def test_successful_callback_saves_enterprise_name(self, client, url, account, mocker):
         """A valid callback saves the enterprise_name on the account."""
         mocker.patch(
             "apps.publish_mdm.views.AndroidEnterprise.create_enterprise",
@@ -3362,7 +3315,7 @@ class TestEnterpriseCallback(TestAllMDMsNoAutouse):
         assert account.enterprise_name == "enterprises/LC00lvvue0"
         assert b"LC00lvvue0" in response.content
 
-    def test_no_login_required(self, client, url, account, mocker, all_mdms):
+    def test_no_login_required(self, client, url, account, mocker):
         """The callback endpoint is public — no login required."""
         client.logout()
         mocker.patch(
