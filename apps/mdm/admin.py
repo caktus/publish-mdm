@@ -55,7 +55,7 @@ class PolicyAdmin(admin.ModelAdmin):
         # Save inlines first so applications are persisted before pushing to MDM.
         super().save_related(request, form, formsets, change)
         policy = form.instance
-        if active_mdm := get_active_mdm_instance():
+        if active_mdm := get_active_mdm_instance(organization=policy.organization):
             try:
                 active_mdm.create_or_update_policy(policy)
             except (GoogleAPIClientError, RequestException) as e:

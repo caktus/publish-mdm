@@ -63,7 +63,7 @@ class Organization(AbstractBaseModel):
         """Create a default MDM Fleet for the organization if the active MDM's API is
         configured.
         """
-        active_mdm = get_active_mdm_instance()
+        active_mdm = get_active_mdm_instance(organization=self)
         if not active_mdm:
             return None
         # Create an org-specific default policy

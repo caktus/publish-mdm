@@ -22,7 +22,7 @@ def mdm_device_snapshot():
             if active_mdm := get_active_mdm_instance(organization=org):
                 active_mdm.sync_fleets(push_config=False)
     else:
-        if active_mdm := get_active_mdm_instance():
+        if active_mdm := get_active_mdm_instance(organization=None):
             active_mdm.sync_fleets(push_config=False)
 
 

@@ -37,11 +37,6 @@ class AndroidEnterprise(MDM):
         self.api_errors = []
         self.organization = organization
         self.service_account_file = os.getenv("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE")
-        if (self.enterprise_id or self.service_account_file) and not self.is_configured:
-            raise ValueError(
-                "Android Enterprise MDM credentials are not properly configured or service account file is missing."
-                f"{self.enterprise_id=}, {self.service_account_file=}"
-            )
 
     @property
     def enterprise_id(self):
@@ -64,14 +59,17 @@ class AndroidEnterprise(MDM):
         return f"enterprises/{self.enterprise_id}"
 
     @cached_property
+    def credentials(self) -> Credentials:
+        """Service-account credentials loaded from the configured file."""
+        if not self.service_account_file or not os.path.isfile(self.service_account_file):
+            raise RuntimeError("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE is not configured.")
+        return Credentials.from_service_account_file(self.service_account_file, scopes=SCOPES)
+
+    @cached_property
     def api(self):
         if not self.is_configured:
             return None
-        credentials = Credentials.from_service_account_file(
-            self.service_account_file,
-            scopes=SCOPES,
-        )
-        return build("androidmanagement", "v1", credentials=credentials)
+        return build("androidmanagement", "v1", credentials=self.credentials)
 
     @property
     def is_configured(self):
@@ -81,42 +79,25 @@ class AndroidEnterprise(MDM):
             and os.path.isfile(self.service_account_file)
         )
 
-    @classmethod
-    def _build_credentials(cls) -> Credentials:
-        """Load service-account credentials from the configured file."""
-        service_account_file = os.getenv("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE")
-        if not service_account_file or not os.path.isfile(service_account_file):
-            raise RuntimeError("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE is not configured.")
-        return Credentials.from_service_account_file(service_account_file, scopes=SCOPES)
-
-    @classmethod
-    def _build_api(cls):
-        """Build an API client using only the service-account credentials (no enterprise_id needed)."""
-        return build("androidmanagement", "v1", credentials=cls._build_credentials())
-
-    @classmethod
-    def get_signup_url(cls, callback_url: str) -> dict:
+    def get_signup_url(self, callback_url: str) -> dict:
         """Returns {'name': 'signupUrls/...', 'url': 'https://enterprise.google.com/...'}"""
-        credentials = cls._build_credentials()
-        api = build("androidmanagement", "v1", credentials=credentials)
+        api = build("androidmanagement", "v1", credentials=self.credentials)
         return (
             api.signupUrls()
             .create(
-                projectId=credentials.project_id,
+                projectId=self.credentials.project_id,
                 callbackUrl=callback_url,
             )
             .execute()
         )
 
-    @classmethod
-    def create_enterprise(cls, signup_name: str, enterprise_token: str, display_name: str) -> dict:
+    def create_enterprise(self, signup_name: str, enterprise_token: str, display_name: str) -> dict:
         """Returns {'name': 'enterprises/LC00lvvue0'}"""
-        credentials = cls._build_credentials()
-        api = build("androidmanagement", "v1", credentials=credentials)
+        api = build("androidmanagement", "v1", credentials=self.credentials)
         return (
             api.enterprises()
             .create(
-                projectId=credentials.project_id,
+                projectId=self.credentials.project_id,
                 signupUrlName=signup_name,
                 enterpriseToken=enterprise_token,
                 body={"enterpriseDisplayName": display_name},

@@ -262,7 +262,9 @@ class AndroidEnterpriseAccountAdmin(admin.ModelAdmin):
                         kwargs={"callback_token": obj.callback_token},
                     )
                 )
-                signup = AndroidEnterprise.get_signup_url(callback_url=callback_url)
+                signup = AndroidEnterprise(organization=obj.organization).get_signup_url(
+                    callback_url=callback_url
+                )
                 obj.signup_url_name = signup["name"]
                 obj.signup_url = signup["url"]
                 obj.save(update_fields=["signup_url_name", "signup_url", "modified_at"])

@@ -1037,7 +1037,7 @@ def device_update_app_user(request: HttpRequest, organization_slug, device_pk):
     form = DeviceAppUserForm(request.POST, instance=device)
     if form.is_valid():
         form.save()
-        if active_mdm := get_active_mdm_instance():
+        if active_mdm := get_active_mdm_instance(organization=request.organization):
             try:
                 active_mdm.push_device_config(device)
             except Exception:
@@ -1076,7 +1076,7 @@ def fleets_list(request: HttpRequest, organization_slug):
 @login_required
 def add_fleet(request: HttpRequest, organization_slug):
     """Add a Fleet."""
-    active_mdm = get_active_mdm_instance()
+    active_mdm = get_active_mdm_instance(organization=request.organization)
     default_policy = Policy.objects.filter(organization=request.organization).first()
 
     if not active_mdm:
@@ -1181,7 +1181,7 @@ def edit_fleet(request: HttpRequest, organization_slug, fleet_id):
     if request.method == "POST" and form.is_valid():
         fleet = form.save()
         if fleet.policy_id != old_policy_id:
-            active_mdm = get_active_mdm_instance()
+            active_mdm = get_active_mdm_instance(organization=request.organization)
             if active_mdm:
                 try:
                     active_mdm.add_group_to_policy(fleet)
@@ -1308,7 +1308,7 @@ def check_mdm_license_limit(request: HttpRequest):
     if settings.ACTIVE_MDM["name"] != "TinyMDM":
         raise Http404
     message = None
-    if active_mdm := get_active_mdm_instance(organization=None):
+    if active_mdm := get_active_mdm_instance(organization=request.organization):
         try:
             limit, enrolled = active_mdm.check_license_limit()
         except RequestException as e:
@@ -1345,7 +1345,9 @@ def enterprise_setup(request: HttpRequest, organization_slug):
         )
     )
     try:
-        signup = AndroidEnterprise.get_signup_url(callback_url=callback_url)
+        signup = AndroidEnterprise(organization=request.organization).get_signup_url(
+            callback_url=callback_url
+        )
     except Exception as e:
         messages.error(request, f"Failed to generate Android Enterprise signup URL: {e}")
         return redirect("publish_mdm:devices-list", organization_slug)
@@ -1372,7 +1374,7 @@ def enterprise_callback(request: HttpRequest, callback_token):
         return HttpResponseBadRequest("Missing enterpriseToken.")
 
     try:
-        enterprise = AndroidEnterprise.create_enterprise(
+        enterprise = AndroidEnterprise(organization=account.organization).create_enterprise(
             signup_name=signup_name,
             enterprise_token=enterprise_token,
             display_name=account.organization.name,
