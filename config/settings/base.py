@@ -435,3 +435,9 @@ ACTIVE_MDM = {
     "name": os.getenv("ACTIVE_MDM_NAME", "TinyMDM"),
     "class": os.getenv("ACTIVE_MDM_CLASS", "apps.mdm.mdms.TinyMDM"),
 }
+
+# Optional domain (no scheme, no trailing slash, e.g. "myapp.example.com") used to build
+# the Android Enterprise enrollment callback URL over HTTPS. When set, it replaces the host
+# derived from the incoming request, which is useful for local development where the request
+# host is "localhost" and Google's API rejects it.
+ANDROID_ENTERPRISE_CALLBACK_DOMAIN = os.getenv("ANDROID_ENTERPRISE_CALLBACK_DOMAIN", "")

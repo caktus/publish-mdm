@@ -1338,11 +1338,15 @@ def enterprise_setup(request: HttpRequest, organization_slug):
         messages.info(request, "Android Enterprise is already set up.")
         return redirect("publish_mdm:devices-list", organization_slug)
 
-    callback_url = request.build_absolute_uri(
-        reverse(
-            "publish_mdm:enterprise-callback",
-            kwargs={"callback_token": account.callback_token},
-        )
+    callback_path = reverse(
+        "publish_mdm:enterprise-callback",
+        kwargs={"callback_token": account.callback_token},
+    )
+    callback_domain = settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN
+    callback_url = (
+        "https://" + callback_domain + callback_path
+        if callback_domain
+        else request.build_absolute_uri(callback_path)
     )
     try:
         signup = AndroidEnterprise.get_signup_url(callback_url=callback_url)

@@ -256,11 +256,15 @@ class AndroidEnterpriseAccountAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         if not change and not obj.signup_url:
             try:
-                callback_url = request.build_absolute_uri(
-                    reverse(
-                        "publish_mdm:enterprise-callback",
-                        kwargs={"callback_token": obj.callback_token},
-                    )
+                callback_path = reverse(
+                    "publish_mdm:enterprise-callback",
+                    kwargs={"callback_token": obj.callback_token},
+                )
+                callback_domain = settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN
+                callback_url = (
+                    "https://" + callback_domain + callback_path
+                    if callback_domain
+                    else request.build_absolute_uri(callback_path)
                 )
                 signup = AndroidEnterprise.get_signup_url(callback_url=callback_url)
                 obj.signup_url_name = signup["name"]
