@@ -90,11 +90,6 @@ class AndroidEnterprise(MDM):
         return Credentials.from_service_account_file(service_account_file, scopes=SCOPES)
 
     @classmethod
-    def _build_api(cls):
-        """Build an API client using only the service-account credentials (no enterprise_id needed)."""
-        return build("androidmanagement", "v1", credentials=cls._build_credentials())
-
-    @classmethod
     def get_signup_url(cls, callback_url: str) -> dict:
         """Returns {'name': 'signupUrls/...', 'url': 'https://enterprise.google.com/...'}"""
         credentials = cls._build_credentials()
