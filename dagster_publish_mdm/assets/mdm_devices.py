@@ -8,17 +8,14 @@ from django.conf import settings  # noqa: E402
 
 from apps.mdm.mdms import get_active_mdm_instance  # noqa: E402
 from apps.mdm.models import Device  # noqa: E402
-from apps.publish_mdm.models import AndroidEnterpriseAccount, Organization  # noqa: E402
+from apps.publish_mdm.models import Organization  # noqa: E402
 
 
 @dg.asset(description="Get a list of devices from the MDM", group_name="mdm_assets")
 def mdm_device_snapshot():
     if settings.ACTIVE_MDM["name"] == "Android Enterprise":
         # For Android Enterprise, sync per org so each instance uses the correct enterprise.
-        enrolled_org_ids = AndroidEnterpriseAccount.objects.filter(
-            enterprise_name__gt=""
-        ).values_list("organization_id", flat=True)
-        for org in Organization.objects.filter(pk__in=enrolled_org_ids):
+        for org in Organization.objects.filter(android_enterprise__enterprise_name__gt=""):
             if active_mdm := get_active_mdm_instance(organization=org):
                 active_mdm.sync_fleets(push_config=False)
     else:
