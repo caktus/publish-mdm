@@ -77,7 +77,7 @@ def _push_policy_to_mdm(policy):
     We always attempt to push device-specific policies even if the base policy
     update fails, because the device may be on the device-specific policy only.
     """
-    active_mdm = get_active_mdm_instance()
+    active_mdm = get_active_mdm_instance(organization=policy.organization)
     if not active_mdm:
         logger.warning(
             "Skipping policy push: MDM is not configured. "
