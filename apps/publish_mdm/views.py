@@ -1308,7 +1308,7 @@ def check_mdm_license_limit(request: HttpRequest):
     if settings.ACTIVE_MDM["name"] != "TinyMDM":
         raise Http404
     message = None
-    if active_mdm := get_active_mdm_instance(organization=request.organization):
+    if active_mdm := get_active_mdm_instance(organization=None):
         try:
             limit, enrolled = active_mdm.check_license_limit()
         except RequestException as e:
@@ -1345,9 +1345,7 @@ def enterprise_setup(request: HttpRequest, organization_slug):
         )
     )
     try:
-        signup = AndroidEnterprise(organization=request.organization).get_signup_url(
-            callback_url=callback_url
-        )
+        signup = AndroidEnterprise.get_signup_url(callback_url=callback_url)
     except Exception as e:
         messages.error(request, f"Failed to generate Android Enterprise signup URL: {e}")
         return redirect("publish_mdm:devices-list", organization_slug)
@@ -1374,7 +1372,7 @@ def enterprise_callback(request: HttpRequest, callback_token):
         return HttpResponseBadRequest("Missing enterpriseToken.")
 
     try:
-        enterprise = AndroidEnterprise(organization=account.organization).create_enterprise(
+        enterprise = AndroidEnterprise.create_enterprise(
             signup_name=signup_name,
             enterprise_token=enterprise_token,
             display_name=account.organization.name,
