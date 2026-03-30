@@ -4,7 +4,6 @@ import os
 from functools import cached_property
 
 import structlog
-from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import F, OuterRef, Q, Subquery
 from django.utils import timezone
@@ -83,22 +82,27 @@ class AndroidEnterprise(MDM):
         )
 
     @classmethod
-    def _build_api(cls):
-        """Build an API client using only the service-account credentials (no enterprise_id needed)."""
+    def _build_credentials(cls) -> Credentials:
+        """Load service-account credentials from the configured file."""
         service_account_file = os.getenv("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE")
         if not service_account_file or not os.path.isfile(service_account_file):
             raise RuntimeError("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE is not configured.")
-        credentials = Credentials.from_service_account_file(service_account_file, scopes=SCOPES)
-        return build("androidmanagement", "v1", credentials=credentials)
+        return Credentials.from_service_account_file(service_account_file, scopes=SCOPES)
+
+    @classmethod
+    def _build_api(cls):
+        """Build an API client using only the service-account credentials (no enterprise_id needed)."""
+        return build("androidmanagement", "v1", credentials=cls._build_credentials())
 
     @classmethod
     def get_signup_url(cls, callback_url: str) -> dict:
         """Returns {'name': 'signupUrls/...', 'url': 'https://enterprise.google.com/...'}"""
-        api = cls._build_api()
+        credentials = cls._build_credentials()
+        api = build("androidmanagement", "v1", credentials=credentials)
         return (
             api.signupUrls()
             .create(
-                projectId=settings.ANDROID_ENTERPRISE_PROJECT_ID,
+                projectId=credentials.project_id,
                 callbackUrl=callback_url,
             )
             .execute()
@@ -107,11 +111,12 @@ class AndroidEnterprise(MDM):
     @classmethod
     def create_enterprise(cls, signup_name: str, enterprise_token: str, display_name: str) -> dict:
         """Returns {'name': 'enterprises/LC00lvvue0'}"""
-        api = cls._build_api()
+        credentials = cls._build_credentials()
+        api = build("androidmanagement", "v1", credentials=credentials)
         return (
             api.enterprises()
             .create(
-                projectId=settings.ANDROID_ENTERPRISE_PROJECT_ID,
+                projectId=credentials.project_id,
                 signupUrlName=signup_name,
                 enterpriseToken=enterprise_token,
                 body={"enterpriseDisplayName": display_name},
