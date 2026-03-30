@@ -26,7 +26,7 @@
     }
     </script>
     {% partialdef devices-list-partial inline %}
-        {% if active_mdm_name == "Android Enterprise" and not organization.android_enterprise.is_enrolled %}
+        {% if active_mdm_name == "Android Enterprise" and not request.organization.android_enterprise.is_enrolled %}
             <div class="p-4 mb-4 text-yellow-800 border border-yellow-300 rounded-lg bg-yellow-50"
                  role="alert">
                 <p class="font-semibold">Android Enterprise not configured</p>

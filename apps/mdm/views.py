@@ -112,6 +112,7 @@ def policy_list(request, organization_slug):
     context = {
         "policies": policies,
         "show_policy_id": settings.ACTIVE_MDM["name"] != "Android Enterprise",
+        "active_mdm_name": settings.ACTIVE_MDM["name"],
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
             items=[("Policies", "mdm:policy-list")],

@@ -1065,6 +1065,7 @@ def fleets_list(request: HttpRequest, organization_slug):
             request=request,
             items=[("Fleets", "fleets-list")],
         ),
+        "active_mdm_name": settings.ACTIVE_MDM["name"],
     }
     if request.htmx:
         template = "patterns/tables/table-partial.html"
