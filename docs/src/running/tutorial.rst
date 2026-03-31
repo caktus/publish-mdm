@@ -46,10 +46,6 @@ Development <../local-development/index>` guide to run Publish MDM locally.
       - ``ACTIVE_MDM_CLASS=apps.mdm.mdms.AndroidEnterprise``
       - ``ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE``: The path to a Google service account file.
         See the `Google docs <https://developers.google.com/android/management/service-account>`_ on how to create one.
-      - ``ANDROID_ENTERPRISE_ID``: The ID of an Android EMM Enterprise, without the ``enterprises/`` prefix.
-        You can create an enterprise by following `this guide <https://developers.google.com/android/management/quickstart>`_.
-        You may also need to `request an initial quota of devices <https://developers.google.com/android/management/permissible-usage#quotas_and_restrictions>`_
-        in order to successfully enroll devices in the MDM.
 
    - To use TinyMDM as your MDM service provider (the default if ``ACTIVE_MDM_NAME`` is not set),
      set ``TINYMDM_ACCOUNT_ID``, ``TINYMDM_APIKEY_PUBLIC``, and ``TINYMDM_APIKEY_SECRET``.

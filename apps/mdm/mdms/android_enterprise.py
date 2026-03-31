@@ -39,7 +39,7 @@ class AndroidEnterprise(MDM):
         self.service_account_file = os.getenv("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE")
         if (self.enterprise_id or self.service_account_file) and not self.is_configured:
             raise ValueError(
-                "Android Enterprise MDM credentials are not properly configured or service account file is missing."
+                "Android Enterprise MDM credentials are not properly configured or service account file is missing. "
                 f"{self.enterprise_id=}, {self.service_account_file=}"
             )
 
@@ -51,13 +51,7 @@ class AndroidEnterprise(MDM):
                 return account.enterprise_id
         except (AttributeError, ObjectDoesNotExist):
             pass
-        fallback = os.getenv("ANDROID_ENTERPRISE_ID", "")
-        if fallback:
-            logger.warning(
-                "android_enterprise.deprecated_global_enterprise_id",
-                organization=getattr(self.organization, "slug", None),
-            )
-        return fallback
+        return None
 
     @property
     def enterprise_name(self):
@@ -475,7 +469,7 @@ class AndroidEnterprise(MDM):
         applicable device configurations.
         """
         logger.info("Syncing fleets with Android Enterprise")
-        for fleet in Fleet.objects.all():
+        for fleet in self.organization.fleets.all():
             self.sync_fleet(fleet=fleet, push_config=push_config)
 
     def create_group(self, fleet: Fleet):

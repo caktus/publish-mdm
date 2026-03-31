@@ -8,7 +8,11 @@ from django.core.exceptions import ValidationError
 from apps.mdm.mdms import get_active_mdm_class
 from apps.mdm.models import DeviceSnapshotApp, PolicyApplication, PolicyVariable
 from tests.mdm import TestAllMDMs
-from tests.publish_mdm.factories import AppUserFactory, OrganizationFactory, ProjectFactory
+from tests.publish_mdm.factories import (
+    AppUserFactory,
+    OrganizationFactory,
+    ProjectFactory,
+)
 
 from .factories import (
     DeviceFactory,
@@ -26,8 +30,8 @@ fake = faker.Faker()
 @pytest.mark.django_db
 class TestModels(TestAllMDMs):
     @pytest.fixture
-    def fleet(self):
-        return FleetFactory()
+    def fleet(self, organization):
+        return FleetFactory(organization=organization)
 
     def test_fleet_save_without_mdm_env_vars(self, fleet, mocker):
         """On Fleet.save(), pull_devices() shouldn't be called if the

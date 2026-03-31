@@ -33,8 +33,8 @@ MockAPIResponse = namedtuple(
 @pytest.mark.django_db
 class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
     @pytest.fixture
-    def fleet(self):
-        return FleetFactory()
+    def fleet(self, organization):
+        return FleetFactory(organization=organization)
 
     @pytest.fixture
     def devices(self, fleet):
@@ -135,70 +135,65 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
 
     @pytest.fixture
     def fleets(self, fleet):
-        return [*FleetFactory.create_batch(2), fleet]
+        return [*FleetFactory.create_batch(2, organization=fleet.organization), fleet]
 
-    def test_env_variables_not_set(self):
-        """Ensure AndroidEnterprise.is_configured property returns False if the
-        environment variables for Android Enterprise API credentials are not set.
+    def test_mdm_not_configured(self):
+        """Ensure AndroidEnterprise.is_configured property returns False if a service
+        account file is not provided via the ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE
+        env var and the organization doesn't have an enrolled AndroidEnterpriseAccount.
         """
-        active_mdm = AndroidEnterprise()
+        active_mdm = AndroidEnterprise(organization=OrganizationFactory())
         assert not active_mdm.is_configured
         assert not active_mdm
         assert not active_mdm.api
 
-    def test_env_variables_set(self, set_mdm_env_vars):
-        """Ensure AndroidEnterprise.is_configured property returns True if the
-        environment variables for Android Enterprise API credentials are set.
+    def test_mdm_configured(self, set_mdm_env_vars, organization):
+        """Ensure AndroidEnterprise.is_configured property returns True when a service
+        account file is provided via the ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE env var
+        and the organization has an enrolled AndroidEnterpriseAccount.
         """
-        active_mdm = AndroidEnterprise()
+        active_mdm = AndroidEnterprise(organization=organization)
         assert active_mdm.is_configured
         assert active_mdm
         assert active_mdm.api
         assert active_mdm.enterprise_name == f"enterprises/{active_mdm.enterprise_id}"
 
-    def test_env_variables_partially_set(self, set_mdm_env_vars, monkeypatch):
-        """If either enterprise_id or service_account_file is set but not both,
-        instantiating a AndroidEnterprise should raise a ValueError.
+    def test_mdm_partially_configured(self, organization):
+        """If the organization has an enrolled AndroidEnterpriseAccount but a service
+        account file is not provided, instantiating a AndroidEnterprise should raise a ValueError.
         """
-        monkeypatch.delenv("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE")
         with pytest.raises(
             ValueError,
             match="credentials are not properly configured or service account file is missing",
         ):
-            AndroidEnterprise()
+            AndroidEnterprise(organization=organization)
 
     @pytest.mark.parametrize(
-        "organization,account_obj_enterprise_id",
-        [(True, ""), (True, "enterprises/LC00lvvue0"), (True, None), (False, None)],
+        "enterprise_name,expected_id",
+        [
+            # Account with a fully-enrolled enterprise_name
+            ("enterprises/LC00lvvue0", "LC00lvvue0"),
+            # Account exists but enrollment has not completed
+            ("", None),
+            # No AndroidEnterpriseAccount for the org at all
+            (None, None),
+        ],
     )
-    def test_enterprise_id(self, set_mdm_env_vars, organization, account_obj_enterprise_id, caplog):
-        """enterprise_id resolves from AndroidEnterpriseAccount first, then falls back to the
-        ANDROID_ENTERPRISE_ID env var, logging a deprecation warning when the fallback is used.
-        """
-        # Fallback value from the ANDROID_ENTERPRISE_ID env var
-        expected_enterprise_id = "test"
-        if organization:
-            organization = OrganizationFactory()
-            if account_obj_enterprise_id is not None:
-                AndroidEnterpriseAccountFactory(
-                    organization=organization, enterprise_name=account_obj_enterprise_id
-                )
-                if account_obj_enterprise_id:
-                    expected_enterprise_id = account_obj_enterprise_id.split("/")[-1]
-        else:
-            organization = None
+    def test_enterprise_id(self, set_mdm_env_vars, enterprise_name, expected_id, mocker):
+        """enterprise_id is read from the org's AndroidEnterpriseAccount; returns None when unset."""
+        organization = OrganizationFactory()
+        if enterprise_name is not None:
+            AndroidEnterpriseAccountFactory(
+                organization=organization, enterprise_name=enterprise_name
+            )
+        mocker.patch.object(AndroidEnterprise, "is_configured", return_value=True)
         mdm = AndroidEnterprise(organization=organization)
-        assert mdm.enterprise_id == expected_enterprise_id
-        if account_obj_enterprise_id:
-            assert not caplog.records
-        else:
-            record = caplog.records[0]
-            assert record.levelname == "WARNING"
-            expected_msg = {
-                "event": "android_enterprise.deprecated_global_enterprise_id",
-                "organization": organization and organization.slug,
-            }
-            assert expected_msg.items() <= record.msg.items()
+        assert mdm.enterprise_id == expected_id
+
+    def test_enterprise_id_no_organization(self):
+        """enterprise_id is None when AndroidEnterprise is instantiated without an organization."""
+        mdm = AndroidEnterprise(organization=None)
+        assert mdm.enterprise_id is None
 
     def get_mock_request_builder(self, *responses):
         """Creates a RequestMockBuilder that can be used to mock API responses
@@ -241,7 +236,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             fleet.default_app_user = default_app_user
             fleet.save()
 
-        active_mdm = AndroidEnterprise()
+        active_mdm = AndroidEnterprise(organization=fleet.organization)
 
         # Existing devices in another fleet should not be updated
         not_in_fleet = [
@@ -320,9 +315,9 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             else:
                 assert not snapshot.apps.exists()
 
-    def test_get_devices(self, mocker, monkeypatch, set_mdm_env_vars):
+    def test_get_devices(self, mocker, monkeypatch, set_mdm_env_vars, organization):
         """Ensures calling get_devices() downloads device data as expected."""
-        active_mdm = AndroidEnterprise()
+        active_mdm = AndroidEnterprise(organization=organization)
         full_devices_response = {"devices": [self.get_raw_mdm_device(DeviceFactory.build())]}
         monkeypatch.setattr(
             active_mdm.api,
@@ -350,7 +345,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         fleet.devices.filter(id__in=[d.id for d in devices][:3]).update(app_user_name="")
         all_devices = list(fleet.devices.all())
 
-        active_mdm = AndroidEnterprise()
+        active_mdm = AndroidEnterprise(organization=fleet.organization)
         mock_pull_devices = mocker.patch.object(active_mdm, "pull_devices")
         mock_push_device_config = mocker.patch.object(active_mdm, "push_device_config")
         active_mdm.sync_fleet(fleet)
@@ -368,7 +363,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         """Ensure calling sync_fleet() with push_config=False calls pull_devices()
         for the specified fleet but does not call push_device_config() for any device.
         """
-        active_mdm = AndroidEnterprise()
+        active_mdm = AndroidEnterprise(organization=fleet.organization)
         mock_pull_devices = mocker.patch.object(active_mdm, "pull_devices")
         mock_push_device_config = mocker.patch.object(active_mdm, "push_device_config")
         active_mdm.sync_fleet(fleet, push_config=False)
@@ -378,7 +373,9 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
 
     def test_sync_fleets(self, fleets, mocker, set_mdm_env_vars):
         """Ensure calling sync_fleets() calls sync_fleet() for all fleets."""
-        active_mdm = AndroidEnterprise()
+        active_mdm = AndroidEnterprise(organization=fleets[0].organization)
+        # Create fleets in other orgs. These should not be synced
+        FleetFactory.create_batch(2)
         mock_sync_fleet = mocker.patch.object(active_mdm, "sync_fleet")
         active_mdm.sync_fleets()
 
@@ -387,12 +384,12 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         assert set(called_fleets) == set(fleets)
 
     @pytest.mark.parametrize("new_fleet", [True, False])
-    def test_get_enrollment_qr_code(self, set_mdm_env_vars, monkeypatch, new_fleet):
+    def test_get_enrollment_qr_code(self, set_mdm_env_vars, monkeypatch, new_fleet, organization):
         """Ensures get_enrollment_qr_code() makes the expected API request and updates
         the fleet's enroll_qr_code, enroll_token_expires_at, and enroll_token_value
         if successful.
         """
-        active_mdm = AndroidEnterprise()
+        active_mdm = AndroidEnterprise(organization=organization)
         if new_fleet:
             project = ProjectFactory()
             fleet = FleetFactory.build(
@@ -458,9 +455,9 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
 
     @pytest.mark.parametrize("api_error", [(500, None), (499, {"error": {"message": "Reason"}})])
     @pytest.mark.parametrize("raise_exception", [True, False])
-    def test_execute(self, monkeypatch, set_mdm_env_vars, api_error, raise_exception):
+    def test_execute(self, monkeypatch, set_mdm_env_vars, api_error, raise_exception, organization):
         """Test handling of API errors in the execute() function."""
-        active_mdm = AndroidEnterprise()
+        active_mdm = AndroidEnterprise(organization=organization)
         status_code, response_json = api_error
         monkeypatch.setattr(
             active_mdm.api,
@@ -483,9 +480,9 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             active_mdm.execute(resource_method, raise_exception)
             assert expected_api_error in active_mdm.api_errors
 
-    def test_create_or_update_policy(self, set_mdm_env_vars, monkeypatch, mocker):
+    def test_create_or_update_policy(self, set_mdm_env_vars, monkeypatch, mocker, organization):
         """Ensure create_or_update_policy() makes the expected API request."""
-        active_mdm = AndroidEnterprise()
+        active_mdm = AndroidEnterprise(organization=organization)
         policy = PolicyFactory()
         mock_execute = mocker.patch.object(active_mdm, "execute", wraps=active_mdm.execute)
 
@@ -518,7 +515,12 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
 
     @pytest.mark.parametrize("current_device_policy", ["own", "base", "other_fleet"])
     def test_push_device_config(
-        self, fleet, set_mdm_env_vars, monkeypatch, mocker, current_device_policy
+        self,
+        fleet,
+        set_mdm_env_vars,
+        monkeypatch,
+        mocker,
+        current_device_policy,
     ):
         """Ensures push_device_config() makes the expected API requests."""
         device = DeviceFactory.build(fleet=fleet)
@@ -536,7 +538,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             **self.get_raw_mdm_device(device),
         }
         device.save()
-        active_mdm = AndroidEnterprise()
+        active_mdm = AndroidEnterprise(organization=fleet.organization)
         mock_execute = mocker.patch.object(active_mdm, "execute", wraps=active_mdm.execute)
         policy_data = {
             "deviceOwnerLockScreenInfo": {
@@ -585,7 +587,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         or policy data is not available.
         """
         device = DeviceFactory(fleet=fleet)
-        active_mdm = AndroidEnterprise()
+        active_mdm = AndroidEnterprise(organization=fleet.organization)
         mock_get_policy_data = mocker.patch.object(
             fleet.policy, "get_policy_data", return_value=None
         )
@@ -602,10 +604,10 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         mock_get_policy_data.assert_called_once()
         mock_execute.assert_not_called()
 
-    def test_get_devices_breaks_on_empty_response(self, set_mdm_env_vars, mocker):
+    def test_get_devices_breaks_on_empty_response(self, set_mdm_env_vars, mocker, organization):
         """get_devices() breaks out of the pagination loop when execute() returns
         an empty/falsy response instead of a dict with 'devices'."""
-        active_mdm = AndroidEnterprise()
+        active_mdm = AndroidEnterprise(organization=organization)
         mocker.patch.object(active_mdm, "execute", return_value=None)
         result = active_mdm.get_devices()
         assert result == []
@@ -626,7 +628,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
                 "policyName": "enterprises/test/policies/base",
             }
         )
-        active_mdm = AndroidEnterprise()
+        active_mdm = AndroidEnterprise(organization=fleet.organization)
         original_name = our_device.name
         active_mdm.update_existing_devices(fleet=fleet, mdm_devices=[mdm_device])
         our_device.refresh_from_db()

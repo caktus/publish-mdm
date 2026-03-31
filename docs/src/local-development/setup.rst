@@ -47,7 +47,6 @@ rather use Docker, see :doc:`../running/docker-compose`.
 
     # If using Android EMM as your MDM service provider
     export ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE=
-    export ANDROID_ENTERPRISE_ID=
     export ACTIVE_MDM_NAME="Android Enterprise"
     export ACTIVE_MDM_CLASS=apps.mdm.mdms.AndroidEnterprise
 

@@ -68,7 +68,6 @@ from tests.mdm.factories import (
     PolicyFactory,
 )
 from tests.publish_mdm.factories import (
-    AndroidEnterpriseAccountFactory,
     AppUserFactory,
     AppUserFormTemplateFactory,
     AppUserFormVersionFactory,
@@ -89,17 +88,16 @@ fake = faker.Faker()
 @pytest.mark.django_db
 class ViewTestBase:
     @pytest.fixture
-    def user(self, client):
+    def user(self, client, organization):
         user = UserFactory()
         user.save()
+        organization.users.add(user)
         client.force_login(user=user)
         return user
 
     @pytest.fixture
-    def organization(self, user):
-        organization = OrganizationFactory()
-        organization.users.add(user)
-        return organization
+    def organization(self):
+        return OrganizationFactory()
 
     @pytest.fixture
     def project(self, organization):
@@ -1241,12 +1239,6 @@ class TestEditProject(ViewTestBase):
 
 class TestOrganizationHome(ViewTestBase):
     @pytest.fixture
-    def organization(self, user):
-        organization = OrganizationFactory()
-        organization.users.add(user)
-        return organization
-
-    @pytest.fixture
     def url(self, organization):
         return reverse(
             "publish_mdm:organization-home",
@@ -1320,12 +1312,6 @@ class TestCreateOrganization(ViewTestBase):
 
 
 class TestOrganizationUsersList(ViewTestBase):
-    @pytest.fixture
-    def organization(self, user):
-        organization = OrganizationFactory()
-        organization.users.add(user)
-        return organization
-
     @pytest.fixture
     def url(self, organization):
         return reverse(
@@ -1413,12 +1399,6 @@ class TestOrganizationUsersList(ViewTestBase):
 
 
 class TestSendOrganizationInvite(ViewTestBase):
-    @pytest.fixture
-    def organization(self, user):
-        organization = OrganizationFactory()
-        organization.users.add(user)
-        return organization
-
     @pytest.fixture
     def url(self, organization):
         return reverse(
@@ -2397,7 +2377,16 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
     def url(self, organization):
         return reverse("publish_mdm:add-fleet", args=[organization.slug])
 
-    def test_get(self, client, url, user, organization, mocker, all_mdms, set_mdm_env_vars):
+    def test_get(
+        self,
+        client,
+        url,
+        user,
+        organization,
+        mocker,
+        all_mdms,
+        set_mdm_env_vars,
+    ):
         PolicyFactory.create_batch(2)  # other-org policies, should not be pre-selected
         org_policy = PolicyFactory(organization=organization)
         response = client.get(url)
@@ -2418,7 +2407,14 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         )
 
     def test_get_no_org_policy(
-        self, client, url, user, organization, settings, all_mdms, set_mdm_env_vars
+        self,
+        client,
+        url,
+        user,
+        organization,
+        settings,
+        all_mdms,
+        set_mdm_env_vars,
     ):
         """Ensures the form renders when there is no org-scoped policy (policy defaults to None)."""
         response = client.get(url)
@@ -2429,7 +2425,15 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         assert form_instance.policy_id is None
 
     def test_valid_form(
-        self, client, url, user, organization, project, all_mdms, set_mdm_env_vars, mocker
+        self,
+        client,
+        url,
+        user,
+        organization,
+        project,
+        all_mdms,
+        set_mdm_env_vars,
+        mocker,
     ):
         """Ensure submitting a valid form creates a Fleet with the expected data
         and makes the expected MDM API requests.
@@ -2742,7 +2746,14 @@ class TestFleetQRCode(ViewTestBase, TestAllMDMsNoAutouse):
         assertContains(response, f'<img src="{fleet.enroll_qr_code.url}"')
 
     def test_no_saved_qr_code(
-        self, client, url, user, organization, mocker, all_mdms, set_mdm_env_vars
+        self,
+        client,
+        url,
+        user,
+        organization,
+        mocker,
+        all_mdms,
+        set_mdm_env_vars,
     ):
         """Ensure a the QR code is downloaded and saved if it's not saved yet,
         and an img tag with the saved QR code is included in the response.
@@ -2993,7 +3004,7 @@ class TestCheckMDMLicenseLimit(ViewTestBase, TestTinyMDMOnly):
         assertContains(response, "Unable to check if the TinyMDM license limit has been reached.")
 
 
-class TestDeviceUpdateAppUser(ViewTestBase):
+class TestDeviceUpdateAppUser(ViewTestBase, TestAllMDMsNoAutouse):
     """Test updating the app user name for a Device."""
 
     @pytest.fixture
@@ -3018,7 +3029,17 @@ class TestDeviceUpdateAppUser(ViewTestBase):
         assert response.status_code == 302
 
     @pytest.mark.parametrize("app_user_name", ["", "new_app_user_name"])
-    def test_valid_form(self, client, url, user, device, app_user_name, mocker, set_mdm_env_vars):
+    def test_valid_form(
+        self,
+        client,
+        all_mdms,
+        url,
+        user,
+        device,
+        app_user_name,
+        mocker,
+        set_mdm_env_vars,
+    ):
         """Ensure submitting a valid form updates the Device's app_user_name."""
         if app_user_name:
             AppUserFactory(name=app_user_name, project=device.fleet.project)
@@ -3112,6 +3133,7 @@ class TestAndroidEnterpriseBanner(TestAndroidEnterpriseOnly):
 
     def test_banner_shown_when_android_enterprise_not_enrolled(self, client, url, organization):
         """Banner appears when Android Enterprise is active and org has no enterprise."""
+        organization.android_enterprise.delete()
         response = client.get(url)
         assertContains(response, "Android Enterprise not configured")
         assertContains(
@@ -3121,9 +3143,6 @@ class TestAndroidEnterpriseBanner(TestAndroidEnterpriseOnly):
 
     def test_banner_not_shown_when_android_enterprise_enrolled(self, client, url, organization):
         """Banner is hidden once the org's enterprise is enrolled."""
-        AndroidEnterpriseAccountFactory(
-            organization=organization, enterprise_name="enterprises/LC00lvvue0"
-        )
         response = client.get(url)
         assertNotContains(response, "Android Enterprise not configured")
 
@@ -3139,17 +3158,12 @@ class TestEnterpriseSetup(TestAndroidEnterpriseOnly):
     """Tests the enterprise_setup view."""
 
     @pytest.fixture
-    def user(self, client):
+    def user(self, client, organization):
         user = UserFactory()
         user.save()
+        organization.users.add(user)
         client.force_login(user=user)
         return user
-
-    @pytest.fixture
-    def organization(self, user):
-        organization = OrganizationFactory()
-        organization.users.add(user)
-        return organization
 
     @pytest.fixture
     def url(self, organization):
@@ -3161,11 +3175,8 @@ class TestEnterpriseSetup(TestAndroidEnterpriseOnly):
         assert response.status_code == 302
         assert "/login" in response["Location"] or "/accounts" in response["Location"]
 
-    def test_already_enrolled_redirects(self, client, url, organization):
+    def test_already_enrolled_redirects(self, client, url, user, organization):
         """If the org's enterprise is already enrolled, redirect to devices list."""
-        AndroidEnterpriseAccountFactory(
-            organization=organization, enterprise_name="enterprises/LC00lvvue0"
-        )
         response = client.get(url)
         assertRedirects(
             response,
@@ -3173,8 +3184,11 @@ class TestEnterpriseSetup(TestAndroidEnterpriseOnly):
             fetch_redirect_response=False,
         )
 
-    def test_get_signup_url_error_redirects_with_message(self, client, url, organization, mocker):
+    def test_get_signup_url_error_redirects_with_message(
+        self, client, url, user, organization, mocker
+    ):
         """If get_signup_url raises, redirect to devices list with an error message."""
+        organization.android_enterprise.delete()
         mocker.patch(
             "apps.publish_mdm.views.AndroidEnterprise.get_signup_url",
             side_effect=RuntimeError("API unavailable"),
@@ -3186,8 +3200,11 @@ class TestEnterpriseSetup(TestAndroidEnterpriseOnly):
         )
         assertContains(response, "Failed to generate Android Enterprise signup URL")
 
-    def test_get_creates_account_and_redirects_to_google(self, client, url, organization, mocker):
+    def test_get_creates_account_and_redirects_to_google(
+        self, client, url, user, organization, mocker
+    ):
         """On success, saves signup URL fields and redirects to the Google URL."""
+        organization.android_enterprise.delete()
         signup_result = {
             "name": "signupUrls/C455570ef9b12bfc",
             "url": "https://enterprise.google.com/signup?token=abc",
@@ -3207,9 +3224,11 @@ class TestEnterpriseSetup(TestAndroidEnterpriseOnly):
             fetch_redirect_response=False,
         )
 
-    def test_get_updates_existing_account(self, client, url, organization, mocker):
+    def test_get_updates_existing_account(self, client, url, user, organization, mocker):
         """Re-visiting the setup URL updates the existing account's signup fields."""
-        account = AndroidEnterpriseAccountFactory(organization=organization)
+        account = organization.android_enterprise
+        account.enterprise_name = ""
+        account.save()
         signup_result = {
             "name": "signupUrls/NEWNAME",
             "url": "https://enterprise.google.com/signup?token=xyz",
@@ -3222,7 +3241,7 @@ class TestEnterpriseSetup(TestAndroidEnterpriseOnly):
         account.refresh_from_db()
         assert account.signup_url_name == "signupUrls/NEWNAME"
 
-    def test_404_if_different_active_mdm(self, client, url, settings):
+    def test_404_if_different_active_mdm(self, client, url, user, settings):
         """Should return a 404 response when Android Enterprise is not the active MDM."""
         settings.ACTIVE_MDM = {"name": "TinyMDM", "class": "apps.mdm.mdms.TinyMDM"}
         response = client.get(url)
@@ -3234,16 +3253,11 @@ class TestEnterpriseCallback(TestAndroidEnterpriseOnly):
     """Tests the enterprise_callback view (unauthenticated — called by Google)."""
 
     @pytest.fixture
-    def organization(self):
-        return OrganizationFactory()
-
-    @pytest.fixture
     def account(self, organization):
-        return AndroidEnterpriseAccountFactory(
-            organization=organization,
-            signup_url_name="signupUrls/C455570ef9b12bfc",
-            signup_url="https://enterprise.google.com/signup?token=abc",
-        )
+        organization.android_enterprise.enterprise_name = ""
+        organization.android_enterprise.signup_url_name = "signupUrls/C455570ef9b12bfc"
+        organization.android_enterprise.save()
+        return organization.android_enterprise
 
     @pytest.fixture
     def url(self, account):
