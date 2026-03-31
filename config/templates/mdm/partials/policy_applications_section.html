@@ -26,7 +26,6 @@
                                     <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">
                                         {{ app_form.id }}
                                         {{ app_form.package_name.as_hidden }}
-                                        {{ app_form.disabled.as_hidden }}
                                         {{ app.package_name }}
                                         <span class="text-xs text-blue-600 dark:text-blue-400">(pinned)</span>
                                     </td>
@@ -52,7 +51,6 @@
                                         :class="{ 'line-through': markDelete }">
                                         {{ app_form.id }}
                                         {{ app_form.package_name.as_hidden }}
-                                        {{ app_form.disabled.as_hidden }}
                                         <input type="checkbox"
                                                name="{{ app_form.DELETE.html_name }}"
                                                id="{{ app_form.DELETE.id_for_label }}"
