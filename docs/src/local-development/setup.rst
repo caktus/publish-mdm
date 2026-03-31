@@ -55,6 +55,7 @@ rather use Docker, see :doc:`../running/docker-compose`.
     # This is the shared secret token that will be used for the notifications push
     # endpoint at /mdm/api/amapi/notifications/. If you enable notifications and
     # this is not set, all requests to the endpoint will be rejected.
+    # You can generate it with `pwgen -s 32 1`
     # ANDROID_ENTERPRISE_PUBSUB_TOKEN=
 
 Update the environment variables as needed for your local setup. You may need to
@@ -99,6 +100,7 @@ See :doc:`the tutorial <../running/tutorial>` for more details on the Google and
     python manage.py configure_amapi_pubsub
 
 This will set up a Pub/Sub topic and subscription, and enable your Android EMM enterprise to push to the notifications endpoint (``/mdm/api/amapi/notifications/``). Before running this, the Pub/Sub API must be enabled for the Google project used to create the service account, and the service account must have the "Pub/Sub Admin" role. See `this guide <https://docs.cloud.google.com/pubsub/docs/publish-receive-messages-console#before-you-begin>`__ for more details.
+Only complete the steps under 'Before you begin' -- the ``configure_amapi_pubsub`` command will create the topic and subscription.
 
 By default, the notification endpoint will be set up using the domain of the current ``Site`` model object. If you need to set up the notification endpoint with a different domain (e.g. to use ngrok to expose your localhost) run:
 
