@@ -1,0 +1,22 @@
+{% load mdm_tags %}
+<div class="policy-section">
+    <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Developer Options</h3>
+    <div class="max-w-md">
+        <div>
+            <label class="form-label-with-icon"
+                   for="{{ form.developer_settings.id_for_label }}">
+                {{ form.developer_settings.label }}
+                {% info_icon "tooltip-developer-settings" %}
+            </label>
+            <div id="tooltip-developer-settings"
+                 role="tooltip"
+                 class="tooltip-container">
+                Controls access to the Android Developer Options menu (USB debugging, etc.). Set to
+                <em>Allowed</em> only for development devices.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+            {{ form.developer_settings }}
+            {{ form.developer_settings.errors }}
+        </div>
+    </div>
+</div>

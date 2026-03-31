@@ -1,0 +1,17 @@
+{% load mdm_tags %}
+<div class="policy-section">
+    <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Always-on VPN</h3>
+    <div class="max-w-md space-y-3">
+        <div>
+            {{ form.vpn_package_name.label_tag }}
+            {{ form.vpn_package_name }}
+            {{ form.vpn_package_name.errors }}
+        </div>
+        <div>
+            {% toggle_field form.vpn_lockdown %}
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                When enabled, network traffic is blocked if the VPN disconnects.
+            </p>
+        </div>
+    </div>
+</div>

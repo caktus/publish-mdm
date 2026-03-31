@@ -14,7 +14,7 @@ from import_export.tmp_storages import MediaStorage
 from invitations.adapters import get_invitations_adapter
 from invitations.exceptions import AlreadyAccepted, AlreadyInvited, UserRegisteredEmail
 
-from apps.mdm.models import Device, Fleet
+from apps.mdm.models import Device, Fleet, Policy
 from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import (
     BaseEmailInput,
@@ -631,8 +631,9 @@ class CentralServerFrontendForm(PlatformFormMixin, CentralServerForm):
 class FleetEditForm(PlatformFormMixin, forms.ModelForm):
     class Meta:
         model = Fleet
-        fields = ("project", "default_app_user")
+        fields = ("policy", "project", "default_app_user")
         widgets: ClassVar = {
+            "policy": Select,
             "project": Select,
             "default_app_user": Select,
         }
@@ -640,6 +641,9 @@ class FleetEditForm(PlatformFormMixin, forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["project"].queryset = self.instance.organization.projects.all()
+        self.fields["policy"].queryset = Policy.objects.filter(
+            organization=self.instance.organization
+        )
         self.fields["project"].widget.attrs.update(
             {
                 "hx-trigger": "change",
@@ -677,11 +681,13 @@ class FleetAddForm(FleetEditForm):
         model = Fleet
         fields = (
             "name",
+            "policy",
             "project",
             "default_app_user",
         )
         widgets: ClassVar = {
             "name": TextInput,
+            "policy": Select,
             "project": Select,
             "default_app_user": Select,
         }

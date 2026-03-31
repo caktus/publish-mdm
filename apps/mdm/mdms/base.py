@@ -55,6 +55,9 @@ class MDM(ABC):
     def delete_group(self, fleet: Fleet) -> bool:
         pass
 
+    def create_or_update_policy(self, policy):  # noqa: B027
+        """Create or update a policy in the MDM. No-op by default."""
+
 
 class MDMAPIError(BaseModel):
     method: str | None = None

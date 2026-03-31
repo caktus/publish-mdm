@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+    <div class="mb-4 items-end justify-between space-y-4 sm:flex">
+        <a href="{% url 'mdm:policy-add' request.organization.slug %}"
+           class="btn btn-outline mr-4">Add policy</a>
+    </div>
+    <div class="bg-white sm:rounded-md overflow-x-auto dark:bg-gray-800">
+        <table class="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+            <thead class="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                <tr>
+                    <th scope="col" class="px-4 py-3 whitespace-nowrap">Name</th>
+                    {% if show_policy_id %}<th scope="col" class="px-4 py-3 whitespace-nowrap">Policy ID</th>{% endif %}
+                    <th scope="col" class="px-4 py-3 whitespace-nowrap"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for policy in policies %}
+                    <tr class="border-b dark:border-gray-700">
+                        <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{{ policy.name }}</td>
+                        {% if show_policy_id %}<td class="px-4 py-3">{{ policy.policy_id }}</td>{% endif %}
+                        <td class="px-4 py-3">
+                            <a href="{% url 'mdm:policy-edit' request.organization.slug policy.pk %}"
+                               class="text-primary-600 hover:underline dark:text-primary-400">Edit</a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr class="border-b dark:border-gray-700">
+                        <td colspan="{% if show_policy_id %}3{% else %}2{% endif %}"
+                            class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                            No policies found. Click "Add policy" to create one.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock content %}

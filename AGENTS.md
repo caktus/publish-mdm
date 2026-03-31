@@ -230,6 +230,45 @@ git branch --set-upstream-to=origin/<branch-name> <branch-name>
 
 Agents may create branches with incorrect merge configs. Always verify before pushing.
 
+## Migration Strategy
+
+**Never squash migrations that already exist on `main`.** Feature branches must preserve
+the migrations from `main` exactly and add only new migration files numbered after the
+highest existing one on `main`.
+
+### Before merging a feature branch
+
+Squash all migrations that were added **only on the feature branch** into a single new
+migration file. Do NOT touch migrations that exist on `main`.
+
+**Steps:**
+
+```bash
+# 1. Find the highest migration number on main
+git ls-tree main apps/<app>/migrations/ | awk '{print $4}' | sort | tail -3
+
+# 2. Remove all feature-branch-only migrations (everything above main's highest)
+rm apps/<app>/migrations/<N+1>_*.py apps/<app>/migrations/<N+2>_*.py ...
+
+# 3. Regenerate as a single migration (schema changes only)
+DATABASE_URL=... uv run manage.py makemigrations <app> --name feature_<short_description>
+
+# 4. If there were any data migrations in the removed files, add them manually
+#    as RunPython operations at the END of the new migration's operations list.
+```
+
+**Example:** if `main` has `0001`–`0007` and the branch added `0008`–`0010`:
+
+```bash
+rm apps/mdm/migrations/0008_*.py apps/mdm/migrations/0009_*.py apps/mdm/migrations/0010_*.py
+DATABASE_URL=... uv run manage.py makemigrations mdm --name feature_policy_editor
+# then manually append any RunPython data migrations to the generated file
+```
+
+The result should be exactly one new migration file (`0008_feature_policy_editor.py`)
+that depends on `main`'s last migration. This keeps the history clean and avoids
+merge conflicts with other branches.
+
 ## Key Conventions
 
 - `Breadcrumbs.from_items()` requires a non-None string `viewname` for every
@@ -252,3 +291,53 @@ Agents may create branches with incorrect merge configs. Always verify before pu
   and never matches. Use inline `<script>` tags in HTMX responses instead.
 - **`hx-swap="innerHTML"`** (not `outerHTML`) when the target element's `id` is
   reused for future swaps — `outerHTML` removes the element and destroys its ID.
+- **djlint and form tags**: Do not use HTML tags inside Django template comments
+  (`{# ... #}`). djlint H025 will report the form as "orphan" even though it's
+  commented out. Extract form opening/closing to separate lines or move the comment
+  outside the form tags to avoid false positives.
+
+## Python Coding Standards
+
+Follow the Zen of Python principles:
+
+```
+python -c 'import this'
+The Zen of Python, by Tim Peters
+
+Beautiful is better than ugly.
+Explicit is better than implicit.
+Simple is better than complex.
+Complex is better than complicated.
+Flat is better than nested.
+Sparse is better than dense.
+Readability counts.
+Special cases aren't special enough to break the rules.
+Although practicality beats purity.
+Errors should never pass silently.
+Unless explicitly silenced.
+In the face of ambiguity, refuse the temptation to guess.
+There should be one-- and preferably only one --obvious way to do it.
+Although that way may not be obvious at first unless you're Dutch.
+Now is better than never.
+Although never is often better than *right* now.
+If the implementation is hard to explain, it's a bad idea.
+If the implementation is easy to explain, it may be a good idea.
+Namespaces are one honking great idea -- let's do more of those!
+```
+
+### Import guidelines
+
+**Do not use inline imports** unless required to avoid a circular import. Import at the
+module level so dependencies are clear and type checkers can validate them. If you must
+use an inline import to break a cycle, add a comment explaining the circular dependency:
+
+```python
+# At module level (preferred):
+from apps.users.models import User
+from apps.policies.handlers import PolicyUpdateHandler
+
+# Inline only when necessary:
+def some_view(request):
+    from apps.circular_import import helper  # Avoid circular: views → models → views
+    return helper.process(request)
+```

@@ -403,6 +403,52 @@ class TestDeviceImport(ImportTestBase):
         assert devices[0].app_user_name == "user1"
         assert devices[1].app_user_name == "user2"
 
+    def test_push_device_config_called_after_confirm(
+        self, client, url, user, organization, devices, dataset, mocker
+    ):
+        """Confirming a CSV import triggers push_device_config for each updated device."""
+        mock_mdm = mocker.MagicMock()
+        mocker.patch(
+            "apps.publish_mdm.import_export.get_active_mdm_instance", return_value=mock_mdm
+        )
+        mock_push = mock_mdm.push_device_config
+
+        import_format_cls, _, form_format = self.FORMATS["csv"]
+        import_file_data = dataset.export("csv")
+        tmp_storage = MediaStorage(
+            encoding=import_format_cls.encoding,
+            read_mode=import_format_cls.get_read_mode(),
+        )
+        tmp_storage.save(import_file_data)
+        data = {
+            "import_file_name": tmp_storage.name,
+            "original_file_name": "test.csv",
+            "format": form_format,
+            "resource": "",
+        }
+        client.post(url, data=data, follow=True)
+
+        assert mock_push.call_count == len(devices)
+        pushed_pks = {call.args[0].pk for call in mock_push.call_args_list}
+        assert pushed_pks == {d.pk for d in devices}
+
+    def test_push_device_config_not_called_on_dry_run(
+        self, client, url, user, devices, dataset, mocker
+    ):
+        """During the dry-run preview stage, push_device_config is not called."""
+        mock_mdm = mocker.MagicMock()
+        mocker.patch(
+            "apps.publish_mdm.import_export.get_active_mdm_instance", return_value=mock_mdm
+        )
+        mock_push = mock_mdm.push_device_config
+
+        _, io_class, form_format = self.FORMATS["csv"]
+        import_file_data = dataset.export("csv")
+        data = {"format": form_format, "import_file": io_class(import_file_data)}
+        client.post(url, data=data)
+
+        mock_push.assert_not_called()
+
 
 class ExportTestBase(ImportExportTestBase):
     """Base class for testing the export views."""

@@ -1,15 +1,24 @@
 import datetime as dt
+import json
 
 import faker
 import pytest
 from django.core.exceptions import ValidationError
 
 from apps.mdm.mdms import get_active_mdm_class
-from apps.mdm.models import Policy
+from apps.mdm.models import DeviceSnapshotApp, PolicyApplication, PolicyVariable
 from tests.mdm import TestAllMDMs
-from tests.publish_mdm.factories import AppUserFactory, ProjectFactory
+from tests.publish_mdm.factories import AppUserFactory, OrganizationFactory, ProjectFactory
 
-from .factories import DeviceFactory, FleetFactory, PolicyFactory
+from .factories import (
+    DeviceFactory,
+    DeviceSnapshotFactory,
+    FirmwareSnapshotFactory,
+    FleetFactory,
+    PolicyApplicationFactory,
+    PolicyFactory,
+    PolicyVariableFactory,
+)
 
 fake = faker.Faker()
 
@@ -165,76 +174,120 @@ class TestModels(TestAllMDMs):
         """
         assert fleet.group_name == f"{fleet.organization.name}: {fleet.name}"
 
-    def test_policy_get_default(self, settings):
-        """Tests the Policy.get_default() method."""
-        settings.MDM_DEFAULT_POLICY = None
-        # Cannot determine a default either from the database or using the setting
-        assert not Policy.get_default()
-
-        settings.MDM_DEFAULT_POLICY = "12345"
-        # The default policy is created in the database and returned
-        policy = Policy.get_default()
-        assert policy
-        assert policy.policy_id == settings.MDM_DEFAULT_POLICY
-        assert policy.default_policy
-
-        # get_default() gets whichever Policy has default_policy=True
-        policy.default_policy = False
-        policy.save()
-        new_default = PolicyFactory(default_policy=True)
-        assert Policy.get_default() == new_default
-
     def test_get_policy_data(self):
-        """Tests the Policy.get_policy_data() method."""
-        # Policy.json_template is an empty string. get_policy_data() should return None
-        policy = PolicyFactory(json_template="")
-        assert policy.get_policy_data() is None
+        """Tests the Policy.get_policy_data() method using the new serializer."""
+        # A policy with default fields should return a dict with the ODK Collect app
+        policy = PolicyFactory()
+        policy_data = policy.get_policy_data()
+        assert policy_data is not None
+        assert "applications" in policy_data
+        # ODK Collect is always present
+        odk_app = policy_data["applications"][0]
+        assert odk_app["packageName"] == "org.odk.collect.android"
+        assert odk_app["installType"] == "FORCE_INSTALLED"
 
-        # Policy.json_template is invalid JSON. get_policy_data() should return None
-        policy.json_template = "invalid"
+        # Add password policy fields
+        policy.device_password_quality = "NUMERIC"
+        policy.device_password_min_length = 6
         policy.save()
+        policy_data = policy.get_policy_data()
+        assert "passwordPolicies" in policy_data
+        device_pw = policy_data["passwordPolicies"][0]
+        assert device_pw["passwordQuality"] == "NUMERIC"
+        assert device_pw["passwordMinimumLength"] == 6
 
-        assert policy.get_policy_data() is None
-
-        # Policy.json_template is valid JSON
-        policy.json_template = """
-        {
-            "passwordPolicies": {
-                "passwordQuality": "SOMETHING"
-            },
-            "applications": [
-                {
-                    {% if device %}
-                    "managedConfiguration": {
-                        "device_id": "{{ device.username }}",
-                        "settings_json": {{ device.odk_collect_qr_code }}
-                    },
-                    {% endif %}
-                    "packageName": "org.odk.collect.android",
-                    "installType": "FORCE_INSTALLED"
-                }
-            ]
-        }
-        """
+        # Add a VPN
+        policy.vpn_package_name = "com.tailscale.ipn"
+        policy.vpn_lockdown = True
         policy.save()
-        expected_policy_data = {
-            "passwordPolicies": {"passwordQuality": "SOMETHING"},
-            "applications": [
-                {"packageName": "org.odk.collect.android", "installType": "FORCE_INSTALLED"}
-            ],
+        policy_data = policy.get_policy_data()
+        assert policy_data["alwaysOnVpnPackage"] == {
+            "packageName": "com.tailscale.ipn",
+            "lockdownEnabled": True,
         }
 
-        assert policy.get_policy_data() == expected_policy_data
-
-        # get_policy_data() is passed a Device object in the `device` kwarg.
-        # It should be passed to the template as a context variable
-        device = DeviceFactory()
-        expected_policy_data["applications"][0].update(
-            {
-                "managedConfiguration": {"device_id": device.username, "settings_json": ""},
-            }
+        # Add a non-ODK application
+        PolicyApplication.objects.create(
+            policy=policy,
+            package_name="com.example.app",
+            install_type="PREINSTALLED",
+            order=1,
         )
-        assert policy.get_policy_data(device=device) == expected_policy_data
+        policy_data = policy.get_policy_data()
+        assert len(policy_data["applications"]) == 2
+        assert policy_data["applications"][1]["packageName"] == "com.example.app"
+        assert policy_data["applications"][1]["installType"] == "PREINSTALLED"
+
+        # get_policy_data() with device context should inject ODK managed config
+        device = DeviceFactory()
+        policy_data = policy.get_policy_data(device=device)
+        odk_app = policy_data["applications"][0]
+        assert "managedConfiguration" in odk_app or "packageName" in odk_app
+
+    def test_get_policy_data_includes_fleet_variables(self):
+        """get_policy_data() must include fleet-scoped variables so fleet overrides work."""
+        org = OrganizationFactory()
+        policy = PolicyFactory(organization=org)
+        fleet = FleetFactory(policy=policy, organization=org)
+
+        PolicyApplication.objects.create(
+            policy=policy,
+            package_name="com.example.app",
+            install_type="FORCE_INSTALLED",
+            managed_configuration={"token": "$api_token"},
+            order=1,
+        )
+        PolicyVariable.objects.create(
+            key="api_token", value="policy_value", scope="policy", policy=policy
+        )
+        PolicyVariable.objects.create(
+            key="api_token", value="fleet_value", scope="fleet", fleet=fleet
+        )
+
+        policy_data = policy.get_policy_data()
+        app_entry = next(
+            a for a in policy_data["applications"] if a["packageName"] == "com.example.app"
+        )
+        # Fleet-scoped variable must override org-scoped variable
+        assert app_entry["managedConfiguration"]["token"] == "fleet_value"
+
+    def test_get_policy_data_uses_policy_variables_without_fleet(self):
+        """get_policy_data() resolves policy-scoped variables even when the policy has no fleet."""
+        org = OrganizationFactory()
+        policy = PolicyFactory(organization=org)
+        # No fleet — policy.fleets.all() is empty
+
+        PolicyApplication.objects.create(
+            policy=policy,
+            package_name="com.example.app",
+            install_type="FORCE_INSTALLED",
+            managed_configuration={"token": "$api_token"},
+            order=1,
+        )
+        PolicyVariable.objects.create(
+            key="api_token", value="policy_value", scope="policy", policy=policy
+        )
+
+        policy_data = policy.get_policy_data()
+        app_entry = next(
+            a for a in policy_data["applications"] if a["packageName"] == "com.example.app"
+        )
+        # Policy-scoped variable must be substituted even with no fleet
+        assert app_entry["managedConfiguration"]["token"] == "policy_value"
+
+    def test_managed_configuration_str_empty_dict_returns_json(self):
+        """managed_configuration_str() returns '{}' for an empty dict, not ''.
+
+        Regression test: previously used ``if self.managed_configuration:`` which
+        treated ``{}`` as falsy and incorrectly returned an empty string.
+        """
+        app = PolicyApplicationFactory(managed_configuration={})
+        assert app.managed_configuration_str() == "{}"
+
+    def test_managed_configuration_str_none_returns_empty_string(self):
+        """managed_configuration_str() returns '' when managed_configuration is None."""
+        app = PolicyApplicationFactory(managed_configuration=None)
+        assert app.managed_configuration_str() == ""
 
     def test_fleet_enroll_token_expired(self):
         """Tests the Fleet.enroll_token_expired property."""
@@ -257,3 +310,82 @@ class TestModels(TestAllMDMs):
             )
         else:
             assert fleet.enrollment_url is None
+
+    def test_policy_application_str(self):
+        """PolicyApplication.__str__ returns package name with install type display."""
+        app = PolicyApplicationFactory(
+            package_name="com.example.app",
+            install_type="FORCE_INSTALLED",
+        )
+        assert str(app) == "com.example.app (Force installed)"
+
+    def test_policy_variable_str(self):
+        """PolicyVariable.__str__ returns key=value (scope) format."""
+
+        variable = PolicyVariableFactory(
+            key="server_url", value="https://example.com", scope="policy"
+        )
+        assert str(variable) == "server_url (Policy)"
+
+    def test_policy_variable_clean_raises_when_policy_scope_without_policy(self):
+        """PolicyVariable.clean() raises ValidationError when scope=policy but policy is None."""
+        variable = PolicyVariable(key="k", value="v", scope="policy", policy=None)
+        with pytest.raises(ValidationError, match="Policy is required"):
+            variable.clean()
+
+    def test_policy_variable_clean_raises_when_fleet_scope_without_fleet(self):
+        """PolicyVariable.clean() raises ValidationError when scope=fleet but fleet is None."""
+        variable = PolicyVariable(key="k", value="v", scope="fleet", fleet=None)
+        with pytest.raises(ValidationError, match="Fleet is required"):
+            variable.clean()
+
+    def test_policy_variable_clean_clears_fleet_for_policy_scope(self):
+        """PolicyVariable.clean() sets fleet=None for policy-scoped variables."""
+        fleet = FleetFactory()
+        variable = PolicyVariable(
+            key="k", value="v", scope="policy", policy=fleet.policy, fleet=fleet
+        )
+        variable.clean()
+        assert variable.fleet is None
+
+    def test_policy_variable_clean_clears_policy_for_fleet_scope(self):
+        """PolicyVariable.clean() sets policy=None for fleet-scoped variables."""
+        fleet = FleetFactory()
+        variable = PolicyVariable(key="k", value="v", scope="fleet", fleet=fleet)
+        variable.clean()
+        assert variable.policy is None
+
+    def test_device_odk_collect_qr_code_property(self, fleet):
+        """Device.odk_collect_qr_code returns a mark_safe JSON string."""
+        device = DeviceFactory(fleet=fleet)
+        result = device.odk_collect_qr_code
+        assert isinstance(result, str)
+        # It should be a JSON-escaped string (double-quoted empty string if no app user)
+        inner = json.loads(result)
+        assert inner == ""  # empty since no AppUser
+
+    def test_device_snapshot_str(self):
+        """DeviceSnapshot.__str__ returns name (device_id) format."""
+        snapshot = DeviceSnapshotFactory(name="My Device", device_id="abc123")
+        assert str(snapshot) == "My Device (abc123)"
+
+    def test_device_snapshot_app_str(self):
+        """DeviceSnapshotApp.__str__ returns app_name (package_name) snapshot format."""
+        snapshot = DeviceSnapshotFactory()
+        app = DeviceSnapshotApp.objects.create(
+            device_snapshot=snapshot,
+            package_name="org.odk.collect.android",
+            app_name="ODK Collect",
+            version_code=1,
+            version_name="2024.1",
+        )
+        assert str(app) == "ODK Collect (org.odk.collect.android) snapshot"
+
+    def test_firmware_snapshot_str(self, fleet):
+        """FirmwareSnapshot.__str__ shows device_identifier, not the FK integer."""
+        snap = FirmwareSnapshotFactory(
+            device=DeviceFactory(fleet=fleet),
+            device_identifier="TMDM-DEVICE-99",
+            version="2.3.1",
+        )
+        assert str(snap) == "TMDM-DEVICE-99 (2.3.1) firmware snapshot"

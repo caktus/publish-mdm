@@ -36,7 +36,8 @@
                                 {{ crumb.label }}
                             </a>
                         {% else %}
-                            <span class="ms-1 md:ms-2 text-sm font-medium text-gray-400 dark:text-gray-600">{{ crumb.label }}</span>
+                            <span id="breadcrumb-last-crumb"
+                                  class="ms-1 md:ms-2 text-sm font-medium text-gray-400 dark:text-gray-600">{{ crumb.label }}</span>
                         {% endif %}
                     </div>
                 </li>

@@ -24,7 +24,7 @@ from apps.infisical.api import kms_api
 from apps.infisical.fields import EncryptedCharField, EncryptedEmailField
 from apps.infisical.managers import EncryptedManager
 from apps.mdm.mdms import get_active_mdm_instance
-from apps.mdm.models import Fleet, Policy
+from apps.mdm.models import Fleet, Policy, PolicyApplication
 from apps.users.models import User
 
 from .etl import template
@@ -60,15 +60,32 @@ class Organization(AbstractBaseModel):
 
     def create_default_fleet(self):
         """Create a default MDM Fleet for the organization if the active MDM's API is
-        configured and a default Policy exists.
+        configured.
         """
-        if (active_mdm := get_active_mdm_instance()) and (default_policy := Policy.get_default()):
-            fleet = Fleet(organization=self, name="Default", policy=default_policy)
-            active_mdm.create_group(fleet)
-            active_mdm.add_group_to_policy(fleet)
-            active_mdm.get_enrollment_qr_code(fleet)
-            fleet.save()
-            return fleet
+        active_mdm = get_active_mdm_instance()
+        if not active_mdm:
+            return None
+        # Create an org-specific default policy
+        policy = Policy.all_mdms.create(
+            name="Default",
+            policy_id=f"policy_default_{get_random_string(12)}",
+            mdm=settings.ACTIVE_MDM["name"],
+            organization=self,
+        )
+        # Create the pinned ODK Collect app row (order=0) so new policies are consistent
+        # with those created via the policy editor UI.
+        PolicyApplication.objects.create(
+            policy=policy,
+            package_name=policy.odk_collect_package,
+            install_type="FORCE_INSTALLED",
+            order=0,
+        )
+        fleet = Fleet(organization=self, name="Default", policy=policy)
+        active_mdm.create_group(fleet)
+        active_mdm.add_group_to_policy(fleet)
+        active_mdm.get_enrollment_qr_code(fleet)
+        fleet.save()
+        return fleet
 
 
 class CentralServer(AbstractBaseModel):
