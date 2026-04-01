@@ -3309,26 +3309,13 @@ class TestEnterpriseCallback(TestAndroidEnterpriseOnly):
         """If the enterprise is already enrolled, return 400."""
         account.enterprise_name = "enterprises/EXISTING"
         account.save()
-        response = client.get(
-            url,
-            {"enterpriseToken": "tok", "signupName": "signupUrls/C455570ef9b12bfc"},
-        )
+        response = client.get(url, {"enterpriseToken": "tok"})
         assert response.status_code == 400
         assert b"already enrolled" in response.content
 
-    def test_missing_signup_name_returns_400(self, client, url):
-        """Missing signupName query param returns 400."""
-        response = client.get(url, {"enterpriseToken": "tok"})
-        assert response.status_code == 400
-
-    def test_wrong_signup_name_returns_400(self, client, url):
-        """signupName that does not match the stored one returns 400."""
-        response = client.get(url, {"enterpriseToken": "tok", "signupName": "signupUrls/WRONGNAME"})
-        assert response.status_code == 400
-
     def test_missing_enterprise_token_returns_400(self, client, url, account):
         """Missing enterpriseToken query param returns 400."""
-        response = client.get(url, {"signupName": account.signup_url_name})
+        response = client.get(url, {})
         assert response.status_code == 400
 
     def test_create_enterprise_error_returns_400(self, client, url, account, mocker):
@@ -3339,7 +3326,7 @@ class TestEnterpriseCallback(TestAndroidEnterpriseOnly):
         )
         response = client.get(
             url,
-            {"enterpriseToken": "tok", "signupName": account.signup_url_name},
+            {"enterpriseToken": "tok"},
         )
         assert response.status_code == 400
         assert b"Failed to create enterprise" in response.content
@@ -3353,7 +3340,7 @@ class TestEnterpriseCallback(TestAndroidEnterpriseOnly):
         mock_create_fleet = mocker.patch.object(Organization, "create_default_fleet")
         response = client.get(
             url,
-            {"enterpriseToken": "tok", "signupName": account.signup_url_name},
+            {"enterpriseToken": "tok"},
         )
         assert response.status_code == 200
         account.refresh_from_db()
@@ -3371,7 +3358,7 @@ class TestEnterpriseCallback(TestAndroidEnterpriseOnly):
         mocker.patch.object(Organization, "create_default_fleet")
         response = client.get(
             url,
-            {"enterpriseToken": "tok", "signupName": account.signup_url_name},
+            {"enterpriseToken": "tok"},
         )
         assert response.status_code == 200
 
@@ -3393,7 +3380,7 @@ class TestEnterpriseCallback(TestAndroidEnterpriseOnly):
         )
         response = client.get(
             url,
-            {"enterpriseToken": "tok", "signupName": account.signup_url_name},
+            {"enterpriseToken": "tok"},
         )
         assert response.status_code == 200
         account.refresh_from_db()

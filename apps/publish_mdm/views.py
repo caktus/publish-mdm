@@ -1368,22 +1368,22 @@ def enterprise_setup(request: HttpRequest, organization_slug):
 
 def enterprise_callback(request: HttpRequest, callback_token):
     """Google calls this URL after the org admin completes enterprise signup."""
+    if settings.ACTIVE_MDM["name"] != "Android Enterprise":
+        raise Http404
+
     account = get_object_or_404(AndroidEnterpriseAccount, callback_token=callback_token)
 
     if account.is_enrolled:
         return HttpResponseBadRequest("Enterprise already enrolled; this callback has expired.")
 
     enterprise_token = request.GET.get("enterpriseToken", "")
-    signup_name = request.GET.get("signupName", "")
 
-    if not signup_name or signup_name != account.signup_url_name:
-        return HttpResponseBadRequest("Invalid signupName.")
     if not enterprise_token:
         return HttpResponseBadRequest("Missing enterpriseToken.")
 
     try:
         enterprise = AndroidEnterprise.create_enterprise(
-            signup_name=signup_name,
+            signup_name=account.signup_url_name,
             enterprise_token=enterprise_token,
             display_name=account.organization.name,
         )
