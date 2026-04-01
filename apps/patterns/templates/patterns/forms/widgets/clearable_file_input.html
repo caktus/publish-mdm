@@ -1,6 +1,7 @@
 {% if widget.is_initial %}
     <span class="text-sm text-gray-600 dark:text-gray-400">
-        <a href="{{ widget.value.url }}" class="text-primary-600 hover:underline dark:text-primary-400">{{ widget.value }}</a>
+        <a href="{{ widget.value.url }}"
+           class="text-primary-600 hover:underline dark:text-primary-400">{{ widget.value }}</a>
     </span>
     {% if not widget.required %}
         <label class="inline-flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400 cursor-pointer">
