@@ -601,6 +601,116 @@ class TestPolicyAdmin(TestAdmin):
         assert "com.example.inline" in pushed_package_names
 
 
+class TestPolicyAdminDagster(TestAdmin):
+    """Tests that PolicyAdmin.save_related() uses Dagster for child-device pushes
+    when Dagster is enabled, falling back to synchronous behaviour when not.
+    """
+
+    @pytest.fixture
+    def policy_data_base(self):
+        MDM = get_active_mdm_class()
+        return {
+            "name": "Dagster Test Policy",
+            "policy_id": "dagster_test",
+            "mdm": MDM.name,
+            "odk_collect_package": "org.odk.collect.android",
+            "device_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
+            "device_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+            "work_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
+            "work_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+            "developer_settings": "DEVELOPER_SETTINGS_DISABLED",
+            "applications-TOTAL_FORMS": "0",
+            "applications-INITIAL_FORMS": "0",
+        }
+
+    @pytest.fixture
+    def policy_with_child_devices(self):
+        policy = PolicyFactory()
+        fleet = FleetFactory(policy=policy)
+        devices = []
+        for device in DeviceFactory.create_batch(2, fleet=fleet):
+            device.raw_mdm_device = {
+                "policyName": f"enterprises/test/policies/fleet{fleet.id}_{device.device_id}"
+            }
+            device.save()
+            devices.append(device)
+        return policy, devices
+
+    def test_dagster_triggered_for_child_devices(
+        self, user, client, mocker, set_mdm_env_vars, policy_with_child_devices, settings
+    ):
+        """When Dagster is enabled, save_related() queues per-device config pushes
+        via mdm_job instead of calling push_device_config() synchronously.
+        """
+        settings.DAGSTER_URL = "http://dagster-host:3000"
+        MDM = get_active_mdm_class()
+        policy, devices = policy_with_child_devices
+        mocker.patch.object(MDM, "create_or_update_policy")
+        mock_push = mocker.patch.object(MDM, "push_device_config")
+        mock_trigger = mocker.patch("apps.mdm.admin.trigger_dagster_job")
+        data = {
+            "name": policy.name,
+            "policy_id": policy.policy_id,
+            "mdm": policy.mdm,
+            "odk_collect_package": policy.odk_collect_package,
+            "device_password_quality": policy.device_password_quality,
+            "device_password_require_unlock": policy.device_password_require_unlock,
+            "work_password_quality": policy.work_password_quality,
+            "work_password_require_unlock": policy.work_password_require_unlock,
+            "developer_settings": policy.developer_settings,
+            "applications-TOTAL_FORMS": "0",
+            "applications-INITIAL_FORMS": "0",
+        }
+
+        response = client.post(
+            reverse("admin:mdm_policy_change", args=[policy.id]), data=data, follow=True
+        )
+
+        assert response.status_code == 200
+        mock_push.assert_not_called()
+        mock_trigger.assert_called_once()
+        call_kwargs = mock_trigger.call_args
+        assert call_kwargs.kwargs["job_name"] == "mdm_job"
+        device_pks = call_kwargs.kwargs["run_config"]["ops"]["push_mdm_device_config"]["config"][
+            "device_pks"
+        ]
+        assert set(device_pks) == {d.pk for d in devices}
+
+    def test_sync_fallback_without_dagster(
+        self, user, client, mocker, set_mdm_env_vars, policy_with_child_devices, settings
+    ):
+        """When Dagster is disabled, save_related() falls back to calling
+        push_device_config() synchronously for each child device.
+        """
+        settings.DAGSTER_URL = ""
+        MDM = get_active_mdm_class()
+        policy, devices = policy_with_child_devices
+        mocker.patch.object(MDM, "create_or_update_policy")
+        mock_push = mocker.patch.object(MDM, "push_device_config")
+        mock_trigger = mocker.patch("apps.mdm.admin.trigger_dagster_job")
+        data = {
+            "name": policy.name,
+            "policy_id": policy.policy_id,
+            "mdm": policy.mdm,
+            "odk_collect_package": policy.odk_collect_package,
+            "device_password_quality": policy.device_password_quality,
+            "device_password_require_unlock": policy.device_password_require_unlock,
+            "work_password_quality": policy.work_password_quality,
+            "work_password_require_unlock": policy.work_password_require_unlock,
+            "developer_settings": policy.developer_settings,
+            "applications-TOTAL_FORMS": "0",
+            "applications-INITIAL_FORMS": "0",
+        }
+
+        response = client.post(
+            reverse("admin:mdm_policy_change", args=[policy.id]), data=data, follow=True
+        )
+
+        assert response.status_code == 200
+        mock_trigger.assert_not_called()
+        assert mock_push.call_count == len(devices)
+
+
 class TestFleetAdminDeleteConfirmation(TestAdmin):
     """Tests for the GET paths in FleetAdmin that render confirmation pages."""
 

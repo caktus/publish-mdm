@@ -8,6 +8,14 @@ from apps.mdm.mdms import get_active_mdm_instance  # noqa: E402
 from apps.mdm.models import Device  # noqa: E402
 
 
+@dg.asset(
+    description="Sync all MDM fleet devices and push device configurations", group_name="mdm_assets"
+)
+def sync_and_push_mdm_devices():
+    if active_mdm := get_active_mdm_instance():
+        active_mdm.sync_fleets(push_config=True)
+
+
 @dg.asset(description="Get a list of devices from the MDM", group_name="mdm_assets")
 def mdm_device_snapshot():
     if active_mdm := get_active_mdm_instance():
