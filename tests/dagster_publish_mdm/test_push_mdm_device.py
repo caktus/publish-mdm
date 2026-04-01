@@ -3,19 +3,65 @@ import pytest
 import requests
 
 from apps.mdm.mdms import get_active_mdm_class
-from dagster_publish_mdm.assets.mdm_devices import DeviceConfig, push_mdm_device_config
-from tests.mdm import TestAllMDMs, TestTinyMDMOnly
+from dagster_publish_mdm.assets.mdm_devices import (
+    DeviceConfig,
+    mdm_device_snapshot,
+    push_mdm_device_config,
+)
+from tests.mdm import TestAllMDMs, TestAndroidEnterpriseOnly, TestTinyMDMOnly
 from tests.mdm.factories import DeviceFactory
+from tests.publish_mdm.factories import AndroidEnterpriseAccountFactory, OrganizationFactory
+
+
+@pytest.mark.django_db
+class TestMdmDeviceSnapshotTinyMDM(TestTinyMDMOnly):
+    """Tests for mdm_device_snapshot with TinyMDM (the non-Android Enterprise branch)."""
+
+    def test_sync_fleets_called(self, mocker, set_mdm_env_vars):
+        """sync_fleets is called once with push_config=False when TinyMDM is configured."""
+        mock_sync = mocker.patch.object(get_active_mdm_class(), "sync_fleets")
+        mdm_device_snapshot()
+        mock_sync.assert_called_once_with(push_config=False)
+
+    def test_sync_fleets_not_called_when_not_configured(self, mocker):
+        """sync_fleets is not called when TinyMDM credentials are not configured."""
+        mock_sync = mocker.patch.object(get_active_mdm_class(), "sync_fleets")
+        mdm_device_snapshot()
+        mock_sync.assert_not_called()
+
+
+@pytest.mark.django_db
+class TestMdmDeviceSnapshotAndroidEnterprise(TestAndroidEnterpriseOnly):
+    """Tests for mdm_device_snapshot with Android Enterprise (per-org sync branch)."""
+
+    def test_sync_fleets_called_per_enrolled_org(self, mocker, organization, set_mdm_env_vars):
+        """sync_fleets is called once per organization with an AndroidEnterpriseAccount
+        whose enterprise_name is non-empty.
+        """
+        enrolled_orgs = [
+            organization,
+            AndroidEnterpriseAccountFactory(enterprise_name="enterprises/test2").organization,
+        ]
+        # An org that has started but not completed enrollment should be excluded
+        AndroidEnterpriseAccountFactory(enterprise_name="")
+        # An org that has not started enrollment should be excluded
+        OrganizationFactory()
+
+        mock_sync = mocker.patch.object(get_active_mdm_class(), "sync_fleets")
+        mdm_device_snapshot()
+
+        assert mock_sync.call_count == len(enrolled_orgs)
+        mock_sync.assert_called_with(push_config=False)
 
 
 @pytest.mark.django_db
 class TestPushMDMDeviceConfig(TestAllMDMs):
     """Test suite for pushing MDM device configuration."""
 
-    def test_push_mdm_device_config_called(self, mocker, set_mdm_env_vars):
+    def test_push_mdm_device_config_called(self, mocker, set_mdm_env_vars, organization):
         """Test pushing MDM device configuration."""
         mock_push = mocker.patch.object(get_active_mdm_class(), "push_device_config")
-        device = DeviceFactory()
+        device = DeviceFactory(fleet__organization=organization)
         push_mdm_device_config(
             context=dg.build_asset_context(), config=DeviceConfig(device_pks=[device.pk])
         )
@@ -29,11 +75,10 @@ class TestPushMDMDeviceConfig(TestAllMDMs):
                 context=dg.build_asset_context(), config=DeviceConfig(device_pks=[999])
             )
 
-    def test_push_one_fails_not_all(self, mocker, set_mdm_env_vars):
+    def test_push_one_fails_not_all(self, mocker, set_mdm_env_vars, organization):
         """Test pushing MDM device configuration with one device failing."""
         mock_push = mocker.patch.object(get_active_mdm_class(), "push_device_config")
-        device1 = DeviceFactory()
-        device2 = DeviceFactory()
+        device1, device2 = DeviceFactory.create_batch(2, fleet__organization=organization)
         # Simulate failure for device1
         mock_push.side_effect = [requests.exceptions.RequestException(), None]
 

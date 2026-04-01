@@ -4,6 +4,7 @@ import os
 from functools import cached_property
 
 import structlog
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import F, OuterRef, Q, Subquery
 from django.utils import timezone
 from google.oauth2.service_account import Credentials
@@ -32,15 +33,25 @@ class MDMDevice(dict):
 class AndroidEnterprise(MDM):
     name = "Android Enterprise"
 
-    def __init__(self):
+    def __init__(self, organization=None):
         self.api_errors = []
-        self.enterprise_id = os.getenv("ANDROID_ENTERPRISE_ID")
+        self.organization = organization
         self.service_account_file = os.getenv("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE")
         if (self.enterprise_id or self.service_account_file) and not self.is_configured:
             raise ValueError(
-                "Android Enterprise MDM credentials are not properly configured or service account file is missing."
+                "Android Enterprise MDM credentials are not properly configured or service account file is missing. "
                 f"{self.enterprise_id=}, {self.service_account_file=}"
             )
+
+    @property
+    def enterprise_id(self):
+        try:
+            account = self.organization.android_enterprise
+            if account.enterprise_id:
+                return account.enterprise_id
+        except (AttributeError, ObjectDoesNotExist):
+            pass
+        return None
 
     @property
     def enterprise_name(self):
@@ -62,6 +73,44 @@ class AndroidEnterprise(MDM):
             self.enterprise_id
             and self.service_account_file
             and os.path.isfile(self.service_account_file)
+        )
+
+    @classmethod
+    def _build_credentials(cls) -> Credentials:
+        """Load service-account credentials from the configured file."""
+        service_account_file = os.getenv("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE")
+        if not service_account_file or not os.path.isfile(service_account_file):
+            raise RuntimeError("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE is not configured.")
+        return Credentials.from_service_account_file(service_account_file, scopes=SCOPES)
+
+    @classmethod
+    def get_signup_url(cls, callback_url: str) -> dict:
+        """Returns {'name': 'signupUrls/...', 'url': 'https://enterprise.google.com/...'}"""
+        credentials = cls._build_credentials()
+        api = build("androidmanagement", "v1", credentials=credentials)
+        return (
+            api.signupUrls()
+            .create(
+                projectId=credentials.project_id,
+                callbackUrl=callback_url,
+            )
+            .execute()
+        )
+
+    @classmethod
+    def create_enterprise(cls, signup_name: str, enterprise_token: str, display_name: str) -> dict:
+        """Returns {'name': 'enterprises/LC00lvvue0'}"""
+        credentials = cls._build_credentials()
+        api = build("androidmanagement", "v1", credentials=credentials)
+        return (
+            api.enterprises()
+            .create(
+                projectId=credentials.project_id,
+                signupUrlName=signup_name,
+                enterpriseToken=enterprise_token,
+                body={"enterpriseDisplayName": display_name},
+            )
+            .execute()
         )
 
     def execute(self, resource_method, raise_exception=True):
@@ -420,7 +469,7 @@ class AndroidEnterprise(MDM):
         applicable device configurations.
         """
         logger.info("Syncing fleets with Android Enterprise")
-        for fleet in Fleet.objects.all():
+        for fleet in self.organization.fleets.all():
             self.sync_fleet(fleet=fleet, push_config=push_config)
 
     def create_group(self, fleet: Fleet):

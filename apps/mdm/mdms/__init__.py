@@ -16,5 +16,9 @@ def get_active_mdm_class():
     return import_string(settings.ACTIVE_MDM["class"])
 
 
-def get_active_mdm_instance():
-    return get_active_mdm_class()()
+def get_active_mdm_instance(organization=None):
+    try:
+        return get_active_mdm_class()(organization=organization)
+    except ValueError:
+        # MDM not configured
+        return None

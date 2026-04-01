@@ -1,4 +1,5 @@
 import json
+import uuid
 from urllib.parse import urlencode
 
 import faker
@@ -51,13 +52,14 @@ from apps.publish_mdm.forms import (
     TemplateVariableFormSet,
 )
 from apps.publish_mdm.models import (
+    AndroidEnterpriseAccount,
     AppUser,
     FormTemplate,
     Organization,
     OrganizationInvitation,
     Project,
 )
-from tests.mdm import TestAllMDMsNoAutouse, TestTinyMDMOnly
+from tests.mdm import TestAllMDMsNoAutouse, TestAndroidEnterpriseOnly, TestTinyMDMOnly
 from tests.mdm.factories import (
     DeviceFactory,
     DeviceSnapshotFactory,
@@ -86,17 +88,16 @@ fake = faker.Faker()
 @pytest.mark.django_db
 class ViewTestBase:
     @pytest.fixture
-    def user(self, client):
+    def user(self, client, organization):
         user = UserFactory()
         user.save()
+        organization.users.add(user)
         client.force_login(user=user)
         return user
 
     @pytest.fixture
-    def organization(self, user):
-        organization = OrganizationFactory()
-        organization.users.add(user)
-        return organization
+    def organization(self):
+        return OrganizationFactory()
 
     @pytest.fixture
     def project(self, organization):
@@ -1238,12 +1239,6 @@ class TestEditProject(ViewTestBase):
 
 class TestOrganizationHome(ViewTestBase):
     @pytest.fixture
-    def organization(self, user):
-        organization = OrganizationFactory()
-        organization.users.add(user)
-        return organization
-
-    @pytest.fixture
     def url(self, organization):
         return reverse(
             "publish_mdm:organization-home",
@@ -1264,8 +1259,10 @@ class TestCreateOrganization(ViewTestBase):
         assert isinstance(response.context.get("form"), OrganizationForm)
 
     @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
-    def test_valid_form(self, client, url, user, mocker, mdm_api_error):
-        """Test a valid form."""
+    def test_valid_form(self, client, url, user, mocker, force_tinymdm, mdm_api_error):
+        """Test a valid form with TinyMDM: create_default_fleet() is called immediately
+        on organization creation.
+        """
         data = {"name": "New organization", "slug": "new-org"}
         mock_create_default_fleet = mocker.patch.object(
             Organization, "create_default_fleet", side_effect=mdm_api_error
@@ -1273,10 +1270,8 @@ class TestCreateOrganization(ViewTestBase):
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
         # Ensure the Organization has been created with the expected values
-        assert Organization.objects.count() == 1
-        organization = Organization.objects.get()
-        assert organization.name == data["name"]
-        assert organization.slug == data["slug"]
+        organization = Organization.objects.filter(slug=data["slug"], name=data["name"]).first()
+        assert organization
         # Ensure the view redirects to Organization home page
         assert response.redirect_chain == [
             (
@@ -1301,13 +1296,28 @@ class TestCreateOrganization(ViewTestBase):
                 ),
             )
 
+    def test_valid_form_android_enterprise(
+        self, client, url, user, mocker, force_android_enterprise
+    ):
+        """For Android Enterprise, create_default_fleet() is NOT called during organization
+        creation. Fleet setup is deferred until the enterprise is enrolled via
+        enterprise_callback.
+        """
+        data = {"name": "New organization", "slug": "new-org"}
+        mock_create_default_fleet = mocker.patch.object(Organization, "create_default_fleet")
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        assert Organization.objects.filter(slug=data["slug"], name=data["name"]).exists()
+        # Fleet creation must be deferred — no fleet should be set up yet
+        mock_create_default_fleet.assert_not_called()
+
     def test_invalid_form(self, client, url, user):
         """Test a valid form."""
         data = {"name": "New organization", "slug": ""}
         response = client.post(url, data=data)
         assert response.status_code == 200
         # No Organization created
-        assert Organization.objects.count() == 0
+        assert not Organization.objects.filter(name=data["name"]).exists()
         # The form is included in the context
         assert isinstance(response.context.get("form"), OrganizationForm)
         # Ensure the expected error message is displayed on the page
@@ -1317,12 +1327,6 @@ class TestCreateOrganization(ViewTestBase):
 
 
 class TestOrganizationUsersList(ViewTestBase):
-    @pytest.fixture
-    def organization(self, user):
-        organization = OrganizationFactory()
-        organization.users.add(user)
-        return organization
-
     @pytest.fixture
     def url(self, organization):
         return reverse(
@@ -1410,12 +1414,6 @@ class TestOrganizationUsersList(ViewTestBase):
 
 
 class TestSendOrganizationInvite(ViewTestBase):
-    @pytest.fixture
-    def organization(self, user):
-        organization = OrganizationFactory()
-        organization.users.add(user)
-        return organization
-
     @pytest.fixture
     def url(self, organization):
         return reverse(
@@ -2394,7 +2392,16 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
     def url(self, organization):
         return reverse("publish_mdm:add-fleet", args=[organization.slug])
 
-    def test_get(self, client, url, user, organization, mocker, all_mdms, set_mdm_env_vars):
+    def test_get(
+        self,
+        client,
+        url,
+        user,
+        organization,
+        mocker,
+        all_mdms,
+        set_mdm_env_vars,
+    ):
         PolicyFactory.create_batch(2)  # other-org policies, should not be pre-selected
         org_policy = PolicyFactory(organization=organization)
         response = client.get(url)
@@ -2415,7 +2422,14 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         )
 
     def test_get_no_org_policy(
-        self, client, url, user, organization, settings, all_mdms, set_mdm_env_vars
+        self,
+        client,
+        url,
+        user,
+        organization,
+        settings,
+        all_mdms,
+        set_mdm_env_vars,
     ):
         """Ensures the form renders when there is no org-scoped policy (policy defaults to None)."""
         response = client.get(url)
@@ -2426,7 +2440,15 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         assert form_instance.policy_id is None
 
     def test_valid_form(
-        self, client, url, user, organization, project, all_mdms, set_mdm_env_vars, mocker
+        self,
+        client,
+        url,
+        user,
+        organization,
+        project,
+        all_mdms,
+        set_mdm_env_vars,
+        mocker,
     ):
         """Ensure submitting a valid form creates a Fleet with the expected data
         and makes the expected MDM API requests.
@@ -2618,7 +2640,7 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
 
 
-class TestEditFleet(ViewTestBase):
+class TestEditFleet(ViewTestBase, TestAllMDMsNoAutouse):
     """Test editing a Fleet."""
 
     @pytest.fixture
@@ -2635,7 +2657,20 @@ class TestEditFleet(ViewTestBase):
         assert isinstance(response.context.get("form"), FleetEditForm)
         assert response.context["form"].instance == fleet
 
-    def test_valid_form(self, client, url, user, fleet, organization, project):
+    @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
+    def test_valid_form(
+        self,
+        client,
+        url,
+        user,
+        fleet,
+        organization,
+        project,
+        all_mdms,
+        set_mdm_env_vars,
+        mdm_api_error,
+        mocker,
+    ):
         """Ensure submitting a valid form updates the Fleet."""
         # Create an org-scoped policy (fleet.policy belongs to a different org)
         org_policy = PolicyFactory(organization=organization)
@@ -2643,12 +2678,16 @@ class TestEditFleet(ViewTestBase):
             "policy": org_policy.id,
             "project": project.id,
         }
+        mock_add_group_to_policy = mocker.patch.object(
+            get_active_mdm_class(), "add_group_to_policy", side_effect=mdm_api_error
+        )
         response = client.post(url, data=data, follow=True)
         fleet.refresh_from_db()
         assert fleet.project_id == data["project"]
         assert fleet.policy == org_policy
         assertContains(response, f"Successfully edited {fleet}.")
         assertRedirects(response, reverse("publish_mdm:fleets-list", args=[organization.slug]))
+        mock_add_group_to_policy.assert_called_once()
 
     def test_valid_form_with_default_app_user(
         self, client, url, user, fleet, organization, project
@@ -2739,7 +2778,14 @@ class TestFleetQRCode(ViewTestBase, TestAllMDMsNoAutouse):
         assertContains(response, f'<img src="{fleet.enroll_qr_code.url}"')
 
     def test_no_saved_qr_code(
-        self, client, url, user, organization, mocker, all_mdms, set_mdm_env_vars
+        self,
+        client,
+        url,
+        user,
+        organization,
+        mocker,
+        all_mdms,
+        set_mdm_env_vars,
     ):
         """Ensure a the QR code is downloaded and saved if it's not saved yet,
         and an img tag with the saved QR code is included in the response.
@@ -2990,7 +3036,7 @@ class TestCheckMDMLicenseLimit(ViewTestBase, TestTinyMDMOnly):
         assertContains(response, "Unable to check if the TinyMDM license limit has been reached.")
 
 
-class TestDeviceUpdateAppUser(ViewTestBase):
+class TestDeviceUpdateAppUser(ViewTestBase, TestAllMDMsNoAutouse):
     """Test updating the app user name for a Device."""
 
     @pytest.fixture
@@ -3015,7 +3061,17 @@ class TestDeviceUpdateAppUser(ViewTestBase):
         assert response.status_code == 302
 
     @pytest.mark.parametrize("app_user_name", ["", "new_app_user_name"])
-    def test_valid_form(self, client, url, user, device, app_user_name, mocker, set_mdm_env_vars):
+    def test_valid_form(
+        self,
+        client,
+        all_mdms,
+        url,
+        user,
+        device,
+        app_user_name,
+        mocker,
+        set_mdm_env_vars,
+    ):
         """Ensure submitting a valid form updates the Device's app_user_name."""
         if app_user_name:
             AppUserFactory(name=app_user_name, project=device.fleet.project)
@@ -3082,3 +3138,250 @@ class TestDeviceUpdateAppUser(ViewTestBase):
         assert response.status_code == 200
         device.refresh_from_db()
         assert device.app_user_name == "some_user"
+
+
+@pytest.mark.django_db
+class TestAndroidEnterpriseBanner(TestAndroidEnterpriseOnly):
+    """Tests the 'Android Enterprise not configured' banner on list pages."""
+
+    @pytest.fixture
+    def user(self, client):
+        user = UserFactory()
+        user.save()
+        client.force_login(user=user)
+        return user
+
+    @pytest.fixture
+    def organization(self, user):
+        organization = OrganizationFactory()
+        organization.users.add(user)
+        return organization
+
+    @pytest.fixture(
+        params=["publish_mdm:fleets-list", "publish_mdm:devices-list", "mdm:policy-list"]
+    )
+    def url(self, request, organization):
+        return reverse(request.param, args=[organization.slug])
+
+    def test_banner_shown_when_android_enterprise_not_enrolled(self, client, url, organization):
+        """Banner appears when Android Enterprise is active and org has no enterprise."""
+        organization.android_enterprise.delete()
+        response = client.get(url)
+        assertContains(response, "Android Enterprise not configured")
+        assertContains(
+            response,
+            reverse("publish_mdm:enterprise-setup", args=[organization.slug]),
+        )
+
+    def test_banner_not_shown_when_android_enterprise_enrolled(self, client, url, organization):
+        """Banner is hidden once the org's enterprise is enrolled."""
+        response = client.get(url)
+        assertNotContains(response, "Android Enterprise not configured")
+
+    def test_banner_not_shown_for_different_active_mdm(self, client, url, force_tinymdm):
+        """Banner is not shown when Android Enterprise is not the active MDM."""
+        response = client.get(url)
+        assertNotContains(response, "Android Enterprise not configured")
+
+
+@pytest.mark.django_db
+class TestEnterpriseSetup(TestAndroidEnterpriseOnly):
+    """Tests the enterprise_setup view."""
+
+    @pytest.fixture
+    def user(self, client, organization):
+        user = UserFactory()
+        user.save()
+        organization.users.add(user)
+        client.force_login(user=user)
+        return user
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("publish_mdm:enterprise-setup", args=[organization.slug])
+
+    def test_login_required(self, client, url):
+        client.logout()
+        response = client.get(url)
+        assert response.status_code == 302
+        assert "/login" in response["Location"] or "/accounts" in response["Location"]
+
+    def test_already_enrolled_redirects(self, client, url, user, organization):
+        """If the org's enterprise is already enrolled, redirect to devices list."""
+        response = client.get(url)
+        assertRedirects(
+            response,
+            reverse("publish_mdm:devices-list", args=[organization.slug]),
+            fetch_redirect_response=False,
+        )
+
+    def test_get_signup_url_error_redirects_with_message(
+        self, client, url, user, organization, mocker
+    ):
+        """If get_signup_url raises, redirect to devices list with an error message."""
+        organization.android_enterprise.delete()
+        mocker.patch(
+            "apps.publish_mdm.views.AndroidEnterprise.get_signup_url",
+            side_effect=RuntimeError("API unavailable"),
+        )
+        response = client.get(url, follow=True)
+        assertRedirects(
+            response,
+            reverse("publish_mdm:devices-list", args=[organization.slug]),
+        )
+        assertContains(response, "Failed to generate Android Enterprise signup URL")
+
+    def test_get_creates_account_and_redirects_to_google(
+        self, client, url, user, organization, mocker
+    ):
+        """On success, saves signup URL fields and redirects to the Google URL."""
+        organization.android_enterprise.delete()
+        signup_result = {
+            "name": "signupUrls/C455570ef9b12bfc",
+            "url": "https://enterprise.google.com/signup?token=abc",
+        }
+        mocker.patch(
+            "apps.publish_mdm.views.AndroidEnterprise.get_signup_url",
+            return_value=signup_result,
+        )
+        response = client.get(url)
+
+        account = AndroidEnterpriseAccount.objects.get(organization=organization)
+        assert account.signup_url_name == "signupUrls/C455570ef9b12bfc"
+        assert account.signup_url == "https://enterprise.google.com/signup?token=abc"
+        assertRedirects(
+            response,
+            "https://enterprise.google.com/signup?token=abc",
+            fetch_redirect_response=False,
+        )
+
+    def test_get_updates_existing_account(self, client, url, user, organization, mocker):
+        """Re-visiting the setup URL updates the existing account's signup fields."""
+        account = organization.android_enterprise
+        account.enterprise_name = ""
+        account.save()
+        signup_result = {
+            "name": "signupUrls/NEWNAME",
+            "url": "https://enterprise.google.com/signup?token=xyz",
+        }
+        mocker.patch(
+            "apps.publish_mdm.views.AndroidEnterprise.get_signup_url",
+            return_value=signup_result,
+        )
+        client.get(url)
+        account.refresh_from_db()
+        assert account.signup_url_name == "signupUrls/NEWNAME"
+
+    def test_404_if_different_active_mdm(self, client, url, user, force_tinymdm):
+        """Should return a 404 response when Android Enterprise is not the active MDM."""
+        response = client.get(url)
+        assert response.status_code == 404
+
+
+@pytest.mark.django_db
+class TestEnterpriseCallback(TestAndroidEnterpriseOnly):
+    """Tests the enterprise_callback view (unauthenticated — called by Google)."""
+
+    @pytest.fixture
+    def account(self, organization):
+        organization.android_enterprise.enterprise_name = ""
+        organization.android_enterprise.signup_url_name = "signupUrls/C455570ef9b12bfc"
+        organization.android_enterprise.save()
+        return organization.android_enterprise
+
+    @pytest.fixture
+    def url(self, account):
+        return reverse(
+            "publish_mdm:enterprise-callback",
+            kwargs={"callback_token": account.callback_token},
+        )
+
+    def test_invalid_token_returns_404(self, client):
+        """A request with an unknown callback_token returns 404."""
+        url = reverse(
+            "publish_mdm:enterprise-callback",
+            kwargs={"callback_token": uuid.uuid4()},
+        )
+        response = client.get(url)
+        assert response.status_code == 404
+
+    def test_already_enrolled_returns_400(self, client, account, url):
+        """If the enterprise is already enrolled, return 400."""
+        account.enterprise_name = "enterprises/EXISTING"
+        account.save()
+        response = client.get(url, {"enterpriseToken": "tok"})
+        assert response.status_code == 400
+        assert b"already enrolled" in response.content
+
+    def test_missing_enterprise_token_returns_400(self, client, url, account):
+        """Missing enterpriseToken query param returns 400."""
+        response = client.get(url, {})
+        assert response.status_code == 400
+
+    def test_create_enterprise_error_returns_400(self, client, url, account, mocker):
+        """If create_enterprise raises, return 400."""
+        mocker.patch(
+            "apps.publish_mdm.views.AndroidEnterprise.create_enterprise",
+            side_effect=RuntimeError("Google API error"),
+        )
+        response = client.get(
+            url,
+            {"enterpriseToken": "tok"},
+        )
+        assert response.status_code == 400
+        assert b"Failed to create enterprise" in response.content
+
+    def test_successful_callback_saves_enterprise_name(self, client, url, account, mocker):
+        """A valid callback saves the enterprise_name on the account."""
+        mocker.patch(
+            "apps.publish_mdm.views.AndroidEnterprise.create_enterprise",
+            return_value={"name": "enterprises/LC00lvvue0"},
+        )
+        mock_create_fleet = mocker.patch.object(Organization, "create_default_fleet")
+        response = client.get(
+            url,
+            {"enterpriseToken": "tok"},
+        )
+        assert response.status_code == 200
+        account.refresh_from_db()
+        assert account.enterprise_name == "enterprises/LC00lvvue0"
+        assert b"LC00lvvue0" in response.content
+        mock_create_fleet.assert_called_once()
+
+    def test_no_login_required(self, client, url, account, mocker):
+        """The callback endpoint is public — no login required."""
+        client.logout()
+        mocker.patch(
+            "apps.publish_mdm.views.AndroidEnterprise.create_enterprise",
+            return_value={"name": "enterprises/NEWENT"},
+        )
+        mocker.patch.object(Organization, "create_default_fleet")
+        response = client.get(
+            url,
+            {"enterpriseToken": "tok"},
+        )
+        assert response.status_code == 200
+
+    def test_successful_callback_fleet_error_still_returns_200(
+        self, client, url, account, mocker, mdm_api_error_class
+    ):
+        """If create_default_fleet() raises a RequestException after a successful enrollment,
+        the callback still returns 200 — the enrollment itself succeeded and the error is
+        only logged.
+        """
+        mocker.patch(
+            "apps.publish_mdm.views.AndroidEnterprise.create_enterprise",
+            return_value={"name": "enterprises/LC00lvvue0"},
+        )
+        mocker.patch.object(
+            Organization,
+            "create_default_fleet",
+            side_effect=mdm_api_error_class("error"),
+        )
+        response = client.get(
+            url,
+            {"enterpriseToken": "tok"},
+        )
+        assert response.status_code == 200
+        account.refresh_from_db()
+        assert account.enterprise_name == "enterprises/LC00lvvue0"
