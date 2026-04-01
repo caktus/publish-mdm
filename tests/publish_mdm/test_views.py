@@ -44,6 +44,7 @@ from apps.publish_mdm.forms import (
     FormTemplateForm,
     OrganizationForm,
     OrganizationInviteForm,
+    ProjectAttachmentFormSet,
     ProjectForm,
     ProjectSyncForm,
     ProjectTemplateVariableFormSet,
@@ -68,6 +69,7 @@ from tests.mdm.factories import (
 from tests.publish_mdm.factories import (
     AppUserFactory,
     AppUserFormTemplateFactory,
+    ProjectAttachmentFactory,
     AppUserFormVersionFactory,
     CentralServerFactory,
     FormTemplateFactory,
@@ -863,6 +865,10 @@ class TestAddProject(ViewTestBase):
             "project_template_variables-INITIAL_FORMS": 0,
             "project_template_variables-MIN_NUM_FORMS": 0,
             "project_template_variables-MAX_NUM_FORMS": 1000,
+            "attachments-TOTAL_FORMS": 0,
+            "attachments-INITIAL_FORMS": 0,
+            "attachments-MIN_NUM_FORMS": 0,
+            "attachments-MAX_NUM_FORMS": 1000,
         }
         for index, var in enumerate(template_variables):
             data.update(
@@ -1024,6 +1030,10 @@ class TestEditProject(ViewTestBase):
             "project_template_variables-0-value": f"edited {project_template_var.value}",
             "project_template_variables-1-template_variable": new_var.id,
             "project_template_variables-1-value": f"edited {new_var.name} value",
+            "attachments-TOTAL_FORMS": 0,
+            "attachments-INITIAL_FORMS": 0,
+            "attachments-MIN_NUM_FORMS": 0,
+            "attachments-MAX_NUM_FORMS": 1000,
         }
 
     def test_valid_form_and_valid_formset(
@@ -1088,6 +1098,10 @@ class TestEditProject(ViewTestBase):
             "project_template_variables-INITIAL_FORMS": 0,
             "project_template_variables-MIN_NUM_FORMS": 0,
             "project_template_variables-MAX_NUM_FORMS": 1000,
+            "attachments-TOTAL_FORMS": 0,
+            "attachments-INITIAL_FORMS": 0,
+            "attachments-MIN_NUM_FORMS": 0,
+            "attachments-MAX_NUM_FORMS": 1000,
         }
         new_values = {
             "app_language": "ar",
@@ -1234,6 +1248,78 @@ class TestEditProject(ViewTestBase):
             == expected_error
         )
         assert expected_error in response_content
+
+    def test_get_includes_attachments_formset(self, client, url, user, project):
+        """Ensures the GET response includes the attachments_formset in context."""
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context["attachments_formset"], ProjectAttachmentFormSet)
+        assert response.context["attachments_formset"].instance == project
+
+    def test_upload_new_attachment(self, client, url, user, project, data, mocker):
+        """Ensures a new ProjectAttachment is created when a file is uploaded."""
+        mocker.patch("apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes")
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        attachment_file = SimpleUploadedFile("test.csv", b"col1,col2", content_type="text/csv")
+        data.update(
+            {
+                "attachments-TOTAL_FORMS": 1,
+                "attachments-INITIAL_FORMS": 0,
+                "attachments-0-name": "test-attachment",
+                "attachments-0-file": attachment_file,
+            }
+        )
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        project.refresh_from_db()
+        assert project.attachments.count() == 1
+        attachment = project.attachments.get()
+        assert attachment.name == "test-attachment"
+        assert attachment.file.name.endswith("test.csv")
+        # Clean up the file
+        attachment.file.delete(save=False)
+
+    def test_delete_attachment(self, client, url, user, project, data, mocker):
+        """Ensures a ProjectAttachment is deleted when the DELETE checkbox is checked."""
+        mocker.patch("apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes")
+        attachment = ProjectAttachmentFactory(project=project)
+        data.update(
+            {
+                "attachments-TOTAL_FORMS": 1,
+                "attachments-INITIAL_FORMS": 1,
+                "attachments-0-id": attachment.id,
+                "attachments-0-project": project.id,
+                "attachments-0-name": attachment.name,
+                "attachments-0-DELETE": "on",
+            }
+        )
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        assert not project.attachments.exists()
+
+    def test_duplicate_attachment_name_error(self, client, url, user, project, data, mocker):
+        """Ensures a validation error is raised when two attachments have the same name."""
+        mocker.patch("apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes")
+        attachment = ProjectAttachmentFactory(project=project)
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        attachment_file = SimpleUploadedFile("new.csv", b"col1,col2", content_type="text/csv")
+        data.update(
+            {
+                "attachments-TOTAL_FORMS": 1,
+                "attachments-INITIAL_FORMS": 0,
+                "attachments-0-name": attachment.name,
+                "attachments-0-file": attachment_file,
+            }
+        )
+        response = client.post(url, data=data)
+        assert response.status_code == 200
+        # Project not changed (still only original attachment)
+        assert project.attachments.count() == 1
+        expected_error = "An attachment with this name already exists in this project."
+        assert response.context["attachments_formset"].errors[0]["name"][0] == expected_error
+        assert expected_error in response.content.decode()
 
 
 class TestOrganizationHome(ViewTestBase):

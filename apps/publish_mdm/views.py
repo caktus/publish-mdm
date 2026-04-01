@@ -59,6 +59,7 @@ from .forms import (
     FormTemplateForm,
     ImportForm,
     OrganizationForm,
+    ProjectAttachmentFormSet,
     ProjectForm,
     ProjectSyncForm,
     ProjectTemplateVariableFormSet,
@@ -550,7 +551,14 @@ def change_project(request, organization_slug, odk_project_pk=None):
         instance=project,
         form_kwargs={"valid_template_variables": request.organization.template_variables.all()},
     )
-    if request.method == "POST" and all([form.is_valid(), variables_formset.is_valid()]):
+    attachments_formset = ProjectAttachmentFormSet(
+        request.POST or None,
+        request.FILES or None,
+        instance=project,
+    )
+    if request.method == "POST" and all(
+        [form.is_valid(), variables_formset.is_valid(), attachments_formset.is_valid()]
+    ):
         save_error = None
         if request.odk_project:
             admin_pw = request.odk_project.get_admin_pw()
@@ -562,6 +570,10 @@ def change_project(request, organization_slug, odk_project_pk=None):
                 variables_formset.has_changed() and admin_pw != request.odk_project.get_admin_pw()
             ):
                 generate_and_save_app_user_collect_qrcodes(request.odk_project)
+            for form_to_delete in attachments_formset.deleted_forms:
+                if form_to_delete.instance.pk and form_to_delete.instance.file:
+                    form_to_delete.instance.file.delete(save=False)
+            attachments_formset.save()
         else:
             form.save(commit=False)
             # Create the project in ODK Central then save it in the database
@@ -578,6 +590,10 @@ def change_project(request, organization_slug, odk_project_pk=None):
                 project.save()
                 form.save_m2m()
                 variables_formset.save()
+                for form_to_delete in attachments_formset.deleted_forms:
+                    if form_to_delete.instance.pk and form_to_delete.instance.file:
+                        form_to_delete.instance.file.delete(save=False)
+                attachments_formset.save()
         if save_error:
             messages.error(request, save_error)
         else:
@@ -586,6 +602,7 @@ def change_project(request, organization_slug, odk_project_pk=None):
     context = {
         "form": form,
         "variables_formset": variables_formset,
+        "attachments_formset": attachments_formset,
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
             items=[(f"{action.title()} project", f"{action}-project")],

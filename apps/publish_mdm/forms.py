@@ -39,6 +39,7 @@ from .models import (
     Organization,
     OrganizationInvitation,
     Project,
+    ProjectAttachment,
     ProjectTemplateVariable,
     TemplateVariable,
 )
@@ -389,6 +390,42 @@ ProjectTemplateVariableFormSet = forms.models.inlineformset_factory(
     Project, ProjectTemplateVariable, form=ProjectTemplateVariableForm, extra=0
 )
 ProjectTemplateVariableFormSet.deletion_widget = CheckboxInput
+
+
+class ProjectAttachmentForm(PlatformFormMixin, forms.ModelForm):
+    """A form for adding or editing a ProjectAttachment."""
+
+    class Meta:
+        model = ProjectAttachment
+        fields = (
+            "name",
+            "file",
+        )
+        widgets: ClassVar = {
+            "name": TextInput,
+            "file": forms.ClearableFileInput,
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        name = cleaned_data.get("name")
+        # In an inline formset, project is set on the instance by _construct_form
+        project = getattr(self.instance, "project", None)
+        if name and project is not None:
+            qs = ProjectAttachment.objects.filter(project=project, name=name)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                self.add_error(
+                    "name", "An attachment with this name already exists in this project."
+                )
+        return cleaned_data
+
+
+ProjectAttachmentFormSet = forms.models.inlineformset_factory(
+    Project, ProjectAttachment, form=ProjectAttachmentForm, extra=1
+)
+ProjectAttachmentFormSet.deletion_widget = CheckboxInput
 
 
 class OrganizationForm(PlatformFormMixin, forms.ModelForm):
