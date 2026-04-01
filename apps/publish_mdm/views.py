@@ -570,9 +570,6 @@ def change_project(request, organization_slug, odk_project_pk=None):
                 variables_formset.has_changed() and admin_pw != request.odk_project.get_admin_pw()
             ):
                 generate_and_save_app_user_collect_qrcodes(request.odk_project)
-            for form_to_delete in attachments_formset.deleted_forms:
-                if form_to_delete.instance.pk and form_to_delete.instance.file:
-                    form_to_delete.instance.file.delete(save=False)
             attachments_formset.save()
         else:
             form.save(commit=False)
@@ -590,9 +587,6 @@ def change_project(request, organization_slug, odk_project_pk=None):
                 project.save()
                 form.save_m2m()
                 variables_formset.save()
-                for form_to_delete in attachments_formset.deleted_forms:
-                    if form_to_delete.instance.pk and form_to_delete.instance.file:
-                        form_to_delete.instance.file.delete(save=False)
                 attachments_formset.save()
         if save_error:
             messages.error(request, save_error)

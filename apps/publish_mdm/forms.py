@@ -21,6 +21,7 @@ from apps.patterns.widgets import (
     BaseEmailInput,
     CheckboxInput,
     CheckboxSelectMultiple,
+    ClearableFileInput,
     EmailInput,
     FileInput,
     InputWithAddon,
@@ -403,7 +404,7 @@ class ProjectAttachmentForm(PlatformFormMixin, forms.ModelForm):
         )
         widgets: ClassVar = {
             "name": TextInput,
-            "file": forms.ClearableFileInput,
+            "file": ClearableFileInput,
         }
 
     def clean(self):
@@ -422,8 +423,22 @@ class ProjectAttachmentForm(PlatformFormMixin, forms.ModelForm):
         return cleaned_data
 
 
+class ProjectAttachmentBaseFormSet(forms.models.BaseInlineFormSet):
+    """Inline formset for ProjectAttachment that deletes files for removed rows."""
+
+    def save(self, commit=True):
+        for form in self.deleted_forms:
+            if form.instance.pk and form.instance.file:
+                form.instance.file.delete(save=False)
+        return super().save(commit=commit)
+
+
 ProjectAttachmentFormSet = forms.models.inlineformset_factory(
-    Project, ProjectAttachment, form=ProjectAttachmentForm, extra=1
+    Project,
+    ProjectAttachment,
+    form=ProjectAttachmentForm,
+    formset=ProjectAttachmentBaseFormSet,
+    extra=1,
 )
 ProjectAttachmentFormSet.deletion_widget = CheckboxInput
 

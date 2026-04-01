@@ -7,6 +7,7 @@ from allauth.socialaccount.models import SocialToken
 from django.conf import settings
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.core.files.base import ContentFile
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.models import Count, Q
 from django.shortcuts import resolve_url
 from django.template.loader import render_to_string
@@ -69,13 +70,13 @@ from tests.mdm.factories import (
 from tests.publish_mdm.factories import (
     AppUserFactory,
     AppUserFormTemplateFactory,
-    ProjectAttachmentFactory,
     AppUserFormVersionFactory,
     CentralServerFactory,
     FormTemplateFactory,
     FormTemplateVersionFactory,
     OrganizationFactory,
     OrganizationInvitationFactory,
+    ProjectAttachmentFactory,
     ProjectFactory,
     TemplateVariableFactory,
     UserFactory,
@@ -1259,8 +1260,6 @@ class TestEditProject(ViewTestBase):
     def test_upload_new_attachment(self, client, url, user, project, data, mocker):
         """Ensures a new ProjectAttachment is created when a file is uploaded."""
         mocker.patch("apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes")
-        from django.core.files.uploadedfile import SimpleUploadedFile
-
         attachment_file = SimpleUploadedFile("test.csv", b"col1,col2", content_type="text/csv")
         data.update(
             {
@@ -1281,9 +1280,12 @@ class TestEditProject(ViewTestBase):
         attachment.file.delete(save=False)
 
     def test_delete_attachment(self, client, url, user, project, data, mocker):
-        """Ensures a ProjectAttachment is deleted when the DELETE checkbox is checked."""
+        """Ensures a ProjectAttachment record and its file are deleted when the DELETE
+        checkbox is checked."""
         mocker.patch("apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes")
         attachment = ProjectAttachmentFactory(project=project)
+        file_name = attachment.file.name
+        assert attachment.file.storage.exists(file_name)
         data.update(
             {
                 "attachments-TOTAL_FORMS": 1,
@@ -1297,13 +1299,12 @@ class TestEditProject(ViewTestBase):
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
         assert not project.attachments.exists()
+        assert not attachment.file.storage.exists(file_name)
 
     def test_duplicate_attachment_name_error(self, client, url, user, project, data, mocker):
         """Ensures a validation error is raised when two attachments have the same name."""
         mocker.patch("apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes")
         attachment = ProjectAttachmentFactory(project=project)
-        from django.core.files.uploadedfile import SimpleUploadedFile
-
         attachment_file = SimpleUploadedFile("new.csv", b"col1,col2", content_type="text/csv")
         data.update(
             {
