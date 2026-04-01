@@ -600,7 +600,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         assert our_device.name == original_name
 
     def test_pubsub_topic_and_subscription_names(self, mocker, set_mdm_env_vars):
-        """pubsub_topic and pubsub_subscription are derived from the project_id.
+        """pubsub_topic and pubsub_subscription are derived from the project_id and the ENVIRONMENT setting.
         The project_id is gotten from the service account file (it is "example-project"
         in the test service account file).
         """
@@ -608,11 +608,11 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         assert active_mdm.project_id == "example-project"
         assert (
             active_mdm.pubsub_topic
-            == f"projects/{active_mdm.project_id}/topics/{PUBSUB_RESOURCE_NAME}"
+            == f"projects/{active_mdm.project_id}/topics/{PUBSUB_RESOURCE_NAME}-test"
         )
         assert (
             active_mdm.pubsub_subscription
-            == f"projects/{active_mdm.project_id}/subscriptions/{PUBSUB_RESOURCE_NAME}"
+            == f"projects/{active_mdm.project_id}/subscriptions/{PUBSUB_RESOURCE_NAME}-test"
         )
 
     def test_ensure_pubsub_topic_creates_topic(self, set_mdm_env_vars, monkeypatch):
@@ -810,7 +810,9 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             active_mdm._ensure_pubsub_subscription(push_endpoint)
 
     def test_configure_pubsub_full_flow(self, set_mdm_env_vars, monkeypatch):
-        """configure_pubsub() orchestrates all Pub/Sub setup steps and patches the enterprise."""
+        """configure_pubsub() orchestrates the Pub/Sub infrastructure steps only.
+        It does not patch the enterprise; that is done separately via patch_enterprise_pubsub().
+        """
         active_mdm = AndroidEnterprise()
         push_endpoint = "https://example.com/mdm/api/amapi/notifications/?token=secret"
 
@@ -832,6 +834,14 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
                 prefix="pubsub.projects.",
             ),
         )
+
+        # Should return None and not touch the enterprises API
+        result = active_mdm.configure_pubsub(push_endpoint_domain="example.com")
+        assert result is None
+
+    def test_patch_enterprise_pubsub(self, set_mdm_env_vars, monkeypatch):
+        """patch_enterprise_pubsub() patches the enterprise with the Pub/Sub topic."""
+        active_mdm = AndroidEnterprise()
         enterprise_patch_result = {
             "name": active_mdm.enterprise_name,
             "pubsubTopic": active_mdm.pubsub_topic,
@@ -841,11 +851,18 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             active_mdm.api,
             "_requestBuilder",
             self.get_mock_request_builder(
-                MockAPIResponse("patch", enterprise_patch_result),
+                MockAPIResponse(
+                    "patch",
+                    enterprise_patch_result,
+                    expected_request_body={
+                        "pubsubTopic": active_mdm.pubsub_topic,
+                        "enabledNotificationTypes": ["ENROLLMENT", "STATUS_REPORT"],
+                    },
+                ),
             ),
         )
 
-        result = active_mdm.configure_pubsub(push_endpoint_domain="example.com")
+        result = active_mdm.patch_enterprise_pubsub()
         assert result == enterprise_patch_result
 
     @pytest.mark.django_db

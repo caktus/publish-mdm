@@ -8,13 +8,13 @@ logger = structlog.getLogger(__name__)
 
 class Command(BaseCommand):
     help = (
-        "Configure AMAPI Pub/Sub notifications for the Android Enterprise enterprise. "
-        "Creates the Pub/Sub topic and subscription (if they do not exist), grants "
-        "Android Device Policy the right to publish to the topic, and patches the "
-        "enterprise resource with the topic name. "
-        "The topic and subscription are automatically derived from the service account "
-        "credentials (projects/{project_id}/topics/publish-mdm and "
-        "projects/{project_id}/subscriptions/publish-mdm). "
+        "Configure AMAPI Pub/Sub infrastructure for the Android Enterprise enterprise. "
+        "Creates the Pub/Sub topic and subscription (if they do not exist) and grants "
+        "Android Device Policy the right to publish to the topic. "
+        "The topic and subscription names are derived from the service account credentials "
+        "and the current ENVIRONMENT setting: "
+        "projects/{project_id}/topics/publish-mdm-{environment} and "
+        "projects/{project_id}/subscriptions/publish-mdm-{environment}. "
         "The push endpoint is built as https://{domain}/mdm/api/amapi/notifications/?token=<token>. "
         "When --push-endpoint-domain is omitted, the domain is taken from the current Site object."
     )
@@ -39,12 +39,11 @@ class Command(BaseCommand):
             )
 
         push_endpoint_domain = options["push_endpoint_domain"]
-        result = mdm.configure_pubsub(push_endpoint_domain=push_endpoint_domain)
-        enabled = result.get("enabledNotificationTypes", [])
+        mdm.configure_pubsub(push_endpoint_domain=push_endpoint_domain)
         self.stdout.write(
             self.style.SUCCESS(
-                f"Pub/Sub notifications configured for enterprise "
-                f"'{mdm.enterprise_name}' with topic '{mdm.pubsub_topic}'."
-                f"\nEnabled notification types: {', '.join(enabled)}"
+                f"Pub/Sub topic '{mdm.pubsub_topic}' and subscription "
+                f"'{mdm.pubsub_subscription}' configured."
+                f"\nAndroid Device Policy has been granted the publisher role."
             )
         )

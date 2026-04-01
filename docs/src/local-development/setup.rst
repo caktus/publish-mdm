@@ -99,7 +99,12 @@ See :doc:`the tutorial <../running/tutorial>` for more details on the Google and
 
     python manage.py configure_amapi_pubsub
 
-This will set up a Pub/Sub topic and subscription, and enable your Android EMM enterprise to push to the notifications endpoint (``/mdm/api/amapi/notifications/``). Before running this, the Pub/Sub API must be enabled for the Google project used to create the service account, and the service account must have the "Pub/Sub Admin" role. See `this guide <https://docs.cloud.google.com/pubsub/docs/publish-receive-messages-console#before-you-begin>`__ for more details.
+This will create the Pub/Sub topic ``projects/{project_id}/topics/publish-mdm-{environment}`` and
+subscription ``projects/{project_id}/subscriptions/publish-mdm-{environment}`` (where ``{environment}``
+is the value of the ``ENVIRONMENT`` setting), grant Android Device Policy the publisher role on the
+topic, and configure the push endpoint at ``/mdm/api/amapi/notifications/``.
+Before running this, the Pub/Sub API must be enabled for the Google project used to create the service
+account, and the service account must have the "Pub/Sub Admin" role. See `this guide <https://docs.cloud.google.com/pubsub/docs/publish-receive-messages-console#before-you-begin>`__ for more details.
 Only complete the steps under 'Before you begin' -- the ``configure_amapi_pubsub`` command will create the topic and subscription.
 
 By default, the notification endpoint will be set up using the domain of the current ``Site`` model object. If you need to set up the notification endpoint with a different domain (e.g. to use ngrok to expose your localhost) run:

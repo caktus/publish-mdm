@@ -91,12 +91,12 @@ class AndroidEnterprise(MDM):
     @property
     def pubsub_topic(self) -> str:
         """Fully-qualified Pub/Sub topic resource name for this application."""
-        return f"projects/{self.project_id}/topics/{PUBSUB_RESOURCE_NAME}"
+        return f"projects/{self.project_id}/topics/{PUBSUB_RESOURCE_NAME}-{settings.ENVIRONMENT}"
 
     @property
     def pubsub_subscription(self) -> str:
         """Fully-qualified Pub/Sub subscription resource name for this application."""
-        return f"projects/{self.project_id}/subscriptions/{PUBSUB_RESOURCE_NAME}"
+        return f"projects/{self.project_id}/subscriptions/{PUBSUB_RESOURCE_NAME}-{settings.ENVIRONMENT}"
 
     @property
     def is_configured(self):
@@ -500,32 +500,30 @@ class AndroidEnterprise(MDM):
     def configure_pubsub(
         self,
         push_endpoint_domain: str | None = None,
-    ) -> dict:
-        """Configure Pub/Sub push notifications for the enterprise.
+    ) -> None:
+        """Configure Pub/Sub infrastructure.
 
-        Performs all required Pub/Sub setup steps, then calls ``enterprises.patch``
-        to register the topic with the AMAPI enterprise:
+        Performs all required Pub/Sub setup steps:
 
-        1. Creates the Pub/Sub topic ``projects/{project_id}/topics/publish-mdm``
+        1. Creates the Pub/Sub topic
+           ``projects/{project_id}/topics/publish-mdm-{environment}``
            if it does not already exist.
         2. Creates (or updates) a push subscription
-           ``projects/{project_id}/subscriptions/publish-mdm``.  The push
-           endpoint is built from ``push_endpoint_domain`` when provided,
-           otherwise from the current ``Site`` domain.
-        3. Grants ``android-mdm-service@system.gserviceaccount.com``
+           ``projects/{project_id}/subscriptions/publish-mdm-{environment}``.
+           The push endpoint is built from ``push_endpoint_domain`` when
+           provided, otherwise from the current ``Site`` domain.
+        3. Grants ``android-cloud-policy@system.gserviceaccount.com``
            ``roles/pubsub.publisher`` on the topic so that Android Device Policy
            can publish AMAPI notifications to it.
-        4. Patches the enterprise to set ``pubsubTopic`` and
-           ``enabledNotificationTypes``.
+
+        To register the topic with the AMAPI enterprise, call
+        :meth:`patch_enterprise_pubsub` separately.
 
         Args:
             push_endpoint_domain: Domain (without scheme, e.g. ``example.com``)
                 used to construct the full push endpoint.  When ``None``, the
                 domain is taken from the current ``django.contrib.sites``
                 ``Site`` object.  HTTPS is always used.
-
-        Returns:
-            The updated enterprise resource dict.
         """
         push_endpoint = self._build_push_endpoint(domain=push_endpoint_domain)
         logger.info(
@@ -538,6 +536,22 @@ class AndroidEnterprise(MDM):
         self._ensure_pubsub_topic()
         self._ensure_pubsub_subscription(push_endpoint)
         self._grant_pubsub_publisher()
+
+    def patch_enterprise_pubsub(self) -> dict:
+        """Patch the enterprise to register the Pub/Sub topic.
+
+        Calls ``enterprises.patch`` to set ``pubsubTopic`` and
+        ``enabledNotificationTypes`` on the AMAPI enterprise resource,
+        pointing it at the topic
+        ``projects/{project_id}/topics/publish-mdm-{environment}``.
+
+        This is intentionally separate from :meth:`configure_pubsub` so that
+        the Pub/Sub infrastructure (topic, subscription, IAM) and the enterprise
+        registration can be managed independently.
+
+        Returns:
+            The updated enterprise resource dict returned by the AMAPI.
+        """
         return self.execute(
             self.api.enterprises().patch(
                 name=self.enterprise_name,
