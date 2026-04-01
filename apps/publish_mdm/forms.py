@@ -21,6 +21,7 @@ from apps.patterns.widgets import (
     BaseEmailInput,
     CheckboxInput,
     CheckboxSelectMultiple,
+    ClearableFileInput,
     EmailInput,
     FileInput,
     InputWithAddon,
@@ -39,6 +40,7 @@ from .models import (
     Organization,
     OrganizationInvitation,
     Project,
+    ProjectAttachment,
     ProjectTemplateVariable,
     TemplateVariable,
 )
@@ -389,6 +391,60 @@ ProjectTemplateVariableFormSet = forms.models.inlineformset_factory(
     Project, ProjectTemplateVariable, form=ProjectTemplateVariableForm, extra=0
 )
 ProjectTemplateVariableFormSet.deletion_widget = CheckboxInput
+
+
+class ProjectAttachmentForm(PlatformFormMixin, forms.ModelForm):
+    """A form for adding or editing a ProjectAttachment."""
+
+    class Meta:
+        model = ProjectAttachment
+        fields = (
+            "name",
+            "file",
+        )
+        widgets: ClassVar = {
+            "name": TextInput,
+            "file": ClearableFileInput,
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+        name = cleaned_data.get("name")
+        # In an inline formset, project is set on the instance by _construct_form
+        project = getattr(self.instance, "project", None)
+        if name and project is not None:
+            qs = ProjectAttachment.objects.filter(project=project, name=name)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                self.add_error(
+                    "name", "An attachment with this name already exists in this project."
+                )
+        return cleaned_data
+
+
+class ProjectAttachmentBaseFormSet(forms.models.BaseInlineFormSet):
+    """Inline formset for ProjectAttachment that deletes files for removed rows."""
+
+    def delete_files_for_deleted_forms(self):
+        for form in self.deleted_forms:
+            if form.instance.pk and form.instance.file:
+                form.instance.file.delete(save=False)
+
+    def save(self, commit=True):
+        if commit:
+            self.delete_files_for_deleted_forms()
+        return super().save(commit=commit)
+
+
+ProjectAttachmentFormSet = forms.models.inlineformset_factory(
+    Project,
+    ProjectAttachment,
+    form=ProjectAttachmentForm,
+    formset=ProjectAttachmentBaseFormSet,
+    extra=0,
+)
+ProjectAttachmentFormSet.deletion_widget = CheckboxInput
 
 
 class OrganizationForm(PlatformFormMixin, forms.ModelForm):
