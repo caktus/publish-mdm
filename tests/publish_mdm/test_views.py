@@ -999,6 +999,8 @@ class TestEditProject(ViewTestBase):
         response = client.get(url)
         assert response.status_code == 200
         assert response.context["form"].instance == project
+        assert isinstance(response.context["attachments_formset"], ProjectAttachmentFormSet)
+        assert response.context["attachments_formset"].instance == project
 
     @pytest.fixture
     def other_central_server(self, organization):
@@ -1249,13 +1251,6 @@ class TestEditProject(ViewTestBase):
             == expected_error
         )
         assert expected_error in response_content
-
-    def test_get_includes_attachments_formset(self, client, url, user, project):
-        """Ensures the GET response includes the attachments_formset in context."""
-        response = client.get(url)
-        assert response.status_code == 200
-        assert isinstance(response.context["attachments_formset"], ProjectAttachmentFormSet)
-        assert response.context["attachments_formset"].instance == project
 
     def test_upload_new_attachment(self, client, url, user, project, data, mocker):
         """Ensures a new ProjectAttachment is created when a file is uploaded."""

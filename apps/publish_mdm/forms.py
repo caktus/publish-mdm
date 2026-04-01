@@ -426,10 +426,14 @@ class ProjectAttachmentForm(PlatformFormMixin, forms.ModelForm):
 class ProjectAttachmentBaseFormSet(forms.models.BaseInlineFormSet):
     """Inline formset for ProjectAttachment that deletes files for removed rows."""
 
-    def save(self, commit=True):
+    def delete_files_for_deleted_forms(self):
         for form in self.deleted_forms:
             if form.instance.pk and form.instance.file:
                 form.instance.file.delete(save=False)
+
+    def save(self, commit=True):
+        if commit:
+            self.delete_files_for_deleted_forms()
         return super().save(commit=commit)
 
 
@@ -438,7 +442,7 @@ ProjectAttachmentFormSet = forms.models.inlineformset_factory(
     ProjectAttachment,
     form=ProjectAttachmentForm,
     formset=ProjectAttachmentBaseFormSet,
-    extra=1,
+    extra=0,
 )
 ProjectAttachmentFormSet.deletion_widget = CheckboxInput
 
