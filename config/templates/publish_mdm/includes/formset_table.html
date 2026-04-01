@@ -1,9 +1,10 @@
-{# Renders a formset as a table with an "Add another" link and clone script.
-   Required context variables:
-     formset       — a BaseInlineFormSet instance
-     add_link_id   — the id for the "Add another" link (must be unique on the page)
-     add_link_text — the visible label for the "Add another" link
-#}
+{% comment %}
+Renders a formset as a table with an "Add another" link and clone script.
+Required context variables:
+    formset       — a BaseInlineFormSet instance
+    add_link_id   — the id for the "Add another" link (must be unique on the page)
+    add_link_text — the visible label for the "Add another" link
+{% endcomment %}
 {{ formset.management_form }}
 {% with num_cols=formset.empty_form.visible_fields|length %}
     <table class="mb-4 text-left w-full h-full text-sm text-gray-500 dark:text-gray-400 dark:bg-gray-800">
@@ -35,7 +36,7 @@
                 </tr>
             {% endfor %}
             <tr id="{{ formset.empty_form.prefix }}"
-                class="hidden border-b border-primary-100 dark:border-gray-700 text-sm row">
+                class="border-b border-primary-100 dark:border-gray-700 text-sm row">
                 {% for field in formset.empty_form.visible_fields %}
                     <td class="p-3{% if field.name == 'DELETE' %} text-center{% endif %}">
                         {% if forloop.first %}

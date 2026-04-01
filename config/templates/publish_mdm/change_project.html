@@ -1,4 +1,12 @@
 {% extends "base.html" %}
+{% block extra-css %}
+    <style>
+    #{{ variables_formset.empty_form.prefix }},
+    #{{ attachments_formset.empty_form.prefix }} {
+        display: none;
+    }
+    </style>
+{% endblock extra-css %}
 {% block content %}
     <p class="mb-4 dark:text-gray-400">An ODK Central project.</p>
     <form method="post" enctype="multipart/form-data">
