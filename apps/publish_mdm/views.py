@@ -1387,8 +1387,14 @@ def enterprise_callback(request: HttpRequest, callback_token):
             enterprise_token=enterprise_token,
             display_name=account.organization.name,
         )
-    except Exception as e:
-        return HttpResponseBadRequest(f"Failed to create enterprise: {e}")
+    except Exception:
+        logger.error(
+            "Failed to create enterprise during Android Enterprise callback",
+            account_id=account.id,
+            organization_id=account.organization_id,
+            exc_info=True,
+        )
+        return HttpResponseBadRequest("Failed to create enterprise.")
 
     account.enterprise_name = enterprise["name"]
     account.save(update_fields=["enterprise_name", "modified_at"])
