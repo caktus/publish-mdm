@@ -18,3 +18,16 @@ def disable_infisical_encryption(mocker):
 
     mocker.patch.object(InfisicalKMS, "encrypt", side_effect=side_effect)
     mocker.patch.object(InfisicalKMS, "decrypt", side_effect=side_effect)
+
+
+@pytest.fixture
+def force_tinymdm(settings):
+    settings.ACTIVE_MDM = {"name": "TinyMDM", "class": "apps.mdm.mdms.TinyMDM"}
+
+
+@pytest.fixture
+def force_android_enterprise(settings):
+    settings.ACTIVE_MDM = {
+        "name": "Android Enterprise",
+        "class": "apps.mdm.mdms.AndroidEnterprise",
+    }

@@ -260,8 +260,10 @@ class TestOrganizationAdmin(BaseTestAdmin):
     def test_new_organization(
         self, user, client, mocker, all_mdms, set_mdm_env_vars, mdm_api_error
     ):
-        """Ensures the create_default_fleet() method is called when creating a
-        new organization.
+        """For TinyMDM, create_default_fleet() is called immediately when creating a new
+        organization. For Android Enterprise, fleet creation is deferred until enterprise
+        enrollment completes via enterprise_callback, so create_default_fleet() is not
+        called here.
         """
         organization = OrganizationFactory.build()
         data = {
@@ -277,16 +279,19 @@ class TestOrganizationAdmin(BaseTestAdmin):
         )
 
         assert response.status_code == 200
-        mock_create_default_fleet.assert_called_once()
-        assert Organization.objects.count() == 1
-        if mdm_api_error:
-            assertContains(
-                response,
-                (
-                    f"The organization was created but the following {settings.ACTIVE_MDM['name']} "
-                    f"API error occurred while setting up its default Fleet:<br><code>{mdm_api_error}</code>"
-                ),
-            )
+        assert Organization.objects.filter(name=data["name"], slug=data["slug"]).exists()
+        if settings.ACTIVE_MDM["name"] == "Android Enterprise":
+            mock_create_default_fleet.assert_not_called()
+        else:
+            mock_create_default_fleet.assert_called_once()
+            if mdm_api_error:
+                assertContains(
+                    response,
+                    (
+                        f"The organization was created but the following {settings.ACTIVE_MDM['name']} "
+                        f"API error occurred while setting up its default Fleet:<br><code>{mdm_api_error}</code>"
+                    ),
+                )
 
     def test_edit_organization(self, user, client, mocker):
         """Ensures the create_default_fleet() method is not called when editing

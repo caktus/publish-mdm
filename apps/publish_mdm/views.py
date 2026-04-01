@@ -603,21 +603,23 @@ def create_organization(request: HttpRequest):
         organization = form.save()
         organization.users.add(request.user)
         messages.success(request, f"Successfully created {organization}.")
-        # Create the default fleet
-        try:
-            organization.create_default_fleet()
-        except (GoogleAPIClientError, RequestException) as e:
-            logger.debug(
-                "Unable to create the default fleet", organization=organization, exc_info=True
-            )
-            messages.warning(
-                request,
-                mark_safe(
-                    f"The organization was created but the following {settings.ACTIVE_MDM['name']} "
-                    "API error occurred while setting up its default Fleet:"
-                    f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
-                ),
-            )
+        # Create the default fleet; Android Enterprise requires an enrolled enterprise
+        # first, so for that MDM the fleet is created in enterprise_callback after enrollment.
+        if settings.ACTIVE_MDM["name"] != "Android Enterprise":
+            try:
+                organization.create_default_fleet()
+            except RequestException as e:
+                logger.debug(
+                    "Unable to create the default fleet", organization=organization, exc_info=True
+                )
+                messages.warning(
+                    request,
+                    mark_safe(
+                        f"The organization was created but the following {settings.ACTIVE_MDM['name']} "
+                        "API error occurred while setting up its default Fleet:"
+                        f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
+                    ),
+                )
         return redirect("publish_mdm:organization-home", organization.slug)
     context = {
         "form": form,
@@ -1390,5 +1392,15 @@ def enterprise_callback(request: HttpRequest, callback_token):
 
     account.enterprise_name = enterprise["name"]
     account.save(update_fields=["enterprise_name", "modified_at"])
+
+    # Create the default fleet now that the enterprise is enrolled.
+    try:
+        account.organization.create_default_fleet()
+    except GoogleAPIClientError:
+        logger.debug(
+            "Unable to create the default fleet after enterprise enrollment",
+            organization=account.organization,
+            exc_info=True,
+        )
 
     return HttpResponse(f"<p>Android Enterprise enrolled: {enterprise['name']}</p>")

@@ -6,7 +6,6 @@ from django.conf import settings
 from django.contrib import admin, messages
 from django.urls import reverse
 from django.utils.html import mark_safe
-from googleapiclient.errors import Error as GoogleAPIClientError
 from invitations.admin import InvitationAdmin
 from requests.exceptions import RequestException
 
@@ -200,10 +199,12 @@ class OrganizationAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
-        if not change:
+        # Create the default fleet for new organizations, unless Android Enterprise is active —
+        # it requires an enrolled enterprise first, so the fleet is created in enterprise_callback.
+        if not change and settings.ACTIVE_MDM["name"] != "Android Enterprise":
             try:
                 obj.create_default_fleet()
-            except (GoogleAPIClientError, RequestException) as e:
+            except RequestException as e:
                 logger.debug("Unable to create the default fleet", organization=obj, exc_info=True)
                 messages.warning(
                     request,
