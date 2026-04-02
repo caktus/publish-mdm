@@ -1059,7 +1059,7 @@ def device_update_app_user(request: HttpRequest, organization_slug, device_pk):
     form = DeviceAppUserForm(request.POST, instance=device)
     if form.is_valid():
         form.save()
-        if get_active_mdm_instance():
+        if active_mdm := get_active_mdm_instance():
             if dagster_enabled():
                 run_config = {
                     "ops": {"push_mdm_device_config": {"config": {"device_pks": [device.pk]}}}
@@ -1074,7 +1074,7 @@ def device_update_app_user(request: HttpRequest, organization_slug, device_pk):
                     )
             else:
                 try:
-                    get_active_mdm_instance().push_device_config(device)
+                    active_mdm.push_device_config(device)
                 except Exception:
                     logger.error(
                         "Failed to push device config after app_user update",
