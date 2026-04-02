@@ -20,6 +20,7 @@ from requests.exceptions import RequestException
 
 from apps.mdm.forms import DeviceConfirmImportForm, DeviceImportForm
 from apps.publish_mdm.http import HttpRequest
+from config.dagster import dagster_enabled, trigger_dagster_job
 
 from .import_export import DeviceResource
 from .mdms import get_active_mdm_instance
@@ -74,30 +75,57 @@ class PolicyAdmin(admin.ModelAdmin):
                 )
             if change:
                 # Update the policies for all related Devices that have a child
-                # policy (device-specific policy)
-                devices = Device.objects.filter(
+                # policy (device-specific policy).
+                # When Dagster is enabled, queue the per-device pushes
+                # asynchronously so the admin save does not block.
+                child_devices = Device.objects.filter(
                     fleet__policy=policy,
                     raw_mdm_device__policyName__endswith=models.F("device_id"),
                 )
-                logger.debug("Updating child policies", count=len(devices))
-                for device in devices:
-                    try:
-                        active_mdm.push_device_config(device)
-                    except (GoogleAPIClientError, RequestException) as e:
-                        logger.debug(
-                            f"Unable to update the policy for {device} in {active_mdm}",
-                            device=device,
-                            policy=policy,
-                            exc_info=True,
-                        )
-                        messages.warning(
-                            request,
-                            mark_safe(
-                                f"Could not update the policy for {device} in "
-                                f"{active_mdm} due to the following error:"
-                                f"<br><code>{getattr(e, 'api_error', e)}</code>"
-                            ),
-                        )
+                if dagster_enabled():
+                    device_pks = list(child_devices.values_list("pk", flat=True))
+                    if device_pks:
+                        run_config = {
+                            "ops": {
+                                "push_mdm_device_config": {"config": {"device_pks": device_pks}}
+                            }
+                        }
+                        try:
+                            trigger_dagster_job(job_name="mdm_job", run_config=run_config)
+                        except Exception as e:
+                            logger.debug(
+                                "Failed to trigger Dagster mdm_job for child policies",
+                                policy=policy,
+                                exc_info=True,
+                            )
+                            messages.warning(
+                                request,
+                                mark_safe(
+                                    "Could not queue device policy updates due to "
+                                    "the following error:"
+                                    f"<br><code>{e}</code>"
+                                ),
+                            )
+                else:
+                    logger.debug("Updating child policies", count=len(child_devices))
+                    for device in child_devices:
+                        try:
+                            active_mdm.push_device_config(device)
+                        except (GoogleAPIClientError, RequestException) as e:
+                            logger.debug(
+                                f"Unable to update the policy for {device} in {active_mdm}",
+                                device=device,
+                                policy=policy,
+                                exc_info=True,
+                            )
+                            messages.warning(
+                                request,
+                                mark_safe(
+                                    f"Could not update the policy for {device} in "
+                                    f"{active_mdm} due to the following error:"
+                                    f"<br><code>{getattr(e, 'api_error', e)}</code>"
+                                ),
+                            )
 
 
 @admin.register(PolicyVariable)

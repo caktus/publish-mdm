@@ -18,6 +18,7 @@ mdm_schedule = dg.ScheduleDefinition(
     default_status=dg.DefaultScheduleStatus.RUNNING,
 )
 mdm_job = dg.define_asset_job(name="mdm_job", selection="push_mdm_device_config")
+sync_fleets_job = dg.define_asset_job(name="sync_fleets_job", selection="sync_and_push_mdm_devices")
 
 tailscale_device_deletion_schedule = dg.ScheduleDefinition(
     name="tailscale_device_deletion_schedule",
@@ -37,5 +38,5 @@ defs = dg.Definitions(
         ),
     },
     schedules=[tailscale_schedule, mdm_schedule, tailscale_device_deletion_schedule],
-    jobs=[mdm_job],
+    jobs=[mdm_job, sync_fleets_job],
 )

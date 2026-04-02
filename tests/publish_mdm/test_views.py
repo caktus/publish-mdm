@@ -2284,6 +2284,48 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
         # Ensure an error message is displayed
         assertContains(response, "Unable to sync. Please try again later.")
 
+    def test_sync_with_dagster_enabled(
+        self, client, url, user, organization, mocker, all_mdms, set_mdm_env_vars, settings
+    ):
+        """When Dagster is enabled, the sync button triggers sync_fleets_job with the
+        org's fleet PKs instead of calling sync_fleet() synchronously.
+        """
+        settings.DAGSTER_URL = "http://dagster-host:3000"
+        MDM = get_active_mdm_class()
+        mock_sync_fleet = mocker.patch.object(MDM, "sync_fleet")
+        mock_trigger = mocker.patch("apps.publish_mdm.views.trigger_dagster_job")
+        fleets = FleetFactory.create_batch(2, organization=organization)
+
+        response = client.post(url, data={"sync": 1})
+
+        mock_sync_fleet.assert_not_called()
+        mock_trigger.assert_called_once()
+        call_kwargs = mock_trigger.call_args
+        assert call_kwargs.kwargs["job_name"] == "sync_fleets_job"
+        fleet_pks = call_kwargs.kwargs["run_config"]["ops"]["sync_and_push_mdm_devices"]["config"][
+            "fleet_pks"
+        ]
+        assert set(fleet_pks) == {fleet.pk for fleet in fleets}
+        assertContains(response, "Sync queued")
+
+    def test_sync_with_dagster_enabled_job_error(
+        self, client, url, user, organization, mocker, all_mdms, set_mdm_env_vars, settings
+    ):
+        """When Dagster is enabled but the job trigger fails, an error message is shown."""
+        settings.DAGSTER_URL = "http://dagster-host:3000"
+        MDM = get_active_mdm_class()
+        mock_sync_fleet = mocker.patch.object(MDM, "sync_fleet")
+        mocker.patch(
+            "apps.publish_mdm.views.trigger_dagster_job",
+            side_effect=Exception("Dagster unreachable"),
+        )
+        FleetFactory.create_batch(2, organization=organization)
+
+        response = client.post(url, data={"sync": 1})
+
+        mock_sync_fleet.assert_not_called()
+        assertContains(response, "Unable to sync. Please try again later.")
+
     def check_list_after_searching_or_filtering(self, response, matching_devices):
         assert response.status_code == 200
         # Ensure the devices table is included in the context and it has the
@@ -3082,3 +3124,24 @@ class TestDeviceUpdateAppUser(ViewTestBase):
         assert response.status_code == 200
         device.refresh_from_db()
         assert device.app_user_name == "some_user"
+
+    def test_dagster_triggered_instead_of_direct_push(
+        self, client, url, user, device, mocker, settings
+    ):
+        """When Dagster is enabled, mdm_job is triggered for the device instead of
+        calling push_device_config() synchronously.
+        """
+        settings.DAGSTER_URL = "http://dagster-host:3000"
+        mock_mdm = mocker.MagicMock()
+        mocker.patch("apps.publish_mdm.views.get_active_mdm_instance", return_value=mock_mdm)
+        mock_trigger = mocker.patch("apps.publish_mdm.views.trigger_dagster_job")
+        AppUserFactory(name="dagster_user", project=device.fleet.project)
+
+        response = client.post(url, data={"app_user_name": "dagster_user"})
+
+        assert response.status_code == 200
+        mock_mdm.push_device_config.assert_not_called()
+        mock_trigger.assert_called_once_with(
+            job_name="mdm_job",
+            run_config={"ops": {"push_mdm_device_config": {"config": {"device_pks": [device.pk]}}}},
+        )

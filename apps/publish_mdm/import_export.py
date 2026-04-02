@@ -10,6 +10,7 @@ from import_export.results import Result
 
 from apps.mdm.mdms import get_active_mdm_instance
 from apps.mdm.models import Device
+from config.dagster import dagster_enabled, trigger_dagster_job
 
 from .models import AppUser, AppUserFormTemplate, AppUserTemplateVariable
 
@@ -323,6 +324,9 @@ class DeviceResource(resources.ModelResource):
         Only runs on the real import (not the dry-run preview), and only for
         rows that were actually new or updated.  Errors are logged but never
         raised so they don't prevent the import success redirect.
+
+        When Dagster is enabled the push is queued asynchronously; when it is
+        not enabled, configs are pushed synchronously (local dev fallback).
         """
         super().after_import(dataset, result, **kwargs)
         if dry_run:
@@ -333,15 +337,26 @@ class DeviceResource(resources.ModelResource):
         device_pks = [row.object_id for row in result if row.is_new() or row.is_update()]
         if not device_pks:
             return
-        devices = Device.objects.filter(pk__in=device_pks).select_related(
-            "fleet__policy", "fleet__project"
-        )
-        for device in devices:
+        if dagster_enabled():
+            run_config = {"ops": {"push_mdm_device_config": {"config": {"device_pks": device_pks}}}}
             try:
-                active_mdm.push_device_config(device)
+                trigger_dagster_job(job_name="mdm_job", run_config=run_config)
             except Exception:
                 logger.error(
-                    "Failed to push device config after CSV import",
-                    device=device,
+                    "Failed to trigger Dagster job after CSV import",
+                    device_pks=device_pks,
                     exc_info=True,
                 )
+        else:
+            devices = Device.objects.filter(pk__in=device_pks).select_related(
+                "fleet__policy", "fleet__project"
+            )
+            for device in devices:
+                try:
+                    active_mdm.push_device_config(device)
+                except Exception:
+                    logger.error(
+                        "Failed to push device config after CSV import",
+                        device=device,
+                        exc_info=True,
+                    )
