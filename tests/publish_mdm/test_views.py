@@ -2287,19 +2287,25 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
     def test_sync_with_dagster_enabled(
         self, client, url, user, organization, mocker, all_mdms, set_mdm_env_vars, settings
     ):
-        """When Dagster is enabled, the sync button triggers sync_fleets_job instead
-        of calling sync_fleet() synchronously, and returns a 'queued' message.
+        """When Dagster is enabled, the sync button triggers sync_fleets_job with the
+        org's fleet PKs instead of calling sync_fleet() synchronously.
         """
         settings.DAGSTER_URL = "http://dagster-host:3000"
         MDM = get_active_mdm_class()
         mock_sync_fleet = mocker.patch.object(MDM, "sync_fleet")
         mock_trigger = mocker.patch("apps.publish_mdm.views.trigger_dagster_job")
-        FleetFactory.create_batch(2, organization=organization)
+        fleets = FleetFactory.create_batch(2, organization=organization)
 
         response = client.post(url, data={"sync": 1})
 
         mock_sync_fleet.assert_not_called()
-        mock_trigger.assert_called_once_with(job_name="sync_fleets_job", run_config={})
+        mock_trigger.assert_called_once()
+        call_kwargs = mock_trigger.call_args
+        assert call_kwargs.kwargs["job_name"] == "sync_fleets_job"
+        fleet_pks = call_kwargs.kwargs["run_config"]["ops"]["sync_and_push_mdm_devices"]["config"][
+            "fleet_pks"
+        ]
+        assert set(fleet_pks) == {fleet.pk for fleet in fleets}
         assertContains(response, "Sync queued")
 
     def test_sync_with_dagster_enabled_job_error(

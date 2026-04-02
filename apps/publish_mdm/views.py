@@ -854,8 +854,12 @@ def devices_list(request: HttpRequest, organization_slug):
         # Sync devices from the MDM
         if active_mdm := get_active_mdm_instance():
             if dagster_enabled():
+                fleet_pks = list(request.organization.fleets.values_list("pk", flat=True))
+                run_config = {
+                    "ops": {"sync_and_push_mdm_devices": {"config": {"fleet_pks": fleet_pks}}}
+                }
                 try:
-                    trigger_dagster_job(job_name="sync_fleets_job", run_config={})
+                    trigger_dagster_job(job_name="sync_fleets_job", run_config=run_config)
                     devices_list_messages.append(
                         messages.Message(
                             messages.SUCCESS,
