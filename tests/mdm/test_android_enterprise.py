@@ -5,12 +5,17 @@ from collections import namedtuple
 import faker
 import httplib2
 import pytest
+from django.contrib.sites.models import Site
 from googleapiclient.errors import HttpError
 from googleapiclient.http import RequestMockBuilder
 
 from apps.mdm.mdms import AndroidEnterprise, MDMAPIError
-from apps.mdm.mdms.android_enterprise import MDMDevice
-from apps.mdm.models import Device
+from apps.mdm.mdms.android_enterprise import (
+    ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT,
+    PUBSUB_RESOURCE_NAME,
+    MDMDevice,
+)
+from apps.mdm.models import Device, DeviceSnapshot
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from tests.mdm import TestAndroidEnterpriseOnly
 from tests.publish_mdm.factories import AppUserFactory, ProjectFactory
@@ -140,6 +145,9 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         assert not active_mdm.is_configured
         assert not active_mdm
         assert not active_mdm.api
+        assert not active_mdm.pubsub_api
+        with pytest.raises(ValueError, match="Android Enterprise API credentials not configured"):
+            assert active_mdm.credentials
 
     def test_env_variables_set(self, set_mdm_env_vars):
         """Ensure AndroidEnterprise.is_configured property returns True if the
@@ -149,13 +157,20 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         assert active_mdm.is_configured
         assert active_mdm
         assert active_mdm.api
+        assert active_mdm.pubsub_api
         assert active_mdm.enterprise_name == f"enterprises/{active_mdm.enterprise_id}"
+        assert active_mdm.credentials
 
-    def get_mock_request_builder(self, *responses):
+    def get_mock_request_builder(self, *responses, prefix="androidmanagement.enterprises."):
         """Creates a RequestMockBuilder that can be used to mock API responses
         in the Google API Client. Takes MockAPIResponse objects as args, where
-        the `method_id` should be without the 'androidmanagement.enterprises.'
-        prefix.
+        the `method_id` should be without the prefix.
+
+        Args:
+            *responses: MockAPIResponse objects describing each expected call.
+            prefix: The method-ID prefix for the target API.  Defaults to
+                ``'androidmanagement.enterprises.'`` for the Android Management
+                API.  Use ``'pubsub.projects.'`` for the Cloud Pub/Sub API.
         """
         responses_dict = {}
         for response in responses:
@@ -172,7 +187,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             if response.expected_request_body is not None:
                 # Will raise an error if the actual request body does not match exactly
                 value.append(response.expected_request_body)
-            responses_dict[f"androidmanagement.enterprises.{response.method_id}"] = value
+            responses_dict[f"{prefix}{response.method_id}"] = value
         return RequestMockBuilder(responses_dict, check_unexpected=True)
 
     @pytest.mark.parametrize("with_default_app_user", [False, True])
@@ -583,3 +598,553 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         our_device.refresh_from_db()
         # Device was skipped — name unchanged
         assert our_device.name == original_name
+
+    def test_pubsub_topic_and_subscription_names(self, mocker, set_mdm_env_vars):
+        """pubsub_topic and pubsub_subscription are derived from the project_id and the ENVIRONMENT setting.
+        The project_id is gotten from the service account file (it is "example-project"
+        in the test service account file).
+        """
+        active_mdm = AndroidEnterprise()
+        assert active_mdm.project_id == "example-project"
+        assert (
+            active_mdm.pubsub_topic
+            == f"projects/{active_mdm.project_id}/topics/{PUBSUB_RESOURCE_NAME}-test"
+        )
+        assert (
+            active_mdm.pubsub_subscription
+            == f"projects/{active_mdm.project_id}/subscriptions/{PUBSUB_RESOURCE_NAME}-test"
+        )
+
+    def test_ensure_pubsub_topic_creates_topic(self, set_mdm_env_vars, monkeypatch):
+        """_ensure_pubsub_topic() creates the topic when it does not exist."""
+        active_mdm = AndroidEnterprise()
+        monkeypatch.setattr(
+            active_mdm.pubsub_api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse("topics.create"),
+                prefix="pubsub.projects.",
+            ),
+        )
+        # Should not raise
+        active_mdm._ensure_pubsub_topic()
+
+    def test_ensure_pubsub_topic_already_exists(self, set_mdm_env_vars, monkeypatch):
+        """_ensure_pubsub_topic() silently ignores a 409 Conflict response."""
+        active_mdm = AndroidEnterprise()
+        monkeypatch.setattr(
+            active_mdm.pubsub_api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse("topics.create", status_code=409),
+                prefix="pubsub.projects.",
+            ),
+        )
+        # Should not raise
+        active_mdm._ensure_pubsub_topic()
+
+    def test_ensure_pubsub_topic_reraises_other_errors(self, set_mdm_env_vars, monkeypatch):
+        """_ensure_pubsub_topic() re-raises non-409 HttpErrors."""
+        active_mdm = AndroidEnterprise()
+        monkeypatch.setattr(
+            active_mdm.pubsub_api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse("topics.create", status_code=403),
+                prefix="pubsub.projects.",
+            ),
+        )
+        with pytest.raises(HttpError):
+            active_mdm._ensure_pubsub_topic()
+
+    @pytest.mark.parametrize(
+        "current_bindings",
+        (
+            # No publisher bindings
+            [],
+            [{"role": "roles/pubsub.viewer", "members": ["member1@example.com"]}],
+            # Has publisher bindings, but not for the Android Device Policy
+            [
+                {"role": "roles/pubsub.publisher", "members": ["member1@example.com"]},
+                {"role": "roles/pubsub.editor", "members": ["member2@example.com"]},
+            ],
+        ),
+    )
+    def test_grant_pubsub_publisher_adds_binding(
+        self, set_mdm_env_vars, monkeypatch, current_bindings
+    ):
+        """_grant_pubsub_publisher() writes the Android Device Policy (ADP) binding
+        via setIamPolicy.
+        """
+        active_mdm = AndroidEnterprise()
+        expected_member = f"serviceAccount:{ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT}"
+        expected_bindings = current_bindings[:]
+        for binding in expected_bindings:
+            if binding["role"] == "roles/pubsub.publisher":
+                binding["members"].append(expected_member)
+                break
+        else:
+            expected_bindings = [
+                *current_bindings,
+                {"role": "roles/pubsub.publisher", "members": [expected_member]},
+            ]
+        monkeypatch.setattr(
+            active_mdm.pubsub_api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse("topics.getIamPolicy", {"bindings": current_bindings}),
+                MockAPIResponse(
+                    "topics.setIamPolicy",
+                    expected_request_body={"policy": {"bindings": expected_bindings}},
+                ),
+                prefix="pubsub.projects.",
+            ),
+        )
+        # Should not raise; body mismatch would raise ValueError from RequestMockBuilder
+        active_mdm._grant_pubsub_publisher()
+
+    def test_grant_pubsub_publisher_already_granted(self, set_mdm_env_vars, monkeypatch):
+        """_grant_pubsub_publisher() skips setIamPolicy when ADP already has publish rights.
+
+        check_unexpected=True means calling setIamPolicy (which is absent from the
+        responses dict) would raise ValueError, so a clean run proves it was not called.
+        """
+        active_mdm = AndroidEnterprise()
+        member = f"serviceAccount:{ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT}"
+        monkeypatch.setattr(
+            active_mdm.pubsub_api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse(
+                    "topics.getIamPolicy",
+                    {"bindings": [{"role": "roles/pubsub.publisher", "members": [member]}]},
+                ),
+                # setIamPolicy intentionally absent — check_unexpected=True would raise if called
+                prefix="pubsub.projects.",
+            ),
+        )
+        active_mdm._grant_pubsub_publisher()
+
+    def test_grant_pubsub_publisher_get_iam_policy_error(self, set_mdm_env_vars, monkeypatch):
+        """_grant_pubsub_publisher() re-raises errors from getIamPolicy."""
+        active_mdm = AndroidEnterprise()
+        monkeypatch.setattr(
+            active_mdm.pubsub_api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse("topics.getIamPolicy", status_code=403),
+                prefix="pubsub.projects.",
+            ),
+        )
+        with pytest.raises(HttpError):
+            active_mdm._grant_pubsub_publisher()
+
+    def test_grant_pubsub_publisher_set_iam_policy_error(self, set_mdm_env_vars, monkeypatch):
+        """_grant_pubsub_publisher() re-raises errors from setIamPolicy."""
+        active_mdm = AndroidEnterprise()
+        monkeypatch.setattr(
+            active_mdm.pubsub_api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse("topics.getIamPolicy", {"bindings": []}),
+                MockAPIResponse("topics.setIamPolicy", status_code=403),
+                prefix="pubsub.projects.",
+            ),
+        )
+        with pytest.raises(HttpError):
+            active_mdm._grant_pubsub_publisher()
+
+    def test_ensure_pubsub_subscription_creates_subscription(self, set_mdm_env_vars, monkeypatch):
+        """_ensure_pubsub_subscription() calls subscriptions.create with the expected body."""
+        active_mdm = AndroidEnterprise()
+        push_endpoint = "https://example.com/mdm/api/amapi/notifications/"
+        monkeypatch.setattr(
+            active_mdm.pubsub_api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse(
+                    "subscriptions.create",
+                    expected_request_body={
+                        "topic": active_mdm.pubsub_topic,
+                        "pushConfig": {"pushEndpoint": push_endpoint},
+                    },
+                ),
+                prefix="pubsub.projects.",
+            ),
+        )
+        # Should not raise; body mismatch would raise ValueError from RequestMockBuilder
+        active_mdm._ensure_pubsub_subscription(push_endpoint)
+
+    def test_ensure_pubsub_subscription_already_exists(self, set_mdm_env_vars, monkeypatch):
+        """_ensure_pubsub_subscription() calls modifyPushConfig on a 409 Conflict response."""
+        active_mdm = AndroidEnterprise()
+        push_endpoint = "https://example.com/mdm/api/amapi/notifications/"
+        monkeypatch.setattr(
+            active_mdm.pubsub_api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse("subscriptions.create", status_code=409),
+                MockAPIResponse(
+                    "subscriptions.modifyPushConfig",
+                    expected_request_body={"pushConfig": {"pushEndpoint": push_endpoint}},
+                ),
+                prefix="pubsub.projects.",
+            ),
+        )
+        # Should not raise; body mismatch on modifyPushConfig would raise ValueError
+        active_mdm._ensure_pubsub_subscription(push_endpoint)
+
+    def test_ensure_pubsub_subscription_error(self, set_mdm_env_vars, monkeypatch):
+        """_ensure_pubsub_subscription() re-raises an error if it's not a 409."""
+        active_mdm = AndroidEnterprise()
+        push_endpoint = "https://example.com/mdm/api/amapi/notifications/"
+        monkeypatch.setattr(
+            active_mdm.pubsub_api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse("subscriptions.create", status_code=403),
+                prefix="pubsub.projects.",
+            ),
+        )
+        with pytest.raises(HttpError):
+            active_mdm._ensure_pubsub_subscription(push_endpoint)
+
+    def test_configure_pubsub_full_flow(self, set_mdm_env_vars, monkeypatch):
+        """configure_pubsub() orchestrates the Pub/Sub infrastructure steps only.
+        It does not patch the enterprise; that is done separately via patch_enterprise_pubsub().
+        """
+        active_mdm = AndroidEnterprise()
+        push_endpoint = "https://example.com/mdm/api/amapi/notifications/?token=secret"
+
+        monkeypatch.setattr(active_mdm, "_build_push_endpoint", lambda domain=None: push_endpoint)
+        monkeypatch.setattr(
+            active_mdm.pubsub_api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse("topics.create"),
+                MockAPIResponse(
+                    "subscriptions.create",
+                    expected_request_body={
+                        "topic": active_mdm.pubsub_topic,
+                        "pushConfig": {"pushEndpoint": push_endpoint},
+                    },
+                ),
+                MockAPIResponse("topics.getIamPolicy", {"bindings": []}),
+                MockAPIResponse("topics.setIamPolicy"),
+                prefix="pubsub.projects.",
+            ),
+        )
+
+        # Should return None and not touch the enterprises API
+        result = active_mdm.configure_pubsub(push_endpoint_domain="example.com")
+        assert result is None
+
+    def test_patch_enterprise_pubsub(self, set_mdm_env_vars, monkeypatch):
+        """patch_enterprise_pubsub() patches the enterprise with the Pub/Sub topic."""
+        active_mdm = AndroidEnterprise()
+        enterprise_patch_result = {
+            "name": active_mdm.enterprise_name,
+            "pubsubTopic": active_mdm.pubsub_topic,
+            "enabledNotificationTypes": ["ENROLLMENT", "STATUS_REPORT"],
+        }
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse(
+                    "patch",
+                    enterprise_patch_result,
+                    expected_request_body={
+                        "pubsubTopic": active_mdm.pubsub_topic,
+                        "enabledNotificationTypes": ["ENROLLMENT", "STATUS_REPORT"],
+                    },
+                ),
+            ),
+        )
+
+        result = active_mdm.patch_enterprise_pubsub()
+        assert result == enterprise_patch_result
+
+    @pytest.mark.django_db
+    def test_build_push_endpoint(self, set_mdm_env_vars, settings):
+        """_build_push_endpoint() returns the correct URL using the Site domain and token."""
+        active_mdm = AndroidEnterprise()
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = "mysecret"
+        Site.objects.filter(pk=settings.SITE_ID).update(domain="app.example.com")
+        endpoint = active_mdm._build_push_endpoint()
+        assert endpoint == "https://app.example.com/mdm/api/amapi/notifications/?token=mysecret"
+
+    @pytest.mark.django_db
+    def test_build_push_endpoint_with_domain(self, set_mdm_env_vars, settings):
+        """_build_push_endpoint() uses the supplied domain instead of the Site domain."""
+        active_mdm = AndroidEnterprise()
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = "mysecret"
+        endpoint = active_mdm._build_push_endpoint(domain="override.example.com")
+        assert (
+            endpoint == "https://override.example.com/mdm/api/amapi/notifications/?token=mysecret"
+        )
+
+    @pytest.mark.django_db
+    def test_build_push_endpoint_raises_when_token_not_set(self, set_mdm_env_vars, settings):
+        """_build_push_endpoint() raises ValueError when ANDROID_ENTERPRISE_PUBSUB_TOKEN is unset."""
+        active_mdm = AndroidEnterprise()
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = None
+        with pytest.raises(ValueError, match="ANDROID_ENTERPRISE_PUBSUB_TOKEN"):
+            active_mdm._build_push_endpoint()
+
+    def test_fleet_pk_from_enrollment_token_data_valid(self, set_mdm_env_vars):
+        """Returns the fleet pk when enrollmentTokenData contains a valid 'fleet' key."""
+        device = MDMDevice(
+            {
+                "name": "enterprises/test/devices/abc",
+                "enrollmentTokenData": json.dumps({"fleet": 99}),
+            }
+        )
+        assert AndroidEnterprise._get_fleet_pk_from_enrollment_token_data(device) == 99
+
+    def test_fleet_pk_from_enrollment_token_data_missing(self, set_mdm_env_vars):
+        """Returns None when enrollmentTokenData is absent."""
+        device = MDMDevice({"name": "enterprises/test/devices/abc"})
+        assert AndroidEnterprise._get_fleet_pk_from_enrollment_token_data(device) is None
+
+    def test_fleet_pk_from_enrollment_token_data_invalid_json(self, set_mdm_env_vars):
+        """Returns None when enrollmentTokenData is not valid JSON."""
+        device = MDMDevice(
+            {"name": "enterprises/test/devices/abc", "enrollmentTokenData": "not-json"}
+        )
+        assert AndroidEnterprise._get_fleet_pk_from_enrollment_token_data(device) is None
+
+    def test_fleet_pk_from_enrollment_token_data_not_dict(self, set_mdm_env_vars):
+        """Returns None when the parsed JSON is not a dict."""
+        device = MDMDevice(
+            {
+                "name": "enterprises/test/devices/abc",
+                "enrollmentTokenData": json.dumps([1, 2, 3]),
+            }
+        )
+        assert AndroidEnterprise._get_fleet_pk_from_enrollment_token_data(device) is None
+
+    def test_fleet_pk_from_enrollment_token_data_no_fleet_key(self, set_mdm_env_vars):
+        """Returns None when the parsed dict contains no 'fleet' key."""
+        device = MDMDevice(
+            {
+                "name": "enterprises/test/devices/abc",
+                "enrollmentTokenData": json.dumps({"other": "value"}),
+            }
+        )
+        assert AndroidEnterprise._get_fleet_pk_from_enrollment_token_data(device) is None
+
+    def test_handle_device_notification_routes_enrollment(self, set_mdm_env_vars, mocker):
+        """handle_device_notification() dispatches ENROLLMENT to _handle_enrollment_notification."""
+        active_mdm = AndroidEnterprise()
+        mock_enroll = mocker.patch.object(active_mdm, "_handle_enrollment_notification")
+        mock_status = mocker.patch.object(active_mdm, "_handle_status_report_notification")
+        active_mdm.handle_device_notification(
+            {"name": "enterprises/test/devices/abc"}, "ENROLLMENT"
+        )
+        mock_enroll.assert_called_once()
+        mock_status.assert_not_called()
+
+    def test_handle_device_notification_routes_status_report(self, set_mdm_env_vars, mocker):
+        """handle_device_notification() dispatches STATUS_REPORT to _handle_status_report_notification."""
+        active_mdm = AndroidEnterprise()
+        mock_enroll = mocker.patch.object(active_mdm, "_handle_enrollment_notification")
+        mock_status = mocker.patch.object(active_mdm, "_handle_status_report_notification")
+        active_mdm.handle_device_notification(
+            {"name": "enterprises/test/devices/abc"}, "STATUS_REPORT"
+        )
+        mock_status.assert_called_once()
+        mock_enroll.assert_not_called()
+
+    def test_handle_device_notification_ignores_unknown_type(self, set_mdm_env_vars, mocker):
+        """handle_device_notification() ignores unrecognised notification types."""
+        active_mdm = AndroidEnterprise()
+        mock_enroll = mocker.patch.object(active_mdm, "_handle_enrollment_notification")
+        mock_status = mocker.patch.object(active_mdm, "_handle_status_report_notification")
+        active_mdm.handle_device_notification({"name": "enterprises/test/devices/abc"}, "COMMAND")
+        mock_enroll.assert_not_called()
+        mock_status.assert_not_called()
+
+    def test_handle_enrollment_notification_creates_device(self, set_mdm_env_vars):
+        """_handle_enrollment_notification() creates a new Device for an unknown device."""
+        fleet = FleetFactory()
+        active_mdm = AndroidEnterprise()
+        mdm_device = MDMDevice(
+            {
+                "name": "enterprises/test/devices/newdev",
+                "enrollmentTokenData": json.dumps({"fleet": fleet.pk}),
+                "hardwareInfo": {"serialNumber": "SN-001"},
+            }
+        )
+        active_mdm._handle_enrollment_notification(mdm_device)
+        device = Device.objects.get(device_id="newdev")
+        assert device.fleet == fleet
+        assert device.serial_number == "SN-001"
+        assert device.name == "enterprises/test/devices/newdev"
+
+    def test_handle_enrollment_notification_updates_existing_device(self, set_mdm_env_vars):
+        """_handle_enrollment_notification() updates an existing Device record."""
+        fleet = FleetFactory()
+        existing = DeviceFactory(fleet=fleet, device_id="existdev", serial_number="OLD-SN")
+        active_mdm = AndroidEnterprise()
+        mdm_device = MDMDevice(
+            {
+                "name": "enterprises/test/devices/existdev",
+                "enrollmentTokenData": json.dumps({"fleet": fleet.pk}),
+                "hardwareInfo": {"serialNumber": "NEW-SN"},
+            }
+        )
+        active_mdm._handle_enrollment_notification(mdm_device)
+        existing.refresh_from_db()
+        assert existing.serial_number == "NEW-SN"
+        assert existing.name == "enterprises/test/devices/existdev"
+
+    def test_handle_enrollment_notification_skips_without_fleet(self, set_mdm_env_vars):
+        """_handle_enrollment_notification() does nothing when fleet cannot be determined."""
+        active_mdm = AndroidEnterprise()
+        initial_count = Device.objects.count()
+        mdm_device = MDMDevice({"name": "enterprises/test/devices/orphan"})
+        active_mdm._handle_enrollment_notification(mdm_device)
+        assert Device.objects.count() == initial_count
+
+    def test_handle_status_report_notification_updates_device(self, set_mdm_env_vars):
+        """_handle_status_report_notification() updates device fields."""
+        fleet = FleetFactory()
+        device = DeviceFactory(
+            fleet=fleet,
+            device_id="srdev",
+            name="enterprises/test/devices/srdev",
+            serial_number="OLD-SN",
+        )
+        active_mdm = AndroidEnterprise()
+        mdm_device = MDMDevice(
+            {
+                "name": device.name,
+                "state": "ACTIVE",
+                "hardwareInfo": {"serialNumber": "NEW-SN"},
+            }
+        )
+        active_mdm._handle_status_report_notification(mdm_device)
+        device.refresh_from_db()
+        assert device.serial_number == "NEW-SN"
+
+    def test_handle_status_report_notification_skips_unknown_device(self, set_mdm_env_vars):
+        """_handle_status_report_notification() silently skips an unrecognised device."""
+        active_mdm = AndroidEnterprise()
+        initial_count = Device.objects.count()
+        mdm_device = MDMDevice({"name": "enterprises/test/devices/unknown", "state": "ACTIVE"})
+        active_mdm._handle_status_report_notification(mdm_device)
+        assert Device.objects.count() == initial_count
+
+    def test_handle_status_report_notification_creates_snapshot(self, set_mdm_env_vars):
+        """_handle_status_report_notification() creates a DeviceSnapshot when data is sufficient."""
+        fleet = FleetFactory()
+        device = DeviceFactory(
+            fleet=fleet,
+            device_id="snapdev",
+            name="enterprises/test/devices/snapdev",
+            app_user_name="",
+        )
+        active_mdm = AndroidEnterprise()
+        mdm_device = MDMDevice(
+            {
+                "name": device.name,
+                "state": "ACTIVE",
+                "managementMode": "DEVICE_OWNER",
+                "lastPolicySyncTime": "2024-01-01T12:00:00Z",
+                "hardwareInfo": {"serialNumber": "SNAP-SN", "manufacturer": "Acme"},
+            }
+        )
+        before = DeviceSnapshot.objects.count()
+        active_mdm._handle_status_report_notification(mdm_device)
+        assert DeviceSnapshot.objects.count() == before + 1
+
+    def test_handle_status_report_notification_pushes_config_on_provisioning_to_active(
+        self, set_mdm_env_vars, mocker
+    ):
+        """_handle_status_report_notification() calls push_device_config when the device
+        transitions PROVISIONING→ACTIVE, has an app_user_name, and lacks a device-specific
+        policy."""
+        fleet = FleetFactory()
+        device = DeviceFactory(
+            fleet=fleet,
+            device_id="provdev",
+            name="enterprises/test/devices/provdev",
+            app_user_name="user1",
+            raw_mdm_device={
+                "name": "enterprises/test/devices/provdev",
+                "state": "PROVISIONING",
+                "policyName": "enterprises/test/policies/default",
+            },
+        )
+        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        active_mdm = AndroidEnterprise()
+        mdm_device = MDMDevice(
+            {
+                "name": device.name,
+                "state": "ACTIVE",
+                "policyName": "enterprises/test/policies/default",
+                "hardwareInfo": {"serialNumber": "PROV-SN"},
+            }
+        )
+        active_mdm._handle_status_report_notification(mdm_device)
+        mock_push.assert_called_once()
+
+    def test_handle_status_report_notification_no_push_without_app_user_name(
+        self, set_mdm_env_vars, mocker
+    ):
+        """_handle_status_report_notification() does not push config when app_user_name is empty."""
+        fleet = FleetFactory()
+        device = DeviceFactory(
+            fleet=fleet,
+            device_id="provdev2",
+            name="enterprises/test/devices/provdev2",
+            app_user_name="",
+            raw_mdm_device={
+                "name": "enterprises/test/devices/provdev2",
+                "state": "PROVISIONING",
+                "policyName": "enterprises/test/policies/default",
+            },
+        )
+        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        active_mdm = AndroidEnterprise()
+        mdm_device = MDMDevice(
+            {
+                "name": device.name,
+                "state": "ACTIVE",
+                "policyName": "enterprises/test/policies/default",
+                "hardwareInfo": {"serialNumber": "PROV-SN2"},
+            }
+        )
+        active_mdm._handle_status_report_notification(mdm_device)
+        mock_push.assert_not_called()
+
+    def test_handle_status_report_notification_no_push_when_device_specific_policy(
+        self, set_mdm_env_vars, mocker
+    ):
+        """_handle_status_report_notification() does not push config when the policy
+        is already device-specific (name ends with the device_id)."""
+        fleet = FleetFactory()
+        device = DeviceFactory(
+            fleet=fleet,
+            device_id="provdev3",
+            name="enterprises/test/devices/provdev3",
+            app_user_name="user1",
+            raw_mdm_device={
+                "name": "enterprises/test/devices/provdev3",
+                "state": "PROVISIONING",
+                "policyName": "enterprises/test/policies/fleet1_provdev3",
+            },
+        )
+        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        active_mdm = AndroidEnterprise()
+        mdm_device = MDMDevice(
+            {
+                "name": device.name,
+                "state": "ACTIVE",
+                "policyName": "enterprises/test/policies/fleet1_provdev3",
+                "hardwareInfo": {"serialNumber": "PROV-SN3"},
+            }
+        )
+        active_mdm._handle_status_report_notification(mdm_device)
+        mock_push.assert_not_called()
