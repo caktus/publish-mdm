@@ -29,16 +29,9 @@ development server:
 .. code-block:: bash
 
     # sample .envrc file
-    # If using TinyMDM as your MDM service provider (the default)
-    export TINYMDM_ACCOUNT_ID=
-    export TINYMDM_APIKEY_PUBLIC=
-    export TINYMDM_APIKEY_SECRET=
-
-    # If using Android EMM as your MDM service provider
+    # Android Enterprise MDM (server-wide; per-org MDM type is set in the admin UI)
     export ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE=
     export ANDROID_ENTERPRISE_ID=
-    export ACTIVE_MDM_NAME="Android Enterprise"
-    export ACTIVE_MDM_CLASS=apps.mdm.mdms.AndroidEnterprise
 
 To run the Dagster development server locally, just run the following command:
 

@@ -24,7 +24,8 @@ from apps.infisical.api import kms_api
 from apps.infisical.fields import EncryptedCharField, EncryptedEmailField
 from apps.infisical.managers import EncryptedManager
 from apps.mdm.mdms import get_active_mdm_instance
-from apps.mdm.models import Fleet, MDMChoices, Policy, PolicyApplication
+from apps.mdm.models import Fleet, Policy, PolicyApplication
+from django.core.exceptions import ValidationError
 from apps.users.models import User
 
 from .etl import template
@@ -53,8 +54,8 @@ class Organization(AbstractBaseModel):
     )
     mdm = models.CharField(
         max_length=50,
-        choices=MDMChoices,
-        default=MDMChoices.TINYMDM,
+        choices=[(name, name) for name in settings.MDM_REGISTRY],
+        default=next(iter(settings.MDM_REGISTRY)),
         help_text="The Mobile Device Management system used by this organization.",
     )
     # Per-org TinyMDM API credentials (fall back to env vars when blank/null)
@@ -83,6 +84,24 @@ class Organization(AbstractBaseModel):
     def get_absolute_url(self):
         return reverse("publish_mdm:organization-home", args=[self.slug])
 
+    def clean(self):
+        if self.mdm == "TinyMDM":
+            # Require all three TinyMDM credentials to be set together.
+            # They can come from env vars (left blank here), but if any are
+            # provided they must all be provided.
+            provided = {
+                "tinymdm_apikey_public": bool(self.tinymdm_apikey_public),
+                "tinymdm_apikey_secret": bool(self.tinymdm_apikey_secret),
+                "tinymdm_account_id": bool(self.tinymdm_account_id),
+            }
+            if any(provided.values()) and not all(provided.values()):
+                missing = [k for k, v in provided.items() if not v]
+                raise ValidationError(
+                    dict.fromkeys(
+                        missing, "All three TinyMDM credential fields must be set together."
+                    )
+                )
+
     def create_default_fleet(self):
         """Create a default MDM Fleet for the organization if the active MDM's API is
         configured.
@@ -91,10 +110,9 @@ class Organization(AbstractBaseModel):
         if not active_mdm:
             return None
         # Create an org-specific default policy
-        policy = Policy.all_mdms.create(
+        policy = Policy.objects.create(
             name="Default",
             policy_id=f"policy_default_{get_random_string(12)}",
-            mdm=self.mdm,
             organization=self,
         )
         # Create the pinned ODK Collect app row (order=0) so new policies are consistent

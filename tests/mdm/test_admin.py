@@ -487,7 +487,6 @@ class TestPolicyAdmin(TestAdmin):
         data = {
             "name": policy.name,
             "policy_id": policy.policy_id,
-            "mdm": policy.mdm,
             "odk_collect_package": policy.odk_collect_package,
             "device_password_quality": policy.device_password_quality,
             "device_password_require_unlock": policy.device_password_require_unlock,

@@ -5,9 +5,8 @@ import faker
 import pytest
 from django.core.exceptions import ValidationError
 
-from apps.mdm.mdms import get_active_mdm_class
+from apps.mdm.mdms import TinyMDM
 from apps.mdm.models import DeviceSnapshotApp, PolicyApplication, PolicyVariable
-from tests.mdm import TestAllMDMs
 from tests.publish_mdm.factories import AppUserFactory, OrganizationFactory, ProjectFactory
 
 from .factories import (
@@ -24,16 +23,19 @@ fake = faker.Faker()
 
 
 @pytest.mark.django_db
-class TestModels(TestAllMDMs):
+class TestModels:
     @pytest.fixture
-    def fleet(self):
-        return FleetFactory()
+    def fleet(self, organization):
+        from tests.mdm.factories import PolicyFactory
+
+        policy = PolicyFactory(organization=organization)
+        return FleetFactory(organization=organization, policy=policy)
 
     def test_fleet_save_without_mdm_env_vars(self, fleet, mocker):
         """On Fleet.save(), pull_devices() shouldn't be called if the
         active MDM's environment variables are not set.
         """
-        mock_pull_devices = mocker.patch.object(get_active_mdm_class(), "pull_devices")
+        mock_pull_devices = mocker.patch.object(TinyMDM, "pull_devices")
         fleet.save()
         mock_pull_devices.assert_not_called()
 
@@ -41,7 +43,7 @@ class TestModels(TestAllMDMs):
         """On Fleet.save(), pull_devices() should be called if the active MDM's
         environment variables are set.
         """
-        mock_pull_devices = mocker.patch.object(get_active_mdm_class(), "pull_devices")
+        mock_pull_devices = mocker.patch.object(TinyMDM, "pull_devices")
         fleet.save(sync_with_mdm=True)
         mock_pull_devices.assert_called_once()
 
@@ -49,7 +51,7 @@ class TestModels(TestAllMDMs):
         """On Device.save(), push_device_config() shouldn't be called if the
         active MDM's environment variables are not set.
         """
-        mock_push_device_config = mocker.patch.object(get_active_mdm_class(), "push_device_config")
+        mock_push_device_config = mocker.patch.object(TinyMDM, "push_device_config")
         DeviceFactory(fleet=fleet)
         mock_push_device_config.assert_not_called()
 
@@ -57,7 +59,7 @@ class TestModels(TestAllMDMs):
         """On Device.save(), push_device_config() should be called if the
         active MDM's environment variables are set.
         """
-        mock_push_device_config = mocker.patch.object(get_active_mdm_class(), "push_device_config")
+        mock_push_device_config = mocker.patch.object(TinyMDM, "push_device_config")
         device = DeviceFactory(fleet=fleet)
         device.save(push_to_mdm=True)
         mock_push_device_config.assert_called_once()
@@ -97,7 +99,7 @@ class TestModels(TestAllMDMs):
         app_user = AppUserFactory(project=fleet.project)
         fleet.default_app_user = app_user
         fleet.save()
-        mock_push_device_config = mocker.patch.object(get_active_mdm_class(), "push_device_config")
+        mock_push_device_config = mocker.patch.object(TinyMDM, "push_device_config")
         device = DeviceFactory(fleet=fleet, app_user_name="")
         device.app_user_name = ""
         device.save(push_to_mdm=True)
@@ -303,7 +305,7 @@ class TestModels(TestAllMDMs):
     def test_fleet_enrollment_url(self):
         """Tests the Fleet.enrollment_url property."""
         fleet = FleetFactory(enroll_token_value=fake.pystr())
-        if fleet.policy.mdm == "Android Enterprise":
+        if fleet.organization.mdm == "Android Enterprise":
             assert (
                 fleet.enrollment_url
                 == f"https://enterprise.google.com/android/enroll?et={fleet.enroll_token_value}"

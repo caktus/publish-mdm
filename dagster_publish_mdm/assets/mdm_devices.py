@@ -23,9 +23,7 @@ class DeviceConfig(dg.Config):
 @dg.asset(description="Push MDM device configuration")
 def push_mdm_device_config(context: dg.AssetExecutionContext, config: DeviceConfig):
     """Push the device configuration to the MDM for the specified device PKs."""
-    devices = Device.objects.filter(pk__in=config.device_pks).select_related(
-        "fleet__organization"
-    )
+    devices = Device.objects.filter(pk__in=config.device_pks).select_related("fleet__organization")
     context.log.info(
         f"Pushing configuration for {devices.count()} device(s)",
         extra={"device_pks": config.device_pks},

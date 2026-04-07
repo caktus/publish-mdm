@@ -397,11 +397,28 @@ class OrganizationForm(PlatformFormMixin, forms.ModelForm):
         fields = (
             "name",
             "slug",
+            "mdm",
+            "tinymdm_apikey_public",
+            "tinymdm_apikey_secret",
+            "tinymdm_account_id",
         )
         widgets: ClassVar = {
             "name": TextInput,
             "slug": TextInput,
+            "mdm": Select,
+            "tinymdm_apikey_public": PasswordInput(render_value=True),
+            "tinymdm_apikey_secret": PasswordInput(render_value=True),
+            "tinymdm_account_id": TextInput,
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # TinyMDM credential fields are only relevant when mdm == "TinyMDM"
+        self.tinymdm_fields = [
+            "tinymdm_apikey_public",
+            "tinymdm_apikey_secret",
+            "tinymdm_account_id",
+        ]
 
 
 class CleanOrganizationInvitationMixin:

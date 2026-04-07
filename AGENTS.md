@@ -171,27 +171,24 @@ if not request.user.is_staff:
 `Policy` (`apps/mdm/models.py`) has:
 
 - `organization` FK → `publish_mdm.Organization` (nullable for legacy rows)
-- `mdm` field — either `"Android Enterprise"` or `"TinyMDM"`
-- `PolicyManager` filters by `settings.ACTIVE_MDM["name"]`
 
 Policy views scope queries via `Policy.objects.filter(organization=request.organization)`.
 The `get_object_or_404` pattern in HTMX sub-views includes `organization=request.organization`
 to prevent cross-org access.
 
-### TinyMDM vs Android Enterprise policies
+### MDM selection per organization
 
-The `Policy` model is shared between both MDMs (differentiated by the `mdm` field):
+Each `Organization` has an `mdm` field (choices driven by `settings.MDM_REGISTRY`,
+default `"TinyMDM"`). The MDM type and TinyMDM API credentials are configured in the
+Django admin (`/admin/publish_mdm/organization/`) or the Create Organization form.
 
-- **Android Enterprise (AMAPI)**: the full policy editor (password, VPN, kiosk,
-  applications, variables) is used. `PolicySerializer.to_dict()` generates AMAPI JSON.
-- **TinyMDM**: only `name` and `policy_id` are relevant. `policy_id` is the ID of the
-  pre-configured policy in TinyMDM's console — users enter this ID and TinyMDM manages
-  all policy configuration on its own side. The normalized AMAPI fields are stored but
-  not used.
-
-The default MDM (`settings.ACTIVE_MDM`) defaults to TinyMDM. Set
-`ACTIVE_MDM_NAME=Android Enterprise` and
-`ACTIVE_MDM_CLASS=apps.mdm.mdms.AndroidEnterprise` to switch.
+- **Android Enterprise (AMAPI)**: credentials (`ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE`,
+  `ANDROID_ENTERPRISE_ID`) are server-wide environment variables. The full policy editor
+  is used.
+- **TinyMDM**: API credentials (`tinymdm_apikey_public`, `tinymdm_apikey_secret`,
+  `tinymdm_account_id`) are stored per-org as encrypted fields. They fall back to the
+  `TINYMDM_*` environment variables when not set on the org (backwards compatibility).
+  Only `name` and `policy_id` on `Policy` are relevant.
 
 ## Skills
 

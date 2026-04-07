@@ -126,7 +126,9 @@ class FleetAdmin(admin.ModelAdmin):
                 ),
             )
         # If the policy has changed, add the group to the new policy
-        if "policy" in form.changed_data and (active_mdm := get_active_mdm_instance(obj.organization)):
+        if "policy" in form.changed_data and (
+            active_mdm := get_active_mdm_instance(obj.organization)
+        ):
             try:
                 active_mdm.add_group_to_policy(obj)
             except (GoogleAPIClientError, RequestException) as e:

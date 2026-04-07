@@ -32,8 +32,9 @@ class MDMDevice(dict):
 class AndroidEnterprise(MDM):
     name = "Android Enterprise"
 
-    def __init__(self):
+    def __init__(self, organization=None):
         self.api_errors = []
+        self.organization = organization
         self.enterprise_id = os.getenv("ANDROID_ENTERPRISE_ID")
         self.service_account_file = os.getenv("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE")
         if (self.enterprise_id or self.service_account_file) and not self.is_configured:
@@ -321,7 +322,7 @@ class AndroidEnterprise(MDM):
         self.create_new_devices(fleet, mdm_devices_to_create)
         # Link snapshots to devices
         # Get all snapshots that don't have a device
-        qs = DeviceSnapshot.all_mdms.filter(mdm_device_id=None).select_for_update()
+        qs = DeviceSnapshot.objects.filter(mdm_device_id=None).select_for_update()
         # Get the ID for each snapshot's device_id
         qs = qs.annotate(
             existing_device_id=Subquery(
@@ -417,10 +418,14 @@ class AndroidEnterprise(MDM):
     def sync_fleets(self, push_config: bool = True):
         """
         Synchronizes all configured fleets with Android Enterprise and updates the
-        applicable device configurations.
+        applicable device configurations. If self.organization is set, only fleets
+        for that org are synced.
         """
         logger.info("Syncing fleets with Android Enterprise")
-        for fleet in Fleet.objects.all():
+        qs = Fleet.objects.all()
+        if self.organization is not None:
+            qs = qs.filter(organization=self.organization)
+        for fleet in qs:
             self.sync_fleet(fleet=fleet, push_config=push_config)
 
     def create_group(self, fleet: Fleet):

@@ -29,25 +29,27 @@ class TinyMDMRetry(Retry):
 class TinyMDM(MDM):
     name = "TinyMDM"
 
-    def __init__(self, apikey_public=None, apikey_secret=None, account_id=None):
+    def __init__(self, organization=None):
         self.api_errors = []
-        self._apikey_public = apikey_public
-        self._apikey_secret = apikey_secret
-        self._account_id = account_id
+        self.organization = organization
 
     @cached_property
     def session(self) -> LimiterSession:
         """
         Creates a requests session suitable for use with the TinyMDM API. Should be
-        shared across all requests during a to avoid hitting the rate limit.
-        Per-org credentials take precedence over environment variables.
+        shared across all requests during a single operation to avoid hitting the rate limit.
+        Per-org credentials stored on the Organization take precedence over environment variables.
         """
         session = LimiterSession(per_second=5)
 
+        org = self.organization
         headers = {
-            "X-Tinymdm-Manager-Apikey-Public": self._apikey_public or get_secret("TINYMDM_APIKEY_PUBLIC"),
-            "X-Tinymdm-Manager-Apikey-Secret": self._apikey_secret or get_secret("TINYMDM_APIKEY_SECRET"),
-            "X-Account-Id": self._account_id or get_secret("TINYMDM_ACCOUNT_ID"),
+            "X-Tinymdm-Manager-Apikey-Public": (org.tinymdm_apikey_public if org else None)
+            or get_secret("TINYMDM_APIKEY_PUBLIC"),
+            "X-Tinymdm-Manager-Apikey-Secret": (org.tinymdm_apikey_secret if org else None)
+            or get_secret("TINYMDM_APIKEY_SECRET"),
+            "X-Account-Id": (org.tinymdm_account_id if org else None)
+            or get_secret("TINYMDM_ACCOUNT_ID"),
         }
         if not all(headers.values()):
             logger.warning("TinyMDM API credentials not configured.")
@@ -237,7 +239,7 @@ class TinyMDM(MDM):
         self.create_new_devices(fleet, mdm_devices_to_create)
         # Link snapshots to devices
         # Get all snapshots that don't have a device
-        qs = DeviceSnapshot.all_mdms.filter(mdm_device_id=None).select_for_update()
+        qs = DeviceSnapshot.objects.filter(mdm_device_id=None).select_for_update()
         # Get the ID for each snapshot's device_id
         qs = qs.annotate(
             existing_device_id=Subquery(
@@ -313,16 +315,16 @@ class TinyMDM(MDM):
             for device in fleet.devices.exclude(app_user_name="").select_related("fleet").all():
                 self.push_device_config(device=device)
 
-    def sync_fleets(self, push_config: bool = True, organization=None):
+    def sync_fleets(self, push_config: bool = True):
         """
         Synchronizes all configured fleets with TinyMDM and updates the applicable
-        device configurations. If organization is provided, only fleets for that org
+        device configurations. If self.organization is set, only fleets for that org
         are synced.
         """
         logger.info("Syncing fleets with TinyMDM")
-        qs = Fleet.objects.filter(mdm_group_id__isnull=False, policy__mdm=self.name)
-        if organization is not None:
-            qs = qs.filter(organization=organization)
+        qs = Fleet.objects.filter(mdm_group_id__isnull=False)
+        if self.organization is not None:
+            qs = qs.filter(organization=self.organization)
         for fleet in qs:
             self.sync_fleet(fleet=fleet, push_config=push_config)
 

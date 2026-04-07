@@ -278,7 +278,7 @@ class TestOrganizationAdmin(BaseTestAdmin):
                 response,
                 (
                     "The organization was created but the following "
-                    f"API error occurred while setting up its default Fleet:"
+                    "API error occurred while setting up its default Fleet:"
                 ),
             )
 

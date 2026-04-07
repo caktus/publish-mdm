@@ -126,7 +126,6 @@ def policy_add(request, organization_slug):
         form = PolicyNameForm(request.POST)
         if form.is_valid():
             policy = form.save(commit=False)
-            policy.mdm = request.organization.mdm
             # policy_id: "policy_" (7) + up to 50 chars of slug + "_" (1) + 8 random chars = ≤66 chars,
             # well within the 255-char field limit; random suffix prevents collisions.
             policy.policy_id = f"policy_{slugify(policy.name)[:50]}_{get_random_string(8)}"

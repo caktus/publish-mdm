@@ -2,24 +2,52 @@
 
 import os
 
-import apps.infisical.fields
 from django.db import migrations, models
 
+import apps.infisical.fields
 
-def set_org_mdm_from_env(apps, schema_editor):
-    """Set organization.mdm from ACTIVE_MDM_NAME env var for zero-downtime deployment."""
-    active_mdm_name = os.environ.get("ACTIVE_MDM_NAME", "TinyMDM")
-    valid_choices = {"TinyMDM", "Android Enterprise"}
-    if active_mdm_name not in valid_choices:
-        active_mdm_name = "TinyMDM"
+
+def set_org_mdm_from_policies(apps, schema_editor):
+    """Seed Organization.mdm and TinyMDM credentials for all existing organizations.
+
+    Strategy:
+    - If the org has at least one policy, use the mdm value from its first policy
+      (policies were previously tagged with the server-wide ACTIVE_MDM_NAME, so all
+      policies in a single-MDM deployment share the same value).
+    - If the org has no policies, fall back to the ACTIVE_MDM_NAME env var, then "TinyMDM".
+    - If the resolved mdm is "TinyMDM", also copy the global TINYMDM_* env vars into
+      the org's credential fields so that existing deployments continue working without
+      manual re-configuration.
+    """
     Organization = apps.get_model("publish_mdm", "Organization")
-    Organization.objects.update(mdm=active_mdm_name)
+    Policy = apps.get_model("mdm", "Policy")
+    valid_choices = {"TinyMDM", "Android Enterprise"}
+    fallback_mdm = os.environ.get("ACTIVE_MDM_NAME", "TinyMDM")
+    if fallback_mdm not in valid_choices:
+        fallback_mdm = "TinyMDM"
+
+    for org in Organization.objects.all():
+        first_policy = Policy.objects.filter(organization=org).order_by("pk").first()
+        if first_policy and first_policy.mdm in valid_choices:
+            mdm_name = first_policy.mdm
+        else:
+            mdm_name = fallback_mdm
+
+        org.mdm = mdm_name
+
+        if mdm_name == "TinyMDM":
+            # Seed env-var credentials so existing orgs keep working
+            org.tinymdm_apikey_public = os.environ.get("TINYMDM_APIKEY_PUBLIC") or None
+            org.tinymdm_apikey_secret = os.environ.get("TINYMDM_APIKEY_SECRET") or None
+            org.tinymdm_account_id = os.environ.get("TINYMDM_ACCOUNT_ID") or None
+
+        org.save()
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("publish_mdm", "0014_organization_public_signup_enabled"),
+        ("mdm", "0009_feature_policy_editor"),
     ]
 
     operations = [
@@ -63,5 +91,5 @@ class Migration(migrations.Migration):
                 verbose_name="TinyMDM API key (secret)",
             ),
         ),
-        migrations.RunPython(set_org_mdm_from_env, migrations.RunPython.noop),
+        migrations.RunPython(set_org_mdm_from_policies, migrations.RunPython.noop),
     ]
