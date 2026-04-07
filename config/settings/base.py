@@ -430,7 +430,11 @@ if os.getenv("SECRETS_FILE"):
 else:
     SECRETS = {}
 
-# The currently active MDM. Defaults to TinyMDM
+# DEPRECATED: ACTIVE_MDM_NAME and ACTIVE_MDM_CLASS are no longer used to select the
+# active MDM at runtime. Each Organization now has its own `mdm` field.
+# These settings remain only as fallback for get_active_mdm_instance(organization=None)
+# and for the data migration that seeds organization.mdm on first deploy.
+# They will be removed in a future release.
 ACTIVE_MDM = {
     "name": os.getenv("ACTIVE_MDM_NAME", "TinyMDM"),
     "class": os.getenv("ACTIVE_MDM_CLASS", "apps.mdm.mdms.TinyMDM"),

@@ -31,7 +31,7 @@
                 class="btn btn-outline btn-primary flex items-center justify-center text-sm px-4 py-2"
                 data-modal-target="qr-codes-modal"
                 data-modal-toggle="qr-codes-modal"
-                hx-get="{% url 'publish_mdm:check-mdm-license-limit' %}"
+                hx-get="{% url 'publish_mdm:check-mdm-license-limit' organization.slug %}"
                 hx-target="#license-limit-messages">
             <svg class="w-[20px] h-[20px] mr-2"
                  aria-hidden="true"

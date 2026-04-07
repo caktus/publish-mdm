@@ -24,7 +24,7 @@ from apps.infisical.api import kms_api
 from apps.infisical.fields import EncryptedCharField, EncryptedEmailField
 from apps.infisical.managers import EncryptedManager
 from apps.mdm.mdms import get_active_mdm_instance
-from apps.mdm.models import Fleet, Policy, PolicyApplication
+from apps.mdm.models import Fleet, MDMChoices, Policy, PolicyApplication
 from apps.users.models import User
 
 from .etl import template
@@ -51,6 +51,31 @@ class Organization(AbstractBaseModel):
         default=False,
         help_text="Enable a public sign-up page, where anyone can enter an email address to receive an invite.",
     )
+    mdm = models.CharField(
+        max_length=50,
+        choices=MDMChoices,
+        default=MDMChoices.TINYMDM,
+        help_text="The Mobile Device Management system used by this organization.",
+    )
+    # Per-org TinyMDM API credentials (fall back to env vars when blank/null)
+    tinymdm_apikey_public = EncryptedCharField(
+        null=True,
+        blank=True,
+        verbose_name="TinyMDM API key (public)",
+        help_text="TinyMDM manager API public key. Leave blank to use the server-wide env var.",
+    )
+    tinymdm_apikey_secret = EncryptedCharField(
+        null=True,
+        blank=True,
+        verbose_name="TinyMDM API key (secret)",
+        help_text="TinyMDM manager API secret key. Leave blank to use the server-wide env var.",
+    )
+    tinymdm_account_id = EncryptedCharField(
+        null=True,
+        blank=True,
+        verbose_name="TinyMDM account ID",
+        help_text="TinyMDM account ID. Leave blank to use the server-wide env var.",
+    )
 
     def __str__(self):
         return self.name
@@ -62,14 +87,14 @@ class Organization(AbstractBaseModel):
         """Create a default MDM Fleet for the organization if the active MDM's API is
         configured.
         """
-        active_mdm = get_active_mdm_instance()
+        active_mdm = get_active_mdm_instance(self)
         if not active_mdm:
             return None
         # Create an org-specific default policy
         policy = Policy.all_mdms.create(
             name="Default",
             policy_id=f"policy_default_{get_random_string(12)}",
-            mdm=settings.ACTIVE_MDM["name"],
+            mdm=self.mdm,
             organization=self,
         )
         # Create the pinned ODK Collect app row (order=0) so new policies are consistent

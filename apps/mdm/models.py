@@ -1,7 +1,6 @@
 import json
 
 import structlog
-from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
@@ -139,7 +138,7 @@ class PolicyVariableScope(models.TextChoices):
 
 class PolicyManager(models.Manager):
     def get_queryset(self):
-        return super().get_queryset().filter(mdm=settings.ACTIVE_MDM["name"])
+        return super().get_queryset()
 
 
 class Policy(models.Model):
@@ -426,7 +425,7 @@ def enroll_qr_code_path(fleet, filename):
 
 class FleetManager(models.Manager):
     def get_queryset(self):
-        return super().get_queryset().filter(policy__mdm=settings.ACTIVE_MDM["name"])
+        return super().get_queryset()
 
 
 class Fleet(models.Model):
@@ -530,7 +529,7 @@ class PushMethodChoices(models.TextChoices):
 
 class DeviceManager(models.Manager):
     def get_queryset(self):
-        return super().get_queryset().filter(fleet__policy__mdm=settings.ACTIVE_MDM["name"])
+        return super().get_queryset()
 
 
 class Device(models.Model):
@@ -638,11 +637,7 @@ class Device(models.Model):
 
 class DeviceSnapshotManager(models.Manager):
     def get_queryset(self):
-        return (
-            super()
-            .get_queryset()
-            .filter(mdm_device__fleet__policy__mdm=settings.ACTIVE_MDM["name"])
-        )
+        return super().get_queryset()
 
 
 class DeviceSnapshot(models.Model):
@@ -747,7 +742,7 @@ class DeviceSnapshotApp(models.Model):
 
 class FirmwareSnapshotManager(models.Manager):
     def get_queryset(self):
-        return super().get_queryset().filter(device__fleet__policy__mdm=settings.ACTIVE_MDM["name"])
+        return super().get_queryset()
 
 
 class FirmwareSnapshot(models.Model):

@@ -277,8 +277,8 @@ class TestOrganizationAdmin(BaseTestAdmin):
             assertContains(
                 response,
                 (
-                    f"The organization was created but the following {settings.ACTIVE_MDM['name']} "
-                    f"API error occurred while setting up its default Fleet:<br><code>{mdm_api_error}</code>"
+                    "The organization was created but the following "
+                    f"API error occurred while setting up its default Fleet:"
                 ),
             )
 

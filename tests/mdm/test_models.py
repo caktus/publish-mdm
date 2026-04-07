@@ -300,10 +300,10 @@ class TestModels(TestAllMDMs):
         fleet = FleetFactory(enroll_token_expires_at=fake.future_datetime(tzinfo=dt.UTC))
         assert not fleet.enroll_token_expired
 
-    def test_fleet_enrollment_url(self, settings):
+    def test_fleet_enrollment_url(self):
         """Tests the Fleet.enrollment_url property."""
         fleet = FleetFactory(enroll_token_value=fake.pystr())
-        if settings.ACTIVE_MDM["name"] == "Android Enterprise":
+        if fleet.policy.mdm == "Android Enterprise":
             assert (
                 fleet.enrollment_url
                 == f"https://enterprise.google.com/android/enroll?et={fleet.enroll_token_value}"

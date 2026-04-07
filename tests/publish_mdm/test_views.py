@@ -1295,7 +1295,7 @@ class TestCreateOrganization(ViewTestBase):
             assertContains(
                 response,
                 (
-                    f"The organization was created but the following {settings.ACTIVE_MDM['name']} "
+                    f"The organization was created but the following {organization.mdm} "
                     "API error occurred while setting up its default Fleet:"
                     f'<code class="block text-xs mt-2">{mdm_api_error}</code>'
                 ),
@@ -2189,7 +2189,7 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
             assertTemplateNotUsed(response, "publish_mdm/devices_list.html")
         # Ensure the forms for enrolling devices are included in the context
         assert isinstance(response.context.get("enroll_form"), DeviceEnrollmentQRCodeForm)
-        if settings.ACTIVE_MDM["name"] == "TinyMDM":
+        if organization.mdm == "TinyMDM":
             assert isinstance(response.context.get("byod_form"), BYODDeviceEnrollmentForm)
         else:
             assert "byod_form" not in response.context
@@ -2832,9 +2832,10 @@ class TestBYODDeviceEnrollment(ViewTestBase, TestTinyMDMOnly):
     def url(self, organization):
         return reverse("publish_mdm:add-byod-device", args=[organization.slug])
 
-    def test_android_enterprise(self, client, url, user, settings):
+    def test_android_enterprise(self, client, url, user, organization):
         """The view is only accessible when TinyMDM is the active MDM."""
-        settings.ACTIVE_MDM["name"] = "Android Enterprise"
+        organization.mdm = "Android Enterprise"
+        organization.save()
         response = client.get(url)
         assert response.status_code == 404
 
@@ -2945,12 +2946,13 @@ class TestCheckMDMLicenseLimit(ViewTestBase, TestTinyMDMOnly):
     """Test the check_mdm_license_limit view."""
 
     @pytest.fixture
-    def url(self):
-        return reverse("publish_mdm:check-mdm-license-limit")
+    def url(self, organization):
+        return reverse("publish_mdm:check-mdm-license-limit", args=[organization.slug])
 
-    def test_android_enterprise(self, client, url, user, settings):
+    def test_android_enterprise(self, client, url, user, organization):
         """The view is only accessible when TinyMDM is the active MDM."""
-        settings.ACTIVE_MDM["name"] = "Android Enterprise"
+        organization.mdm = "Android Enterprise"
+        organization.save()
         response = client.get(url)
         assert response.status_code == 404
 

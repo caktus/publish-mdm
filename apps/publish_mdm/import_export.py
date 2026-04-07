@@ -327,7 +327,7 @@ class DeviceResource(resources.ModelResource):
         super().after_import(dataset, result, **kwargs)
         if dry_run:
             return
-        active_mdm = get_active_mdm_instance()
+        active_mdm = get_active_mdm_instance(self.organization)
         if not active_mdm:
             return
         device_pks = [row.object_id for row in result if row.is_new() or row.is_update()]

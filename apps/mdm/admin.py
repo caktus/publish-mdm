@@ -1,5 +1,4 @@
 import structlog
-from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin import helpers
 from django.contrib.admin.decorators import action
@@ -55,7 +54,7 @@ class PolicyAdmin(admin.ModelAdmin):
         # Save inlines first so applications are persisted before pushing to MDM.
         super().save_related(request, form, formsets, change)
         policy = form.instance
-        if active_mdm := get_active_mdm_instance():
+        if active_mdm := get_active_mdm_instance(policy.organization):
             try:
                 active_mdm.create_or_update_policy(policy)
             except (GoogleAPIClientError, RequestException) as e:
@@ -122,12 +121,12 @@ class FleetAdmin(admin.ModelAdmin):
             messages.error(
                 request,
                 mark_safe(
-                    f"Unable to pull the fleet's devices from {settings.ACTIVE_MDM['name']} due to "
+                    f"Unable to pull the fleet's devices from the MDM due to "
                     f"the following error:<br><code>{getattr(e, 'api_error', e)}</code>"
                 ),
             )
         # If the policy has changed, add the group to the new policy
-        if "policy" in form.changed_data and (active_mdm := get_active_mdm_instance()):
+        if "policy" in form.changed_data and (active_mdm := get_active_mdm_instance(obj.organization)):
             try:
                 active_mdm.add_group_to_policy(obj)
             except (GoogleAPIClientError, RequestException) as e:
@@ -187,7 +186,7 @@ class FleetAdmin(admin.ModelAdmin):
             # Delete the MDM group first. Won't delete anything if the fleet
             # is linked to devices either in the database or in the MDM.
             error = None
-            if active_mdm := get_active_mdm_instance():
+            if active_mdm := get_active_mdm_instance(obj.organization):
                 try:
                     if not active_mdm.delete_group(obj):
                         error = "Cannot delete the fleet because it has devices linked to it."
@@ -385,7 +384,7 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
             messages.error(
                 request,
                 mark_safe(
-                    f"Unable to update the device in {settings.ACTIVE_MDM['name']} due to "
+                    f"Unable to update the device in the MDM due to "
                     f"the following error:<br><code>{getattr(e, 'api_error', e)}</code>"
                 ),
             )

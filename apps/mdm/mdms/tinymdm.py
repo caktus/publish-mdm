@@ -29,22 +29,25 @@ class TinyMDMRetry(Retry):
 class TinyMDM(MDM):
     name = "TinyMDM"
 
-    def __init__(self):
+    def __init__(self, apikey_public=None, apikey_secret=None, account_id=None):
         self.api_errors = []
+        self._apikey_public = apikey_public
+        self._apikey_secret = apikey_secret
+        self._account_id = account_id
 
     @cached_property
     def session(self) -> LimiterSession:
         """
         Creates a requests session suitable for use with the TinyMDM API. Should be
         shared across all requests during a to avoid hitting the rate limit.
+        Per-org credentials take precedence over environment variables.
         """
         session = LimiterSession(per_second=5)
 
         headers = {
-            # TODO: Move these to secure credential store
-            "X-Tinymdm-Manager-Apikey-Public": get_secret("TINYMDM_APIKEY_PUBLIC"),
-            "X-Tinymdm-Manager-Apikey-Secret": get_secret("TINYMDM_APIKEY_SECRET"),
-            "X-Account-Id": get_secret("TINYMDM_ACCOUNT_ID"),
+            "X-Tinymdm-Manager-Apikey-Public": self._apikey_public or get_secret("TINYMDM_APIKEY_PUBLIC"),
+            "X-Tinymdm-Manager-Apikey-Secret": self._apikey_secret or get_secret("TINYMDM_APIKEY_SECRET"),
+            "X-Account-Id": self._account_id or get_secret("TINYMDM_ACCOUNT_ID"),
         }
         if not all(headers.values()):
             logger.warning("TinyMDM API credentials not configured.")
@@ -310,13 +313,17 @@ class TinyMDM(MDM):
             for device in fleet.devices.exclude(app_user_name="").select_related("fleet").all():
                 self.push_device_config(device=device)
 
-    def sync_fleets(self, push_config: bool = True):
+    def sync_fleets(self, push_config: bool = True, organization=None):
         """
         Synchronizes all configured fleets with TinyMDM and updates the applicable
-        device configurations.
+        device configurations. If organization is provided, only fleets for that org
+        are synced.
         """
         logger.info("Syncing fleets with TinyMDM")
-        for fleet in Fleet.objects.filter(mdm_group_id__isnull=False):
+        qs = Fleet.objects.filter(mdm_group_id__isnull=False, policy__mdm=self.name)
+        if organization is not None:
+            qs = qs.filter(organization=organization)
+        for fleet in qs:
             self.sync_fleet(fleet=fleet, push_config=push_config)
 
     def create_group(self, fleet: Fleet):

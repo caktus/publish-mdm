@@ -6,12 +6,14 @@ django.setup()
 
 from apps.mdm.mdms import get_active_mdm_instance  # noqa: E402
 from apps.mdm.models import Device  # noqa: E402
+from apps.publish_mdm.models import Organization  # noqa: E402
 
 
 @dg.asset(description="Get a list of devices from the MDM", group_name="mdm_assets")
 def mdm_device_snapshot():
-    if active_mdm := get_active_mdm_instance():
-        active_mdm.sync_fleets(push_config=False)
+    for org in Organization.objects.all():
+        if active_mdm := get_active_mdm_instance(org):
+            active_mdm.sync_fleets(push_config=False, organization=org)
 
 
 class DeviceConfig(dg.Config):
@@ -21,16 +23,19 @@ class DeviceConfig(dg.Config):
 @dg.asset(description="Push MDM device configuration")
 def push_mdm_device_config(context: dg.AssetExecutionContext, config: DeviceConfig):
     """Push the device configuration to the MDM for the specified device PKs."""
-    devices = Device.objects.filter(pk__in=config.device_pks)
+    devices = Device.objects.filter(pk__in=config.device_pks).select_related(
+        "fleet__organization"
+    )
     context.log.info(
         f"Pushing configuration for {devices.count()} device(s)",
         extra={"device_pks": config.device_pks},
     )
     if not devices.exists():
         raise ValueError(f"Devices with IDs {config.device_pks} not found.")
-    if active_mdm := get_active_mdm_instance():
-        failed_pks = []
-        for device in devices:
+    failed_pks = []
+    for device in devices:
+        org = device.fleet.organization
+        if active_mdm := get_active_mdm_instance(org):
             try:
                 active_mdm.push_device_config(device=device)
                 context.log.info(f"Configuration pushed for device {device.device_id}")
@@ -44,5 +49,9 @@ def push_mdm_device_config(context: dg.AssetExecutionContext, config: DeviceConf
                     f"{error_data=})"
                 )
                 failed_pks.append(device.pk)
-        if failed_pks:
-            raise ValueError(f"Failed to push configuration for devices: {failed_pks}")
+        else:
+            context.log.warning(
+                f"MDM not configured for organization {org}. Skipping device {device.device_id}."
+            )
+    if failed_pks:
+        raise ValueError(f"Failed to push configuration for devices: {failed_pks}")

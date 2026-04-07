@@ -1,7 +1,6 @@
 import json
 
 import structlog
-from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import F, Max, Q
@@ -77,12 +76,12 @@ def _push_policy_to_mdm(policy):
     We always attempt to push device-specific policies even if the base policy
     update fails, because the device may be on the device-specific policy only.
     """
-    active_mdm = get_active_mdm_instance()
+    active_mdm = get_active_mdm_instance(policy.organization)
     if not active_mdm:
         logger.warning(
             "Skipping policy push: MDM is not configured. "
             "Check that the required environment variables are set and restart the server.",
-            active_mdm_name=settings.ACTIVE_MDM["name"],
+            organization=policy.organization,
             policy=policy,
         )
         return
@@ -111,7 +110,7 @@ def policy_list(request, organization_slug):
     policies = Policy.objects.filter(organization=request.organization)
     context = {
         "policies": policies,
-        "show_policy_id": settings.ACTIVE_MDM["name"] != "Android Enterprise",
+        "show_policy_id": request.organization.mdm != "Android Enterprise",
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
             items=[("Policies", "mdm:policy-list")],
@@ -127,7 +126,7 @@ def policy_add(request, organization_slug):
         form = PolicyNameForm(request.POST)
         if form.is_valid():
             policy = form.save(commit=False)
-            policy.mdm = settings.ACTIVE_MDM["name"]
+            policy.mdm = request.organization.mdm
             # policy_id: "policy_" (7) + up to 50 chars of slug + "_" (1) + 8 random chars = ≤66 chars,
             # well within the 255-char field limit; random suffix prevents collisions.
             policy.policy_id = f"policy_{slugify(policy.name)[:50]}_{get_random_string(8)}"

@@ -612,7 +612,7 @@ def create_organization(request: HttpRequest):
             messages.warning(
                 request,
                 mark_safe(
-                    f"The organization was created but the following {settings.ACTIVE_MDM['name']} "
+                    f"The organization was created but the following {organization.mdm} "
                     "API error occurred while setting up its default Fleet:"
                     f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
                 ),
@@ -949,7 +949,7 @@ def devices_list(request: HttpRequest, organization_slug):
         "search_form": search_form,
     }
 
-    if settings.ACTIVE_MDM["name"] == "TinyMDM":
+    if request.organization.mdm == "TinyMDM":
         context["byod_form"] = BYODDeviceEnrollmentForm(request.organization, prefix="byod")
 
     template = "publish_mdm/devices_list.html"
@@ -1260,14 +1260,14 @@ def add_byod_device(request: HttpRequest, organization_slug):
     Fleet. If successful, the user should receive an email from TinyMDM with
     instructions on how to enroll a device.
     """
-    if settings.ACTIVE_MDM["name"] != "TinyMDM":
+    if request.organization.mdm != "TinyMDM":
         raise Http404
     form = BYODDeviceEnrollmentForm(request.organization, request.POST or None, prefix="byod")
     enrollment_messages = []
     if form.is_valid():
         success = False
         error = None
-        if active_mdm := get_active_mdm_instance():
+        if active_mdm := get_active_mdm_instance(request.organization):
             try:
                 active_mdm.create_user(**form.cleaned_data)
             except RequestException as e:
@@ -1299,14 +1299,14 @@ def add_byod_device(request: HttpRequest, organization_slug):
 
 
 @login_required
-def check_mdm_license_limit(request: HttpRequest):
+def check_mdm_license_limit(request: HttpRequest, organization_slug):
     """Checks if the TinyMDM account's device limit has been reached. If it has
     been reached, returns HTML for displaying an error message.
     """
-    if settings.ACTIVE_MDM["name"] != "TinyMDM":
+    if request.organization.mdm != "TinyMDM":
         raise Http404
     message = None
-    if active_mdm := get_active_mdm_instance():
+    if active_mdm := get_active_mdm_instance(request.organization):
         try:
             limit, enrolled = active_mdm.check_license_limit()
         except RequestException as e:
