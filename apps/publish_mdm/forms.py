@@ -7,7 +7,6 @@ import requests
 import structlog
 from django import forms
 from django.conf import settings
-from django.db.models.functions import Lower
 from django.http import QueryDict
 from django.urls import reverse_lazy
 from import_export import forms as import_export_forms
@@ -828,10 +827,7 @@ class DeviceAppUserForm(forms.ModelForm):
         if self.instance.fleet.project:
             self.fields["app_user_name"].choices = [
                 ("", "---"),
-                *(
-                    (i.name, i.name)
-                    for i in self.instance.fleet.project.app_users.order_by(Lower("name"))
-                ),
+                *((i.name, i.name) for i in self.instance.fleet.project.app_users.order_by("name")),
             ]
         self.fields["app_user_name"].widget.attrs["hx-post"] = reverse_lazy(
             "publish_mdm:device-update-app-user",
