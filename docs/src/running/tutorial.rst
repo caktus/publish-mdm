@@ -46,6 +46,13 @@ Development <../local-development/index>` guide to run Publish MDM locally.
       - ``ACTIVE_MDM_CLASS=apps.mdm.mdms.AndroidEnterprise``
       - ``ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE``: The path to a Google service account file.
         See the `Google docs <https://developers.google.com/android/management/service-account>`_ on how to create one.
+      - ``ANDROID_ENTERPRISE_PUBSUB_TOKEN``: (Optional, needed if you'll enable real-time device enrollment notifications).
+        This is the shared secret token that will be used for the notifications push endpoint at ``/mdm/api/amapi/notifications/``.
+        The Pub/Sub API must be enabled for the Google project used to create the service account, and the service account must have the "Pub/Sub Admin" role.
+        See `this guide <https://docs.cloud.google.com/pubsub/docs/publish-receive-messages-console#before-you-begin>`_ for more details.
+        Then run ``python manage.py configure_amapi_pubsub`` to create the Pub/Sub topic
+        (``projects/{project_id}/topics/publish-mdm-{environment}``) and subscription, and grant
+        Android Device Policy the right to publish to it.
 
    - To use TinyMDM as your MDM service provider (the default if ``ACTIVE_MDM_NAME`` is not set),
      set ``TINYMDM_ACCOUNT_ID``, ``TINYMDM_APIKEY_PUBLIC``, and ``TINYMDM_APIKEY_SECRET``.

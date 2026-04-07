@@ -436,6 +436,12 @@ ACTIVE_MDM = {
     "class": os.getenv("ACTIVE_MDM_CLASS", "apps.mdm.mdms.TinyMDM"),
 }
 
+# Shared secret token for the AMAPI Pub/Sub push endpoint.  When set, all push
+# notification requests must include ``?token=<value>`` in the URL; requests
+# without a matching token are rejected with HTTP 403.  Must be set for the
+# endpoint to accept any requests.
+ANDROID_ENTERPRISE_PUBSUB_TOKEN = os.getenv("ANDROID_ENTERPRISE_PUBSUB_TOKEN")
+
 # Optional domain (no scheme, no trailing slash, e.g. "myapp.example.com") used to build
 # the Android Enterprise enrollment callback URL over HTTPS. When set, it replaces the host
 # derived from the incoming request, which is useful for local development where the request

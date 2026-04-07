@@ -161,7 +161,7 @@
             </button>
             <!-- Dropdown menu -->
             <div id="dropdownProjectName"
-                 class="hidden z-10 w-60 bg-white rounded divide-y divide-gray-100 shadow dark:bg-gray-700 dark:divide-gray-600"
+                 class="hidden z-10 w-60 max-h-64 overflow-y-auto bg-white rounded divide-y divide-gray-100 shadow dark:bg-gray-700 dark:divide-gray-600"
                  data-popper-placement="bottom">
                 {% for project in request.odk_projects %}
                     {% if project != request.odk_project %}

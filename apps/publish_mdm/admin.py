@@ -267,7 +267,7 @@ class AndroidEnterpriseAccountAdmin(admin.ModelAdmin):
                     if callback_domain
                     else request.build_absolute_uri(callback_path)
                 )
-                signup = AndroidEnterprise.get_signup_url(callback_url=callback_url)
+                signup = AndroidEnterprise().get_signup_url(callback_url=callback_url)
                 obj.signup_url_name = signup["name"]
                 obj.signup_url = signup["url"]
                 obj.save(update_fields=["signup_url_name", "signup_url", "modified_at"])

@@ -3222,7 +3222,7 @@ class TestEnterpriseSetup(TestAndroidEnterpriseOnly):
         organization.android_enterprise.delete()
         mocker.patch(
             "apps.publish_mdm.views.AndroidEnterprise.get_signup_url",
-            side_effect=RuntimeError("API unavailable"),
+            side_effect=ValueError("API unavailable"),
         )
         response = client.get(url, follow=True)
         assertRedirects(
@@ -3322,7 +3322,7 @@ class TestEnterpriseCallback(TestAndroidEnterpriseOnly):
         """If create_enterprise raises, return 400."""
         mocker.patch(
             "apps.publish_mdm.views.AndroidEnterprise.create_enterprise",
-            side_effect=RuntimeError("Google API error"),
+            side_effect=ValueError("Google API error"),
         )
         response = client.get(
             url,
