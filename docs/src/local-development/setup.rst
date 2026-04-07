@@ -49,6 +49,11 @@ rather use Docker, see :doc:`../running/docker-compose`.
     export ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE=
     export ACTIVE_MDM_NAME="Android Enterprise"
     export ACTIVE_MDM_CLASS=apps.mdm.mdms.AndroidEnterprise
+    # Optional domain (no scheme, no trailing slash, e.g. "myapp.example.com") used to build
+    # the Android Enterprise enrollment callback URL over HTTPS. When set, it replaces the host
+    # derived from the incoming request, which is useful for local development where the request
+    # host is "localhost" and Google's API rejects it.
+    export ANDROID_ENTERPRISE_CALLBACK_DOMAIN=
 
 Update the environment variables as needed for your local setup. You may need to
 add a ``PGPASSWORD`` variable if your database expects a password. If the database
