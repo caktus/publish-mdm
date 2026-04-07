@@ -104,16 +104,14 @@ class PolicyApplicationForm(PlatformFormMixin, forms.ModelForm):
 
     class Meta:
         model = PolicyApplication
-        fields = ("package_name", "install_type", "disabled", "default_permission_policy")
+        fields = ("package_name", "install_type", "default_permission_policy")
         widgets: ClassVar = {
             "package_name": TextInput,
             "install_type": Select,
-            "disabled": CheckboxInput,
             "default_permission_policy": Select,
         }
         labels: ClassVar = {
             "install_type": "Install type",
-            "disabled": "Disabled",
             "default_permission_policy": "Permission policy",
         }
 
