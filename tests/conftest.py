@@ -6,7 +6,7 @@ from requests.exceptions import HTTPError
 
 ENV_VARS = {
     "TinyMDM": ("TINYMDM_APIKEY_PUBLIC", "TINYMDM_APIKEY_SECRET", "TINYMDM_ACCOUNT_ID"),
-    "Android Enterprise": ("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE", "ANDROID_ENTERPRISE_ID"),
+    "Android Enterprise": ("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE",),
 }
 ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE = os.path.join(
     os.path.dirname(__file__), "mdm", "android_enterprise_service_account.json"

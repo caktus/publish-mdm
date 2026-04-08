@@ -151,3 +151,13 @@ class OrganizationInvitationFactory(factory.django.DjangoModelFactory):
     email = factory.Faker("email")
     organization = factory.SubFactory(OrganizationFactory)
     key = factory.Sequence(lambda _: get_random_string(64).lower())
+
+
+class AndroidEnterpriseAccountFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.AndroidEnterpriseAccount],
+):
+    class Meta:
+        model = models.AndroidEnterpriseAccount
+
+    organization = factory.SubFactory(OrganizationFactory)

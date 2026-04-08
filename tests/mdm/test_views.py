@@ -4,10 +4,11 @@ import json
 import pytest
 from django.urls import reverse, reverse_lazy
 from django.utils.timezone import now
+from pytest_django.asserts import assertContains, assertRedirects
 
 from apps.mdm.mdms import AndroidEnterprise
 from apps.mdm.models import Device, DeviceSnapshot, Policy, PolicyApplication, PolicyVariable
-from tests.mdm import TestAndroidEnterpriseOnly
+from tests.mdm import TestAllMDMs, TestAndroidEnterpriseOnly
 from tests.mdm.factories import (
     DeviceFactory,
     FleetFactory,
@@ -17,7 +18,7 @@ from tests.mdm.factories import (
 from tests.publish_mdm.factories import OrganizationFactory, UserFactory
 
 
-class PolicyViewBase:
+class PolicyViewBase(TestAllMDMs):
     """Base class for policy editor view tests."""
 
     @pytest.fixture
@@ -82,12 +83,14 @@ class TestPolicyAdd(PolicyViewBase):
         response = client.get(url)
         assert response.status_code == 302
 
-    def test_get(self, client, url, user):
+    def test_get(self, client, url, user, set_mdm_env_vars):
         response = client.get(url)
         assert response.status_code == 200
         assert "form" in response.context
 
-    def test_valid_post_creates_policy_and_redirects(self, client, url, organization):
+    def test_valid_post_creates_policy_and_redirects(
+        self, client, url, organization, set_mdm_env_vars
+    ):
         response = client.post(url, {"name": "My Policy"})
         assert Policy.objects.filter(organization=organization, name="My Policy").exists()
         policy = Policy.objects.get(organization=organization, name="My Policy")
@@ -98,10 +101,17 @@ class TestPolicyAdd(PolicyViewBase):
             reverse("mdm:policy-edit", args=[organization.slug, policy.pk]) in response["Location"]
         )
 
-    def test_invalid_post_returns_form(self, client, url, user):
+    def test_invalid_post_returns_form(self, client, url, user, set_mdm_env_vars):
         response = client.post(url, {"name": ""})
         assert response.status_code == 200
         assert response.context["form"].errors
+
+    def test_requires_configured_mdm(self, client, url, user, organization):
+        response = client.get(url, follow=True)
+        assertRedirects(response, reverse("mdm:policy-list", args=[organization.slug]))
+        assertContains(
+            response, "Sorry, cannot create a policy at this time. Please try again later."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -600,10 +610,7 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
 
     @pytest.fixture(autouse=True)
     def set_enterprise_env(self, set_mdm_env_vars):
-        """Ensure ANDROID_ENTERPRISE_ID is set so enterprise_name resolves correctly.
-        The notification endpoint ignores all notifications not related to the current
-        enterprise.
-        """
+        """Ensure ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE env var is set."""
 
     def post(self, client, body, token=TOKEN):
         url = self.URL

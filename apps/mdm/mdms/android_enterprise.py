@@ -6,6 +6,7 @@ from functools import cached_property
 import structlog
 from django.conf import settings
 from django.contrib.sites.models import Site
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import F, OuterRef, Q, Subquery
 from django.urls import reverse
 from django.utils import timezone
@@ -43,15 +44,31 @@ class MDMDevice(dict):
 class AndroidEnterprise(MDM):
     name = "Android Enterprise"
 
-    def __init__(self):
+    def __init__(self, organization=None):
+        # Do not pass an organization if you only need to perform operations that are
+        # not organization or enterprise-specific (e.g. setting up Pub/Sub, enrolling an enterprise, etc.)
         self.api_errors = []
-        self.enterprise_id = os.getenv("ANDROID_ENTERPRISE_ID")
+        self.organization = organization
         self.service_account_file = os.getenv("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE")
-        if (self.enterprise_id or self.service_account_file) and not self.is_configured:
+        if (
+            organization
+            and (self.enterprise_id or self.service_account_file)
+            and not self.is_configured
+        ):
             raise ValueError(
-                "Android Enterprise MDM credentials are not properly configured or service account file is missing."
+                "Android Enterprise MDM credentials are not properly configured or service account file is missing. "
                 f"{self.enterprise_id=}, {self.service_account_file=}"
             )
+
+    @property
+    def enterprise_id(self):
+        try:
+            account = self.organization.android_enterprise
+            if account.enterprise_id:
+                return account.enterprise_id
+        except (AttributeError, ObjectDoesNotExist):
+            pass
+        return None
 
     @property
     def enterprise_name(self):
@@ -63,8 +80,8 @@ class AndroidEnterprise(MDM):
         both the Android Management and Pub/Sub OAuth scopes.  All API clients
         share this object so that only one service-account key file read is needed.
         """
-        if not self.is_configured:
-            raise ValueError("Android Enterprise API credentials not configured.")
+        if not self.has_valid_service_account_file:
+            raise ValueError("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE is not configured")
         return Credentials.from_service_account_file(
             self.service_account_file,
             scopes=ALL_SCOPES,
@@ -72,15 +89,10 @@ class AndroidEnterprise(MDM):
 
     @cached_property
     def api(self):
-        if not self.is_configured:
-            return None
         return build("androidmanagement", "v1", credentials=self.credentials)
 
     @cached_property
     def pubsub_api(self):
-        if not self.is_configured:
-            logger.warning("Android Enterprise API credentials not configured.")
-            return None
         return build("pubsub", "v1", credentials=self.credentials)
 
     @property
@@ -100,10 +112,38 @@ class AndroidEnterprise(MDM):
 
     @property
     def is_configured(self):
-        return bool(
-            self.enterprise_id
-            and self.service_account_file
-            and os.path.isfile(self.service_account_file)
+        return bool(self.enterprise_id) and self.has_valid_service_account_file
+
+    @property
+    def has_valid_service_account_file(self):
+        return bool(self.service_account_file) and os.path.isfile(self.service_account_file)
+
+    def get_signup_url(self, callback_url: str) -> dict:
+        """Returns {'name': 'signupUrls/...', 'url': 'https://enterprise.google.com/...'}"""
+        return (
+            self.api.signupUrls()
+            .create(
+                projectId=self.credentials.project_id,
+                callbackUrl=callback_url,
+            )
+            .execute()
+        )
+
+    def create_enterprise(self, signup_name: str, enterprise_token: str, display_name: str) -> dict:
+        """Returns {'name': 'enterprises/LC00lvvue0'}"""
+        return (
+            self.api.enterprises()
+            .create(
+                projectId=self.credentials.project_id,
+                signupUrlName=signup_name,
+                enterpriseToken=enterprise_token,
+                body={
+                    "enterpriseDisplayName": display_name,
+                    "pubsubTopic": self.pubsub_topic,
+                    "enabledNotificationTypes": ["ENROLLMENT", "STATUS_REPORT"],
+                },
+            )
+            .execute()
         )
 
     def execute(self, resource_method, raise_exception=True):
@@ -441,7 +481,7 @@ class AndroidEnterprise(MDM):
         applicable device configurations.
         """
         logger.info("Syncing fleets with Android Enterprise")
-        for fleet in Fleet.objects.all():
+        for fleet in self.organization.fleets.all():
             self.sync_fleet(fleet=fleet, push_config=push_config)
 
     def create_group(self, fleet: Fleet):
@@ -528,7 +568,6 @@ class AndroidEnterprise(MDM):
         push_endpoint = self._build_push_endpoint(domain=push_endpoint_domain)
         logger.info(
             "Configuring AMAPI Pub/Sub notifications",
-            enterprise_name=self.enterprise_name,
             topic_name=self.pubsub_topic,
             subscription_name=self.pubsub_subscription,
             push_endpoint=push_endpoint,

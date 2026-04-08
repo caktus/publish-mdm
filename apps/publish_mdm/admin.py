@@ -1,17 +1,21 @@
 from typing import ClassVar
+from urllib.parse import urlencode
 
 import structlog
 from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
+from django.urls import reverse
 from django.utils.html import mark_safe
-from googleapiclient.errors import Error as GoogleAPIClientError
 from invitations.admin import InvitationAdmin
 from requests.exceptions import RequestException
+
+from apps.mdm.mdms import AndroidEnterprise
 
 from .etl.load import generate_and_save_app_user_collect_qrcodes
 from .forms import CentralServerForm
 from .models import (
+    AndroidEnterpriseAccount,
     AppUser,
     AppUserFormTemplate,
     AppUserFormVersion,
@@ -196,10 +200,12 @@ class OrganizationAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
-        if not change:
+        # Create the default fleet for new organizations, unless Android Enterprise is active —
+        # it requires an enrolled enterprise first, so the fleet is created in enterprise_callback.
+        if not change and settings.ACTIVE_MDM["name"] != "Android Enterprise":
             try:
                 obj.create_default_fleet()
-            except (GoogleAPIClientError, RequestException) as e:
+            except RequestException as e:
                 logger.debug("Unable to create the default fleet", organization=obj, exc_info=True)
                 messages.warning(
                     request,
@@ -217,3 +223,59 @@ admin.site.unregister(OrganizationInvitation)
 @admin.register(OrganizationInvitation)
 class OrganizationInvitationAdmin(InvitationAdmin):
     list_display = ("email", "organization", "sent", "accepted")
+
+
+@admin.register(AndroidEnterpriseAccount)
+class AndroidEnterpriseAccountAdmin(admin.ModelAdmin):
+    list_display = ("organization", "enterprise_name", "is_enrolled", "created_at")
+    readonly_fields = (
+        "signup_url_name",
+        "signup_url_link",
+        "callback_token",
+        "enterprise_name",
+        "created_at",
+        "modified_at",
+    )
+    fields = (
+        "organization",
+        "signup_url_name",
+        "signup_url_link",
+        "callback_token",
+        "enterprise_name",
+        "created_at",
+        "modified_at",
+    )
+
+    @admin.display(description="Signup URL")
+    def signup_url_link(self, obj):
+        if obj.signup_url:
+            return mark_safe(
+                f'<a href="{obj.signup_url}" rel="nofollow noreferrer">{obj.signup_url}</a>'
+            )
+        return "—"
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if not change and not obj.signup_url:
+            try:
+                callback_path = reverse(
+                    "publish_mdm:enterprise-callback",
+                    kwargs={"callback_token": obj.callback_token},
+                )
+                callback_domain = settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN
+                callback_url = (
+                    "https://" + callback_domain + callback_path
+                    if callback_domain
+                    else request.build_absolute_uri(callback_path)
+                )
+                next_path = reverse(
+                    "admin:publish_mdm_androidenterpriseaccount_change",
+                    args=[obj.pk],
+                )
+                callback_url += "?" + urlencode({"next": next_path})
+                signup = AndroidEnterprise().get_signup_url(callback_url=callback_url)
+                obj.signup_url_name = signup["name"]
+                obj.signup_url = signup["url"]
+                obj.save(update_fields=["signup_url_name", "signup_url", "modified_at"])
+            except Exception as e:
+                messages.error(request, f"Failed to generate signup URL: {e}")
