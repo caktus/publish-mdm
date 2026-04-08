@@ -2,7 +2,8 @@
     <nav class="bg-gray-50 px-4 lg:px-6 py-2.5 dark:bg-gray-900 order-1 border-b border-gray-200">
         <div class="flex justify-between items-center">
             <div class="flex justify-start items-center">
-                <a href="{% if request.organization %}{{ request.organization.get_absolute_url }}{% else %}{% url 'home' %}{% endif %}" class="flex mr-6">
+                <a href="{% if request.organization %}{{ request.organization.get_absolute_url }}{% else %}{% url 'home' %}{% endif %}"
+                   class="flex mr-6">
                     <div title="Publish MDM"
                          class="mr-3 shadow-md flex items-center p-2 rounded-full ring-2 ring-primary-300 stroke-primary-700 fill-primary-400 stroke-[1.5] border-primary-400 bg-gradient-to-r from-primary-100 via-primary-200 to-primary-200">
                         <svg xmlns="http://www.w3.org/2000/svg"
