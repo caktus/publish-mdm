@@ -137,7 +137,11 @@ class AndroidEnterprise(MDM):
                 projectId=self.credentials.project_id,
                 signupUrlName=signup_name,
                 enterpriseToken=enterprise_token,
-                body={"enterpriseDisplayName": display_name},
+                body={
+                    "enterpriseDisplayName": display_name,
+                    "pubsubTopic": self.pubsub_topic,
+                    "enabledNotificationTypes": ["ENROLLMENT", "STATUS_REPORT"],
+                },
             )
             .execute()
         )

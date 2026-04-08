@@ -1269,7 +1269,8 @@ class TestCreateEnterprise(TestAndroidEnterpriseOnly):
         mock_api.enterprises.return_value.create.return_value.execute.return_value = expected
         mocker.patch("apps.mdm.mdms.android_enterprise.build", return_value=mock_api)
 
-        result = AndroidEnterprise().create_enterprise(
+        mdm = AndroidEnterprise()
+        result = mdm.create_enterprise(
             signup_name="signupUrls/C455570ef9b12bfc",
             enterprise_token="T1234abcd",
             display_name="Acme Corp",
@@ -1280,7 +1281,11 @@ class TestCreateEnterprise(TestAndroidEnterpriseOnly):
             projectId="example-project",
             signupUrlName="signupUrls/C455570ef9b12bfc",
             enterpriseToken="T1234abcd",
-            body={"enterpriseDisplayName": "Acme Corp"},
+            body={
+                "enterpriseDisplayName": "Acme Corp",
+                "pubsubTopic": mdm.pubsub_topic,
+                "enabledNotificationTypes": ["ENROLLMENT", "STATUS_REPORT"],
+            },
         )
 
     def test_raises_when_not_configured(self):
