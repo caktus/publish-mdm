@@ -94,17 +94,47 @@ class AppUserNameColumn(tables.TemplateColumn):
 class DeviceTable(tables.Table):
     """A table for listing MDM Devices."""
 
+    brand = tables.Column(
+        attrs={
+            "th": {"class": "px-4 py-3 whitespace-nowrap hidden md:table-cell"},
+            "td": {"class": "px-4 py-3 hidden md:table-cell"},
+        }
+    )
+    model = tables.Column(
+        attrs={
+            "th": {"class": "px-4 py-3 whitespace-nowrap hidden md:table-cell"},
+            "td": {"class": "px-4 py-3 hidden md:table-cell"},
+        }
+    )
+    serial_number = tables.Column(
+        attrs={
+            "td": {"class": "px-4 py-3 max-w-[12rem] truncate"},
+        }
+    )
     app_user_name = AppUserNameColumn(
         template_name="includes/device_app_user_select.html", attrs={"td": {"class": "px-4 py-1.5"}}
     )
     last_seen_mdm = tables.DateTimeColumn(
-        accessor="latest_snapshot__last_sync", verbose_name="Last seen (MDM)"
+        accessor="latest_snapshot__last_sync",
+        verbose_name="Last seen (MDM)",
+        attrs={
+            "th": {"class": "px-4 py-3 whitespace-nowrap hidden lg:table-cell"},
+            "td": {"class": "px-4 py-3 hidden lg:table-cell"},
+        },
     )
-    last_seen_vpn = tables.DateTimeColumn(verbose_name="Last seen (VPN)")
+    last_seen_vpn = tables.DateTimeColumn(
+        verbose_name="Last seen (VPN)",
+        attrs={
+            "th": {"class": "px-4 py-3 whitespace-nowrap hidden lg:table-cell"},
+            "td": {"class": "px-4 py-3 hidden lg:table-cell"},
+        },
+    )
 
     class Meta:
         model = Device
         fields = (
+            "brand",
+            "model",
             "device_id",
             "serial_number",
             "app_user_name",

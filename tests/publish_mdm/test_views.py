@@ -2235,6 +2235,8 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
         assert isinstance(table, Table)
         rows = response.context["table"].as_values()
         assert next(rows) == [
+            "Brand",
+            "Model",
             "Device ID",
             "Serial number",
             "App user name",
@@ -2245,6 +2247,8 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
         rows = {tuple(i) for i in rows}
         assert rows == {
             (
+                i.brand or None,
+                i.model or None,
                 i.device_id or None,
                 i.serial_number or None,
                 i.app_user_name or None,
@@ -2326,7 +2330,7 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
         assert isinstance(table, Table)
         rows = table.as_values()
         next(rows)
-        assert {row[0] for row in rows} == {device.device_id for device in devices}
+        assert {row[2] for row in rows} == {device.device_id for device in devices}
         assert len(devices) == (num_devices_before + num_successful_fleets)
         assertContains(response, table.as_html(response.wsgi_request))
         for fleet in api_error_fleets:
@@ -2359,7 +2363,7 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
         assert isinstance(table, Table)
         rows = table.as_values()
         next(rows)
-        assert {row[0] for row in rows} == {device.device_id for device in devices}
+        assert {row[2] for row in rows} == {device.device_id for device in devices}
         assertContains(response, table.as_html(response.wsgi_request))
         # Ensure an error message is displayed
         assertContains(response, "Unable to sync. Please try again later.")
@@ -2372,7 +2376,7 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
         assert isinstance(table, Table)
         rows = table.as_values()
         next(rows)
-        rows = {tuple(i[:3]) for i in rows}
+        rows = {tuple(i[2:5]) for i in rows}
         assert len(rows) == len(matching_devices)
         assert rows == {
             (

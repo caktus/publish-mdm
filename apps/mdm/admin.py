@@ -363,7 +363,7 @@ class FleetAdmin(admin.ModelAdmin):
 
 @admin.register(Device)
 class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
-    list_display = ("name", "serial_number", "app_user_name", "fleet")
+    list_display = ("name", "brand", "model", "serial_number", "app_user_name", "fleet")
     search_fields = (
         "id",
         "name",
@@ -372,8 +372,8 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
         "app_user_deterministic",
         "fleet__name",
     )
-    readonly_fields = ("name", "device_id", "raw_mdm_device", "latest_snapshot")
-    list_filter = ("fleet", "app_user_name")
+    readonly_fields = ("name", "brand", "model", "device_id", "raw_mdm_device", "latest_snapshot")
+    list_filter = ("fleet", "brand", "model", "app_user_name")
     import_form_class = DeviceImportForm
     confirm_form_class = DeviceConfirmImportForm
     export_form_class = ExportForm

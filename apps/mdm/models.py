@@ -5,7 +5,9 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
-from django.db.models import Q
+from django.db.models import GeneratedField, Q, Value
+from django.db.models.fields.json import KeyTextTransform, KeyTransform
+from django.db.models.functions import Coalesce
 from django.utils.html import mark_safe
 from django.utils.timezone import now
 
@@ -563,6 +565,26 @@ class Device(models.Model):
         help_text="The raw JSON response from the MDM for this device.",
         null=True,
         blank=True,
+    )
+    brand = GeneratedField(
+        expression=Coalesce(
+            KeyTextTransform("brand", KeyTransform("hardwareInfo", "raw_mdm_device")),
+            Value(""),
+            output_field=models.TextField(),
+        ),
+        output_field=models.CharField(max_length=255),
+        db_persist=True,
+        help_text="The device brand extracted from raw MDM device data.",
+    )
+    model = GeneratedField(
+        expression=Coalesce(
+            KeyTextTransform("model", KeyTransform("hardwareInfo", "raw_mdm_device")),
+            Value(""),
+            output_field=models.TextField(),
+        ),
+        output_field=models.CharField(max_length=255),
+        db_persist=True,
+        help_text="The device model extracted from raw MDM device data.",
     )
     app_user_name = models.CharField(
         max_length=255,
