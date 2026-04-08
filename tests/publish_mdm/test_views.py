@@ -3168,10 +3168,8 @@ class TestAndroidEnterpriseBanner(TestAndroidEnterpriseOnly):
         organization.android_enterprise.delete()
         response = client.get(url)
         assertContains(response, "Android Enterprise not configured")
-        assertContains(
-            response,
-            reverse("publish_mdm:enterprise-setup", args=[organization.slug]),
-        )
+        setup_url = reverse("publish_mdm:enterprise-setup", args=[organization.slug])
+        assertContains(response, f"{setup_url}?next={url}")
 
     def test_banner_not_shown_when_android_enterprise_enrolled(self, client, url, organization):
         """Banner is hidden once the org's enterprise is enrolled."""
@@ -3200,39 +3198,55 @@ class TestEnterpriseSetup(TestAndroidEnterpriseOnly):
     def url(self, organization):
         return reverse("publish_mdm:enterprise-setup", args=[organization.slug])
 
+    @pytest.fixture(params=["publish_mdm:fleets-list", "mdm:policy-list", None])
+    def url_params(self, request, organization):
+        if request.param:
+            return {"next": reverse(request.param, args=[organization.slug])}
+        return {}
+
     def test_login_required(self, client, url):
         client.logout()
         response = client.get(url)
         assert response.status_code == 302
         assert "/login" in response["Location"] or "/accounts" in response["Location"]
 
-    def test_already_enrolled_redirects(self, client, url, user, organization):
-        """If the org's enterprise is already enrolled, redirect to devices list."""
-        response = client.get(url)
+    def test_already_enrolled_redirects(self, client, url, user, organization, url_params):
+        """If the org's enterprise is already enrolled, redirect to the page the user
+        came from (`next` GET parameter) or the devices list.
+        """
+        response = client.get(url, url_params)
         assertRedirects(
             response,
-            reverse("publish_mdm:devices-list", args=[organization.slug]),
+            url_params.get("next") or reverse("publish_mdm:devices-list", args=[organization.slug]),
             fetch_redirect_response=False,
         )
 
     def test_get_signup_url_error_redirects_with_message(
-        self, client, url, user, organization, mocker
+        self, client, url, user, organization, mocker, url_params
     ):
-        """If get_signup_url raises, redirect to devices list with an error message."""
+        """If get_signup_url raises, redirect to the page the user came from
+        (`next` GET parameter) or devices list with an error message.
+        """
         organization.android_enterprise.delete()
         mocker.patch(
             "apps.publish_mdm.views.AndroidEnterprise.get_signup_url",
             side_effect=ValueError("API unavailable"),
         )
-        response = client.get(url, follow=True)
+        response = client.get(url, url_params, follow=True)
         assertRedirects(
             response,
-            reverse("publish_mdm:devices-list", args=[organization.slug]),
+            url_params.get("next") or reverse("publish_mdm:devices-list", args=[organization.slug]),
         )
         assertContains(response, "Failed to generate Android Enterprise signup URL")
 
     def test_get_creates_account_and_redirects_to_google(
-        self, client, url, user, organization, mocker
+        self,
+        client,
+        url,
+        user,
+        organization,
+        mocker,
+        url_params,
     ):
         """On success, saves signup URL fields and redirects to the Google URL."""
         organization.android_enterprise.delete()
@@ -3240,11 +3254,11 @@ class TestEnterpriseSetup(TestAndroidEnterpriseOnly):
             "name": "signupUrls/C455570ef9b12bfc",
             "url": "https://enterprise.google.com/signup?token=abc",
         }
-        mocker.patch(
+        mock_get_signup_url = mocker.patch(
             "apps.publish_mdm.views.AndroidEnterprise.get_signup_url",
             return_value=signup_result,
         )
-        response = client.get(url)
+        response = client.get(url, url_params)
 
         account = AndroidEnterpriseAccount.objects.get(organization=organization)
         assert account.signup_url_name == "signupUrls/C455570ef9b12bfc"
@@ -3254,6 +3268,14 @@ class TestEnterpriseSetup(TestAndroidEnterpriseOnly):
             "https://enterprise.google.com/signup?token=abc",
             fetch_redirect_response=False,
         )
+        callback_path = reverse(
+            "publish_mdm:enterprise-callback",
+            kwargs={"callback_token": account.callback_token},
+        )
+        callback_url = response.wsgi_request.build_absolute_uri(callback_path)
+        if url_params:
+            callback_url += "?" + urlencode(url_params)
+        mock_get_signup_url.assert_called_once_with(callback_url=callback_url)
 
     def test_get_updates_existing_account(self, client, url, user, organization, mocker):
         """Re-visiting the setup URL updates the existing account's signup fields."""
@@ -3296,6 +3318,20 @@ class TestEnterpriseCallback(TestAndroidEnterpriseOnly):
             kwargs={"callback_token": account.callback_token},
         )
 
+    @pytest.fixture
+    def user(self, client, organization):
+        user = UserFactory()
+        user.save()
+        organization.users.add(user)
+        client.force_login(user=user)
+        return user
+
+    @pytest.fixture(params=["publish_mdm:fleets-list", "mdm:policy-list", None])
+    def url_params(self, request, organization):
+        if request.param:
+            return {"next": reverse(request.param, args=[organization.slug])}
+        return {}
+
     def test_invalid_token_returns_404(self, client):
         """A request with an unknown callback_token returns 404."""
         url = reverse(
@@ -3305,50 +3341,83 @@ class TestEnterpriseCallback(TestAndroidEnterpriseOnly):
         response = client.get(url)
         assert response.status_code == 404
 
-    def test_already_enrolled_returns_400(self, client, account, url):
-        """If the enterprise is already enrolled, return 400."""
+    def test_already_enrolled_redirects(self, client, account, url, user, url_params):
+        """If the enterprise is already enrolled, redirect to the url in the `next`
+        GET param or to the organization homepage with an error message.
+        """
         account.enterprise_name = "enterprises/EXISTING"
         account.save()
-        response = client.get(url, {"enterpriseToken": "tok"})
-        assert response.status_code == 400
-        assert b"already enrolled" in response.content
+        response = client.get(url, {"enterpriseToken": "tok", **url_params}, follow=True)
+        assertRedirects(
+            response,
+            url_params.get("next")
+            or reverse("publish_mdm:organization-home", args=[account.organization.slug]),
+        )
+        assertContains(response, "The enterprise is already enrolled")
 
-    def test_missing_enterprise_token_returns_400(self, client, url, account):
-        """Missing enterpriseToken query param returns 400."""
-        response = client.get(url, {})
-        assert response.status_code == 400
+    def test_missing_enterprise_token_redirects(self, client, url, account, user, url_params):
+        """Missing enterpriseToken query param redirects to the url in the `next`
+        GET param or to the organization homepage with an error message.
+        """
+        response = client.get(url, url_params, follow=True)
+        assertRedirects(
+            response,
+            url_params.get("next")
+            or reverse("publish_mdm:organization-home", args=[account.organization.slug]),
+        )
+        setup_url = reverse(
+            "publish_mdm:enterprise-setup", kwargs={"organization_slug": account.organization.slug}
+        )
+        assertContains(
+            response,
+            f'Unable to create the enterprise. Please <a href="{setup_url}">try enrolling again</a>.',
+        )
 
-    def test_create_enterprise_error_returns_400(self, client, url, account, mocker):
-        """If create_enterprise raises, return 400."""
+    def test_create_enterprise_error_redirects(
+        self, client, url, account, mocker, user, url_params
+    ):
+        """If create_enterprise raises redirect to the url in the `next` GET param
+        or to the organization homepage with an error message.
+        """
         mocker.patch(
             "apps.publish_mdm.views.AndroidEnterprise.create_enterprise",
             side_effect=ValueError("Google API error"),
         )
-        response = client.get(
-            url,
-            {"enterpriseToken": "tok"},
+        response = client.get(url, {"enterpriseToken": "tok", **url_params}, follow=True)
+        assertRedirects(
+            response,
+            url_params.get("next")
+            or reverse("publish_mdm:organization-home", args=[account.organization.slug]),
         )
-        assert response.status_code == 400
-        assert b"Failed to create enterprise" in response.content
+        setup_url = reverse(
+            "publish_mdm:enterprise-setup", kwargs={"organization_slug": account.organization.slug}
+        )
+        assertContains(
+            response,
+            f'Unable to create the enterprise. Please <a href="{setup_url}">try enrolling again</a>.',
+        )
 
-    def test_successful_callback_saves_enterprise_name(self, client, url, account, mocker):
+    def test_successful_callback_saves_enterprise_name(
+        self, client, url, account, mocker, user, url_params
+    ):
         """A valid callback saves the enterprise_name on the account."""
         mocker.patch(
             "apps.publish_mdm.views.AndroidEnterprise.create_enterprise",
             return_value={"name": "enterprises/LC00lvvue0"},
         )
         mock_create_fleet = mocker.patch.object(Organization, "create_default_fleet")
-        response = client.get(
-            url,
-            {"enterpriseToken": "tok"},
-        )
-        assert response.status_code == 200
+        response = client.get(url, {"enterpriseToken": "tok", **url_params}, follow=True)
         account.refresh_from_db()
         assert account.enterprise_name == "enterprises/LC00lvvue0"
-        assert b"LC00lvvue0" in response.content
         mock_create_fleet.assert_called_once()
+        assertRedirects(
+            response,
+            url_params.get("next")
+            or reverse("publish_mdm:organization-home", args=[account.organization.slug]),
+        )
+        assertContains(response, "Android Enterprise enrollment completed successfully.")
 
-    def test_no_login_required(self, client, url, account, mocker):
+    def test_no_login_required(self, client, url, account, mocker, url_params):
         """The callback endpoint is public — no login required."""
         client.logout()
         mocker.patch(
@@ -3356,18 +3425,23 @@ class TestEnterpriseCallback(TestAndroidEnterpriseOnly):
             return_value={"name": "enterprises/NEWENT"},
         )
         mocker.patch.object(Organization, "create_default_fleet")
-        response = client.get(
-            url,
-            {"enterpriseToken": "tok"},
+        response = client.get(url, {"enterpriseToken": "tok", **url_params}, follow=True)
+        assertContains(response, "Android Enterprise enrollment completed successfully.")
+        # After successfully completing enrollment, should redirect to the URL in the
+        # `next` GET param or the organization homepage, which requires login
+        next_url = url_params.get("next") or reverse(
+            "publish_mdm:organization-home", args=[account.organization.slug]
         )
-        assert response.status_code == 200
+        assert response.redirect_chain == [
+            (next_url, 302),
+            (f"/accounts/login/?next={next_url}", 302),
+        ]
 
-    def test_successful_callback_fleet_error_still_returns_200(
-        self, client, url, account, mocker, mdm_api_error_class
+    def test_successful_callback_fleet_error_still_enrolls(
+        self, client, url, account, mocker, mdm_api_error_class, user
     ):
         """If create_default_fleet() raises a RequestException after a successful enrollment,
-        the callback still returns 200 — the enrollment itself succeeded and the error is
-        only logged.
+        the enrollment itself succeeds and the error is only logged.
         """
         mocker.patch(
             "apps.publish_mdm.views.AndroidEnterprise.create_enterprise",
@@ -3381,7 +3455,12 @@ class TestEnterpriseCallback(TestAndroidEnterpriseOnly):
         response = client.get(
             url,
             {"enterpriseToken": "tok"},
+            follow=True,
         )
-        assert response.status_code == 200
+        assertRedirects(
+            response,
+            reverse("publish_mdm:organization-home", args=[account.organization.slug]),
+        )
+        assertContains(response, "Android Enterprise enrollment completed successfully.")
         account.refresh_from_db()
         assert account.enterprise_name == "enterprises/LC00lvvue0"

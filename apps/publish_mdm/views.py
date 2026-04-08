@@ -1,5 +1,6 @@
 import contextlib
 import json
+from urllib.parse import urlencode
 
 import structlog
 from django.conf import settings
@@ -10,10 +11,11 @@ from django.contrib.postgres.aggregates import ArrayAgg
 from django.db import models, transaction
 from django.db.models import OuterRef, Q, Subquery, Value
 from django.db.models.functions import Collate, Lower, NullIf
-from django.http import Http404, HttpRequest, HttpResponse, HttpResponseBadRequest
+from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.html import format_html, mark_safe
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timezone import localdate
 from django.views.decorators.http import require_POST
 from django_tables2.config import RequestConfig
@@ -1340,9 +1342,16 @@ def enterprise_setup(request: HttpRequest, organization_slug):
         raise Http404
 
     account, _ = AndroidEnterpriseAccount.objects.get_or_create(organization=request.organization)
+    next_url = request.GET.get("next", "")
+    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts=request.get_host()):
+        redirect_args = (next_url,)
+    else:
+        next_url = None
+        redirect_args = ("publish_mdm:devices-list", organization_slug)
+
     if account.is_enrolled:
         messages.info(request, "Android Enterprise is already set up.")
-        return redirect("publish_mdm:devices-list", organization_slug)
+        return redirect(*redirect_args)
 
     callback_path = reverse(
         "publish_mdm:enterprise-callback",
@@ -1354,11 +1363,14 @@ def enterprise_setup(request: HttpRequest, organization_slug):
         if callback_domain
         else request.build_absolute_uri(callback_path)
     )
+    if next_url:
+        callback_url += "?" + urlencode({"next": next_url})
+
     try:
         signup = AndroidEnterprise().get_signup_url(callback_url=callback_url)
     except Exception as e:
         messages.error(request, f"Failed to generate Android Enterprise signup URL: {e}")
-        return redirect("publish_mdm:devices-list", organization_slug)
+        return redirect(*redirect_args)
 
     account.signup_url_name = signup["name"]
     account.signup_url = signup["url"]
@@ -1372,41 +1384,60 @@ def enterprise_callback(request: HttpRequest, callback_token):
         raise Http404
 
     account = get_object_or_404(AndroidEnterpriseAccount, callback_token=callback_token)
+    redirect_to = request.GET.get("next", "")
+    if not (
+        redirect_to
+        and url_has_allowed_host_and_scheme(redirect_to, allowed_hosts=request.get_host())
+    ):
+        redirect_to = reverse(
+            "publish_mdm:organization-home", kwargs={"organization_slug": account.organization.slug}
+        )
 
     if account.is_enrolled:
-        return HttpResponseBadRequest("Enterprise already enrolled; this callback has expired.")
+        messages.error(request, "The enterprise is already enrolled.")
+        return redirect(redirect_to)
 
     enterprise_token = request.GET.get("enterpriseToken", "")
 
-    if not enterprise_token:
-        return HttpResponseBadRequest("Missing enterpriseToken.")
+    if enterprise_token:
+        try:
+            enterprise = AndroidEnterprise().create_enterprise(
+                signup_name=account.signup_url_name,
+                enterprise_token=enterprise_token,
+                display_name=account.organization.name,
+            )
+        except Exception:
+            logger.error(
+                "Failed to create enterprise during Android Enterprise callback",
+                account_id=account.id,
+                organization_id=account.organization_id,
+                exc_info=True,
+            )
+        else:
+            account.enterprise_name = enterprise["name"]
+            account.save(update_fields=["enterprise_name", "modified_at"])
 
-    try:
-        enterprise = AndroidEnterprise().create_enterprise(
-            signup_name=account.signup_url_name,
-            enterprise_token=enterprise_token,
-            display_name=account.organization.name,
+    if account.enterprise_name:
+        # Create the default fleet now that the enterprise is enrolled.
+        try:
+            account.organization.create_default_fleet()
+        except GoogleAPIClientError:
+            logger.debug(
+                "Unable to create the default fleet after enterprise enrollment",
+                organization=account.organization,
+                exc_info=True,
+            )
+
+        messages.success(request, "Android Enterprise enrollment completed successfully.")
+    else:
+        setup_url = reverse(
+            "publish_mdm:enterprise-setup", kwargs={"organization_slug": account.organization.slug}
         )
-    except Exception:
-        logger.error(
-            "Failed to create enterprise during Android Enterprise callback",
-            account_id=account.id,
-            organization_id=account.organization_id,
-            exc_info=True,
-        )
-        return HttpResponseBadRequest("Failed to create enterprise.")
-
-    account.enterprise_name = enterprise["name"]
-    account.save(update_fields=["enterprise_name", "modified_at"])
-
-    # Create the default fleet now that the enterprise is enrolled.
-    try:
-        account.organization.create_default_fleet()
-    except GoogleAPIClientError:
-        logger.debug(
-            "Unable to create the default fleet after enterprise enrollment",
-            organization=account.organization,
-            exc_info=True,
+        messages.error(
+            request,
+            mark_safe(
+                f'Unable to create the enterprise. Please <a href="{setup_url}">try enrolling again</a>.'
+            ),
         )
 
-    return HttpResponse(f"<p>Android Enterprise enrolled: {enterprise['name']}</p>")
+    return redirect(redirect_to)

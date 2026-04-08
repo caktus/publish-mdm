@@ -12,3 +12,5 @@ MEDIA_ROOT = os.path.join(BASE_DIR, "test_media")  # noqa
 STORAGES["default"] = {"BACKEND": "django.core.files.storage.FileSystemStorage"}  # noqa
 
 ENVIRONMENT = "test"
+
+ANDROID_ENTERPRISE_CALLBACK_DOMAIN = ""

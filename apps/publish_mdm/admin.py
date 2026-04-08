@@ -1,4 +1,5 @@
 from typing import ClassVar
+from urllib.parse import urlencode
 
 import structlog
 from django import forms
@@ -267,6 +268,11 @@ class AndroidEnterpriseAccountAdmin(admin.ModelAdmin):
                     if callback_domain
                     else request.build_absolute_uri(callback_path)
                 )
+                next_path = reverse(
+                    "admin:publish_mdm_androidenterpriseaccount_change",
+                    args=[obj.pk],
+                )
+                callback_url += "?" + urlencode({"next": next_path})
                 signup = AndroidEnterprise().get_signup_url(callback_url=callback_url)
                 obj.signup_url_name = signup["name"]
                 obj.signup_url = signup["url"]
