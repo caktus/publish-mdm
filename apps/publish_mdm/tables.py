@@ -2,6 +2,7 @@ from typing import ClassVar
 
 import django_tables2 as tables
 from allauth.account.adapter import render_to_string
+from django.utils.html import format_html
 
 from apps.mdm.models import Device, Fleet
 from apps.publish_mdm.forms import DeviceAppUserForm
@@ -77,6 +78,18 @@ class CentralServerTable(tables.Table):
         orderable = False
 
 
+class TruncatedColumn(tables.Column):
+    """A Column that truncates long text with ellipsis and shows the full value as a tooltip."""
+
+    def render(self, value, **kwargs):
+        return format_html(
+            '<span class="block max-w-[12rem] truncate" title="{}">{}</span>', value, value
+        )
+
+    def value(self, **kwargs):
+        return kwargs.get("value") or None
+
+
 class AppUserNameColumn(tables.TemplateColumn):
     """A TemplateColumn that renders a form for editing a Device's app_user_name but
     returns the raw value for as_values().
@@ -106,10 +119,8 @@ class DeviceTable(tables.Table):
             "td": {"class": "px-4 py-3 hidden md:table-cell"},
         }
     )
-    serial_number = tables.Column(
-        attrs={
-            "td": {"class": "px-4 py-3 max-w-[12rem] truncate"},
-        }
+    serial_number = TruncatedColumn(
+        attrs={"td": {"class": "px-4 py-3"}},
     )
     app_user_name = AppUserNameColumn(
         template_name="includes/device_app_user_select.html", attrs={"td": {"class": "px-4 py-1.5"}}
