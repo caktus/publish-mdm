@@ -28,7 +28,7 @@ ENV VIRTUAL_ENV=/venv
 #   infisical -- Infisical CLI for injecting secrets into the application as environment variables
 # We need to recreate the /usr/share/man/man{1..8} directories first because
 # they were clobbered by a parent image.
-ENV POSTGRESQL_CLIENT_VERSION="15"
+ENV POSTGRESQL_CLIENT_VERSION="18"
 RUN set -ex \
     && RUN_DEPS=" \
     mime-support \

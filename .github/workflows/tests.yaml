@@ -12,7 +12,7 @@ jobs:
       postgres:
         # From:
         # https://docs.github.com/en/actions/guides/creating-postgresql-service-containers
-        image: postgres:15
+        image: postgres:18
         env:
           POSTGRES_PASSWORD: postgres
         # Set health checks to wait until postgres has started
