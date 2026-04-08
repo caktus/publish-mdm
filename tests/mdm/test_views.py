@@ -600,10 +600,7 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
 
     @pytest.fixture(autouse=True)
     def set_enterprise_env(self, set_mdm_env_vars):
-        """Ensure ANDROID_ENTERPRISE_ID is set so enterprise_name resolves correctly.
-        The notification endpoint ignores all notifications not related to the current
-        enterprise.
-        """
+        """Ensure ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE env var is set."""
 
     def post(self, client, body, token=TOKEN):
         url = self.URL

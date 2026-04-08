@@ -1418,15 +1418,16 @@ def enterprise_callback(request: HttpRequest, callback_token):
             account.save(update_fields=["enterprise_name", "modified_at"])
 
     if account.enterprise_name:
-        # Create the default fleet now that the enterprise is enrolled.
-        try:
-            account.organization.create_default_fleet()
-        except GoogleAPIClientError:
-            logger.debug(
-                "Unable to create the default fleet after enterprise enrollment",
-                organization=account.organization,
-                exc_info=True,
-            )
+        if not account.organization.fleets.filter(name="Default").exists():
+            # Create the default fleet now that the enterprise is enrolled.
+            try:
+                account.organization.create_default_fleet()
+            except GoogleAPIClientError:
+                logger.debug(
+                    "Unable to create the default fleet after enterprise enrollment",
+                    organization=account.organization,
+                    exc_info=True,
+                )
 
         messages.success(request, "Android Enterprise enrollment completed successfully.")
     else:
