@@ -46,10 +46,6 @@ Development <../local-development/index>` guide to run Publish MDM locally.
       - ``ACTIVE_MDM_CLASS=apps.mdm.mdms.AndroidEnterprise``
       - ``ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE``: The path to a Google service account file.
         See the `Google docs <https://developers.google.com/android/management/service-account>`_ on how to create one.
-      - ``ANDROID_ENTERPRISE_ID``: The ID of an Android EMM Enterprise, without the ``enterprises/`` prefix.
-        You can create an enterprise by following `this guide <https://developers.google.com/android/management/quickstart>`_.
-        You may also need to `request an initial quota of devices <https://developers.google.com/android/management/permissible-usage#quotas_and_restrictions>`__
-        in order to successfully enroll devices in the MDM.
       - ``ANDROID_ENTERPRISE_PUBSUB_TOKEN``: (Optional, needed if you'll enable real-time device enrollment notifications).
         This is the shared secret token that will be used for the notifications push endpoint at ``/mdm/api/amapi/notifications/``.
         The Pub/Sub API must be enabled for the Google project used to create the service account, and the service account must have the "Pub/Sub Admin" role.

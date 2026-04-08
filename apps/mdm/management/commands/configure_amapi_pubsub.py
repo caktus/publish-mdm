@@ -32,10 +32,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         mdm = AndroidEnterprise()
-        if not mdm.is_configured:
+        if not mdm.has_valid_service_account_file:
             raise CommandError(
-                "Android Enterprise is not configured. "
-                "Set ANDROID_ENTERPRISE_ID and ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE."
+                "Android Enterprise is not configured. Set ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE."
             )
 
         push_endpoint_domain = options["push_endpoint_domain"]

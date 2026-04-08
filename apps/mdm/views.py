@@ -13,6 +13,7 @@ from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from apps.publish_mdm.models import AndroidEnterpriseAccount
 from apps.publish_mdm.nav import Breadcrumbs
 
 from .forms import (
@@ -105,11 +106,19 @@ def amapi_notifications_view(request):
         notification_type=notification_type,
         device_name=device_data.get("name"),
     )
-    mdm = get_active_mdm_instance()
+    device_name = device_data.get("name", "")
+    enterprise_name = "/".join(device_name.split("/")[:2])
+    account = AndroidEnterpriseAccount.objects.filter(enterprise_name=enterprise_name).first()
+    if account:
+        mdm = get_active_mdm_instance(organization=account.organization)
+    else:
+        mdm = None
 
-    if mdm.name != "Android Enterprise":
+    if not (mdm and mdm.name == "Android Enterprise"):
         logger.warning(
-            "Active MDM is not Android Enterprise. Ignoring",
+            "Unknown enterprise or active MDM is not Android Enterprise. Ignoring",
+            enterprise_name=enterprise_name,
+            enterprise_account=account,
             mdm=mdm,
             notification_type=notification_type,
         )
@@ -148,7 +157,7 @@ def _push_policy_to_mdm(policy):
     We always attempt to push device-specific policies even if the base policy
     update fails, because the device may be on the device-specific policy only.
     """
-    active_mdm = get_active_mdm_instance()
+    active_mdm = get_active_mdm_instance(organization=policy.organization)
     if not active_mdm:
         logger.warning(
             "Skipping policy push: MDM is not configured. "
@@ -183,6 +192,7 @@ def policy_list(request, organization_slug):
     context = {
         "policies": policies,
         "show_policy_id": settings.ACTIVE_MDM["name"] != "Android Enterprise",
+        "active_mdm_name": settings.ACTIVE_MDM["name"],
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
             items=[("Policies", "mdm:policy-list")],
@@ -194,6 +204,12 @@ def policy_list(request, organization_slug):
 @login_required
 def policy_add(request, organization_slug):
     """Create a new policy."""
+    active_mdm = get_active_mdm_instance(organization=request.organization)
+    if not active_mdm:
+        messages.error(
+            request, "Sorry, cannot create a policy at this time. Please try again later."
+        )
+        return redirect("mdm:policy-list", organization_slug)
     if request.method == "POST":
         form = PolicyNameForm(request.POST)
         if form.is_valid():

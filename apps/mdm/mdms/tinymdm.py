@@ -29,8 +29,9 @@ class TinyMDMRetry(Retry):
 class TinyMDM(MDM):
     name = "TinyMDM"
 
-    def __init__(self):
+    def __init__(self, organization=None):
         self.api_errors = []
+        self.organization = organization
 
     @cached_property
     def session(self) -> LimiterSession:
