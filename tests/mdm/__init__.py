@@ -1,13 +1,19 @@
 import pytest
 
+from tests.publish_mdm.factories import AndroidEnterpriseAccountFactory, OrganizationFactory
+
 
 class TestAllMDMsNoAutouse:
     """Test methods in subclasses of this class will be run once for each MDM
     only if they use the all_mdms fixture.
     """
 
+    @pytest.fixture
+    def organization(self):
+        return OrganizationFactory()
+
     @pytest.fixture(params=["TinyMDM", "Android Enterprise"])
-    def all_mdms(self, request, settings):
+    def all_mdms(self, request, settings, organization):
         if request.param == "TinyMDM":
             settings.ACTIVE_MDM = {"name": "TinyMDM", "class": "apps.mdm.mdms.TinyMDM"}
         elif request.param == "Android Enterprise":
@@ -15,6 +21,9 @@ class TestAllMDMsNoAutouse:
                 "name": "Android Enterprise",
                 "class": "apps.mdm.mdms.AndroidEnterprise",
             }
+            AndroidEnterpriseAccountFactory(
+                organization=organization, enterprise_name="enterprises/test"
+            )
 
 
 class TestAllMDMs(TestAllMDMsNoAutouse):
@@ -46,9 +55,16 @@ class TestAndroidEnterpriseOnly:
     fixture to test methods.
     """
 
+    @pytest.fixture
+    def organization(self):
+        return OrganizationFactory()
+
     @pytest.fixture(autouse=True)
-    def force_android_enterprise(self, settings):
+    def force_android_enterprise(self, settings, organization):
         settings.ACTIVE_MDM = {
             "name": "Android Enterprise",
             "class": "apps.mdm.mdms.AndroidEnterprise",
         }
+        AndroidEnterpriseAccountFactory(
+            organization=organization, enterprise_name="enterprises/test"
+        )

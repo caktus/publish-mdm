@@ -1,5 +1,6 @@
 import contextlib
 import json
+from urllib.parse import urlencode
 
 import structlog
 from django.conf import settings
@@ -14,6 +15,7 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils.html import format_html, mark_safe
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timezone import localdate
 from django.views.decorators.http import require_POST
 from django_tables2.config import RequestConfig
@@ -35,7 +37,7 @@ from pygments.lexers.data import JsonLexer
 from pyodk.errors import PyODKError
 from requests.exceptions import RequestException
 
-from apps.mdm.mdms import get_active_mdm_instance
+from apps.mdm.mdms import AndroidEnterprise, get_active_mdm_instance
 from apps.mdm.models import Device, FirmwareSnapshot, Fleet, Policy
 from apps.tailscale.models import Device as TailscaleDevice
 
@@ -68,6 +70,7 @@ from .forms import (
 )
 from .import_export import AppUserResource, DeviceResource
 from .models import (
+    AndroidEnterpriseAccount,
     AppUser,
     AppUserFormTemplate,
     CentralServer,
@@ -602,21 +605,23 @@ def create_organization(request: HttpRequest):
         organization = form.save()
         organization.users.add(request.user)
         messages.success(request, f"Successfully created {organization}.")
-        # Create the default fleet
-        try:
-            organization.create_default_fleet()
-        except (GoogleAPIClientError, RequestException) as e:
-            logger.debug(
-                "Unable to create the default fleet", organization=organization, exc_info=True
-            )
-            messages.warning(
-                request,
-                mark_safe(
-                    f"The organization was created but the following {settings.ACTIVE_MDM['name']} "
-                    "API error occurred while setting up its default Fleet:"
-                    f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
-                ),
-            )
+        # Create the default fleet; Android Enterprise requires an enrolled enterprise
+        # first, so for that MDM the fleet is created in enterprise_callback after enrollment.
+        if settings.ACTIVE_MDM["name"] != "Android Enterprise":
+            try:
+                organization.create_default_fleet()
+            except RequestException as e:
+                logger.debug(
+                    "Unable to create the default fleet", organization=organization, exc_info=True
+                )
+                messages.warning(
+                    request,
+                    mark_safe(
+                        f"The organization was created but the following {settings.ACTIVE_MDM['name']} "
+                        "API error occurred while setting up its default Fleet:"
+                        f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
+                    ),
+                )
         return redirect("publish_mdm:organization-home", organization.slug)
     context = {
         "form": form,
@@ -851,7 +856,7 @@ def devices_list(request: HttpRequest, organization_slug):
 
     if "sync" in request.POST:
         # Sync devices from the MDM
-        if active_mdm := get_active_mdm_instance():
+        if active_mdm := get_active_mdm_instance(organization=request.organization):
             fleets = request.organization.fleets.all()
             logger.info(
                 "Syncing MDM devices from the Devices list page",
@@ -947,6 +952,7 @@ def devices_list(request: HttpRequest, organization_slug):
         "table_messages": devices_list_messages,
         "filter": filter_,
         "search_form": search_form,
+        "active_mdm_name": settings.ACTIVE_MDM["name"],
     }
 
     if settings.ACTIVE_MDM["name"] == "TinyMDM":
@@ -1035,7 +1041,7 @@ def device_update_app_user(request: HttpRequest, organization_slug, device_pk):
     form = DeviceAppUserForm(request.POST, instance=device)
     if form.is_valid():
         form.save()
-        if active_mdm := get_active_mdm_instance():
+        if active_mdm := get_active_mdm_instance(organization=request.organization):
             try:
                 active_mdm.push_device_config(device)
             except Exception:
@@ -1063,6 +1069,7 @@ def fleets_list(request: HttpRequest, organization_slug):
             request=request,
             items=[("Fleets", "fleets-list")],
         ),
+        "active_mdm_name": settings.ACTIVE_MDM["name"],
     }
     if request.htmx:
         template = "patterns/tables/table-partial.html"
@@ -1074,7 +1081,7 @@ def fleets_list(request: HttpRequest, organization_slug):
 @login_required
 def add_fleet(request: HttpRequest, organization_slug):
     """Add a Fleet."""
-    active_mdm = get_active_mdm_instance()
+    active_mdm = get_active_mdm_instance(organization=request.organization)
     default_policy = Policy.objects.filter(organization=request.organization).first()
 
     if not active_mdm:
@@ -1179,7 +1186,7 @@ def edit_fleet(request: HttpRequest, organization_slug, fleet_id):
     if request.method == "POST" and form.is_valid():
         fleet = form.save()
         if fleet.policy_id != old_policy_id:
-            active_mdm = get_active_mdm_instance()
+            active_mdm = get_active_mdm_instance(organization=request.organization)
             if active_mdm:
                 try:
                     active_mdm.add_group_to_policy(fleet)
@@ -1236,7 +1243,7 @@ def fleet_qr_code(request: HttpRequest, organization_slug):
     if form.is_valid():
         fleet = form.cleaned_data["fleet"]
         if fleet and (not fleet.enroll_qr_code or fleet.enroll_token_expired):
-            if active_mdm := get_active_mdm_instance():
+            if active_mdm := get_active_mdm_instance(organization=request.organization):
                 # The QR code is not saved. Get it from the MDM and save it
                 try:
                     active_mdm.get_enrollment_qr_code(fleet)
@@ -1267,7 +1274,7 @@ def add_byod_device(request: HttpRequest, organization_slug):
     if form.is_valid():
         success = False
         error = None
-        if active_mdm := get_active_mdm_instance():
+        if active_mdm := get_active_mdm_instance(organization=request.organization):
             try:
                 active_mdm.create_user(**form.cleaned_data)
             except RequestException as e:
@@ -1306,7 +1313,7 @@ def check_mdm_license_limit(request: HttpRequest):
     if settings.ACTIVE_MDM["name"] != "TinyMDM":
         raise Http404
     message = None
-    if active_mdm := get_active_mdm_instance():
+    if active_mdm := get_active_mdm_instance(organization=None):
         try:
             limit, enrolled = active_mdm.check_license_limit()
         except RequestException as e:
@@ -1326,3 +1333,112 @@ def check_mdm_license_limit(request: HttpRequest):
             request, "includes/messages.html", {"messages": [message], "id_prefix": "license-limit"}
         )
     return HttpResponse()
+
+
+@login_required
+def enterprise_setup(request: HttpRequest, organization_slug):
+    """Generate a Google Android Enterprise signup URL and redirect the user to it."""
+    if settings.ACTIVE_MDM["name"] != "Android Enterprise":
+        raise Http404
+
+    account, _ = AndroidEnterpriseAccount.objects.get_or_create(organization=request.organization)
+    next_url = request.GET.get("next", "")
+    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts=request.get_host()):
+        redirect_args = (next_url,)
+    else:
+        next_url = None
+        redirect_args = ("publish_mdm:devices-list", organization_slug)
+
+    if account.is_enrolled:
+        messages.info(request, "Android Enterprise is already set up.")
+        return redirect(*redirect_args)
+
+    callback_path = reverse(
+        "publish_mdm:enterprise-callback",
+        kwargs={"callback_token": account.callback_token},
+    )
+    callback_domain = settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN
+    callback_url = (
+        "https://" + callback_domain + callback_path
+        if callback_domain
+        else request.build_absolute_uri(callback_path)
+    )
+    if next_url:
+        callback_url += "?" + urlencode({"next": next_url})
+
+    try:
+        signup = AndroidEnterprise().get_signup_url(callback_url=callback_url)
+    except Exception as e:
+        messages.error(request, f"Failed to generate Android Enterprise signup URL: {e}")
+        return redirect(*redirect_args)
+
+    account.signup_url_name = signup["name"]
+    account.signup_url = signup["url"]
+    account.save(update_fields=["signup_url_name", "signup_url", "modified_at"])
+    return redirect(signup["url"])
+
+
+def enterprise_callback(request: HttpRequest, callback_token):
+    """Google calls this URL after the org admin completes enterprise signup."""
+    if settings.ACTIVE_MDM["name"] != "Android Enterprise":
+        raise Http404
+
+    account = get_object_or_404(AndroidEnterpriseAccount, callback_token=callback_token)
+    redirect_to = request.GET.get("next", "")
+    if not (
+        redirect_to
+        and url_has_allowed_host_and_scheme(redirect_to, allowed_hosts=request.get_host())
+    ):
+        redirect_to = reverse(
+            "publish_mdm:organization-home", kwargs={"organization_slug": account.organization.slug}
+        )
+
+    if account.is_enrolled:
+        messages.error(request, "The enterprise is already enrolled.")
+        return redirect(redirect_to)
+
+    enterprise_token = request.GET.get("enterpriseToken", "")
+
+    if enterprise_token:
+        try:
+            enterprise = AndroidEnterprise().create_enterprise(
+                signup_name=account.signup_url_name,
+                enterprise_token=enterprise_token,
+                display_name=account.organization.name,
+            )
+        except Exception:
+            logger.error(
+                "Failed to create enterprise during Android Enterprise callback",
+                account_id=account.id,
+                organization_id=account.organization_id,
+                exc_info=True,
+            )
+        else:
+            account.enterprise_name = enterprise["name"]
+            account.save(update_fields=["enterprise_name", "modified_at"])
+
+    if account.enterprise_name:
+        if not account.organization.fleets.filter(name="Default").exists():
+            # Create the default fleet now that the enterprise is enrolled.
+            try:
+                account.organization.create_default_fleet()
+            except GoogleAPIClientError:
+                logger.debug(
+                    "Unable to create the default fleet after enterprise enrollment",
+                    organization=account.organization,
+                    exc_info=True,
+                )
+
+        messages.success(request, "Android Enterprise enrollment completed successfully.")
+    else:
+        setup_url = reverse(
+            "publish_mdm:enterprise-setup", kwargs={"organization_slug": account.organization.slug}
+        )
+        messages.error(
+            request,
+            mark_safe(
+                f'Unable to create the enterprise. Please <a href="{setup_url}">try enrolling again</a>.'
+            ),
+        )
+
+    return redirect(redirect_to)

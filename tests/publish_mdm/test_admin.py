@@ -1,11 +1,15 @@
 import pytest
 from django.conf import settings
+from django.contrib import admin
 from django.urls import reverse
 from pytest_django.asserts import assertContains
 
-from apps.publish_mdm.models import CentralServer, Organization, Project
+from apps.mdm.mdms import AndroidEnterprise
+from apps.publish_mdm.admin import AndroidEnterpriseAccountAdmin
+from apps.publish_mdm.models import AndroidEnterpriseAccount, CentralServer, Organization, Project
 from tests.mdm import TestAllMDMsNoAutouse
 from tests.publish_mdm.factories import (
+    AndroidEnterpriseAccountFactory,
     CentralServerFactory,
     FormTemplateFactory,
     OrganizationFactory,
@@ -253,9 +257,13 @@ class TestCentralServerAdmin(BaseTestAdmin):
 
 class TestOrganizationAdmin(BaseTestAdmin):
     @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
-    def test_new_organization(self, user, client, mocker, all_mdms, mdm_api_error):
-        """Ensures the create_default_fleet() method is called when creating a
-        new organization.
+    def test_new_organization(
+        self, user, client, mocker, all_mdms, set_mdm_env_vars, mdm_api_error
+    ):
+        """For TinyMDM, create_default_fleet() is called immediately when creating a new
+        organization. For Android Enterprise, fleet creation is deferred until enterprise
+        enrollment completes via enterprise_callback, so create_default_fleet() is not
+        called here.
         """
         organization = OrganizationFactory.build()
         data = {
@@ -271,16 +279,19 @@ class TestOrganizationAdmin(BaseTestAdmin):
         )
 
         assert response.status_code == 200
-        mock_create_default_fleet.assert_called_once()
-        assert Organization.objects.count() == 1
-        if mdm_api_error:
-            assertContains(
-                response,
-                (
-                    f"The organization was created but the following {settings.ACTIVE_MDM['name']} "
-                    f"API error occurred while setting up its default Fleet:<br><code>{mdm_api_error}</code>"
-                ),
-            )
+        assert Organization.objects.filter(name=data["name"], slug=data["slug"]).exists()
+        if settings.ACTIVE_MDM["name"] == "Android Enterprise":
+            mock_create_default_fleet.assert_not_called()
+        else:
+            mock_create_default_fleet.assert_called_once()
+            if mdm_api_error:
+                assertContains(
+                    response,
+                    (
+                        f"The organization was created but the following {settings.ACTIVE_MDM['name']} "
+                        f"API error occurred while setting up its default Fleet:<br><code>{mdm_api_error}</code>"
+                    ),
+                )
 
     def test_edit_organization(self, user, client, mocker):
         """Ensures the create_default_fleet() method is not called when editing
@@ -304,3 +315,115 @@ class TestOrganizationAdmin(BaseTestAdmin):
         organization.refresh_from_db()
         assert organization.name == data["name"]
         assert organization.slug == data["slug"]
+
+
+@pytest.mark.django_db
+class TestAndroidEnterpriseAccountAdmin(BaseTestAdmin):
+    """Tests for the custom methods on AndroidEnterpriseAccountAdmin."""
+
+    def test_signup_url_link_with_url(self):
+        """Returns an HTML anchor tag containing the signup URL when signup_url is set."""
+        admin_instance = AndroidEnterpriseAccountAdmin(AndroidEnterpriseAccount, admin.site)
+        account = AndroidEnterpriseAccountFactory.build(
+            signup_url="https://enterprise.google.com/signup?token=abc"
+        )
+        result = admin_instance.signup_url_link(account)
+        assert 'href="https://enterprise.google.com/signup?token=abc"' in result
+        assert 'rel="nofollow noreferrer"' in result
+
+    def test_signup_url_link_without_url(self):
+        """Returns an em-dash placeholder when signup_url is empty."""
+        admin_instance = AndroidEnterpriseAccountAdmin(AndroidEnterpriseAccount, admin.site)
+        account = AndroidEnterpriseAccountFactory.build(signup_url="")
+        result = admin_instance.signup_url_link(account)
+        assert result == "—"
+
+    def test_add_calls_get_signup_url_and_saves_result(self, client, user, mocker):
+        """Creating a new AndroidEnterpriseAccount calls get_signup_url and persists the URL fields."""
+        org = OrganizationFactory()
+        signup_result = {
+            "name": "signupUrls/C455570ef9b12bfc",
+            "url": "https://enterprise.google.com/signup?token=abc",
+        }
+        mock_get_signup_url = mocker.patch.object(
+            AndroidEnterprise, "get_signup_url", return_value=signup_result
+        )
+        response = client.post(
+            reverse("admin:publish_mdm_androidenterpriseaccount_add"),
+            data={"organization": org.id},
+            follow=True,
+        )
+        assert response.status_code == 200
+        mock_get_signup_url.assert_called_once()
+        account = AndroidEnterpriseAccount.objects.get(organization=org)
+        assert account.signup_url_name == signup_result["name"]
+        assert account.signup_url == signup_result["url"]
+
+    def test_add_uses_callback_domain_when_configured(self, client, user, settings, mocker):
+        """Uses ANDROID_ENTERPRISE_CALLBACK_DOMAIN to build the callback URL when configured."""
+        settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN = "myapp.example.com"
+        org = OrganizationFactory()
+        mock_get_signup_url = mocker.patch.object(
+            AndroidEnterprise,
+            "get_signup_url",
+            return_value={"name": "signupUrls/X", "url": "https://enterprise.google.com/signup"},
+        )
+        client.post(
+            reverse("admin:publish_mdm_androidenterpriseaccount_add"),
+            data={"organization": org.id},
+            follow=True,
+        )
+        mock_get_signup_url.assert_called_once()
+        callback_url = mock_get_signup_url.call_args.kwargs["callback_url"]
+        assert callback_url.startswith("https://myapp.example.com/")
+
+    def test_add_uses_request_host_without_callback_domain(self, client, user, settings, mocker):
+        """Falls back to request.build_absolute_uri when ANDROID_ENTERPRISE_CALLBACK_DOMAIN is empty."""
+        settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN = ""
+        org = OrganizationFactory()
+        mock_get_signup_url = mocker.patch.object(
+            AndroidEnterprise,
+            "get_signup_url",
+            return_value={"name": "signupUrls/X", "url": "https://enterprise.google.com/signup"},
+        )
+        client.post(
+            reverse("admin:publish_mdm_androidenterpriseaccount_add"),
+            data={"organization": org.id},
+            follow=True,
+        )
+        mock_get_signup_url.assert_called_once()
+        callback_url = mock_get_signup_url.call_args.kwargs["callback_url"]
+        # Django test client sends requests from "testserver"
+        assert "testserver" in callback_url
+
+    def test_add_shows_error_on_get_signup_url_exception(self, client, user, mocker):
+        """Shows an error message and still creates the account when get_signup_url raises."""
+        org = OrganizationFactory()
+        mocker.patch.object(
+            AndroidEnterprise, "get_signup_url", side_effect=Exception("API unavailable")
+        )
+        response = client.post(
+            reverse("admin:publish_mdm_androidenterpriseaccount_add"),
+            data={"organization": org.id},
+            follow=True,
+        )
+        assert response.status_code == 200
+        assertContains(response, "Failed to generate signup URL: API unavailable")
+        # The account record is still created, but signup_url remains empty
+        account = AndroidEnterpriseAccount.objects.get(organization=org)
+        assert account.signup_url == ""
+
+    def test_edit_does_not_call_get_signup_url(self, client, user, mocker):
+        """Editing an existing AndroidEnterpriseAccount never calls get_signup_url."""
+        account = AndroidEnterpriseAccountFactory()
+        mock_get_signup_url = mocker.patch.object(AndroidEnterprise, "get_signup_url")
+        response = client.post(
+            reverse(
+                "admin:publish_mdm_androidenterpriseaccount_change",
+                args=[account.id],
+            ),
+            data={"organization": account.organization_id},
+            follow=True,
+        )
+        assert response.status_code == 200
+        mock_get_signup_url.assert_not_called()

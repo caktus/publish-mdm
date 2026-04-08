@@ -13,6 +13,7 @@ from apps.publish_mdm.models import CentralServer
 from tests.mdm import TestAllMDMs
 
 from .factories import (
+    AndroidEnterpriseAccountFactory,
     AppUserFactory,
     AppUserFormTemplateFactory,
     AppUserTemplateVariableFactory,
@@ -297,11 +298,15 @@ class TestAppUser:
 
 @pytest.mark.django_db
 class TestOrganization(TestAllMDMs):
-    def test_create_default_fleet(self, set_mdm_env_vars, mocker):
+    def test_create_default_fleet(self, set_mdm_env_vars, mocker, settings):
         """Ensures calling create_default_fleet() creates a default Fleet and
         org-specific policy for an organization when the active MDM is configured.
         """
         organization = OrganizationFactory()
+        if settings.ACTIVE_MDM["name"] == "Android Enterprise":
+            AndroidEnterpriseAccountFactory(
+                organization=organization, enterprise_name="enterprises/test"
+            )
         MDM = get_active_mdm_class()
         mock_create_group = mocker.patch.object(MDM, "create_group")
         mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
@@ -317,7 +322,7 @@ class TestOrganization(TestAllMDMs):
         mock_add_group_to_policy.assert_called_once()
         mock_get_enrollment_qr_code.assert_called_once()
 
-    def test_create_default_fleet_policy_id_is_unique(self, set_mdm_env_vars, mocker):
+    def test_create_default_fleet_policy_id_is_unique(self, set_mdm_env_vars, mocker, settings):
         """Two calls to create_default_fleet() must produce distinct policy_id values.
 
         Regression test: the previous implementation used
@@ -332,6 +337,9 @@ class TestOrganization(TestAllMDMs):
 
         org1 = OrganizationFactory()
         org2 = OrganizationFactory()
+        if settings.ACTIVE_MDM["name"] == "Android Enterprise":
+            AndroidEnterpriseAccountFactory(organization=org1, enterprise_name="enterprises/test")
+            AndroidEnterpriseAccountFactory(organization=org2, enterprise_name="enterprises/test")
         fleet1 = org1.create_default_fleet()
         fleet2 = org2.create_default_fleet()
         assert fleet1.policy.policy_id != fleet2.policy.policy_id

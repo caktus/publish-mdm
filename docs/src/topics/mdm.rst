@@ -127,3 +127,9 @@ and the associated policies and groups in TinyMDM will automatically update to
 reflect the changes. This allows for efficient management of devices across
 different environments (e.g., production and testing) while maintaining the
 necessary security and compliance standards.
+
+Android EMM Enterprise Enrollment
+---------------------------------
+You can enroll an enterprise for your organization in the frontend (``/o/<organization-slug>/enterprise/setup/``)
+or in Admin (``/admin/publish_mdm/androidenterpriseaccount/``). In case an existing enrollment needs to be disposed,
+it's better to delete the whole organization and start over, rather than enrolling a new enterprise for the organization.

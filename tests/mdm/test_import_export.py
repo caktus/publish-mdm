@@ -25,8 +25,8 @@ class TestDeviceResource(TestAllMDMs):
         settings.DAGSTER_URL = None
 
     @pytest.fixture
-    def fleet(self):
-        return FleetFactory()
+    def fleet(self, organization):
+        return FleetFactory(organization=organization)
 
     @pytest.fixture
     def devices(self, fleet):
@@ -52,11 +52,11 @@ class TestDeviceResource(TestAllMDMs):
         for row in dataset:
             assert tuple(str(i) for i in row) in expected_export_values
 
-    def test_valid_import(self, fleet, devices, dataset):
+    def test_valid_import(self, fleet, devices, dataset, organization, set_mdm_env_vars):
         """Ensure a valid import updates the database as expected."""
         # Add all current devices to the dataset
         dataset.extend(models.Device.objects.values_list(*dataset.headers))
-        new_fleet = FleetFactory()
+        new_fleet = FleetFactory(organization=organization)
         # Leave the first row unchanged, then change a different column in each row
         expected_rows = []
         for index, row in enumerate(dataset):
@@ -167,7 +167,9 @@ class TestDeviceResource(TestAllMDMs):
         assert isinstance(error_list[0].error, models.Fleet.DoesNotExist)
 
     @pytest.mark.parametrize("dry_run", [True, False])
-    def test_valid_import_dry_run(self, fleet, devices, dataset, mocker, dry_run, set_mdm_env_vars):
+    def test_valid_import_dry_run(
+        self, fleet, devices, dataset, mocker, dry_run, set_mdm_env_vars, settings
+    ):
         """Ensure we only push to the MDM when an import is confirmed and not
         during the dry run (preview).
         """
