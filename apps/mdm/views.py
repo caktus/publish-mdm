@@ -204,6 +204,12 @@ def policy_list(request, organization_slug):
 @login_required
 def policy_add(request, organization_slug):
     """Create a new policy."""
+    active_mdm = get_active_mdm_instance(organization=request.organization)
+    if not active_mdm:
+        messages.error(
+            request, "Sorry, cannot create a policy at this time. Please try again later."
+        )
+        return redirect("mdm:policy-list", organization_slug)
     if request.method == "POST":
         form = PolicyNameForm(request.POST)
         if form.is_valid():
