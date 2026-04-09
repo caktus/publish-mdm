@@ -2247,7 +2247,7 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
         assert next(rows) == [
             "Device ID",
             "Serial number",
-            "Brand",
+            "Manufacturer",
             "Model",
             "App user name",
             "Firmware version",
@@ -2259,7 +2259,7 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
             (
                 i.device_id or None,
                 i.serial_number or None,
-                i.brand or None,
+                i.manufacturer or None,
                 i.model or None,
                 i.app_user_name or None,
                 firmware_versions.get(i.id),
