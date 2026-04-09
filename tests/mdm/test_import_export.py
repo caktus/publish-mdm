@@ -20,9 +20,9 @@ class TestDeviceResource(TestAllMDMs):
     )
 
     @pytest.fixture(autouse=True)
-    def disable_dagster(self, settings):
-        """Disable Dagster queuing for these tests."""
-        settings.DAGSTER_URL = None
+    def mock_trigger(self, mocker):
+        """Mock Dagster job triggering — not under test in this class."""
+        return mocker.patch("apps.mdm.import_export.trigger_dagster_job")
 
     @pytest.fixture
     def fleet(self, organization):
@@ -167,12 +167,8 @@ class TestDeviceResource(TestAllMDMs):
         assert isinstance(error_list[0].error, models.Fleet.DoesNotExist)
 
     @pytest.mark.parametrize("dry_run", [True, False])
-    def test_valid_import_dry_run(
-        self, fleet, devices, dataset, mocker, dry_run, set_mdm_env_vars, settings
-    ):
-        """Ensure we only push to the MDM when an import is confirmed and not
-        during the dry run (preview).
-        """
+    def test_valid_import_dry_run(self, fleet, devices, dataset, mocker, dry_run, set_mdm_env_vars):
+        """Ensure Device saves do not push to MDM directly; Dagster handles MDM pushes."""
         # Add one edited device to the import data
         device = devices[0]
         row = list(models.Device.objects.values_list(*dataset.headers).get(id=device.id))
@@ -187,18 +183,15 @@ class TestDeviceResource(TestAllMDMs):
         result = resource.import_data(dataset, dry_run=dry_run)
         # Ensure there are no validation errors
         assert len(result.valid_rows()) == 1
-        # Ensure Device.save is called and push_device_config() is only called
-        # if the import is not a dry run
+        # Device.save is called (in a rolled-back transaction for dry runs)
         mock_device_save.assert_called()
-        if dry_run:
-            mock_push_device_config.assert_not_called()
-        else:
-            mock_push_device_config.assert_called()
+        # push_device_config is never called directly — Dagster handles it
+        mock_push_device_config.assert_not_called()
 
 
 @pytest.mark.django_db
 class TestDeviceResourceAfterImport(TestAllMDMs):
-    """Tests for after_import() behavior when Dagster is enabled."""
+    """Tests for after_import() behavior."""
 
     HEADERS = (
         "id",
@@ -282,26 +275,18 @@ class TestDeviceResourceSaveInstance(TestAllMDMs):
     def fleet(self):
         return FleetFactory()
 
-    @pytest.fixture(autouse=True)
-    def disable_dagster(self, settings):
-        settings.DAGSTER_URL = None
-
-    def test_do_instance_save_dry_run_does_not_push(self, fleet, mocker):
-        """do_instance_save() with is_dry_run=True does not call save(push_to_mdm=True)."""
+    def test_do_instance_save_does_not_push_to_mdm(self, fleet, mocker):
+        """do_instance_save() always saves with push_to_mdm=False; Dagster handles MDM pushes."""
         device = DeviceFactory(fleet=fleet)
         mock_save = mocker.patch.object(device, "save")
         resource = import_export.DeviceResource()
-        resource.do_instance_save(device, is_create=False, is_dry_run=True)
-        mock_save.assert_called_once_with(push_to_mdm=False)
+        resource.do_instance_save(device, is_create=False)
+        mock_save.assert_called_once_with()
 
 
 @pytest.mark.django_db
 class TestDeviceResourceBulkMode(TestAllMDMs):
     """Tests for save_instance() when use_bulk=True."""
-
-    @pytest.fixture(autouse=True)
-    def disable_dagster(self, settings):
-        settings.DAGSTER_URL = None
 
     @pytest.fixture
     def fleet(self):

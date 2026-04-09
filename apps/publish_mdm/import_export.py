@@ -8,8 +8,8 @@ from django.db.models import Prefetch
 from import_export import fields, resources, widgets
 from import_export.results import Result
 
-from apps.mdm.mdms import get_active_mdm_instance
 from apps.mdm.models import Device
+from config.dagster import trigger_dagster_job
 
 from .models import AppUser, AppUserFormTemplate, AppUserTemplateVariable
 
@@ -329,6 +329,7 @@ class DeviceResource(resources.ModelResource):
 
     def after_import(self, dataset: tablib.Dataset, result: Result, dry_run: bool = True, **kwargs):
         """After a confirmed import, push updated device policies to the MDM.
+        The push is done asynchronously via Dagster.
 
         Only runs on the real import (not the dry-run preview), and only for
         rows that were actually new or updated.  Errors are logged but never
@@ -337,21 +338,15 @@ class DeviceResource(resources.ModelResource):
         super().after_import(dataset, result, **kwargs)
         if dry_run:
             return
-        active_mdm = get_active_mdm_instance(organization=self.organization)
-        if not active_mdm:
-            return
         device_pks = [row.object_id for row in result if row.is_new() or row.is_update()]
         if not device_pks:
             return
-        devices = Device.objects.filter(pk__in=device_pks).select_related(
-            "fleet__policy", "fleet__project"
-        )
-        for device in devices:
-            try:
-                active_mdm.push_device_config(device)
-            except Exception:
-                logger.error(
-                    "Failed to push device config after CSV import",
-                    device=device,
-                    exc_info=True,
-                )
+        run_config = {"ops": {"push_mdm_device_config": {"config": {"device_pks": device_pks}}}}
+        try:
+            trigger_dagster_job(job_name="mdm_job", run_config=run_config)
+        except Exception:
+            logger.error(
+                "Failed to trigger Dagster job after CSV import",
+                device_pks=device_pks,
+                exc_info=True,
+            )
