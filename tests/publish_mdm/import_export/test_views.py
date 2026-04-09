@@ -585,13 +585,19 @@ class TestDeviceExport(ExportTestBase):
         else:
             empty = ""
         expected_rows = {
-            (i.device_id, i.serial_number, i.brand or empty, i.model or empty, i.app_user_name)
+            (
+                i.device_id,
+                i.serial_number,
+                i.manufacturer or empty,
+                i.model or empty,
+                i.app_user_name,
+            )
             for i in devices
         }
         self.check_export(
             response,
             format,
             f"devices_{organization.slug}_{date_format}.{format.get_extension()}",
-            ["device_id", "serial_number", "brand", "model", "app_user_name"],
+            ["device_id", "serial_number", "manufacturer", "model", "app_user_name"],
             expected_rows,
         )

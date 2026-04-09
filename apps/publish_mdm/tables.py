@@ -110,7 +110,7 @@ class DeviceTable(tables.Table):
     serial_number = TruncatedColumn(
         attrs={"td": {"class": "px-4 py-3"}},
     )
-    brand = tables.Column(
+    manufacturer = tables.Column(
         attrs={
             "th": {"class": "px-4 py-3 whitespace-nowrap hidden md:table-cell"},
             "td": {"class": "px-4 py-3 hidden md:table-cell"},
@@ -146,7 +146,7 @@ class DeviceTable(tables.Table):
         fields = (
             "device_id",
             "serial_number",
-            "brand",
+            "manufacturer",
             "model",
             "app_user_name",
             "firmware_version",

@@ -3,6 +3,7 @@
 import django.db.models.fields.json
 import django.db.models.functions.comparison
 from django.db import migrations, models
+from django.db.models import F
 
 
 class Migration(migrations.Migration):
@@ -13,19 +14,19 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name="device",
-            name="brand",
+            name="manufacturer",
             field=models.GeneratedField(
                 db_persist=True,
                 expression=django.db.models.functions.comparison.Coalesce(
                     django.db.models.fields.json.KeyTextTransform(
-                        "brand",
+                        "manufacturer",
                         django.db.models.fields.json.KeyTransform("hardwareInfo", "raw_mdm_device"),
                     ),
                     django.db.models.fields.json.KeyTextTransform("manufacturer", "raw_mdm_device"),
                     models.Value(""),
                     output_field=models.TextField(),
                 ),
-                help_text="The device brand extracted from raw MDM device data.",
+                help_text="The device manufacturer extracted from raw MDM device data.",
                 output_field=models.CharField(max_length=255),
             ),
         ),
@@ -39,11 +40,11 @@ class Migration(migrations.Migration):
                         "model",
                         django.db.models.fields.json.KeyTransform("hardwareInfo", "raw_mdm_device"),
                     ),
-                    django.db.models.fields.json.KeyTextTransform("model", "raw_mdm_device"),
+                    F("name"),
                     models.Value(""),
                     output_field=models.TextField(),
                 ),
-                help_text="The device model extracted from raw MDM device data.",
+                help_text="The device model extracted from raw MDM device data or device name.",
                 output_field=models.CharField(max_length=255),
             ),
         ),

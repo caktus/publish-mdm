@@ -575,3 +575,88 @@ class TestTinyMDM(TestTinyMDMOnly):
         our_device.refresh_from_db()
         # Device was not updated because it was skipped
         assert our_device.serial_number == original_serial
+
+
+@pytest.mark.django_db
+class TestTinyMDMDeviceManufacturerModel:
+    """Test manufacturer and model field extraction from real MDM device JSON."""
+
+    @pytest.fixture
+    def fleet(self):
+        return FleetFactory()
+
+    def test_manufacturer_from_tinymdm_root_level(self, fleet):
+        """Test manufacturer extraction from TinyMDM root level."""
+        device = DeviceFactory(fleet=fleet)
+        device.raw_mdm_device = {
+            "id": device.device_id,
+            "manufacturer": "BioRugged",
+            "name": "BW10RS",
+            "serial_number": device.serial_number,
+        }
+        device.save()
+        device.refresh_from_db()
+
+        assert device.manufacturer == "BioRugged"
+
+    def test_manufacturer_from_amapi_hardware_info(self, fleet):
+        """Test manufacturer extraction from Android Enterprise hardwareInfo."""
+        device = DeviceFactory(fleet=fleet)
+        device.raw_mdm_device = {
+            "name": f"enterprises/123/devices/{device.device_id}",
+            "hardwareInfo": {
+                "manufacturer": "Samsung",
+            },
+        }
+        device.save()
+        device.refresh_from_db()
+
+        assert device.manufacturer == "Samsung"
+
+    def test_model_from_tinymdm_device_name(self, fleet):
+        """Test model extraction from TinyMDM device name field."""
+        device = DeviceFactory(fleet=fleet, name="BW10RS")
+        device.raw_mdm_device = {
+            "id": device.device_id,
+            "manufacturer": "BioRugged",
+            "name": "BW10RS",
+            "serial_number": device.serial_number,
+        }
+        device.save()
+        device.refresh_from_db()
+
+        assert device.model == "BW10RS"
+
+    def test_model_from_amapi_hardware_info(self, fleet):
+        """Test model extraction from Android Enterprise hardwareInfo."""
+        device = DeviceFactory(fleet=fleet)
+        device.raw_mdm_device = {
+            "name": f"enterprises/123/devices/{device.device_id}",
+            "hardwareInfo": {
+                "manufacturer": "Samsung",
+                "model": "SM-G991B",
+            },
+        }
+        device.save()
+        device.refresh_from_db()
+
+        assert device.model == "SM-G991B"
+
+    def test_real_tinymdm_example(self, fleet):
+        """Test with sanitized real TinyMDM device JSON."""
+        device = DeviceFactory(fleet=fleet, name="BW10RS")
+        device.raw_mdm_device = {
+            "id": "316c0106579ec99b",
+            "name": "BW10RS",
+            "manufacturer": "BioRugged",
+            "serial_number": "BRBW10RS04040",
+            "os_version": "Android_13",
+            "battery_level": 83,
+            "enrollment_type": "fully_managed",
+            "last_sync_timestamp": 1770446956,
+        }
+        device.save()
+        device.refresh_from_db()
+
+        assert device.manufacturer == "BioRugged"
+        assert device.model == "BW10RS"
