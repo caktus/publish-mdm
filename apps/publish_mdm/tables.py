@@ -2,6 +2,7 @@ from typing import ClassVar
 
 import django_tables2 as tables
 from allauth.account.adapter import render_to_string
+from django.utils.html import format_html
 
 from apps.mdm.models import Device, Fleet
 from apps.publish_mdm.forms import DeviceAppUserForm
@@ -77,6 +78,18 @@ class CentralServerTable(tables.Table):
         orderable = False
 
 
+class TruncatedColumn(tables.Column):
+    """A Column that truncates long text with ellipsis and shows the full value as a tooltip."""
+
+    def render(self, value, **kwargs):
+        return format_html(
+            '<span class="block max-w-[12rem] truncate" title="{}">{}</span>', value, value
+        )
+
+    def value(self, **kwargs):
+        return kwargs.get("value") or None
+
+
 class AppUserNameColumn(tables.TemplateColumn):
     """A TemplateColumn that renders a form for editing a Device's app_user_name but
     returns the raw value for as_values().
@@ -94,19 +107,47 @@ class AppUserNameColumn(tables.TemplateColumn):
 class DeviceTable(tables.Table):
     """A table for listing MDM Devices."""
 
+    serial_number = TruncatedColumn(
+        attrs={"td": {"class": "px-4 py-3"}},
+    )
+    manufacturer = tables.Column(
+        attrs={
+            "th": {"class": "px-4 py-3 whitespace-nowrap hidden md:table-cell"},
+            "td": {"class": "px-4 py-3 hidden md:table-cell"},
+        }
+    )
+    model = tables.Column(
+        attrs={
+            "th": {"class": "px-4 py-3 whitespace-nowrap hidden md:table-cell"},
+            "td": {"class": "px-4 py-3 hidden md:table-cell"},
+        }
+    )
     app_user_name = AppUserNameColumn(
         template_name="includes/device_app_user_select.html", attrs={"td": {"class": "px-4 py-1.5"}}
     )
     last_seen_mdm = tables.DateTimeColumn(
-        accessor="latest_snapshot__last_sync", verbose_name="Last seen (MDM)"
+        accessor="latest_snapshot__last_sync",
+        verbose_name="Last seen (MDM)",
+        attrs={
+            "th": {"class": "px-4 py-3 whitespace-nowrap hidden lg:table-cell"},
+            "td": {"class": "px-4 py-3 hidden lg:table-cell"},
+        },
     )
-    last_seen_vpn = tables.DateTimeColumn(verbose_name="Last seen (VPN)")
+    last_seen_vpn = tables.DateTimeColumn(
+        verbose_name="Last seen (VPN)",
+        attrs={
+            "th": {"class": "px-4 py-3 whitespace-nowrap hidden lg:table-cell"},
+            "td": {"class": "px-4 py-3 hidden lg:table-cell"},
+        },
+    )
 
     class Meta:
         model = Device
         fields = (
             "device_id",
             "serial_number",
+            "manufacturer",
+            "model",
             "app_user_name",
             "firmware_version",
             "last_seen_mdm",

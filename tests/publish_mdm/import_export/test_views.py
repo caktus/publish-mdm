@@ -579,10 +579,25 @@ class TestDeviceExport(ExportTestBase):
         response = client.post(url, {"format": format_index})
         format = format_class()
         date_format = r"\d{4}-\d{2}-\d{2}"
+        # Brand and model may be None or empty strings depending on export format
+        if format.is_binary():
+            empty = None
+        else:
+            empty = ""
+        expected_rows = {
+            (
+                i.device_id,
+                i.serial_number,
+                i.manufacturer or empty,
+                i.model or empty,
+                i.app_user_name,
+            )
+            for i in devices
+        }
         self.check_export(
             response,
             format,
             f"devices_{organization.slug}_{date_format}.{format.get_extension()}",
-            ["device_id", "serial_number", "app_user_name"],
-            {(i.device_id, i.serial_number, i.app_user_name) for i in devices},
+            ["device_id", "serial_number", "manufacturer", "model", "app_user_name"],
+            expected_rows,
         )

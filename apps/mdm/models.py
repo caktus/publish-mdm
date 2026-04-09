@@ -5,7 +5,9 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
-from django.db.models import Q
+from django.db.models import F, GeneratedField, Q, Value
+from django.db.models.fields.json import KeyTextTransform, KeyTransform
+from django.db.models.functions import Coalesce
 from django.utils.html import mark_safe
 from django.utils.timezone import now
 
@@ -563,6 +565,33 @@ class Device(models.Model):
         help_text="The raw JSON response from the MDM for this device.",
         null=True,
         blank=True,
+    )
+    manufacturer = GeneratedField(
+        expression=Coalesce(
+            # JSON path for AMAPI:
+            KeyTextTransform("manufacturer", KeyTransform("hardwareInfo", "raw_mdm_device")),
+            # JSON path for TinyMDM:
+            KeyTextTransform("manufacturer", "raw_mdm_device"),
+            Value(""),
+            output_field=models.TextField(),
+        ),
+        output_field=models.CharField(max_length=255),
+        db_persist=True,
+        help_text="The device manufacturer extracted from raw MDM device data.",
+    )
+    model = GeneratedField(
+        expression=Coalesce(
+            # JSON path for AMAPI:
+            KeyTextTransform("model", KeyTransform("hardwareInfo", "raw_mdm_device")),
+            # JSON path for TinyMDM, which doesn't include a "model" but may
+            # include the model in the "name" field, if configured as such:
+            F("name"),
+            Value(""),
+            output_field=models.TextField(),
+        ),
+        output_field=models.CharField(max_length=255),
+        db_persist=True,
+        help_text="The device model extracted from raw MDM device data or device name.",
     )
     app_user_name = models.CharField(
         max_length=255,
