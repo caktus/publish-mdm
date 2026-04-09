@@ -91,3 +91,32 @@
   visibility: visible;
   opacity: 100%;
 }
+
+/* === Device table: responsive column visibility ===
+ * Columns are tagged with data-col="<column_name>" in table.html.
+ * Mobile  (<768px):   show device_id, serial_number, app_user_name only
+ * Tablet  (768-1023px): add manufacturer, model
+ * Desktop (≥1024px):  show all columns
+ */
+@media (max-width: 1023px) {
+  .table-device [data-col="firmware_version"],
+  .table-device [data-col="last_seen_mdm"],
+  .table-device [data-col="last_seen_vpn"] {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .table-device [data-col="manufacturer"],
+  .table-device [data-col="model"] {
+    display: none;
+  }
+}
+
+/* Sticky thead — keeps column headers visible while scrolling long device lists */
+.table-device thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--color-primary-100);
+}

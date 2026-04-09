@@ -125,6 +125,9 @@ class DeviceTable(tables.Table):
     app_user_name = AppUserNameColumn(
         template_name="includes/device_app_user_select.html", attrs={"td": {"class": "px-4 py-1.5"}}
     )
+    firmware_version = TruncatedColumn(
+        attrs={"td": {"class": "px-4 py-3"}},
+    )
     last_seen_mdm = tables.DateTimeColumn(
         accessor="latest_snapshot__last_sync",
         verbose_name="Last seen (MDM)",
@@ -154,7 +157,10 @@ class DeviceTable(tables.Table):
             "last_seen_vpn",
         )
         template_name = "patterns/tables/table.html"
-        attrs: ClassVar = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
+        attrs: ClassVar = {
+            "class": "table-device",
+            "th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"},
+        }
 
 
 class FleetTable(tables.Table):
