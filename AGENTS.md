@@ -51,6 +51,25 @@ Key hooks that touch generated/edited files:
   reading template diffs or the changes will show as conflicts.
 - `prettier` reformats YAML, CSS, JS, and Markdown.
 
+## Main Branch PR Guardrails
+
+PRs targeting `main` are validated by `.github/workflows/main-pr-check.yaml`, which
+enforces two checks:
+
+1. **Author must be human** — blocks automation accounts (e.g., Copilot, bots) from
+   directly merging changes to `main`.
+2. **PR title follows Conventional Commits** — requires one of: `feat`, `fix`, `chore`,
+   `ci`, `docs`, `perf`, `refactor` (scope is optional).
+
+**Accepted PR titles:**
+
+```
+feat: add organization policy import
+fix: prevent duplicate form template slugs
+docs: clarify local setup prerequisites
+ci: upgrade GitHub Actions runner versions
+```
+
 ## Browser Testing (playwright-cli)
 
 Skills are installed at `.claude/skills/playwright-cli/SKILL.md` — consult them for usage.
