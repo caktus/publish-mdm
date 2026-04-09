@@ -24,4 +24,3 @@ for publishing form versions.
 
 See the [documentation](https://docs.publishmdm.com/) for more
 information on how to set up and use Publish MDM.
-
