@@ -112,14 +112,14 @@ class DeviceTable(tables.Table):
     )
     manufacturer = tables.Column(
         attrs={
-            "th": {"class": "px-4 py-3 whitespace-nowrap hidden md:table-cell"},
-            "td": {"class": "px-4 py-3 hidden md:table-cell"},
+            "th": {"class": "px-4 py-3 whitespace-nowrap"},
+            "td": {"class": "px-4 py-3"},
         }
     )
     model = tables.Column(
         attrs={
-            "th": {"class": "px-4 py-3 whitespace-nowrap hidden md:table-cell"},
-            "td": {"class": "px-4 py-3 hidden md:table-cell"},
+            "th": {"class": "px-4 py-3 whitespace-nowrap"},
+            "td": {"class": "px-4 py-3"},
         }
     )
     app_user_name = AppUserNameColumn(
@@ -129,15 +129,15 @@ class DeviceTable(tables.Table):
         accessor="latest_snapshot__last_sync",
         verbose_name="Last seen (MDM)",
         attrs={
-            "th": {"class": "px-4 py-3 whitespace-nowrap hidden lg:table-cell"},
-            "td": {"class": "px-4 py-3 hidden lg:table-cell"},
+            "th": {"class": "px-4 py-3 whitespace-nowrap"},
+            "td": {"class": "px-4 py-3"},
         },
     )
     last_seen_vpn = tables.DateTimeColumn(
         verbose_name="Last seen (VPN)",
         attrs={
-            "th": {"class": "px-4 py-3 whitespace-nowrap hidden lg:table-cell"},
-            "td": {"class": "px-4 py-3 hidden lg:table-cell"},
+            "th": {"class": "px-4 py-3 whitespace-nowrap"},
+            "td": {"class": "px-4 py-3"},
         },
     )
 
