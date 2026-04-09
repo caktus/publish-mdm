@@ -386,7 +386,7 @@ class TestDeviceResource(TestAllMDMsNoAutouse):
         dataset = resource.export()
 
         assert len(dataset) == 2
-        assert dataset.headers == ["device_id", "serial_number", "app_user_name"]
+        assert dataset.headers == ["device_id", "serial_number", "brand", "model", "app_user_name"]
         assert {row[0] for row in dataset} == {i.device_id for i in devices}
 
     def test_successful_import(self, organization):

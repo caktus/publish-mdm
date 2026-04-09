@@ -363,7 +363,7 @@ class FleetAdmin(admin.ModelAdmin):
 
 @admin.register(Device)
 class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
-    list_display = ("name", "brand", "model", "serial_number", "app_user_name", "fleet")
+    list_display = ("name", "serial_number", "brand", "model", "app_user_name", "fleet")
     search_fields = (
         "id",
         "name",

@@ -287,10 +287,18 @@ class DeviceResource(resources.ModelResource):
     serial_number_readonly = fields.Field(
         attribute="serial_number", column_name="serial_number", readonly=True
     )
+    brand_readonly = fields.Field(attribute="brand", column_name="brand", readonly=True)
+    model_readonly = fields.Field(attribute="model", column_name="model", readonly=True)
 
     class Meta:
         model = Device
-        fields = ("device_id", "serial_number_readonly", "app_user_name")
+        fields = (
+            "device_id",
+            "serial_number_readonly",
+            "brand_readonly",
+            "model_readonly",
+            "app_user_name",
+        )
         import_id_fields = ("device_id",)
         clean_model_instances = True
         skip_unchanged = True

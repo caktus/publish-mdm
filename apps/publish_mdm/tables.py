@@ -107,6 +107,9 @@ class AppUserNameColumn(tables.TemplateColumn):
 class DeviceTable(tables.Table):
     """A table for listing MDM Devices."""
 
+    serial_number = TruncatedColumn(
+        attrs={"td": {"class": "px-4 py-3"}},
+    )
     brand = tables.Column(
         attrs={
             "th": {"class": "px-4 py-3 whitespace-nowrap hidden md:table-cell"},
@@ -118,9 +121,6 @@ class DeviceTable(tables.Table):
             "th": {"class": "px-4 py-3 whitespace-nowrap hidden md:table-cell"},
             "td": {"class": "px-4 py-3 hidden md:table-cell"},
         }
-    )
-    serial_number = TruncatedColumn(
-        attrs={"td": {"class": "px-4 py-3"}},
     )
     app_user_name = AppUserNameColumn(
         template_name="includes/device_app_user_select.html", attrs={"td": {"class": "px-4 py-1.5"}}
@@ -144,10 +144,10 @@ class DeviceTable(tables.Table):
     class Meta:
         model = Device
         fields = (
-            "brand",
-            "model",
             "device_id",
             "serial_number",
+            "brand",
+            "model",
             "app_user_name",
             "firmware_version",
             "last_seen_mdm",
