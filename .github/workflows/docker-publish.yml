@@ -56,7 +56,12 @@ jobs:
       - name: Compute deploy payload
         id: deploy_payload
         run: |
-          echo "image_tag=sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          image_tag="$(printf '%s\n' '${{ steps.meta.outputs.tags }}' | sed 's/.*://' | grep '^sha-' | head -n 1)"
+          if [[ -z "$image_tag" ]]; then
+            echo "Failed to find sha- image tag in docker/metadata-action output" >&2
+            exit 1
+          fi
+          echo "image_tag=$image_tag" >> "$GITHUB_OUTPUT"
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             echo "environment=production" >> "$GITHUB_OUTPUT"
           else
