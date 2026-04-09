@@ -5,6 +5,7 @@ from apps.mdm.mdms import get_active_mdm_class
 from apps.publish_mdm import import_export, models
 from apps.publish_mdm.etl.load import update_app_users_central_id
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
+from tests.mdm import TestAllMDMsNoAutouse
 from tests.mdm.factories import DeviceFactory
 from tests.publish_mdm.factories import (
     AppUserFactory,
@@ -364,11 +365,7 @@ class TestAppUserResource:
 
 
 @pytest.mark.django_db
-class TestDeviceResource:
-    @pytest.fixture
-    def organization(self):
-        return OrganizationFactory()
-
+class TestDeviceResource(TestAllMDMsNoAutouse):
     def import_data(self, csv_data, organization, dry_run=False):
         dataset = Dataset().load(csv_data)
         resource = import_export.DeviceResource(organization)
@@ -387,7 +384,13 @@ class TestDeviceResource:
         dataset = resource.export()
 
         assert len(dataset) == 2
-        assert dataset.headers == ["device_id", "serial_number", "app_user_name"]
+        assert dataset.headers == [
+            "device_id",
+            "serial_number",
+            "manufacturer",
+            "model",
+            "app_user_name",
+        ]
         assert {row[0] for row in dataset} == {i.device_id for i in devices}
 
     def test_successful_import(self, organization):
@@ -471,7 +474,7 @@ class TestDeviceResource:
             assert row.import_type == "skip"
 
     @pytest.mark.parametrize("dry_run", [True, False])
-    def test_valid_import_dry_run(self, organization, mocker, dry_run, set_mdm_env_vars):
+    def test_valid_import_dry_run(self, organization, mocker, dry_run, all_mdms, set_mdm_env_vars):
         """Ensure push_device_config is never called directly; Dagster handles MDM pushes."""
         devices = DeviceFactory.create_batch(3, fleet__organization=organization)
         csv_data = "device_id,serial_number,app_user_name\n"

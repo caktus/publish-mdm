@@ -10,6 +10,10 @@ class FileInput(widgets.FileInput):
     template_name = "patterns/forms/widgets/file.html"
 
 
+class ClearableFileInput(widgets.ClearableFileInput):
+    template_name = "patterns/forms/widgets/clearable_file_input.html"
+
+
 class Select(widgets.Select):
     template_name = "patterns/forms/widgets/select.html"
 

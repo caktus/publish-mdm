@@ -6,6 +6,7 @@ running on your development machine (or another host accessible from your machin
 rather use Docker, see :doc:`../running/docker-compose`.
 
 1. Install these applications:
+
   - `uv <https://docs.astral.sh/uv/getting-started/installation/>`_
   - `direnv <https://direnv.net/docs/installation.html>`_ (and hook it into your shell)
 
@@ -47,9 +48,19 @@ rather use Docker, see :doc:`../running/docker-compose`.
 
     # If using Android EMM as your MDM service provider
     export ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE=
-    export ANDROID_ENTERPRISE_ID=
     export ACTIVE_MDM_NAME="Android Enterprise"
     export ACTIVE_MDM_CLASS=apps.mdm.mdms.AndroidEnterprise
+    # Optional: needed if you want to enable real-time device enrollment notifications.
+    # This is the shared secret token that will be used for the notifications push
+    # endpoint at /mdm/api/amapi/notifications/. If you enable notifications and
+    # this is not set, all requests to the endpoint will be rejected.
+    # You can generate it with `pwgen -s 32 1`
+    # ANDROID_ENTERPRISE_PUBSUB_TOKEN=
+    # Optional domain (no scheme, no trailing slash, e.g. "myapp.example.com") used to build
+    # the Android Enterprise enrollment callback URL over HTTPS. When set, it replaces the host
+    # derived from the incoming request, which is useful for local development where the request
+    # host is "localhost" and Google's API rejects it.
+    export ANDROID_ENTERPRISE_CALLBACK_DOMAIN=
 
 Update the environment variables as needed for your local setup. You may need to
 add a ``PGPASSWORD`` variable if your database expects a password. If the database
@@ -85,3 +96,23 @@ See :doc:`the tutorial <../running/tutorial>` for more details on the Google and
 .. code-block:: bash
 
     python manage.py populate_sample_odk_data
+
+7. If you are using Android EMM and would like to configure real-time device enrollment notifications, run the following command:
+
+.. code-block:: bash
+
+    python manage.py configure_amapi_pubsub
+
+This will create the Pub/Sub topic ``projects/{project_id}/topics/publish-mdm-{environment}`` and
+subscription ``projects/{project_id}/subscriptions/publish-mdm-{environment}`` (where ``{environment}``
+is the value of the ``ENVIRONMENT`` setting), grant Android Device Policy the publisher role on the
+topic, and configure the push endpoint at ``/mdm/api/amapi/notifications/``.
+Before running this, the Pub/Sub API must be enabled for the Google project used to create the service
+account, and the service account must have the "Pub/Sub Admin" role. See `this guide <https://docs.cloud.google.com/pubsub/docs/publish-receive-messages-console#before-you-begin>`__ for more details.
+Only complete the steps under 'Before you begin' -- the ``configure_amapi_pubsub`` command will create the topic and subscription.
+
+By default, the notification endpoint will be set up using the domain of the current ``Site`` model object. If you need to set up the notification endpoint with a different domain (e.g. to use ngrok to expose your localhost) run:
+
+.. code-block:: bash
+
+    python manage.py configure_amapi_pubsub --push-endpoint-domain <domain>
