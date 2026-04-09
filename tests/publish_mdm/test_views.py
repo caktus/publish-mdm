@@ -2245,10 +2245,10 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
         assert isinstance(table, Table)
         rows = response.context["table"].as_values()
         assert next(rows) == [
-            "Brand",
-            "Model",
             "Device ID",
             "Serial number",
+            "Brand",
+            "Model",
             "App user name",
             "Firmware version",
             "Last seen (MDM)",
@@ -2257,10 +2257,10 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
         rows = {tuple(i) for i in rows}
         assert rows == {
             (
-                i.brand or None,
-                i.model or None,
                 i.device_id or None,
                 i.serial_number or None,
+                i.brand or None,
+                i.model or None,
                 i.app_user_name or None,
                 firmware_versions.get(i.id),
                 (
@@ -2339,8 +2339,9 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
         table = response.context.get("table")
         assert isinstance(table, Table)
         rows = table.as_values()
-        next(rows)
-        assert {row[2] for row in rows} == {device.device_id for device in devices}
+        headers = next(rows)
+        device_id_index = headers.index("Device ID")
+        assert {row[device_id_index] for row in rows} == {device.device_id for device in devices}
         assert len(devices) == (num_devices_before + num_successful_fleets)
         assertContains(response, table.as_html(response.wsgi_request))
         for fleet in api_error_fleets:
@@ -2372,8 +2373,9 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
         table = response.context.get("table")
         assert isinstance(table, Table)
         rows = table.as_values()
-        next(rows)
-        assert {row[2] for row in rows} == {device.device_id for device in devices}
+        headers = next(rows)
+        device_id_index = headers.index("Device ID")
+        assert {row[device_id_index] for row in rows} == {device.device_id for device in devices}
         assertContains(response, table.as_html(response.wsgi_request))
         # Ensure an error message is displayed
         assertContains(response, "Unable to sync. Please try again later.")
@@ -2385,8 +2387,11 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
         table = response.context.get("table")
         assert isinstance(table, Table)
         rows = table.as_values()
-        next(rows)
-        rows = {tuple(i[2:5]) for i in rows}
+        headers = next(rows)
+        device_id_index = headers.index("Device ID")
+        serial_number_index = headers.index("Serial number")
+        app_user_name_index = headers.index("App user name")
+        rows = {(i[device_id_index], i[serial_number_index], i[app_user_name_index]) for i in rows}
         assert len(rows) == len(matching_devices)
         assert rows == {
             (
