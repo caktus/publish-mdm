@@ -2,7 +2,7 @@ name: Docker
 
 on:
   push:
-    branches: [main, ci-dispatch-14-staging-test]
+    branches: [main]
     # Publish semver tags as releases.
     tags: ["v*.*.*"]
 
@@ -42,6 +42,8 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
         with:
@@ -70,7 +72,7 @@ jobs:
               owner: "caktus",
               repo: "app.publishmdm.com",
               workflow_id: ".github/workflows/deploy.yml",
-              ref: "14-staging",
+              ref: "main",
               inputs: {
                 image_tag: "${{ steps.deploy_payload.outputs.image_tag }}",
                 environment: "${{ steps.deploy_payload.outputs.environment }}",
