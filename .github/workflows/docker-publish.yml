@@ -2,7 +2,7 @@ name: Docker
 
 on:
   push:
-    branches: [main, ci-dispatch-14-staging-test]
+    branches: [main]
     # Publish semver tags as releases.
     tags: ["v*.*.*"]
 
