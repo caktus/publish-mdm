@@ -75,9 +75,8 @@ class PolicyAdmin(admin.ModelAdmin):
                 )
             if change:
                 # Update the policies for all related Devices that have a child
-                # policy (device-specific policy).
-                # When Dagster is enabled, queue the per-device pushes
-                # asynchronously so the admin save does not block.
+                # policy (device-specific policy) asynchronously via Dagster so
+                # the admin save does not block.
                 child_devices = Device.objects.filter(
                     fleet__policy=policy,
                     raw_mdm_device__policyName__endswith=models.F("device_id"),

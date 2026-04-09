@@ -191,7 +191,7 @@ class TestDeviceResource(TestAllMDMs):
 
 @pytest.mark.django_db
 class TestDeviceResourceAfterImport(TestAllMDMs):
-    """Tests for after_import() behavior when Dagster is enabled."""
+    """Tests for after_import() behavior."""
 
     HEADERS = (
         "id",

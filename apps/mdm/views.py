@@ -160,7 +160,7 @@ def _push_policy_to_mdm(policy):
 
     The base policy push (single API call) is always synchronous.  The
     per-device child-policy pushes (one call per enrolled device) are
-    offloaded to Dagster when it is enabled so they don't block the view.
+    offloaded to Dagster so they don't block the view.
     """
     active_mdm = get_active_mdm_instance(organization=policy.organization)
     if not active_mdm:

@@ -498,7 +498,7 @@ class TestDeviceResource(TestAllMDMsNoAutouse):
 
 @pytest.mark.django_db
 class TestDeviceResourceAfterImport:
-    """Tests for DeviceResource.after_import() with Dagster enabled/disabled."""
+    """Tests for DeviceResource.after_import()."""
 
     @pytest.fixture
     def organization(self):

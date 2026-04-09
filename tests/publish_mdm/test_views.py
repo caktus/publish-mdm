@@ -3128,7 +3128,9 @@ class TestDeviceUpdateAppUser(ViewTestBase, TestAllMDMsNoAutouse):
         mocker,
         set_mdm_env_vars,
     ):
-        """Ensure submitting a valid form updates the Device's app_user_name and triggers Dagster."""
+        """Ensure submitting a valid form updates the Device's app_user_name and
+        triggers a Dagster job.
+        """
         if app_user_name:
             AppUserFactory(name=app_user_name, project=device.fleet.project)
         data = {
