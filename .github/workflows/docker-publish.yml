@@ -16,6 +16,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -35,17 +36,45 @@ jobs:
         with:
           images: ${{ env.REGISTRY_WITH_PATH }}/publish-mdm
           # Generate Docker tags based on the following events/attributes
+          # https://github.com/docker/metadata-action?tab=readme-ov-file#priority-attribute
           tags: |
-            type=ref,event=branch
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}.{{hotfix}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
             type=sha
+            type=ref,event=branch,priority=50
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Compute deploy payload
+        id: deploy_payload
+        run: |
+          image_tag="${{ steps.meta.outputs.version }}"
+          echo "image_tag=$image_tag" >> "$GITHUB_OUTPUT"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "environment=production" >> "$GITHUB_OUTPUT"
+          else
+            echo "environment=staging" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Dispatch deploy workflow
+        if: github.event_name != 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.DEPLOY_REPO_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: "caktus",
+              repo: "app.publishmdm.com",
+              workflow_id: ".github/workflows/deploy.yml",
+              ref: "main",
+              inputs: {
+                image_tag: "${{ steps.deploy_payload.outputs.image_tag }}",
+                environment: "${{ steps.deploy_payload.outputs.environment }}",
+              },
+            });
