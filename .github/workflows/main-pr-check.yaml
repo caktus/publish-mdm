@@ -4,7 +4,6 @@ on:
   pull_request:
     branches:
       - main # Only triggers for PRs where the destination is 'main'
-      - main-pr-guardrail # FIXME: Remove before merging to main
     types: [opened, edited, synchronize, reopened]
 
 permissions:
