@@ -569,6 +569,7 @@ class Device(models.Model):
     brand = GeneratedField(
         expression=Coalesce(
             KeyTextTransform("brand", KeyTransform("hardwareInfo", "raw_mdm_device")),
+            KeyTextTransform("manufacturer", "raw_mdm_device"),
             Value(""),
             output_field=models.TextField(),
         ),
@@ -579,6 +580,7 @@ class Device(models.Model):
     model = GeneratedField(
         expression=Coalesce(
             KeyTextTransform("model", KeyTransform("hardwareInfo", "raw_mdm_device")),
+            KeyTextTransform("model", "raw_mdm_device"),
             Value(""),
             output_field=models.TextField(),
         ),
