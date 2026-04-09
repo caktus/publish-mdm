@@ -1329,6 +1329,16 @@ class TestOrganizationHome(ViewTestBase):
             },
         )
 
+    def test_navbar_logo_link_logged_in(self, client, url, user, organization):
+        """The navbar logo should link to the current org home for logged-in users."""
+        response = client.get(url)
+        assertContains(response, f'href="{organization.get_absolute_url()}"')
+
+    def test_navbar_logo_link_anonymous(self, client):
+        """The navbar logo should link to the site home for anonymous users."""
+        response = client.get(reverse("home"))
+        assertContains(response, f'href="{reverse("home")}"')
+
 
 class TestCreateOrganization(ViewTestBase):
     @pytest.fixture
