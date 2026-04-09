@@ -36,13 +36,11 @@ jobs:
         with:
           images: ${{ env.REGISTRY_WITH_PATH }}/publish-mdm
           # Generate Docker tags based on the following events/attributes
+          # https://github.com/docker/metadata-action?tab=readme-ov-file#priority-attribute
           tags: |
-            type=ref,event=branch
             type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}.{{hotfix}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
             type=sha
+            type=ref,event=branch,priority=50
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
       - name: Build and push Docker image
@@ -57,11 +55,7 @@ jobs:
       - name: Compute deploy payload
         id: deploy_payload
         run: |
-          image_tag="$(printf '%s\n' '${{ steps.meta.outputs.tags }}' | sed 's/.*://' | grep '^sha-' | head -n 1)"
-          if [[ -z "$image_tag" ]]; then
-            echo "Failed to find sha- image tag in docker/metadata-action output" >&2
-            exit 1
-          fi
+          image_tag="${{ steps.meta.outputs.version }}"
           echo "image_tag=$image_tag" >> "$GITHUB_OUTPUT"
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             echo "environment=production" >> "$GITHUB_OUTPUT"
