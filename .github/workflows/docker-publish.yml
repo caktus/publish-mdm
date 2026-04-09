@@ -2,7 +2,7 @@ name: Docker
 
 on:
   push:
-    branches: [main, ci-dispatch-14-staging-test, foobar]
+    branches: [main]
     # Publish semver tags as releases.
     tags: ["v*.*.*"]
 
@@ -72,7 +72,7 @@ jobs:
               owner: "caktus",
               repo: "app.publishmdm.com",
               workflow_id: ".github/workflows/deploy.yml",
-              ref: "14-staging",
+              ref: "main",
               inputs: {
                 image_tag: "${{ steps.deploy_payload.outputs.image_tag }}",
                 environment: "${{ steps.deploy_payload.outputs.environment }}",
