@@ -13,7 +13,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
 from apps.publish_mdm.nav import Breadcrumbs
-from config.dagster import dagster_enabled, trigger_dagster_job
+from config.dagster import trigger_dagster_job
 
 from .forms import (
     FirmwareSnapshotForm,
@@ -99,25 +99,18 @@ def _push_policy_to_mdm(policy):
         fleet__policy=policy,
         raw_mdm_device__policyName__endswith=F("device_id"),
     )
-    if dagster_enabled():
-        device_pks = list(child_devices.values_list("pk", flat=True))
-        if not device_pks:
-            return
-        run_config = {"ops": {"push_mdm_device_config": {"config": {"device_pks": device_pks}}}}
-        try:
-            trigger_dagster_job(job_name="mdm_job", run_config=run_config)
-        except Exception:
-            logger.error(
-                "Failed to trigger Dagster mdm_job for child policies",
-                policy=policy,
-                exc_info=True,
-            )
-    else:
-        for device in child_devices.select_related("fleet__policy"):
-            try:
-                active_mdm.push_device_config(device)
-            except Exception:
-                logger.error("Failed to push device config to MDM", device=device, exc_info=True)
+    device_pks = list(child_devices.values_list("pk", flat=True))
+    if not device_pks:
+        return
+    run_config = {"ops": {"push_mdm_device_config": {"config": {"device_pks": device_pks}}}}
+    try:
+        trigger_dagster_job(job_name="mdm_job", run_config=run_config)
+    except Exception:
+        logger.error(
+            "Failed to trigger Dagster mdm_job for child policies",
+            policy=policy,
+            exc_info=True,
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,3 @@
-from unittest.mock import call
-
 import pytest
 from tablib import Dataset
 
@@ -474,9 +472,7 @@ class TestDeviceResource:
 
     @pytest.mark.parametrize("dry_run", [True, False])
     def test_valid_import_dry_run(self, organization, mocker, dry_run, set_mdm_env_vars):
-        """Ensure we only push to the MDM when an import is confirmed and not
-        during the dry run (preview).
-        """
+        """Ensure push_device_config is never called directly; Dagster handles MDM pushes."""
         devices = DeviceFactory.create_batch(3, fleet__organization=organization)
         csv_data = "device_id,serial_number,app_user_name\n"
         # Update 2 of the 3 devices
@@ -488,19 +484,13 @@ class TestDeviceResource:
 
         MDM = get_active_mdm_class()
         mock_push_device_config = mocker.patch.object(MDM, "push_device_config")
+        mocker.patch("apps.publish_mdm.import_export.trigger_dagster_job")
         result = self.import_data(csv_data, organization, dry_run=dry_run)
 
         # Ensure there are no validation errors
         assert len(result.valid_rows()) == 3
-        # Ensure push_device_config() is only called for the edited devices if
-        # the import is not a dry run
-        if dry_run:
-            mock_push_device_config.assert_not_called()
-        else:
-            assert mock_push_device_config.call_count == 2
-            mock_push_device_config.assert_has_calls(
-                [call(device) for device in devices[1:]], any_order=True
-            )
+        # push_device_config is never called directly — Dagster handles it
+        mock_push_device_config.assert_not_called()
 
 
 @pytest.mark.django_db
@@ -518,13 +508,8 @@ class TestDeviceResourceAfterImport:
             dataset, use_transactions=True, rollback_on_validation_errors=True, dry_run=dry_run
         )
 
-    def test_after_import_with_dagster_triggers_job(
-        self, organization, mocker, set_mdm_env_vars, settings
-    ):
-        """When Dagster is enabled, after_import() triggers mdm_job instead of
-        calling push_device_config() for each device.
-        """
-        settings.DAGSTER_URL = "http://dagster-host:3000"
+    def test_after_import_with_dagster_triggers_job(self, organization, mocker, set_mdm_env_vars):
+        """after_import() triggers mdm_job for each updated device."""
         devices = DeviceFactory.create_batch(2, fleet__organization=organization)
         csv_data = "device_id,serial_number,app_user_name\n"
         for device in devices:
@@ -543,11 +528,8 @@ class TestDeviceResourceAfterImport:
         ]["device_pks"]
         assert set(device_pks) == {device.pk for device in devices}
 
-    def test_after_import_dry_run_skips_dagster(
-        self, organization, mocker, set_mdm_env_vars, settings
-    ):
-        """When Dagster is enabled, dry-run imports do not trigger the Dagster job."""
-        settings.DAGSTER_URL = "http://dagster-host:3000"
+    def test_after_import_dry_run_skips_dagster(self, organization, mocker, set_mdm_env_vars):
+        """Dry-run imports do not trigger the Dagster job."""
         devices = DeviceFactory.create_batch(2, fleet__organization=organization)
         csv_data = "device_id,serial_number,app_user_name\n"
         for device in devices:
@@ -558,24 +540,3 @@ class TestDeviceResourceAfterImport:
         self.import_data(csv_data, organization, dry_run=True)
 
         mock_trigger.assert_not_called()
-
-    def test_after_import_without_dagster_pushes_synchronously(
-        self, organization, mocker, set_mdm_env_vars, settings
-    ):
-        """When Dagster is disabled, after_import() calls push_device_config() for
-        each updated device synchronously (unchanged fallback behavior).
-        """
-        settings.DAGSTER_URL = ""
-        devices = DeviceFactory.create_batch(2, fleet__organization=organization)
-        csv_data = "device_id,serial_number,app_user_name\n"
-        for device in devices:
-            csv_data += f"{device.device_id},{device.serial_number},{device.app_user_name}_edited\n"
-
-        MDM = get_active_mdm_class()
-        mock_push_device_config = mocker.patch.object(MDM, "push_device_config")
-        mock_trigger = mocker.patch("apps.publish_mdm.import_export.trigger_dagster_job")
-
-        self.import_data(csv_data, organization)
-
-        mock_trigger.assert_not_called()
-        assert mock_push_device_config.call_count == 2

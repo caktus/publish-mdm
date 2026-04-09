@@ -575,9 +575,7 @@ class TestPolicyEditFormsets(PolicyViewBase):
 
 @pytest.mark.django_db
 class TestPushPolicyToMdmDagster(PolicyViewBase):
-    """Tests that _push_policy_to_mdm() uses Dagster for child-device pushes
-    when Dagster is enabled and falls back to synchronous behaviour when not.
-    """
+    """Tests that _push_policy_to_mdm() uses Dagster for child-device pushes."""
 
     @pytest.fixture
     def policy_with_devices(self, organization):
@@ -632,12 +630,8 @@ class TestPushPolicyToMdmDagster(PolicyViewBase):
         policy_with_devices,
         mocker,
         set_mdm_env_vars,
-        settings,
     ):
-        """When Dagster is enabled, _push_policy_to_mdm() queues child-device
-        config pushes via mdm_job instead of calling push_device_config() synchronously.
-        """
-        settings.DAGSTER_URL = "http://dagster-host:3000"
+        """_push_policy_to_mdm() queues child-device config pushes via Dagster mdm_job."""
         _, devices = policy_with_devices
         mock_push = mocker.patch("apps.mdm.views.get_active_mdm_instance")
         mock_trigger = mocker.patch("apps.mdm.views.trigger_dagster_job")
@@ -654,7 +648,7 @@ class TestPushPolicyToMdmDagster(PolicyViewBase):
         assert set(device_pks) == {d.pk for d in devices}
         mock_push.return_value.push_device_config.assert_not_called()
 
-    def test_sync_fallback_without_dagster(
+    def test_dagster_exception_is_swallowed(
         self,
         client,
         url,
@@ -663,19 +657,23 @@ class TestPushPolicyToMdmDagster(PolicyViewBase):
         policy_with_devices,
         mocker,
         set_mdm_env_vars,
-        settings,
+        caplog,
     ):
-        """When Dagster is disabled, _push_policy_to_mdm() falls back to calling
-        push_device_config() synchronously for each child device.
+        """_push_policy_to_mdm() logs and swallows a trigger_dagster_job exception without
+        interrupting the view response.
         """
-        settings.DAGSTER_URL = ""
-        _, devices = policy_with_devices
-        mock_mdm = mocker.MagicMock()
-        mocker.patch("apps.mdm.views.get_active_mdm_instance", return_value=mock_mdm)
-        mock_trigger = mocker.patch("apps.mdm.views.trigger_dagster_job")
+        mocker.patch("apps.mdm.views.get_active_mdm_instance")
+        mock_trigger = mocker.patch(
+            "apps.mdm.views.trigger_dagster_job",
+            side_effect=Exception("Dagster unavailable"),
+        )
 
         response = client.post(url, self._valid_data())
 
         assert response.status_code == 302
-        mock_trigger.assert_not_called()
-        assert mock_mdm.push_device_config.call_count == len(devices)
+        mock_trigger.assert_called_once()
+        assert any(
+            "Failed to trigger Dagster mdm_job for child policies" in r.message
+            for r in caplog.records
+            if r.name == "apps.mdm.views" and r.levelname == "ERROR"
+        )

@@ -64,12 +64,12 @@ def test_trigger_dagster_job(settings, mocker):
 
 
 def test_trigger_dagster_job_not_enabled(settings, mocker):
-    """Test triggering a Dagster job when Dagster is not enabled."""
+    """Test triggering a Dagster job when Dagster is not enabled raises DagsterNotEnabledError."""
     settings.DAGSTER_URL = None
     mock_client = mocker.patch("config.dagster.DagsterGraphQLClient")
-    run_id = dagster.trigger_dagster_job("job_name", {"key": "value"})
-    assert run_id == "", "Run ID should be empty when Dagster is not enabled"
-    mock_client.assert_not_called()  # Ensure no client was created
+    with pytest.raises(dagster.DagsterNotEnabledError):
+        dagster.trigger_dagster_job("job_name", {"key": "value"})
+    mock_client.assert_not_called()
 
 
 def test_trigger_dagster_job_error(settings, mocker):

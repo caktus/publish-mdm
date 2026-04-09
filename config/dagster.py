@@ -7,6 +7,10 @@ from django.conf import settings
 logger = structlog.get_logger(__name__)
 
 
+class DagsterNotEnabledError(Exception):
+    """Raised when Dagster is not enabled (DAGSTER_URL is not configured)."""
+
+
 def dagster_enabled() -> bool:
     """Check if Dagster is enabled in the settings."""
     return bool(settings.DAGSTER_URL)
@@ -31,8 +35,7 @@ def trigger_dagster_job(job_name: str, run_config: dict) -> str:
         new_run_id: The ID of the newly created run.
     """
     if not dagster_enabled():
-        logger.warning("Dagster is not enabled, skipping job trigger")
-        return ""
+        raise DagsterNotEnabledError("Dagster is not enabled; set DAGSTER_URL to enable it.")
     config = parse_dagster_url(settings.DAGSTER_URL)
     client = DagsterGraphQLClient(
         hostname=config["hostname"],
