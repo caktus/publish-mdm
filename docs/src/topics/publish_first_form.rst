@@ -33,8 +33,9 @@ If you haven't already, create a Publish MDM organization:
 2. On first login, you will be prompted to create a new organization. If you already have an existing organization, click your initials in the top right corner, select **Switch organization**, and then click **Create a new organization**.
 3. Enter an organization name (e.g., "My Organization") and click **Create**.
 
-**Note:** For form publishing, you can use any Google account.
+.. note::
 
+   For form publishing, you can use any Google account.
 Step 2: Connect Your ODK Central Server
 ---------------------------------------
 
@@ -85,7 +86,7 @@ Publish MDM organizes forms within ODK projects. You can either sync an existing
 Step 4: Create Form Template(s)
 -------------------------------
 
-A **form template** is your Google Sheet form that will be published to ODK Central. You can use an existing Google Sheet you have, or create new one for testing.
+A **form template** is your Google Sheet form that will be published to ODK Central. You can use an existing Google Sheet you have, or create a new one for testing.
 
 .. note::
     The Google Sheet must follow the `XLSForm standard <https://xlsform.org/>`_. For a simple test, you can use the `XLSForm tutorial <https://docs.getodk.org/tutorial-first-form/>`_ to create a basic form.
@@ -114,8 +115,9 @@ An **app user** is a data collector who will fill out forms using `ODK Collect`_
 3. Enter a username (e.g., "collector_01", "field_team_a").
 4. Click **Create** or **Save**.
 
-**Tip:** Create one app user per data collector, or create multiple app users to segment data (e.g., by region or team).
+.. tip::
 
+   Create one app user per data collector, or create multiple app users to segment data (e.g., by region or team).
 .. important::
 
    A powerful feature in Publish MDM is its ability to publish customized versions of a form to different app users using template variables. Refer to :doc:`Dynamic Forms with Template Variables <form_templates>` to learn how this works.

@@ -14,7 +14,7 @@ All organizations in Publish MDM are independent, with their own settings and de
 .. important::
    Due to Android Enterprise enrollment requirements, you must enroll the organization with a **dedicated Gmail account** (not a Google Workspace account).
 
-   Additionally, the dedicated Gmail account **must be the only and primary account** in the browser profile you use for Android Enterprise enrollment and Publish MDM administration. Using a browser separate profile ensures Google's enrollment process works smoothly.
+   Additionally, the dedicated Gmail account **must be the only and primary account** in the browser profile you use for Android Enterprise enrollment and Publish MDM administration. Using a separate browser profile ensures Google's enrollment process works smoothly.
 
 
 To begin:
@@ -37,7 +37,7 @@ To begin:
 4. You will be prompted to create a new organization. Name it appropriately (e.g., "My Organization"). You can create separate device fleets for different field teams later; in general, a single company or non-profit will only need one Publish MDM organization.
 5. After setup is complete, you can invite team members with their work Google accounts to join the organization (they will have the same access as the account that created it).
 
-Step 2: Setup Android Enterprise
+Step 2: Set up Android Enterprise
 --------------------------------
 
 To manage devices, your organization must be linked to Android Enterprise. An "enterprise" is a Google-managed resource tied to your dedicated Gmail account that acts as the enrollment authority for your devices. Since you created the organization with a dedicated Gmail account in Step 1, you are already set up for this step.

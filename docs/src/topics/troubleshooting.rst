@@ -8,7 +8,7 @@ Organization & Account Setup
 
 **I created a new organization, but I'm still seeing data from a different one.**
     * **Cause:** There is a known bug where superusers may be automatically redirected to a default organization regardless of their selection.
-    * **Solution:** Check the organization name in the page header. If it is incorrect, use the **Switch Organization** menu again. If the issue persists, clear your browser cookies or try an incognito window to reset the session.
+    * **Solution:** Check the organization name in the page header. If it is incorrect, use the **Switch organization** menu again. If the issue persists, clear your browser cookies or try an incognito window to reset the session.
 
 Android Enterprise (AE) Linkage
 -------------------------------
