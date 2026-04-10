@@ -3,10 +3,9 @@
 module.exports = {
   darkMode: "class",
   content: [
-    "./apps/**/*.{html,js}",
+    "./apps/**/*.{html,js,py}",
     "./config/**/*.{html,js}",
     "./node_modules/flowbite/**/*.js",
-    "./apps/chat/templatetags/chat_tags.py",
   ],
   plugins: [require("flowbite/plugin")],
 };

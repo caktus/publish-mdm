@@ -9,7 +9,7 @@
                                {{ table.attrs.thead.as_html }}>
                             <tr>
                                 {% for column in table.columns %}
-                                    <th {{ column.attrs.th.as_html }}>
+                                    <th {{ column.attrs.th.as_html }} data-col="{{ column.name }}">
                                         {% if column.orderable %}
                                             <a class="block flex space-x-1 items-center hover:font-bold hover:text-gray-400 cursor-pointer"
                                                hx-get="{% querystring table.prefixed_order_by_field=column.order_by_alias.next %}"
@@ -62,7 +62,8 @@
                             {% block table.tbody.row %}
                                 <tr class="border-b border-primary-100 dark:border-gray-700 text-sm row">
                                     {% for column, cell in row.items %}
-                                        <td class="{% if column.attrs.td.class %}{{ column.attrs.td.class }}{% else %}px-4 py-3{% endif %}{% if column.accessor == 'id' %}font-medium text-gray-900 hover:text-gray-400 whitespace-nowrap dark:text-white{% endif %}">
+                                        <td data-col="{{ column.name }}"
+                                            class="{% if column.attrs.td.class %}{{ column.attrs.td.class }}{% else %}px-4 py-3{% endif %}{% if column.accessor == 'id' %}font-medium text-gray-900 hover:text-gray-400 whitespace-nowrap dark:text-white{% endif %}">
                                             {% if column.localize == None %}
                                                 {{ cell }}
                                             {% else %}
