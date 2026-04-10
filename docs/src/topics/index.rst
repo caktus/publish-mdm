@@ -10,8 +10,10 @@ start if you're new to Publish MDM.
    :caption: Contents:
 
    introduction
+   quickstart
    form_templates
    large_entity_lists
    mdm
    vpn
    infrastructure
+   troubleshooting
