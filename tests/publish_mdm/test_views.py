@@ -2331,8 +2331,8 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
         mock_sync_fleet.assert_not_called()
         assertContains(
             response,
-            "Unable to queue syncing due to the following error:"
-            f'<pre class="block text-xs mt-2">{dagster_error}</pre>',
+            "We encountered an issue synchronizing your device list. "
+            "Please try again, or contact support if the problem continues.",
         )
 
     def check_list_after_searching_or_filtering(self, response, matching_devices):

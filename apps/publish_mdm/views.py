@@ -877,7 +877,7 @@ def devices_list(request: HttpRequest, organization_slug):
         }
         try:
             trigger_dagster_job(job_name="sync_fleets_job", run_config=run_config)
-        except Exception as e:
+        except Exception:
             logger.error(
                 "Failed to trigger Dagster sync_fleets_job",
                 organization=request.organization,
@@ -886,10 +886,8 @@ def devices_list(request: HttpRequest, organization_slug):
             devices_list_messages.append(
                 messages.Message(
                     messages.ERROR,
-                    mark_safe(
-                        "Unable to queue syncing due to the following error:"
-                        f'<pre class="block text-xs mt-2">{e}</pre>'
-                    ),
+                    "We encountered an issue synchronizing your device list. "
+                    "Please try again, or contact support if the problem continues.",
                 )
             )
         else:

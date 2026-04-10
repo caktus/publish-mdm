@@ -149,7 +149,7 @@ def _get_policy_variables(policy):
     ).select_related("fleet")
 
 
-def _push_policy_to_mdm(policy):
+def _push_policy_to_mdm(policy, request):
     """Push a policy and any device-specific child policies to the MDM.
 
     Errors are logged but not raised so they don't interrupt the view response.
@@ -163,6 +163,10 @@ def _push_policy_to_mdm(policy):
     offloaded to Dagster so they don't block the view.
     """
     active_mdm = get_active_mdm_instance(organization=policy.organization)
+    warning = (
+        "Your policy has been saved, but we encountered an issue syncing it to your devices. "
+        "Please try saving again, or contact support if the problem continues."
+    )
     if not active_mdm:
         logger.warning(
             "Skipping policy push: MDM is not configured. "
@@ -170,6 +174,7 @@ def _push_policy_to_mdm(policy):
             active_mdm_name=settings.ACTIVE_MDM["name"],
             policy=policy,
         )
+        messages.warning(request, warning)
         return
     try:
         active_mdm.create_or_update_policy(policy)
@@ -191,6 +196,7 @@ def _push_policy_to_mdm(policy):
             policy=policy,
             exc_info=True,
         )
+        messages.warning(request, warning)
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +245,7 @@ def policy_add(request, organization_slug):
                 install_type="FORCE_INSTALLED",
                 order=0,
             )
-            _push_policy_to_mdm(policy)
+            _push_policy_to_mdm(policy, request)
             messages.success(request, f"Policy '{policy.name}' created.")
             return redirect("mdm:policy-edit", organization_slug, policy.pk)
     else:
@@ -313,8 +319,8 @@ def policy_edit(request, organization_slug, policy_id):
                 var.save()
             for var in var_formset.deleted_objects:
                 var.delete()
-            _push_policy_to_mdm(policy)
             messages.success(request, "Policy saved.")
+            _push_policy_to_mdm(policy, request)
             return redirect("mdm:policy-edit", organization_slug, policy.pk)
     else:
         form = PolicyEditForm(instance=policy)
@@ -362,7 +368,7 @@ def policy_save_managed_config(request, organization_slug, policy_id, app_id):
         app.save(update_fields=["managed_configuration"])
         saved = True
     if saved:
-        _push_policy_to_mdm(policy)
+        _push_policy_to_mdm(policy, request)
     return render(
         request,
         "mdm/partials/policy_managed_config_form.html",

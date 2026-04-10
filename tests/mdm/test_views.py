@@ -2,9 +2,10 @@ import base64
 import json
 
 import pytest
+from django.contrib.messages import SUCCESS, WARNING, Message
 from django.urls import reverse, reverse_lazy
 from django.utils.timezone import now
-from pytest_django.asserts import assertContains, assertRedirects
+from pytest_django.asserts import assertContains, assertMessages, assertRedirects
 
 from apps.mdm.mdms import AndroidEnterprise
 from apps.mdm.models import Device, DeviceSnapshot, Policy, PolicyApplication, PolicyVariable
@@ -957,4 +958,15 @@ class TestPushPolicyToMdmDagster(PolicyViewBase):
             "Failed to trigger Dagster mdm_job for child policies" in r.message
             for r in caplog.records
             if r.name == "apps.mdm.views" and r.levelname == "ERROR"
+        )
+        assertMessages(
+            response,
+            [
+                Message(SUCCESS, "Policy saved."),
+                Message(
+                    WARNING,
+                    "Your policy has been saved, but we encountered an issue syncing it to your devices. "
+                    "Please try saving again, or contact support if the problem continues.",
+                ),
+            ],
         )
