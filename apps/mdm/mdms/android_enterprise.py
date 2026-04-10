@@ -551,7 +551,8 @@ class AndroidEnterprise(MDM):
         2. Creates (or updates) a push subscription
            ``projects/{project_id}/subscriptions/publish-mdm-{environment}``.
            The push endpoint is built from ``push_endpoint_domain`` when
-           provided, otherwise from the current ``Site`` domain.
+           provided, otherwise from ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN``
+           (if set), otherwise from the current ``Site`` domain.
         3. Grants ``android-cloud-policy@system.gserviceaccount.com``
            ``roles/pubsub.publisher`` on the topic so that Android Device Policy
            can publish AMAPI notifications to it.
@@ -561,9 +562,10 @@ class AndroidEnterprise(MDM):
 
         Args:
             push_endpoint_domain: Domain (without scheme, e.g. ``example.com``)
-                used to construct the full push endpoint.  When ``None``, the
-                domain is taken from the current ``django.contrib.sites``
-                ``Site`` object.  HTTPS is always used.
+                used to construct the full push endpoint.  When ``None``,
+                ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` is used if set,
+                otherwise the domain is taken from the current
+                ``django.contrib.sites`` ``Site`` object.  HTTPS is always used.
         """
         push_endpoint = self._build_push_endpoint(domain=push_endpoint_domain)
         logger.info(
@@ -607,13 +609,16 @@ class AndroidEnterprise(MDM):
 
         Reverses the ``mdm:amapi_notifications`` URL and appends the
         ``ANDROID_ENTERPRISE_PUBSUB_TOKEN`` as a query parameter.  HTTPS
-        is always used.  The domain is taken from ``domain`` when supplied,
-        otherwise from the current ``django.contrib.sites`` ``Site`` object.
+        is always used.  The domain is resolved with the following priority:
+
+        1. The ``domain`` argument (when explicitly supplied).
+        2. ``settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` (when set).
+        3. The current ``django.contrib.sites`` ``Site`` object domain (fallback).
 
         Args:
             domain: Optional domain override (without scheme, e.g.
                 ``example.com``).  When ``None``, the domain is read from
-                the ``Site`` model.
+                ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` or the ``Site`` model.
 
         Returns:
             Full HTTPS URL for the Pub/Sub push endpoint.
@@ -626,8 +631,9 @@ class AndroidEnterprise(MDM):
             )
         path = reverse("mdm:amapi_notifications")
         if domain is None:
-            site = Site.objects.get_current()
-            domain = site.domain
+            domain = (
+                settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN or Site.objects.get_current().domain
+            )
         return f"https://{domain.rstrip('/')}{path}?token={token}"
 
     def _ensure_pubsub_topic(self) -> None:
