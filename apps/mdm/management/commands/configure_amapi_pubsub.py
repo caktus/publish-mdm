@@ -16,7 +16,8 @@ class Command(BaseCommand):
         "projects/{project_id}/topics/publish-mdm-{environment} and "
         "projects/{project_id}/subscriptions/publish-mdm-{environment}. "
         "The push endpoint is built as https://{domain}/mdm/api/amapi/notifications/?token=<token>. "
-        "When --push-endpoint-domain is omitted, the domain is taken from the current Site object."
+        "When --push-endpoint-domain is omitted, the domain is taken from "
+        "ANDROID_ENTERPRISE_CALLBACK_DOMAIN (if set), otherwise from the current Site object."
     )
 
     def add_arguments(self, parser):
@@ -26,7 +27,8 @@ class Command(BaseCommand):
             help=(
                 "Domain (without scheme, e.g. example.com) used to build the full "
                 "Pub/Sub push endpoint. HTTPS is always used. "
-                "Defaults to the domain from the current Site object."
+                "Defaults to ANDROID_ENTERPRISE_CALLBACK_DOMAIN if set, "
+                "otherwise the domain from the current Site object."
             ),
         )
 

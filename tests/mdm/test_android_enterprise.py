@@ -918,12 +918,38 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
 
     @pytest.mark.django_db
     def test_build_push_endpoint(self, set_mdm_env_vars, settings):
-        """_build_push_endpoint() returns the correct URL using the Site domain and token."""
+        """_build_push_endpoint() falls back to the Site domain when no domain is supplied."""
         active_mdm = AndroidEnterprise()
         settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = "mysecret"
+        settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN = ""
         Site.objects.filter(pk=settings.SITE_ID).update(domain="app.example.com")
         endpoint = active_mdm._build_push_endpoint()
         assert endpoint == "https://app.example.com/mdm/api/amapi/notifications/?token=mysecret"
+
+    @pytest.mark.django_db
+    def test_build_push_endpoint_uses_callback_domain_setting(self, set_mdm_env_vars, settings):
+        """_build_push_endpoint() uses ANDROID_ENTERPRISE_CALLBACK_DOMAIN over the Site domain."""
+        active_mdm = AndroidEnterprise()
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = "mysecret"
+        settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN = "callback.example.com"
+        Site.objects.filter(pk=settings.SITE_ID).update(domain="site.example.com")
+        endpoint = active_mdm._build_push_endpoint()
+        assert (
+            endpoint == "https://callback.example.com/mdm/api/amapi/notifications/?token=mysecret"
+        )
+
+    @pytest.mark.django_db
+    def test_build_push_endpoint_explicit_domain_overrides_callback_domain_setting(
+        self, set_mdm_env_vars, settings
+    ):
+        """_build_push_endpoint() explicit domain arg takes priority over ANDROID_ENTERPRISE_CALLBACK_DOMAIN."""
+        active_mdm = AndroidEnterprise()
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = "mysecret"
+        settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN = "callback.example.com"
+        endpoint = active_mdm._build_push_endpoint(domain="explicit.example.com")
+        assert (
+            endpoint == "https://explicit.example.com/mdm/api/amapi/notifications/?token=mysecret"
+        )
 
     @pytest.mark.django_db
     def test_build_push_endpoint_with_domain(self, set_mdm_env_vars, settings):
