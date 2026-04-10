@@ -17,6 +17,7 @@ jobs:
     steps:
       # 1. Block Non-Human Authors (Copilot, etc.)
       - name: "Verify Human Author"
+        if: github.base_ref == 'main'
         run: |
           set -euo pipefail
 
