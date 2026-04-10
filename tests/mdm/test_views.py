@@ -2,9 +2,10 @@ import base64
 import json
 
 import pytest
+from django.contrib.messages import SUCCESS, WARNING, Message
 from django.urls import reverse, reverse_lazy
 from django.utils.timezone import now
-from pytest_django.asserts import assertContains, assertRedirects
+from pytest_django.asserts import assertContains, assertMessages, assertRedirects
 
 from apps.mdm.mdms import AndroidEnterprise
 from apps.mdm.models import Device, DeviceSnapshot, Policy, PolicyApplication, PolicyVariable
@@ -847,3 +848,125 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
         response = self.post(client, body)
         assert response.status_code == 204
         assert DeviceSnapshot.objects.count() == before
+
+
+# ---------------------------------------------------------------------------
+# _push_policy_to_mdm — Dagster integration
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestPushPolicyToMdmDagster(PolicyViewBase):
+    """Tests that _push_policy_to_mdm() uses Dagster for child-device pushes."""
+
+    @pytest.fixture
+    def policy_with_devices(self, organization):
+        policy = PolicyFactory(organization=organization)
+        fleet = FleetFactory(policy=policy)
+        devices = []
+        for device in DeviceFactory.build_batch(2, fleet=fleet):
+            device.raw_mdm_device = {
+                "policyName": f"enterprises/test/policies/fleet{fleet.id}_{device.device_id}"
+            }
+            device.save()
+            devices.append(device)
+        return policy, devices
+
+    @pytest.fixture
+    def url(self, organization, policy_with_devices):
+        policy, _ = policy_with_devices
+        return reverse("mdm:policy-edit", args=[organization.slug, policy.pk])
+
+    def _valid_data(self):
+        return {
+            "name": "Test Policy",
+            "odk_collect_package": "org.odk.collect.android",
+            "odk_collect_device_id_template": "",
+            "device_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
+            "device_password_min_length": "",
+            "device_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+            "work_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
+            "work_password_min_length": "",
+            "work_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
+            "vpn_package_name": "",
+            "kiosk_power_button_actions": "POWER_BUTTON_ACTIONS_UNSPECIFIED",
+            "kiosk_system_error_warnings": "SYSTEM_ERROR_WARNINGS_UNSPECIFIED",
+            "kiosk_system_navigation": "SYSTEM_NAVIGATION_UNSPECIFIED",
+            "kiosk_status_bar": "STATUS_BAR_UNSPECIFIED",
+            "kiosk_device_settings": "DEVICE_SETTINGS_UNSPECIFIED",
+            "developer_settings": "DEVELOPER_SETTINGS_DISABLED",
+            "apps-TOTAL_FORMS": "0",
+            "apps-INITIAL_FORMS": "0",
+            "vars-TOTAL_FORMS": "1",
+            "vars-INITIAL_FORMS": "0",
+            "vars-MIN_NUM_FORMS": "0",
+            "vars-MAX_NUM_FORMS": "1000",
+        }
+
+    def test_dagster_triggered_for_child_devices(
+        self,
+        client,
+        url,
+        user,
+        organization,
+        policy_with_devices,
+        mocker,
+        set_mdm_env_vars,
+    ):
+        """_push_policy_to_mdm() queues child-device config pushes via Dagster mdm_job."""
+        _, devices = policy_with_devices
+        mock_push = mocker.patch("apps.mdm.views.get_active_mdm_instance")
+        mock_trigger = mocker.patch("apps.mdm.views.trigger_dagster_job")
+
+        response = client.post(url, self._valid_data())
+
+        assert response.status_code == 302
+        mock_trigger.assert_called_once()
+        call_kwargs = mock_trigger.call_args
+        assert call_kwargs.kwargs["job_name"] == "mdm_job"
+        device_pks = call_kwargs.kwargs["run_config"]["ops"]["push_mdm_device_config"]["config"][
+            "device_pks"
+        ]
+        assert set(device_pks) == {d.pk for d in devices}
+        mock_push.return_value.push_device_config.assert_not_called()
+
+    def test_dagster_exception_is_swallowed(
+        self,
+        client,
+        url,
+        user,
+        organization,
+        policy_with_devices,
+        mocker,
+        set_mdm_env_vars,
+        caplog,
+    ):
+        """_push_policy_to_mdm() logs and swallows a trigger_dagster_job exception without
+        interrupting the view response.
+        """
+        mocker.patch("apps.mdm.views.get_active_mdm_instance")
+        mock_trigger = mocker.patch(
+            "apps.mdm.views.trigger_dagster_job",
+            side_effect=Exception("Dagster unavailable"),
+        )
+
+        response = client.post(url, self._valid_data())
+
+        assert response.status_code == 302
+        mock_trigger.assert_called_once()
+        assert any(
+            "Failed to trigger Dagster mdm_job for child policies" in r.message
+            for r in caplog.records
+            if r.name == "apps.mdm.views" and r.levelname == "ERROR"
+        )
+        assertMessages(
+            response,
+            [
+                Message(SUCCESS, "Policy saved."),
+                Message(
+                    WARNING,
+                    "Your policy has been saved, but we encountered an issue syncing it to your devices. "
+                    "Please try saving again, or contact support if the problem continues.",
+                ),
+            ],
+        )

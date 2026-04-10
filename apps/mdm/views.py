@@ -15,6 +15,7 @@ from django.views.decorators.http import require_POST
 
 from apps.publish_mdm.models import AndroidEnterpriseAccount
 from apps.publish_mdm.nav import Breadcrumbs
+from config.dagster import trigger_dagster_job
 
 from .forms import (
     FirmwareSnapshotForm,
@@ -148,7 +149,7 @@ def _get_policy_variables(policy):
     ).select_related("fleet")
 
 
-def _push_policy_to_mdm(policy):
+def _push_policy_to_mdm(policy, request):
     """Push a policy and any device-specific child policies to the MDM.
 
     Errors are logged but not raised so they don't interrupt the view response.
@@ -156,8 +157,16 @@ def _push_policy_to_mdm(policy):
     (fleet{id}_{device_id}) that must be updated independently of the base policy.
     We always attempt to push device-specific policies even if the base policy
     update fails, because the device may be on the device-specific policy only.
+
+    The base policy push (single API call) is always synchronous.  The
+    per-device child-policy pushes (one call per enrolled device) are
+    offloaded to Dagster so they don't block the view.
     """
     active_mdm = get_active_mdm_instance(organization=policy.organization)
+    warning = (
+        "Your policy has been saved, but we encountered an issue syncing it to your devices. "
+        "Please try saving again, or contact support if the problem continues."
+    )
     if not active_mdm:
         logger.warning(
             "Skipping policy push: MDM is not configured. "
@@ -165,19 +174,29 @@ def _push_policy_to_mdm(policy):
             active_mdm_name=settings.ACTIVE_MDM["name"],
             policy=policy,
         )
+        messages.warning(request, warning)
         return
     try:
         active_mdm.create_or_update_policy(policy)
     except Exception:
         logger.error("Failed to push base policy to MDM", policy=policy, exc_info=True)
-    for device in Device.objects.filter(
+    child_devices = Device.objects.filter(
         fleet__policy=policy,
         raw_mdm_device__policyName__endswith=F("device_id"),
-    ).select_related("fleet__policy"):
-        try:
-            active_mdm.push_device_config(device)
-        except Exception:
-            logger.error("Failed to push device config to MDM", device=device, exc_info=True)
+    )
+    device_pks = list(child_devices.values_list("pk", flat=True))
+    if not device_pks:
+        return
+    run_config = {"ops": {"push_mdm_device_config": {"config": {"device_pks": device_pks}}}}
+    try:
+        trigger_dagster_job(job_name="mdm_job", run_config=run_config)
+    except Exception:
+        logger.error(
+            "Failed to trigger Dagster mdm_job for child policies",
+            policy=policy,
+            exc_info=True,
+        )
+        messages.warning(request, warning)
 
 
 # ---------------------------------------------------------------------------
@@ -226,7 +245,7 @@ def policy_add(request, organization_slug):
                 install_type="FORCE_INSTALLED",
                 order=0,
             )
-            _push_policy_to_mdm(policy)
+            _push_policy_to_mdm(policy, request)
             messages.success(request, f"Policy '{policy.name}' created.")
             return redirect("mdm:policy-edit", organization_slug, policy.pk)
     else:
@@ -300,8 +319,8 @@ def policy_edit(request, organization_slug, policy_id):
                 var.save()
             for var in var_formset.deleted_objects:
                 var.delete()
-            _push_policy_to_mdm(policy)
             messages.success(request, "Policy saved.")
+            _push_policy_to_mdm(policy, request)
             return redirect("mdm:policy-edit", organization_slug, policy.pk)
     else:
         form = PolicyEditForm(instance=policy)
@@ -349,7 +368,7 @@ def policy_save_managed_config(request, organization_slug, policy_id, app_id):
         app.save(update_fields=["managed_configuration"])
         saved = True
     if saved:
-        _push_policy_to_mdm(policy)
+        _push_policy_to_mdm(policy, request)
     return render(
         request,
         "mdm/partials/policy_managed_config_form.html",

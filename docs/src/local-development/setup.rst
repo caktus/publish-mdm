@@ -35,6 +35,9 @@ rather use Docker, see :doc:`../running/docker-compose`.
     export PGDATABASE=publish_mdm
     export DATABASE_URL=postgresql://$PGUSER@$PGHOST:$PGPORT/$PGDATABASE
 
+    # dagster:
+    export DAGSTER_URL=http://localhost:3000
+
     # google oauth for django-allauth
     export GOOGLE_CLIENT_ID=
     export GOOGLE_CLIENT_SECRET=
@@ -55,7 +58,7 @@ rather use Docker, see :doc:`../running/docker-compose`.
     # endpoint at /mdm/api/amapi/notifications/. If you enable notifications and
     # this is not set, all requests to the endpoint will be rejected.
     # You can generate it with `pwgen -s 32 1`
-    # ANDROID_ENTERPRISE_PUBSUB_TOKEN=
+    export ANDROID_ENTERPRISE_PUBSUB_TOKEN=
     # Optional domain (no scheme, no trailing slash, e.g. "myapp.example.com") used to build
     # the Android Enterprise enrollment callback URL over HTTPS. When set, it replaces the host
     # derived from the incoming request, which is useful for local development where the request
@@ -82,7 +85,7 @@ See :doc:`the tutorial <../running/tutorial>` for more details on the Google and
 
     python manage.py migrate
 
-5. Run the development server.
+5. Run the development server and :doc:`./dagster`.
 
 .. code-block:: bash
 
@@ -90,6 +93,8 @@ See :doc:`the tutorial <../running/tutorial>` for more details on the Google and
     npm run dev
     # in another terminal
     python manage.py runserver
+    # in another terminal
+    dagster dev
 
 6. Set up sample data. Log in with Google first so that your user is added to the sample Organization that will be created.
 

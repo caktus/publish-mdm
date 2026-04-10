@@ -2296,89 +2296,44 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
             (fleet.id, f"{fleet.name} (10)") for fleet in fleets
         }
 
-    @pytest.mark.parametrize("num_successful_fleets", [0, 1, 2])
-    def test_sync(
-        self,
-        client,
-        url,
-        user,
-        organization,
-        mocker,
-        all_mdms,
-        set_mdm_env_vars,
-        num_successful_fleets,
-        mdm_api_error,
-    ):
-        """Ensure syncing calls sync_fleet for all the fleets in an organization
-        and the updated device list is included in the response.
-        """
+    def test_sync(self, client, url, user, organization, mocker, all_mdms):
+        """The sync button triggers sync_fleets_job with the org's PKs via Dagster."""
         MDM = get_active_mdm_class()
-        mocker.patch.object(MDM, "pull_devices")
-        num_fleets = 2
-        num_devices_before = 3
-        fleets = FleetFactory.create_batch(num_fleets, organization=organization)
-        devices = DeviceFactory.create_batch(num_devices_before, fleet=fleets[0])
-        api_error_fleets = fleets[num_successful_fleets:num_fleets]
-
-        # Mock sync_fleet. It will either add one new Device or raise an API error
-        def side_effect(fleet, push_config):
-            if fleet in api_error_fleets:
-                raise mdm_api_error
-            devices.append(DeviceFactory(fleet=fleet))
-
-        mock_sync_fleet = mocker.patch.object(MDM, "sync_fleet", side_effect=side_effect)
-
-        response = client.post(url, data={"sync": 1})
-
-        # Ensure the expected sync_fleet calls have been made
-        assert mock_sync_fleet.call_count == len(fleets)
-        assert {
-            (call.args[0], call.kwargs["push_config"]) for call in mock_sync_fleet.mock_calls
-        } == {(fleet, True) for fleet in fleets}
-        # Ensure the expected devices list is included in the response
-        table = response.context.get("table")
-        assert isinstance(table, Table)
-        rows = table.as_values()
-        headers = next(rows)
-        device_id_index = headers.index("Device ID")
-        assert {row[device_id_index] for row in rows} == {device.device_id for device in devices}
-        assert len(devices) == (num_devices_before + num_successful_fleets)
-        assertContains(response, table.as_html(response.wsgi_request))
-        for fleet in api_error_fleets:
-            assertContains(
-                response,
-                f"The following error occurred while syncing devices in the {fleet.name} fleet:"
-                f'<code class="block text-xs mt-2">{mdm_api_error}</code>',
-            )
-        success_message = "Successfully synced devices from MDM. The devices list has been updated."
-        if num_successful_fleets:
-            # Ensure a success message is displayed
-            assertContains(response, success_message)
-        else:
-            assertNotContains(response, success_message)
-
-    def test_sync_no_api_credentials(self, client, url, user, organization, mocker, all_mdms):
-        """Ensure syncing is not attempted if the active MDM's API is not configured
-        and a message is shown to the user that syncing failed.
-        """
-        MDM = get_active_mdm_class()
-        mocker.patch.object(MDM, "pull_devices")
         mock_sync_fleet = mocker.patch.object(MDM, "sync_fleet")
-        fleets = FleetFactory.create_batch(3, organization=organization)
-        devices = DeviceFactory.create_batch(3, fleet=fleets[0])
+        mock_trigger = mocker.patch("apps.publish_mdm.views.trigger_dagster_job")
         response = client.post(url, data={"sync": 1})
 
         mock_sync_fleet.assert_not_called()
-        # Ensure the expected devices list is included in the response
-        table = response.context.get("table")
-        assert isinstance(table, Table)
-        rows = table.as_values()
-        headers = next(rows)
-        device_id_index = headers.index("Device ID")
-        assert {row[device_id_index] for row in rows} == {device.device_id for device in devices}
-        assertContains(response, table.as_html(response.wsgi_request))
-        # Ensure an error message is displayed
-        assertContains(response, "Unable to sync. Please try again later.")
+        mock_trigger.assert_called_once()
+        call_kwargs = mock_trigger.call_args
+        assert call_kwargs.kwargs["job_name"] == "sync_fleets_job"
+        assert (
+            organization.pk
+            == call_kwargs.kwargs["run_config"]["ops"]["sync_and_push_mdm_devices"]["config"][
+                "organization_pk"
+            ]
+        )
+        assertContains(response, "Sync queued")
+
+    def test_sync_job_error(self, client, url, user, organization, mocker, all_mdms):
+        """When the Dagster job trigger fails, an error message is shown."""
+        MDM = get_active_mdm_class()
+        mock_sync_fleet = mocker.patch.object(MDM, "sync_fleet")
+        dagster_error = Exception("Dagster unreachable")
+        mocker.patch(
+            "apps.publish_mdm.views.trigger_dagster_job",
+            side_effect=dagster_error,
+        )
+        FleetFactory.create_batch(2, organization=organization)
+
+        response = client.post(url, data={"sync": 1})
+
+        mock_sync_fleet.assert_not_called()
+        assertContains(
+            response,
+            "We encountered an issue synchronizing your device list. "
+            "Please try again, or contact support if the problem continues.",
+        )
 
     def check_list_after_searching_or_filtering(self, response, matching_devices):
         assert response.status_code == 200
@@ -3173,7 +3128,9 @@ class TestDeviceUpdateAppUser(ViewTestBase, TestAllMDMsNoAutouse):
         mocker,
         set_mdm_env_vars,
     ):
-        """Ensure submitting a valid form updates the Device's app_user_name."""
+        """Ensure submitting a valid form updates the Device's app_user_name and
+        triggers a Dagster job.
+        """
         if app_user_name:
             AppUserFactory(name=app_user_name, project=device.fleet.project)
         data = {
@@ -3181,13 +3138,18 @@ class TestDeviceUpdateAppUser(ViewTestBase, TestAllMDMsNoAutouse):
         }
         MDM = get_active_mdm_class()
         mock_push_device_config = mocker.patch.object(MDM, "push_device_config")
+        mock_trigger = mocker.patch("apps.publish_mdm.views.trigger_dagster_job")
         response = client.post(url, data=data, follow=True)
         form = response.context.get("form")
         assert isinstance(form, DeviceAppUserForm)
         assert not form.errors, form.errors
         device.refresh_from_db()
         assert device.app_user_name == app_user_name
-        mock_push_device_config.assert_called_once_with(device)
+        mock_push_device_config.assert_not_called()
+        mock_trigger.assert_called_once_with(
+            job_name="mdm_job",
+            run_config={"ops": {"push_mdm_device_config": {"config": {"device_pks": [device.pk]}}}},
+        )
 
     def test_invalid_form(self, client, url, user, device):
         """Ensure submitting an invalid form doesn't update the Device's app_user_name
@@ -3208,32 +3170,38 @@ class TestDeviceUpdateAppUser(ViewTestBase, TestAllMDMsNoAutouse):
         assert device.app_user_name != app_user_name
         assertContains(response, expected_error_message)
 
-    def test_push_device_config_called_on_valid_form(self, client, url, user, device, mocker):
-        """After a valid app_user change, push_device_config is called immediately."""
+    def test_dagster_job_triggered_on_valid_form(self, client, url, user, device, mocker):
+        """After a valid app_user change, mdm_job is triggered via Dagster."""
         mock_mdm = mocker.MagicMock()
         mocker.patch("apps.publish_mdm.views.get_active_mdm_instance", return_value=mock_mdm)
+        mock_trigger = mocker.patch("apps.publish_mdm.views.trigger_dagster_job")
         AppUserFactory(name="pushed_user", project=device.fleet.project)
         client.post(url, data={"app_user_name": "pushed_user"})
         device.refresh_from_db()
         assert device.app_user_name == "pushed_user"
-        mock_mdm.push_device_config.assert_called_once()
-        pushed_device = mock_mdm.push_device_config.call_args[0][0]
-        assert pushed_device.pk == device.pk
+        mock_mdm.push_device_config.assert_not_called()
+        mock_trigger.assert_called_once_with(
+            job_name="mdm_job",
+            run_config={"ops": {"push_mdm_device_config": {"config": {"device_pks": [device.pk]}}}},
+        )
 
-    def test_push_device_config_not_called_on_invalid_form(self, client, url, user, device, mocker):
-        """push_device_config is not called when the form is invalid."""
+    def test_dagster_job_not_triggered_on_invalid_form(self, client, url, user, device, mocker):
+        """trigger_dagster_job is not called when the form is invalid."""
         mock_mdm = mocker.MagicMock()
         mocker.patch("apps.publish_mdm.views.get_active_mdm_instance", return_value=mock_mdm)
+        mock_trigger = mocker.patch("apps.publish_mdm.views.trigger_dagster_job")
         client.post(url, data={"app_user_name": "nonexistent_user"})
         mock_mdm.push_device_config.assert_not_called()
+        mock_trigger.assert_not_called()
 
-    def test_push_device_config_error_does_not_break_response(
-        self, client, url, user, device, mocker
-    ):
-        """An exception from push_device_config is logged but the view still returns 200."""
+    def test_dagster_job_error_does_not_break_response(self, client, url, user, device, mocker):
+        """An exception from trigger_dagster_job is logged but the view still returns 200."""
         mock_mdm = mocker.MagicMock()
-        mock_mdm.push_device_config.side_effect = Exception("MDM error")
         mocker.patch("apps.publish_mdm.views.get_active_mdm_instance", return_value=mock_mdm)
+        mocker.patch(
+            "apps.publish_mdm.views.trigger_dagster_job",
+            side_effect=Exception("Dagster error"),
+        )
         AppUserFactory(name="some_user", project=device.fleet.project)
         response = client.post(url, data={"app_user_name": "some_user"})
         assert response.status_code == 200

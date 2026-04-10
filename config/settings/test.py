@@ -14,3 +14,5 @@ STORAGES["default"] = {"BACKEND": "django.core.files.storage.FileSystemStorage"}
 ENVIRONMENT = "test"
 
 ANDROID_ENTERPRISE_CALLBACK_DOMAIN = ""
+
+DAGSTER_URL = ""

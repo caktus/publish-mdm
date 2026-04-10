@@ -40,6 +40,7 @@ from requests.exceptions import RequestException
 from apps.mdm.mdms import AndroidEnterprise, get_active_mdm_instance
 from apps.mdm.models import Device, FirmwareSnapshot, Fleet, Policy
 from apps.tailscale.models import Device as TailscaleDevice
+from config.dagster import trigger_dagster_job
 
 from .etl.load import (
     create_project,
@@ -867,45 +868,34 @@ def devices_list(request: HttpRequest, organization_slug):
 
     if "sync" in request.POST:
         # Sync devices from the MDM
-        if active_mdm := get_active_mdm_instance(organization=request.organization):
-            fleets = request.organization.fleets.all()
-            logger.info(
-                "Syncing MDM devices from the Devices list page",
+        run_config = {
+            "ops": {
+                "sync_and_push_mdm_devices": {
+                    "config": {"organization_pk": request.organization.pk}
+                }
+            }
+        }
+        try:
+            trigger_dagster_job(job_name="sync_fleets_job", run_config=run_config)
+        except Exception:
+            logger.error(
+                "Failed to trigger Dagster sync_fleets_job",
                 organization=request.organization,
-                fleets=list(fleets),
+                exc_info=True,
             )
-            synced = 0
-            for fleet in fleets:
-                try:
-                    active_mdm.sync_fleet(fleet, push_config=True)
-                except (GoogleAPIClientError, RequestException) as e:
-                    logger.debug(
-                        "Unable to sync fleet",
-                        fleet=fleet,
-                        organization=request.organization,
-                        exc_info=True,
-                    )
-                    devices_list_messages.append(
-                        messages.Message(
-                            messages.ERROR,
-                            mark_safe(
-                                f"The following error occurred while syncing devices in the {fleet.name} fleet:"
-                                f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
-                            ),
-                        ),
-                    )
-                else:
-                    synced += 1
-            if synced:
-                devices_list_messages.append(
-                    messages.Message(
-                        messages.SUCCESS,
-                        "Successfully synced devices from MDM. The devices list has been updated.",
-                    )
+            devices_list_messages.append(
+                messages.Message(
+                    messages.ERROR,
+                    "We encountered an issue synchronizing your device list. "
+                    "Please try again, or contact support if the problem continues.",
                 )
+            )
         else:
             devices_list_messages.append(
-                messages.Message(messages.ERROR, "Unable to sync. Please try again later.")
+                messages.Message(
+                    messages.SUCCESS,
+                    "Sync queued — devices will update shortly.",
+                )
             )
 
     devices = (
@@ -1052,15 +1042,15 @@ def device_update_app_user(request: HttpRequest, organization_slug, device_pk):
     form = DeviceAppUserForm(request.POST, instance=device)
     if form.is_valid():
         form.save()
-        if active_mdm := get_active_mdm_instance(organization=request.organization):
-            try:
-                active_mdm.push_device_config(device)
-            except Exception:
-                logger.error(
-                    "Failed to push device config after app_user update",
-                    device=device,
-                    exc_info=True,
-                )
+        run_config = {"ops": {"push_mdm_device_config": {"config": {"device_pks": [device.pk]}}}}
+        try:
+            trigger_dagster_job(job_name="mdm_job", run_config=run_config)
+        except Exception:
+            logger.error(
+                "Failed to trigger Dagster mdm_job after app_user update",
+                device=device,
+                exc_info=True,
+            )
 
     return render(
         request,
