@@ -16,6 +16,8 @@ to learn how managing your Android devices with an MDM could enhance your workfl
    introduction
    publish_first_form
    device_management_quickstart
+   form_workflow
+   odk_concepts
    form_templates
    large_entity_lists
    mdm
