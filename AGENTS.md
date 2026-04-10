@@ -186,8 +186,7 @@ Django admin (`/admin/publish_mdm/organization/`) or the Create Organization for
   `ANDROID_ENTERPRISE_ID`) are server-wide environment variables. The full policy editor
   is used.
 - **TinyMDM**: API credentials (`tinymdm_apikey_public`, `tinymdm_apikey_secret`,
-  `tinymdm_account_id`) are stored per-org as encrypted fields. They fall back to the
-  `TINYMDM_*` environment variables when not set on the org (backwards compatibility).
+  `tinymdm_account_id`) are stored per-org as encrypted fields.
   Only `name` and `policy_id` on `Policy` are relevant.
 
 ## Skills

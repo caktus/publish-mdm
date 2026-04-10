@@ -2218,7 +2218,7 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
         """Ensure syncing calls sync_fleet for all the fleets in an organization
         and the updated device list is included in the response.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(MDM, "pull_devices")
         num_fleets = 2
         num_devices_before = 3
@@ -2266,7 +2266,7 @@ class TestDevicesList(ViewTestBase, TestAllMDMsNoAutouse):
         """Ensure syncing is not attempted if the active MDM's API is not configured
         and a message is shown to the user that syncing failed.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(MDM, "pull_devices")
         mock_sync_fleet = mocker.patch.object(MDM, "sync_fleet")
         fleets = FleetFactory.create_batch(3, organization=organization)
@@ -2437,7 +2437,7 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
             "policy": org_policy.id,
             "project": project.id,
         }
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
 
         if MDM.name == "Android Enterprise":
             mdm_group_id = None
@@ -2486,7 +2486,7 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
             "policy": org_policy.id,
             "project": project.id,
         }
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mock_create_group = mocker.patch.object(MDM, "create_group", side_effect=mdm_api_error)
         mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
 
@@ -2524,7 +2524,7 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
             "policy": org_policy.id,
             "project": project.id,
         }
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
 
         if MDM.name == "Android Enterprise":
             mdm_group_id = None
@@ -2581,7 +2581,7 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
             "policy": org_policy.id,
             "project": project.id,
         }
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
 
         if MDM.name == "Android Enterprise":
             mdm_group_id = None
@@ -2744,14 +2744,14 @@ class TestFleetQRCode(ViewTestBase, TestAllMDMsNoAutouse):
         """Ensure a the QR code is downloaded and saved if it's not saved yet,
         and an img tag with the saved QR code is included in the response.
         """
-        mocker.patch.object(get_active_mdm_class(), "pull_devices")
+        mocker.patch.object(get_active_mdm_class(organization), "pull_devices")
         fleet = FleetFactory(organization=organization, enroll_qr_code=None)
 
         def side_effect(fleet):
             fleet.enroll_qr_code.save(f"{fleet}.png", ContentFile(fake.image()), save=False)
 
         mock_get_enrollment_qr_code = mocker.patch.object(
-            get_active_mdm_class(),
+            get_active_mdm_class(organization),
             "get_enrollment_qr_code",
             side_effect=side_effect,
         )
@@ -2805,14 +2805,14 @@ class TestFleetQRCode(ViewTestBase, TestAllMDMsNoAutouse):
         """Ensure an error message is shown if there is no QR code saved and we could
         not get it from the MDM because there was an API error.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(MDM, "pull_devices")
         fleet = FleetFactory(organization=organization, enroll_qr_code=None)
         data = {
             "fleet": fleet.id,
         }
         mock_get_enrollment_qr_code = mocker.patch.object(
-            get_active_mdm_class(),
+            get_active_mdm_class(organization),
             "get_enrollment_qr_code",
             side_effect=mdm_api_error,
         )
@@ -3017,14 +3017,16 @@ class TestDeviceUpdateAppUser(ViewTestBase):
         assert response.status_code == 302
 
     @pytest.mark.parametrize("app_user_name", ["", "new_app_user_name"])
-    def test_valid_form(self, client, url, user, device, app_user_name, mocker, set_mdm_env_vars):
+    def test_valid_form(
+        self, client, url, user, device, app_user_name, mocker, set_mdm_env_vars, organization
+    ):
         """Ensure submitting a valid form updates the Device's app_user_name."""
         if app_user_name:
             AppUserFactory(name=app_user_name, project=device.fleet.project)
         data = {
             "app_user_name": app_user_name,
         }
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mock_push_device_config = mocker.patch.object(MDM, "push_device_config")
         response = client.post(url, data=data, follow=True)
         form = response.context.get("form")

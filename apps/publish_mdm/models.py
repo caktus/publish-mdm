@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 import structlog
 from django.conf import settings
 from django.contrib.sites.shortcuts import get_current_site
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.validators import RegexValidator
 from django.db import models
@@ -25,7 +26,6 @@ from apps.infisical.fields import EncryptedCharField, EncryptedEmailField
 from apps.infisical.managers import EncryptedManager
 from apps.mdm.mdms import get_active_mdm_instance
 from apps.mdm.models import Fleet, Policy, PolicyApplication
-from django.core.exceptions import ValidationError
 from apps.users.models import User
 
 from .etl import template
@@ -58,24 +58,24 @@ class Organization(AbstractBaseModel):
         default=next(iter(settings.MDM_REGISTRY)),
         help_text="The Mobile Device Management system used by this organization.",
     )
-    # Per-org TinyMDM API credentials (fall back to env vars when blank/null)
+    # Per-org TinyMDM API credentials
     tinymdm_apikey_public = EncryptedCharField(
         null=True,
         blank=True,
         verbose_name="TinyMDM API key (public)",
-        help_text="TinyMDM manager API public key. Leave blank to use the server-wide env var.",
+        help_text="TinyMDM manager API public key.",
     )
     tinymdm_apikey_secret = EncryptedCharField(
         null=True,
         blank=True,
         verbose_name="TinyMDM API key (secret)",
-        help_text="TinyMDM manager API secret key. Leave blank to use the server-wide env var.",
+        help_text="TinyMDM manager API secret key.",
     )
     tinymdm_account_id = EncryptedCharField(
         null=True,
         blank=True,
         verbose_name="TinyMDM account ID",
-        help_text="TinyMDM account ID. Leave blank to use the server-wide env var.",
+        help_text="TinyMDM account ID.",
     )
 
     def __str__(self):
@@ -86,21 +86,11 @@ class Organization(AbstractBaseModel):
 
     def clean(self):
         if self.mdm == "TinyMDM":
-            # Require all three TinyMDM credentials to be set together.
-            # They can come from env vars (left blank here), but if any are
-            # provided they must all be provided.
-            provided = {
-                "tinymdm_apikey_public": bool(self.tinymdm_apikey_public),
-                "tinymdm_apikey_secret": bool(self.tinymdm_apikey_secret),
-                "tinymdm_account_id": bool(self.tinymdm_account_id),
-            }
-            if any(provided.values()) and not all(provided.values()):
-                missing = [k for k, v in provided.items() if not v]
-                raise ValidationError(
-                    dict.fromkeys(
-                        missing, "All three TinyMDM credential fields must be set together."
-                    )
-                )
+            # Require all three TinyMDM credentials to be set
+            if not all(
+                [self.tinymdm_apikey_public, self.tinymdm_apikey_secret, self.tinymdm_account_id]
+            ):
+                raise ValidationError("All three TinyMDM credential fields must be set.")
 
     def create_default_fleet(self):
         """Create a default MDM Fleet for the organization if the active MDM's API is

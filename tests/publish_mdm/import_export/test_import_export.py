@@ -486,7 +486,7 @@ class TestDeviceResource:
                 app_user_name += "_edited"
             csv_data += f"{i.device_id},{i.serial_number},{app_user_name}\n"
 
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mock_push_device_config = mocker.patch.object(MDM, "push_device_config")
         result = self.import_data(csv_data, organization, dry_run=dry_run)
 

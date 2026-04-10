@@ -26,8 +26,6 @@ fake = faker.Faker()
 class TestModels:
     @pytest.fixture
     def fleet(self, organization):
-        from tests.mdm.factories import PolicyFactory
-
         policy = PolicyFactory(organization=organization)
         return FleetFactory(organization=organization, policy=policy)
 

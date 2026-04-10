@@ -12,26 +12,26 @@ from tests.mdm.factories import DeviceFactory
 class TestPushMDMDeviceConfig(TestAllMDMs):
     """Test suite for pushing MDM device configuration."""
 
-    def test_push_mdm_device_config_called(self, mocker, set_mdm_env_vars):
+    def test_push_mdm_device_config_called(self, mocker, organization, set_mdm_env_vars):
         """Test pushing MDM device configuration."""
-        mock_push = mocker.patch.object(get_active_mdm_class(), "push_device_config")
+        mock_push = mocker.patch.object(get_active_mdm_class(organization), "push_device_config")
         device = DeviceFactory()
         push_mdm_device_config(
             context=dg.build_asset_context(), config=DeviceConfig(device_pks=[device.pk])
         )
         mock_push.assert_called_once_with(device=device)
 
-    def test_push_mdm_device_config_no_devices(self, mocker, set_mdm_env_vars):
+    def test_push_mdm_device_config_no_devices(self, mocker, organization, set_mdm_env_vars):
         """Test pushing MDM device configuration with no devices found."""
-        mocker.patch.object(get_active_mdm_class(), "push_device_config")
+        mocker.patch.object(get_active_mdm_class(organization), "push_device_config")
         with pytest.raises(ValueError, match="not found"):
             push_mdm_device_config(
                 context=dg.build_asset_context(), config=DeviceConfig(device_pks=[999])
             )
 
-    def test_push_one_fails_not_all(self, mocker, set_mdm_env_vars):
+    def test_push_one_fails_not_all(self, mocker, organization, set_mdm_env_vars):
         """Test pushing MDM device configuration with one device failing."""
-        mock_push = mocker.patch.object(get_active_mdm_class(), "push_device_config")
+        mock_push = mocker.patch.object(get_active_mdm_class(organization), "push_device_config")
         device1 = DeviceFactory()
         device2 = DeviceFactory()
         # Simulate failure for device1

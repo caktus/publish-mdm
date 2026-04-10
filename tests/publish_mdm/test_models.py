@@ -302,7 +302,7 @@ class TestOrganization(TestAllMDMs):
         org-specific policy for an organization when the active MDM is configured.
         """
         organization = OrganizationFactory()
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mock_create_group = mocker.patch.object(MDM, "create_group")
         mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
         mock_get_enrollment_qr_code = mocker.patch.object(MDM, "get_enrollment_qr_code")
@@ -317,14 +317,14 @@ class TestOrganization(TestAllMDMs):
         mock_add_group_to_policy.assert_called_once()
         mock_get_enrollment_qr_code.assert_called_once()
 
-    def test_create_default_fleet_policy_id_is_unique(self, set_mdm_env_vars, mocker):
+    def test_create_default_fleet_policy_id_is_unique(self, set_mdm_env_vars, mocker, organization):
         """Two calls to create_default_fleet() must produce distinct policy_id values.
 
         Regression test: the previous implementation used
         ``f"policy_default_{Policy.all_mdms.count()}"`` which produces collisions
         under concurrency or after deletions.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(MDM, "create_group")
         mocker.patch.object(MDM, "add_group_to_policy")
         mocker.patch.object(MDM, "get_enrollment_qr_code")

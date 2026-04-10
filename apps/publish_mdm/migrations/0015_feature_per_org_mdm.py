@@ -2,6 +2,7 @@
 
 import os
 
+from django.conf import settings
 from django.db import migrations, models
 
 import apps.infisical.fields
@@ -11,24 +12,22 @@ def set_org_mdm_from_policies(apps, schema_editor):
     """Seed Organization.mdm and TinyMDM credentials for all existing organizations.
 
     Strategy:
-    - If the org has at least one policy, use the mdm value from its first policy
-      (policies were previously tagged with the server-wide ACTIVE_MDM_NAME, so all
-      policies in a single-MDM deployment share the same value).
-    - If the org has no policies, fall back to the ACTIVE_MDM_NAME env var, then "TinyMDM".
+    - If the org has at least one policy, use the mdm value from its first policy.
+    - If the org has no policies, fall back to the ACTIVE_MDM_NAME env var, then the first
+      MDM in the MDM_REGISTRY setting.
     - If the resolved mdm is "TinyMDM", also copy the global TINYMDM_* env vars into
       the org's credential fields so that existing deployments continue working without
-      manual re-configuration.
+      using env vars.
     """
     Organization = apps.get_model("publish_mdm", "Organization")
     Policy = apps.get_model("mdm", "Policy")
-    valid_choices = {"TinyMDM", "Android Enterprise"}
-    fallback_mdm = os.environ.get("ACTIVE_MDM_NAME", "TinyMDM")
-    if fallback_mdm not in valid_choices:
-        fallback_mdm = "TinyMDM"
+    fallback_mdm = os.environ.get("ACTIVE_MDM_NAME")
+    if fallback_mdm not in settings.MDM_REGISTRY:
+        fallback_mdm = next(iter(settings.MDM_REGISTRY))
 
     for org in Organization.objects.all():
         first_policy = Policy.objects.filter(organization=org).order_by("pk").first()
-        if first_policy and first_policy.mdm in valid_choices:
+        if first_policy and first_policy.mdm in settings.MDM_REGISTRY:
             mdm_name = first_policy.mdm
         else:
             mdm_name = fallback_mdm
@@ -66,7 +65,7 @@ class Migration(migrations.Migration):
             name="tinymdm_account_id",
             field=apps.infisical.fields.EncryptedCharField(
                 blank=True,
-                help_text="TinyMDM account ID. Leave blank to use the server-wide env var.",
+                help_text="TinyMDM account ID.",
                 null=True,
                 verbose_name="TinyMDM account ID",
             ),
@@ -76,7 +75,7 @@ class Migration(migrations.Migration):
             name="tinymdm_apikey_public",
             field=apps.infisical.fields.EncryptedCharField(
                 blank=True,
-                help_text="TinyMDM manager API public key. Leave blank to use the server-wide env var.",
+                help_text="TinyMDM manager API public key.",
                 null=True,
                 verbose_name="TinyMDM API key (public)",
             ),
@@ -86,7 +85,7 @@ class Migration(migrations.Migration):
             name="tinymdm_apikey_secret",
             field=apps.infisical.fields.EncryptedCharField(
                 blank=True,
-                help_text="TinyMDM manager API secret key. Leave blank to use the server-wide env var.",
+                help_text="TinyMDM manager API secret key.",
                 null=True,
                 verbose_name="TinyMDM API key (secret)",
             ),

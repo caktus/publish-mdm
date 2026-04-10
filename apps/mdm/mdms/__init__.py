@@ -13,7 +13,15 @@ __all__ = [
 ]
 
 
-def get_active_mdm_instance(organization) -> MDM | None:
+def get_active_mdm_class(organization=None):
+    if organization:
+        class_string = settings.MDM_REGISTRY[organization.mdm]
+    else:
+        class_string = next(iter(settings.MDM_REGISTRY.values()))
+    return import_string(class_string)
+
+
+def get_active_mdm_instance(organization=None) -> MDM | None:
     """Return an MDM instance for the given organization.
 
     The MDM class is resolved from ``settings.MDM_REGISTRY`` using the
@@ -22,9 +30,6 @@ def get_active_mdm_instance(organization) -> MDM | None:
 
     Returns ``None`` if the MDM name is not in the registry.
     """
-    mdm_name = organization.mdm
-    mdm_class_path = settings.MDM_REGISTRY.get(mdm_name)
-    if not mdm_class_path:
-        return None
-    mdm_class = import_string(mdm_class_path)
-    return mdm_class(organization=organization)
+    mdm_class = get_active_mdm_class(organization)
+    if mdm_class:
+        return mdm_class(organization=organization)

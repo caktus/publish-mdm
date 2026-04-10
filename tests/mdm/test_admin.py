@@ -94,7 +94,7 @@ class TestDeviceAdmin(TestAdmin):
         )
 
     def test_confirm_import_with_errors(
-        self, client, user, dataset, mocker, set_mdm_env_vars, settings
+        self, client, user, dataset, mocker, set_mdm_env_vars, settings, organization
     ):
         """Ensure error messages are shown for errors that occur during the
         confirmation step of an import, and any devices that were added/updated
@@ -123,7 +123,7 @@ class TestDeviceAdmin(TestAdmin):
                 new_device.device_id if index else dataset[0][-1],
             ]
             dataset.append(row)
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(
             MDM,
             "push_device_config",
@@ -146,15 +146,15 @@ class TestDeviceAdmin(TestAdmin):
         )
 
     @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
-    def test_device_save(self, client, user, mocker, set_mdm_env_vars, mdm_api_error):
+    def test_device_save(self, client, user, mocker, organization, set_mdm_env_vars, mdm_api_error):
         """Ensures push_device_config() is called when saving a Device in Admin
         and if there is an MDM API error it is displayed to the user.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mock_push_device_config = mocker.patch.object(
             MDM, "push_device_config", side_effect=mdm_api_error
         )
-        device = DeviceFactory()
+        device = DeviceFactory(fleet__organization=organization)
         data = {
             "fleet": device.fleet_id,
             "serial_number": device.serial_number,
@@ -188,7 +188,7 @@ class TestFleetAdmin(TestAdmin):
             "mdm_group_id": fleet.mdm_group_id,
             "policy": fleet.policy_id,
         }
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mock_add_group_to_policy = mocker.patch.object(
             MDM, "add_group_to_policy", side_effect=mdm_api_error
         )
@@ -209,11 +209,13 @@ class TestFleetAdmin(TestAdmin):
             )
 
     @pytest.mark.parametrize("policy_changed", [True, False])
-    def test_existing_fleet(self, user, client, mocker, set_mdm_env_vars, policy_changed):
+    def test_existing_fleet(
+        self, user, client, mocker, set_mdm_env_vars, policy_changed, organization
+    ):
         """Ensures the add_group_to_policy() function is called for an existing fleet
         if its policy is changed.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(MDM, "pull_devices")
         fleet = FleetFactory()
         data = {
@@ -234,11 +236,11 @@ class TestFleetAdmin(TestAdmin):
         else:
             mock_add_group_to_policy.assert_not_called()
 
-    def test_delete_fleet_successful(self, user, client, mocker, set_mdm_env_vars):
+    def test_delete_fleet_successful(self, user, client, mocker, set_mdm_env_vars, organization):
         """Ensures a Fleet is successfully deleted if it's not linked to any device
         either in the database or in the MDM.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(MDM, "pull_devices")
         fleet = FleetFactory()
         mock_delete_group = mocker.patch.object(MDM, "delete_group", return_value=True)
@@ -251,10 +253,10 @@ class TestFleetAdmin(TestAdmin):
         assert not Fleet.objects.filter(pk=fleet.pk).exists()
         assertContains(response, f"The fleet “{fleet}” was deleted successfully.")
 
-    def test_delete_fleet_no_api_credentials(self, user, client, mocker):
+    def test_delete_fleet_no_api_credentials(self, user, client, mocker, organization):
         """Ensures a Fleet is not deleted if the active MDM's API access is not configured."""
         fleet = FleetFactory()
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mock_delete_group = mocker.patch.object(MDM, "delete_group")
         response = client.post(
             reverse("admin:mdm_fleet_delete", args=[fleet.id]), data={"post": "yes"}, follow=True
@@ -267,11 +269,11 @@ class TestFleetAdmin(TestAdmin):
         assertNotContains(response, f"The fleet “{fleet}” was deleted successfully.")
         assertRedirects(response, reverse("admin:mdm_fleet_changelist"))
 
-    def test_delete_fleet_has_devices(self, user, client, mocker, set_mdm_env_vars):
+    def test_delete_fleet_has_devices(self, user, client, mocker, set_mdm_env_vars, organization):
         """Ensures a Fleet is not deleted if it's linked to some devices either in
         the database or in the MDM.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(MDM, "pull_devices")
         fleet = FleetFactory()
         mock_delete_group = mocker.patch.object(MDM, "delete_group", return_value=False)
@@ -287,12 +289,12 @@ class TestFleetAdmin(TestAdmin):
         assertRedirects(response, reverse("admin:mdm_fleet_changelist"))
 
     def test_delete_fleet_api_error(
-        self, user, client, mocker, set_mdm_env_vars, mdm_api_error_class
+        self, user, client, mocker, set_mdm_env_vars, mdm_api_error_class, organization
     ):
         """Ensures a Fleet is not deleted if an API error occurs when deleting the
         group in the MDM.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(MDM, "pull_devices")
         fleet = FleetFactory()
         api_error = mdm_api_error_class("error")
@@ -313,11 +315,13 @@ class TestFleetAdmin(TestAdmin):
         assertNotContains(response, f"The fleet “{fleet}” was deleted successfully.")
         assertRedirects(response, reverse("admin:mdm_fleet_changelist"))
 
-    def test_delete_selected_fully_successful(self, user, client, mocker, set_mdm_env_vars):
+    def test_delete_selected_fully_successful(
+        self, user, client, mocker, set_mdm_env_vars, organization
+    ):
         """Ensures fleets are successfully deleted using the delete_selected action
         if they are not linked to any device either in the database or in the MDM.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(MDM, "pull_devices")
         fleets = FleetFactory.create_batch(5)
         # Will delete 3 fleets, 2 should remain
@@ -334,12 +338,19 @@ class TestFleetAdmin(TestAdmin):
 
     @pytest.mark.parametrize("partial_success", [True, False])
     def test_delete_selected_failures(
-        self, user, client, mocker, set_mdm_env_vars, partial_success, mdm_api_error_class
+        self,
+        user,
+        client,
+        mocker,
+        set_mdm_env_vars,
+        partial_success,
+        mdm_api_error_class,
+        organization,
     ):
         """Ensures fleets are not deleted using the delete_selected action if
         they are linked to devices either in the database or in the MDM.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(MDM, "pull_devices")
         fleets = FleetFactory.create_batch(6 if partial_success else 4)
         # Will try to delete all fleets. 2 will fail because they have devices,
@@ -385,12 +396,12 @@ class TestFleetAdmin(TestAdmin):
         else:
             assertNotContains(response, "Successfully deleted ")
 
-    def test_delete_selected_no_api_credentials(self, user, client, mocker):
+    def test_delete_selected_no_api_credentials(self, user, client, mocker, organization):
         """Ensures fleets are not deleted using the delete_selected action if
         the active MDM's API access is not configured.
         """
         fleets = FleetFactory.create_batch(3)
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mock_delete_group = mocker.patch.object(MDM, "delete_group")
         data = {
             "post": "yes",
@@ -405,11 +416,11 @@ class TestFleetAdmin(TestAdmin):
         assertNotContains(response, "Successfully deleted ")
 
     @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
-    def test_fleet_save(self, client, user, mocker, set_mdm_env_vars, mdm_api_error):
+    def test_fleet_save(self, client, user, mocker, set_mdm_env_vars, mdm_api_error, organization):
         """Ensures pull_devices() is called when saving a Fleet in Admin
         and if there is an MDM API error it is displayed to the user.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mock_pull_devices = mocker.patch.object(MDM, "pull_devices", side_effect=mdm_api_error)
         fleet = FleetFactory()
         data = {
@@ -436,11 +447,11 @@ class TestFleetAdmin(TestAdmin):
 
 class TestPolicyAdmin(TestAdmin):
     @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
-    def test_new_policy(self, user, client, mocker, set_mdm_env_vars, mdm_api_error):
+    def test_new_policy(self, user, client, mocker, set_mdm_env_vars, mdm_api_error, organization):
         """Ensures the create_or_update_policy() method is called for a new Policy
         when the active MDM has the method.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         data = {
             "name": "New policy",
             "policy_id": "policy",
@@ -478,7 +489,14 @@ class TestPolicyAdmin(TestAdmin):
 
     @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
     def test_existing_policy(
-        self, user, client, mocker, set_mdm_env_vars, mdm_api_error, mdm_api_error_class
+        self,
+        user,
+        client,
+        mocker,
+        set_mdm_env_vars,
+        mdm_api_error,
+        mdm_api_error_class,
+        organization,
     ):
         """Ensures the create_or_update_policy() method is called when editing a Policy
         and the active MDM has the method.
@@ -496,7 +514,7 @@ class TestPolicyAdmin(TestAdmin):
             "applications-TOTAL_FORMS": "0",
             "applications-INITIAL_FORMS": "0",
         }
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mdm_has_method = hasattr(MDM, "create_or_update_policy")
         if mdm_has_method:
             mock_create_or_update_policy = mocker.patch.object(
@@ -554,7 +572,7 @@ class TestPolicyAdmin(TestAdmin):
             mock_push_device_config.assert_not_called()
 
     def test_policy_push_happens_after_inline_applications_saved(
-        self, user, client, mocker, set_mdm_env_vars
+        self, user, client, mocker, set_mdm_env_vars, organization
     ):
         """MDM push is triggered in save_related(), so inline applications added in the
         same POST are already persisted when create_or_update_policy() is called.
@@ -562,7 +580,7 @@ class TestPolicyAdmin(TestAdmin):
         Regression test: the push was previously in save_model(), which runs before
         Django's save_related() persists inline formset rows.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         if not hasattr(MDM, "create_or_update_policy"):
             pytest.skip("MDM does not have create_or_update_policy")
 

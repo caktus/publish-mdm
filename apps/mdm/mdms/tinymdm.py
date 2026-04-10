@@ -11,7 +11,6 @@ from requests_ratelimiter import LimiterSession
 from urllib3.util.retry import Retry
 
 from apps.mdm.models import Device, DeviceSnapshot, DeviceSnapshotApp, Fleet
-from apps.publish_mdm.utils import get_secret
 
 from .base import MDM, MDMAPIError
 
@@ -44,12 +43,9 @@ class TinyMDM(MDM):
 
         org = self.organization
         headers = {
-            "X-Tinymdm-Manager-Apikey-Public": (org.tinymdm_apikey_public if org else None)
-            or get_secret("TINYMDM_APIKEY_PUBLIC"),
-            "X-Tinymdm-Manager-Apikey-Secret": (org.tinymdm_apikey_secret if org else None)
-            or get_secret("TINYMDM_APIKEY_SECRET"),
-            "X-Account-Id": (org.tinymdm_account_id if org else None)
-            or get_secret("TINYMDM_ACCOUNT_ID"),
+            "X-Tinymdm-Manager-Apikey-Public": org and org.tinymdm_apikey_public,
+            "X-Tinymdm-Manager-Apikey-Secret": org and org.tinymdm_apikey_secret,
+            "X-Account-Id": org and org.tinymdm_account_id,
         }
         if not all(headers.values()):
             logger.warning("TinyMDM API credentials not configured.")
