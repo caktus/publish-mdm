@@ -69,7 +69,8 @@ class Organization(AbstractBaseModel):
         # Create an org-specific default policy
         policy = Policy.all_mdms.create(
             name="Default",
-            policy_id=f"policy_default_{get_random_string(12)}",
+            # Create a random policy ID to avoid collisions.
+            policy_id=f"policy_{get_random_string(20)}",
             mdm=settings.ACTIVE_MDM["name"],
             organization=self,
         )

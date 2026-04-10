@@ -9,7 +9,6 @@ from django.db.models import F, Max, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.crypto import get_random_string
-from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
@@ -234,9 +233,8 @@ def policy_add(request, organization_slug):
         if form.is_valid():
             policy = form.save(commit=False)
             policy.mdm = settings.ACTIVE_MDM["name"]
-            # policy_id: "policy_" (7) + up to 50 chars of slug + "_" (1) + 8 random chars = ≤66 chars,
-            # well within the 255-char field limit; random suffix prevents collisions.
-            policy.policy_id = f"policy_{slugify(policy.name)[:50]}_{get_random_string(8)}"
+            # Create a random policy ID to avoid collisions.
+            policy.policy_id = f"policy_{get_random_string(20)}"
             policy.organization = request.organization
             policy.save()
             PolicyApplication.objects.create(
