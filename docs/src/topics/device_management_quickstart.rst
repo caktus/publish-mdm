@@ -1,5 +1,5 @@
-Quickstart Guide (MDM)
-======================
+Getting Started with Device Management
+========================================
 
 This guide provides a step-by-step walkthrough for new users to set up an organization, enroll a device, and automate ODK project deployment using Publish MDM.
 

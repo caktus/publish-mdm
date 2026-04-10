@@ -6,7 +6,7 @@ and provide useful background information and explanation. It's a good place to
 start if you're new to Publish MDM.
 
 We recommend first :doc:`publishing your first form <publish_first_form>` directly from
-Google Sheets to ODK Central, and then moving on to the :doc:`enrolling your first device <quickstart_mdm>`
+Google Sheets to ODK Central, and then moving on to :doc:`getting started with device management <device_management_quickstart>`
 to learn how managing your Android devices with an MDM could enhance your workflow.
 
 .. toctree::
@@ -15,7 +15,7 @@ to learn how managing your Android devices with an MDM could enhance your workfl
 
    introduction
    publish_first_form
-   quickstart_mdm
+   device_management_quickstart
    form_templates
    large_entity_lists
    mdm

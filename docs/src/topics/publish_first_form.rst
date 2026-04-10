@@ -12,7 +12,7 @@ This guide walks you through the essential steps to publish your first form from
 
 .. note::
 
-   If you want to manage Android devices and automatically configure them with forms, see the :doc:`Quickstart Guide (MDM) <quickstart_mdm>`. Device management is optional and not required for basic form publishing.
+   If you want to manage Android devices and automatically configure them with forms, see :doc:`Getting Started with Device Management <device_management_quickstart>`. Device management is optional and not required for basic form publishing.
 
 Prerequisites
 --------------
@@ -155,7 +155,7 @@ Step 8: Share the Form with Data Collectors
 -------------------------------------------
 
 .. important::
-    For larger projects or more advanced use cases, you can follow the :doc:`Quickstart Guide (MDM) <quickstart_mdm>` to set up Android device management and avoid the need to distribute ODK Collect QR codes manually, even across multiple projects and surveys.
+    For larger projects or more advanced use cases, you can follow :doc:`Getting Started with Device Management <device_management_quickstart>` to set up Android device management and avoid the need to distribute ODK Collect QR codes manually, even across multiple projects and surveys.
 
 Your data collectors now need to configure `ODK Collect`_ with their assigned form. To get them set up:
 
@@ -199,7 +199,7 @@ What's Next?
 
 **Want to customize forms for different users or data sources?** Check out :doc:`Dynamic Forms with Template Variables <form_templates>` to learn how to use template variables to personalize forms without creating multiple versions.
 
-**Want to automate device management?** See the :doc:`Quickstart Guide (MDM) <quickstart_mdm>` to set up Android device management, automatic form deployment, and policy enforcement.
+**Want to automate device management?** See :doc:`Getting Started with Device Management <device_management_quickstart>` to set up Android device management, automatic form deployment, and policy enforcement.
 
 **Need to manage large datasets efficiently?** Explore the :doc:`Managing Large Entity Lists <large_entity_lists>` guide.
 

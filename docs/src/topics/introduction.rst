@@ -24,7 +24,7 @@ There are two main workflows depending on your needs:
 
 **2. Advanced: Automated Device Management**
    If you want to manage Android devices and automatically configure them with forms, policies, and
-   security settings, see the :doc:`Quickstart Guide (MDM) <quickstart_mdm>`. This enables
+   security settings, see :doc:`Getting Started with Device Management <device_management_quickstart>`. This enables
    enterprise-grade device management and automated deployment.
 
 Form Design Workflow
