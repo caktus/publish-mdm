@@ -3,7 +3,7 @@ from googleapiclient.errors import Error as GoogleAPIClientError
 from requests.exceptions import HTTPError
 
 from apps.publish_mdm.models import AndroidEnterpriseAccount
-from tests.mdm import ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE, _set_mdm_env_vars
+from tests.mdm import ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE, _configure_mdm
 
 
 @pytest.fixture
@@ -19,8 +19,8 @@ def set_amapi_service_account_file(monkeypatch):
 
 
 @pytest.fixture
-def del_mdm_env_vars(organization, del_amapi_service_account_file):
-    """Delete environment variables for MDM API credentials, if they exist."""
+def unconfigure_mdm(request, organization):
+    """Unconfigure MDM API credentials for an organization."""
     if organization.mdm == "TinyMDM":
         organization.tinymdm_apikey_public = None
         organization.tinymdm_apikey_secret = None
@@ -28,12 +28,15 @@ def del_mdm_env_vars(organization, del_amapi_service_account_file):
         organization.save()
     elif organization.mdm == "Android Enterprise":
         AndroidEnterpriseAccount.objects.filter(organization=organization).delete()
+        request.getfixturevalue("del_amapi_service_account_file")
 
 
 @pytest.fixture
-def set_mdm_env_vars(organization, set_amapi_service_account_file):
-    """Set environment variables for the currently active MDM's API credentials to fake values."""
-    _set_mdm_env_vars(organization.mdm, organization)
+def configure_mdm(request, organization):
+    """Configure MDM API credentials for an organization."""
+    _configure_mdm(organization.mdm, organization)
+    if organization.mdm == "Android Enterprise":
+        request.getfixturevalue("set_amapi_service_account_file")
 
 
 @pytest.fixture
@@ -51,9 +54,9 @@ def mdm_api_error(request, mdm_api_error_class):
 
 @pytest.fixture
 def force_tinymdm(organization):
-    _set_mdm_env_vars("TinyMDM", organization)
+    _configure_mdm("TinyMDM", organization)
 
 
 @pytest.fixture
 def force_android_enterprise(organization, set_amapi_service_account_file):
-    _set_mdm_env_vars("Android Enterprise", organization)
+    _configure_mdm("Android Enterprise", organization)

@@ -2456,7 +2456,6 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         organization,
         mocker,
         all_mdms,
-        set_mdm_env_vars,
     ):
         PolicyFactory.create_batch(2)  # other-org policies, should not be pre-selected
         org_policy = PolicyFactory(organization=organization)
@@ -2468,7 +2467,7 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         assert form_instance.policy == org_policy
 
     def test_get_no_mdm_credentials(
-        self, client, url, user, organization, all_mdms, del_mdm_env_vars
+        self, client, url, user, organization, all_mdms, unconfigure_mdm
     ):
         """Ensures a warning message that a fleet cannot be created is shown if
         API credentials are not configured for the active MDM.
@@ -2487,7 +2486,6 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         organization,
         settings,
         all_mdms,
-        set_mdm_env_vars,
     ):
         """Ensures the form renders when there is no org-scoped policy (policy defaults to None)."""
         response = client.get(url)
@@ -2505,7 +2503,6 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         organization,
         project,
         all_mdms,
-        set_mdm_env_vars,
         mocker,
     ):
         """Ensure submitting a valid form creates a Fleet with the expected data
@@ -2553,7 +2550,6 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         organization,
         project,
         all_mdms,
-        set_mdm_env_vars,
         mocker,
         mdm_api_error,
     ):
@@ -2590,7 +2586,6 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         organization,
         project,
         all_mdms,
-        set_mdm_env_vars,
         mocker,
         mdm_api_error,
     ):
@@ -2647,7 +2642,6 @@ class TestAddFleet(ViewTestBase, TestAllMDMsNoAutouse):
         organization,
         project,
         all_mdms,
-        set_mdm_env_vars,
         mocker,
         mdm_api_error,
     ):
@@ -2725,7 +2719,6 @@ class TestEditFleet(ViewTestBase, TestAllMDMsNoAutouse):
         organization,
         project,
         all_mdms,
-        set_mdm_env_vars,
         mdm_api_error,
         mocker,
     ):
@@ -2843,7 +2836,6 @@ class TestFleetQRCode(ViewTestBase, TestAllMDMsNoAutouse):
         organization,
         mocker,
         all_mdms,
-        set_mdm_env_vars,
     ):
         """Ensure a the QR code is downloaded and saved if it's not saved yet,
         and an img tag with the saved QR code is included in the response.
@@ -2885,7 +2877,7 @@ class TestFleetQRCode(ViewTestBase, TestAllMDMsNoAutouse):
         assertContains(response, "QR CODE NOT FOUND")
 
     def test_no_api_credentials(
-        self, client, url, user, organization, mocker, all_mdms, del_mdm_env_vars
+        self, client, url, user, organization, mocker, all_mdms, unconfigure_mdm
     ):
         """Ensure an error message is shown if there is no QR code saved and we could
         not get it from the MDM because there are no API credentials.
@@ -2905,7 +2897,6 @@ class TestFleetQRCode(ViewTestBase, TestAllMDMsNoAutouse):
         organization,
         mocker,
         all_mdms,
-        set_mdm_env_vars,
         mdm_api_error,
     ):
         """Ensure an error message is shown if there is no QR code saved and we could
@@ -2945,7 +2936,7 @@ class TestBYODDeviceEnrollment(ViewTestBase, TestTinyMDMOnly):
         response = client.get(url)
         assert response.status_code == 404
 
-    def test_success(self, client, url, user, organization, mocker, set_mdm_env_vars):
+    def test_success(self, client, url, user, organization, mocker):
         """Ensure the user is shown the expected success message if a TinyMDM
         user is successfully created.
         """
@@ -2963,7 +2954,7 @@ class TestBYODDeviceEnrollment(ViewTestBase, TestTinyMDMOnly):
         assertContains(response, "Please check your email for a link to download the TinyMDM app.")
         assert isinstance(response.context.get("form"), BYODDeviceEnrollmentForm)
 
-    def test_no_api_credentials(self, client, url, user, organization, mocker, del_mdm_env_vars):
+    def test_no_api_credentials(self, client, url, user, organization, mocker, unconfigure_mdm):
         """Ensure the user is shown the expected error message if TinyMDM API access
         is not correctly configured.
         """
@@ -2993,7 +2984,6 @@ class TestBYODDeviceEnrollment(ViewTestBase, TestTinyMDMOnly):
         organization,
         mocker,
         requests_mock,
-        set_mdm_env_vars,
         api_error,
     ):
         """Ensure the user is shown the expected error message in case of an API
@@ -3062,7 +3052,7 @@ class TestCheckMDMLicenseLimit(ViewTestBase, TestTinyMDMOnly):
         response = client.get(url)
         assert response.status_code == 404
 
-    def test_limit_reached(self, client, url, user, mocker, set_mdm_env_vars):
+    def test_limit_reached(self, client, url, user, mocker):
         mock_check_license_limit = mocker.patch.object(
             TinyMDM, "check_license_limit", return_value=(5, 5)
         )
@@ -3070,7 +3060,7 @@ class TestCheckMDMLicenseLimit(ViewTestBase, TestTinyMDMOnly):
         mock_check_license_limit.assert_called_once()
         assertContains(response, "The TinyMDM account's license limit has been reached.", html=True)
 
-    def test_limit_not_reached(self, client, url, user, mocker, set_mdm_env_vars):
+    def test_limit_not_reached(self, client, url, user, mocker):
         mock_check_license_limit = mocker.patch.object(
             TinyMDM, "check_license_limit", return_value=(5, 4)
         )
@@ -3078,7 +3068,7 @@ class TestCheckMDMLicenseLimit(ViewTestBase, TestTinyMDMOnly):
         mock_check_license_limit.assert_called_once()
         assert response.content == b""
 
-    def test_api_error(self, client, url, user, mocker, set_mdm_env_vars, mdm_api_error):
+    def test_api_error(self, client, url, user, mocker, mdm_api_error):
         mock_check_license_limit = mocker.patch.object(
             TinyMDM, "check_license_limit", side_effect=mdm_api_error
         )
@@ -3091,7 +3081,7 @@ class TestCheckMDMLicenseLimit(ViewTestBase, TestTinyMDMOnly):
             f'<code class="block text-xs mt-2">{mdm_api_error}</code>',
         )
 
-    def test_no_api_credentials(self, client, url, user, mocker, del_mdm_env_vars):
+    def test_no_api_credentials(self, client, url, user, mocker, unconfigure_mdm):
         mock_check_license_limit = mocker.patch.object(TinyMDM, "check_license_limit")
         response = client.get(url)
         mock_check_license_limit.assert_not_called()
@@ -3132,7 +3122,6 @@ class TestDeviceUpdateAppUser(ViewTestBase, TestAllMDMsNoAutouse):
         device,
         app_user_name,
         mocker,
-        set_mdm_env_vars,
     ):
         """Ensure submitting a valid form updates the Device's app_user_name and
         triggers a Dagster job.

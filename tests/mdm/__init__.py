@@ -10,7 +10,13 @@ ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE = os.path.join(
 )
 
 
-def _set_mdm_env_vars(mdm, organization):
+def _configure_mdm(mdm, organization):
+    """Set the mdm field for an organization and set its MDM API credentials to fake values.
+    For TinyMDM, the credentials are saved in tinymdm_* field.
+    For Android Enterprise, an enrolled enterprise is created (a AndroidEnterpriseAccount
+    with an enterprise_name). If needed, use the set_amapi_service_account_file fixture to set
+    the ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE env var with a fake service account file.
+    """
     organization.mdm = mdm
     if mdm == "TinyMDM":
         organization.tinymdm_apikey_public = "test"
@@ -32,18 +38,18 @@ class MDMTestBase:
 
 class TestAllMDMsNoAutouse(MDMTestBase):
     """Test methods in subclasses of this class will be run once for each MDM
-    only if they use the all_mdms fixture.
+    only if they use the all_mdms fixture, with the MDM fully configured.
     """
 
     @pytest.fixture(params=["TinyMDM", "Android Enterprise"])
     def all_mdms(self, request, organization, set_amapi_service_account_file):
-        _set_mdm_env_vars(request.param, organization)
+        _configure_mdm(request.param, organization)
         self.mdm = request.param
 
 
 class TestAllMDMs(TestAllMDMsNoAutouse):
     """Test methods in subclasses of this class will automatically be run once
-    for each MDM.
+    for each MDM, and the MDM will be fully configured.
     """
 
     @pytest.fixture(autouse=True)
@@ -53,9 +59,8 @@ class TestAllMDMs(TestAllMDMsNoAutouse):
 
 class TestTinyMDMOnly(MDMTestBase):
     """Test methods in subclasses of this class will always use TinyMDM as the
-    active MDM. The organization fixture will have mdm="TinyMDM".
-    If you also want to set fake API credentials for the MDM, add the
-    set_mdm_env_vars fixture to test methods.
+    active MDM and it will be fully configured (the organization fixture will
+    have mdm="TinyMDM" and its tinymdm_* fields will be set with fake values).
     """
 
     @pytest.fixture(autouse=True)
@@ -64,9 +69,9 @@ class TestTinyMDMOnly(MDMTestBase):
 
 class TestAndroidEnterpriseOnly(MDMTestBase):
     """Test methods in subclasses of this class will always use Android Enterprise
-    as the active MDM. The organization fixture will have mdm="Android Enterprise".
-    If you also want to set fake API credentials for the MDM, add the
-    set_mdm_env_vars fixture to test methods.
+    as the active MDM and it will be fully configured (the organization fixture
+    will have mdm="Android Enterprise", an enrolled enterprise will be created,
+    and the ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE env var will be set).
     """
 
     @pytest.fixture(autouse=True)

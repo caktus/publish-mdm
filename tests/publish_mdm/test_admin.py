@@ -257,9 +257,7 @@ class TestCentralServerAdmin(BaseTestAdmin):
 
 class TestOrganizationAdmin(BaseTestAdmin):
     @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
-    def test_new_organization(
-        self, user, client, mocker, all_mdms, set_mdm_env_vars, mdm_api_error
-    ):
+    def test_new_organization(self, user, client, mocker, all_mdms, mdm_api_error):
         """For TinyMDM, create_default_fleet() is called immediately when creating a new
         organization. For Android Enterprise, fleet creation is deferred until enterprise
         enrollment completes via enterprise_callback, so create_default_fleet() is not

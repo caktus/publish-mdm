@@ -43,7 +43,7 @@ class TestModels(TestAllMDMs):
         fleet.save()
         mock_pull_devices.assert_not_called()
 
-    def test_fleet_save_with_mdm_env_vars(self, fleet, mocker, set_mdm_env_vars):
+    def test_fleet_save_with_mdm_env_vars(self, fleet, mocker):
         """On Fleet.save(), pull_devices() should be called if the active MDM's
         environment variables are set.
         """
@@ -63,7 +63,7 @@ class TestModels(TestAllMDMs):
         DeviceFactory(fleet=fleet)
         mock_push_device_config.assert_not_called()
 
-    def test_device_save_with_mdm_env_vars(self, fleet, mocker, set_mdm_env_vars):
+    def test_device_save_with_mdm_env_vars(self, fleet, mocker):
         """On Device.save(), push_device_config() should be called if the
         active MDM's environment variables are set.
         """
@@ -102,7 +102,7 @@ class TestModels(TestAllMDMs):
         assert device.app_user_name == app_user.name
         assert device.serial_number.endswith("_edited")
 
-    def test_device_save_auto_assigns_and_pushes_to_mdm(self, fleet, mocker, set_mdm_env_vars):
+    def test_device_save_auto_assigns_and_pushes_to_mdm(self, fleet, mocker):
         """When auto-assigning the default_app_user, push_device_config should
         still fire if push_to_mdm=True.
         """

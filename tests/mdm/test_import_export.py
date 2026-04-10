@@ -52,7 +52,7 @@ class TestDeviceResource(TestAllMDMs):
         for row in dataset:
             assert tuple(str(i) for i in row) in expected_export_values
 
-    def test_valid_import(self, fleet, devices, dataset, organization, set_mdm_env_vars):
+    def test_valid_import(self, fleet, devices, dataset, organization):
         """Ensure a valid import updates the database as expected."""
         # Add all current devices to the dataset
         dataset.extend(models.Device.objects.values_list(*dataset.headers))
@@ -167,9 +167,7 @@ class TestDeviceResource(TestAllMDMs):
         assert isinstance(error_list[0].error, models.Fleet.DoesNotExist)
 
     @pytest.mark.parametrize("dry_run", [True, False])
-    def test_valid_import_dry_run(
-        self, fleet, devices, dataset, mocker, dry_run, set_mdm_env_vars, organization
-    ):
+    def test_valid_import_dry_run(self, fleet, devices, dataset, mocker, dry_run, organization):
         """Ensure Device saves do not push to MDM directly; Dagster handles MDM pushes."""
         # Add one edited device to the import data
         device = devices[0]
