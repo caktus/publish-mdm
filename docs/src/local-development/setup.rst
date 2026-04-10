@@ -111,7 +111,10 @@ Before running this, the Pub/Sub API must be enabled for the Google project used
 account, and the service account must have the "Pub/Sub Admin" role. See `this guide <https://docs.cloud.google.com/pubsub/docs/publish-receive-messages-console#before-you-begin>`__ for more details.
 Only complete the steps under 'Before you begin' -- the ``configure_amapi_pubsub`` command will create the topic and subscription.
 
-By default, the notification endpoint will be set up using the domain of the current ``Site`` model object. If you need to set up the notification endpoint with a different domain (e.g. to use ngrok to expose your localhost) run:
+By default, the notification endpoint will be set up using ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN``
+(if set), otherwise the domain of the current ``Site`` model object. If you need to set up the
+notification endpoint with a different domain (e.g. to use ngrok to expose your localhost), either
+set the ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` environment variable or pass it explicitly:
 
 .. code-block:: bash
 
