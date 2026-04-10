@@ -308,6 +308,7 @@ class TestOrganization(TestAllMDMs):
                 organization=organization, enterprise_name="enterprises/test"
             )
         MDM = get_active_mdm_class()
+        mock_create_or_update_policy = mocker.patch.object(MDM, "create_or_update_policy")
         mock_create_group = mocker.patch.object(MDM, "create_group")
         mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
         mock_get_enrollment_qr_code = mocker.patch.object(MDM, "get_enrollment_qr_code")
@@ -318,6 +319,7 @@ class TestOrganization(TestAllMDMs):
         assert fleet.name == "Default"
         assert fleet.policy.organization == organization
         assert fleet.policy.name == "Default"
+        mock_create_or_update_policy.assert_called_once_with(fleet.policy)
         mock_create_group.assert_called_once()
         mock_add_group_to_policy.assert_called_once()
         mock_get_enrollment_qr_code.assert_called_once()
@@ -330,6 +332,7 @@ class TestOrganization(TestAllMDMs):
         under concurrency or after deletions.
         """
         MDM = get_active_mdm_class()
+        mock_create_or_update_policy = mocker.patch.object(MDM, "create_or_update_policy")
         mocker.patch.object(MDM, "create_group")
         mocker.patch.object(MDM, "add_group_to_policy")
         mocker.patch.object(MDM, "get_enrollment_qr_code")
@@ -343,3 +346,4 @@ class TestOrganization(TestAllMDMs):
         fleet1 = org1.create_default_fleet()
         fleet2 = org2.create_default_fleet()
         assert fleet1.policy.policy_id != fleet2.policy.policy_id
+        assert mock_create_or_update_policy.call_count == 2
