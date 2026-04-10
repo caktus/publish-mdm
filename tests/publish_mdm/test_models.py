@@ -324,6 +324,29 @@ class TestOrganization(TestAllMDMs):
         mock_add_group_to_policy.assert_called_once()
         mock_get_enrollment_qr_code.assert_called_once()
 
+    def test_create_default_fleet_raises_if_policy_sync_fails(
+        self, set_mdm_env_vars, mocker, settings
+    ):
+        """Default fleet creation should fail fast when policy sync fails."""
+        organization = OrganizationFactory()
+        if settings.ACTIVE_MDM["name"] == "Android Enterprise":
+            AndroidEnterpriseAccountFactory(
+                organization=organization, enterprise_name="enterprises/test"
+            )
+        MDM = get_active_mdm_class()
+        mocker.patch.object(MDM, "create_or_update_policy", side_effect=RuntimeError("sync failed"))
+        mock_create_group = mocker.patch.object(MDM, "create_group")
+        mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
+        mock_get_enrollment_qr_code = mocker.patch.object(MDM, "get_enrollment_qr_code")
+        mocker.patch.object(MDM, "pull_devices")
+
+        with pytest.raises(RuntimeError, match="sync failed"):
+            organization.create_default_fleet()
+
+        mock_create_group.assert_not_called()
+        mock_add_group_to_policy.assert_not_called()
+        mock_get_enrollment_qr_code.assert_not_called()
+
     def test_create_default_fleet_policy_id_is_unique(self, set_mdm_env_vars, mocker, settings):
         """Two calls to create_default_fleet() must produce distinct policy_id values.
 

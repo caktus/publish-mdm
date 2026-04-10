@@ -82,11 +82,8 @@ class Organization(AbstractBaseModel):
             install_type="FORCE_INSTALLED",
             order=0,
         )
-        # Ensure the default policy exists in the MDM
-        try:
-            active_mdm.create_or_update_policy(policy)
-        except Exception:
-            logger.error("Failed to push default policy to MDM", policy=policy, exc_info=True)
+        # Ensure the default policy exists in the MDM before linking groups to it.
+        active_mdm.create_or_update_policy(policy)
         fleet = Fleet(organization=self, name="Default", policy=policy)
         active_mdm.create_group(fleet)
         active_mdm.add_group_to_policy(fleet)
