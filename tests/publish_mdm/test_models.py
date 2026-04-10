@@ -10,7 +10,7 @@ from apps.infisical.fields import EncryptedMixin
 from apps.mdm.mdms import get_active_mdm_class
 from apps.publish_mdm.etl import template
 from apps.publish_mdm.models import CentralServer
-from tests.mdm import TestAllMDMs
+from tests.mdm import TestAllMDMs, _set_mdm_env_vars
 
 from .factories import (
     AppUserFactory,
@@ -297,11 +297,10 @@ class TestAppUser:
 
 @pytest.mark.django_db
 class TestOrganization(TestAllMDMs):
-    def test_create_default_fleet(self, set_mdm_env_vars, mocker):
+    def test_create_default_fleet(self, set_mdm_env_vars, mocker, organization):
         """Ensures calling create_default_fleet() creates a default Fleet and
         org-specific policy for an organization when the active MDM is configured.
         """
-        organization = OrganizationFactory()
         MDM = get_active_mdm_class(organization)
         mock_create_group = mocker.patch.object(MDM, "create_group")
         mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
@@ -317,7 +316,9 @@ class TestOrganization(TestAllMDMs):
         mock_add_group_to_policy.assert_called_once()
         mock_get_enrollment_qr_code.assert_called_once()
 
-    def test_create_default_fleet_policy_id_is_unique(self, set_mdm_env_vars, mocker, organization):
+    def test_create_default_fleet_policy_id_is_unique(
+        self, set_mdm_env_vars, mocker, organization, monkeypatch
+    ):
         """Two calls to create_default_fleet() must produce distinct policy_id values.
 
         Regression test: the previous implementation used
@@ -330,8 +331,9 @@ class TestOrganization(TestAllMDMs):
         mocker.patch.object(MDM, "get_enrollment_qr_code")
         mocker.patch.object(MDM, "pull_devices")
 
-        org1 = OrganizationFactory()
-        org2 = OrganizationFactory()
-        fleet1 = org1.create_default_fleet()
-        fleet2 = org2.create_default_fleet()
-        assert fleet1.policy.policy_id != fleet2.policy.policy_id
+        policy_ids = set()
+        for org in OrganizationFactory.create_batch(3):
+            _set_mdm_env_vars(self.mdm, org)
+            fleet = org.create_default_fleet()
+            policy_ids.add(fleet.policy.policy_id)
+        assert len(policy_ids) == 3

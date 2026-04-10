@@ -14,6 +14,7 @@ from import_export.tmp_storages import MediaStorage
 from pytest_django.asserts import assertContains, assertFormError, assertMessages
 from tablib import Dataset
 
+from apps.mdm.mdms import get_active_mdm_class
 from apps.publish_mdm.forms import (
     ConfirmImportForm,
     ExportForm,
@@ -406,12 +407,11 @@ class TestDeviceImport(ImportTestBase):
     def test_push_device_config_called_after_confirm(
         self, client, url, user, organization, devices, dataset, mocker
     ):
-        """Confirming a CSV import triggers push_device_config for each updated device."""
-        mock_mdm = mocker.MagicMock()
-        mocker.patch(
-            "apps.publish_mdm.import_export.get_active_mdm_instance", return_value=mock_mdm
-        )
-        mock_push = mock_mdm.push_device_config
+        """Confirming a CSV import triggers Dagster mdm_job for updated devices and
+        not the push_device_config method of the currently active MDM.
+        """
+        mock_trigger = mocker.patch("apps.publish_mdm.import_export.trigger_dagster_job")
+        mock_push = mocker.patch.object(get_active_mdm_class(organization), "push_device_config")
 
         import_format_cls, _, form_format = self.FORMATS["csv"]
         import_file_data = dataset.export("csv")
@@ -428,25 +428,28 @@ class TestDeviceImport(ImportTestBase):
         }
         client.post(url, data=data, follow=True)
 
-        assert mock_push.call_count == len(devices)
-        pushed_pks = {call.args[0].pk for call in mock_push.call_args_list}
-        assert pushed_pks == {d.pk for d in devices}
+        mock_trigger.assert_called_once()
+        mock_push.assert_not_called()
+        device_pks = mock_trigger.call_args.kwargs["run_config"]["ops"]["push_mdm_device_config"][
+            "config"
+        ]["device_pks"]
+        assert set(device_pks) == {d.pk for d in devices}
 
     def test_push_device_config_not_called_on_dry_run(
-        self, client, url, user, devices, dataset, mocker
+        self, client, url, user, devices, dataset, mocker, organization
     ):
-        """During the dry-run preview stage, push_device_config is not called."""
-        mock_mdm = mocker.MagicMock()
-        mocker.patch(
-            "apps.publish_mdm.import_export.get_active_mdm_instance", return_value=mock_mdm
-        )
-        mock_push = mock_mdm.push_device_config
+        """During the dry-run preview stage, neither the Dagster mdm_job nor the
+        push_device_config method of the currently active MDM is called.
+        """
+        mock_trigger = mocker.patch("apps.publish_mdm.import_export.trigger_dagster_job")
+        mock_push = mocker.patch.object(get_active_mdm_class(organization), "push_device_config")
 
         _, io_class, form_format = self.FORMATS["csv"]
         import_file_data = dataset.export("csv")
         data = {"format": form_format, "import_file": io_class(import_file_data)}
         client.post(url, data=data)
 
+        mock_trigger.assert_not_called()
         mock_push.assert_not_called()
 
 
@@ -579,10 +582,25 @@ class TestDeviceExport(ExportTestBase):
         response = client.post(url, {"format": format_index})
         format = format_class()
         date_format = r"\d{4}-\d{2}-\d{2}"
+        # Brand and model may be None or empty strings depending on export format
+        if format.is_binary():
+            empty = None
+        else:
+            empty = ""
+        expected_rows = {
+            (
+                i.device_id,
+                i.serial_number,
+                i.manufacturer or empty,
+                i.model or empty,
+                i.app_user_name,
+            )
+            for i in devices
+        }
         self.check_export(
             response,
             format,
             f"devices_{organization.slug}_{date_format}.{format.get_extension()}",
-            ["device_id", "serial_number", "app_user_name"],
-            {(i.device_id, i.serial_number, i.app_user_name) for i in devices},
+            ["device_id", "serial_number", "manufacturer", "model", "app_user_name"],
+            expected_rows,
         )

@@ -29,9 +29,8 @@ development server:
 .. code-block:: bash
 
     # sample .envrc file
-    # Android Enterprise MDM (server-wide; per-org MDM type is set in the admin UI)
+    # Android Enterprise MDM server-wide service account file
     export ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE=
-    export ANDROID_ENTERPRISE_ID=
 
 To run the Dagster development server locally, just run the following command:
 

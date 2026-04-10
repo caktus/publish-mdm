@@ -45,8 +45,8 @@ def set_org_mdm_from_policies(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("publish_mdm", "0014_organization_public_signup_enabled"),
-        ("mdm", "0009_feature_policy_editor"),
+        ("publish_mdm", "0015_androidenterpriseaccount"),
+        ("mdm", "0010_device_manufacturer_model"),
     ]
 
     operations = [

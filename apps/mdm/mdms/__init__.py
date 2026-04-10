@@ -32,4 +32,9 @@ def get_active_mdm_instance(organization=None) -> MDM | None:
     """
     mdm_class = get_active_mdm_class(organization)
     if mdm_class:
-        return mdm_class(organization=organization)
+        try:
+            return mdm_class(organization=organization)
+        except ValueError:
+            # MDM not configured
+            pass
+    return None

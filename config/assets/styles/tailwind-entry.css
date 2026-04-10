@@ -91,3 +91,61 @@
   visibility: visible;
   opacity: 100%;
 }
+
+/* === Device table ===
+ * table-layout: fixed + width: 100% ensures the table never exceeds its
+ * container width regardless of cell content — no horizontal scroll on any
+ * desktop viewport.  The overflow-x-auto wrapper in table-partial.html
+ * remains as a safety net for very narrow viewports.
+ *
+ * Columns are tagged with data-col="<column_name>" in table.html so CSS can
+ * target individual columns without fragile nth-child ordering.
+ *
+ * Responsive column visibility:
+ *   Mobile  (<768px):     show device_id, serial_number, app_user_name only
+ *   Tablet  (768-1023px): add manufacturer, model
+ *   Desktop (≥1024px):   all columns visible
+ */
+.table-device {
+  table-layout: fixed;
+  width: 100%;
+}
+
+/* Prevent cells from overflowing their fixed-width columns */
+.table-device td,
+.table-device th {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The app_user select must not blow out the column width */
+.table-device [data-col="app_user_name"] select {
+  max-width: 100%;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Sticky thead — keeps column headers visible while scrolling long device lists */
+.table-device thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--color-primary-100);
+}
+
+/* Responsive: hide secondary columns at tablet and below */
+@media (max-width: 1023px) {
+  .table-device [data-col="firmware_version"],
+  .table-device [data-col="last_seen_mdm"],
+  .table-device [data-col="last_seen_vpn"] {
+    display: none;
+  }
+}
+
+/* Responsive: mobile — also hide manufacturer and model */
+@media (max-width: 767px) {
+  .table-device [data-col="manufacturer"],
+  .table-device [data-col="model"] {
+    display: none;
+  }
+}

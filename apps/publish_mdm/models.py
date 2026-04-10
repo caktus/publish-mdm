@@ -1,4 +1,5 @@
 import datetime
+import uuid
 from functools import cached_property
 from typing import ClassVar
 from urllib.parse import urlparse
@@ -6,7 +7,6 @@ from urllib.parse import urlparse
 import structlog
 from django.conf import settings
 from django.contrib.sites.shortcuts import get_current_site
-from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.validators import RegexValidator
 from django.db import models
@@ -84,19 +84,11 @@ class Organization(AbstractBaseModel):
     def get_absolute_url(self):
         return reverse("publish_mdm:organization-home", args=[self.slug])
 
-    def clean(self):
-        if self.mdm == "TinyMDM":
-            # Require all three TinyMDM credentials to be set
-            if not all(
-                [self.tinymdm_apikey_public, self.tinymdm_apikey_secret, self.tinymdm_account_id]
-            ):
-                raise ValidationError("All three TinyMDM credential fields must be set.")
-
     def create_default_fleet(self):
         """Create a default MDM Fleet for the organization if the active MDM's API is
         configured.
         """
-        active_mdm = get_active_mdm_instance(self)
+        active_mdm = get_active_mdm_instance(organization=self)
         if not active_mdm:
             return None
         # Create an org-specific default policy
@@ -710,3 +702,49 @@ class OrganizationInvitation(AbstractBaseInvitation):
 
     def __str__(self):
         return f"Invite: {self.email}"
+
+
+class AndroidEnterpriseAccount(AbstractBaseModel):
+    organization = models.OneToOneField(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name="android_enterprise",
+    )
+    signup_url_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="signupUrls resource name from AMAPI, e.g. 'signupUrls/C455570ef9b12bfc'.",
+    )
+    signup_url = models.URLField(
+        max_length=2048,
+        blank=True,
+        default="",
+        help_text="Google Enterprise signup URL. Navigate here to complete enterprise creation.",
+    )
+    callback_token = models.UUIDField(
+        default=uuid.uuid4,
+        unique=True,
+        editable=False,
+        help_text="Embedded in the callback URL to authenticate Google's redirect.",
+    )
+    enterprise_name = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Full AMAPI enterprise resource name, e.g. 'enterprises/LC00lvvue0'.",
+    )
+
+    def __str__(self):
+        return self.enterprise_name or f"(pending) {self.organization}"
+
+    @property
+    def enterprise_id(self):
+        """Short ID, e.g. 'LC00lvvue0'. Empty string until enrollment completes."""
+        if self.enterprise_name:
+            return self.enterprise_name.split("/")[-1]
+        return ""
+
+    @property
+    def is_enrolled(self):
+        return bool(self.enterprise_name)

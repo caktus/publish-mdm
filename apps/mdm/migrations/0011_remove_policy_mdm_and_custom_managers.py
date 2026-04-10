@@ -3,7 +3,7 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("mdm", "0009_feature_policy_editor"),
+        ("mdm", "0010_device_manufacturer_model"),
     ]
 
     operations = [

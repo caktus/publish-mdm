@@ -1,6 +1,8 @@
+import base64
 import json
 
 import structlog
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import F, Max, Q
@@ -11,7 +13,9 @@ from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
+from apps.publish_mdm.models import AndroidEnterpriseAccount
 from apps.publish_mdm.nav import Breadcrumbs
+from config.dagster import trigger_dagster_job
 
 from .forms import (
     FirmwareSnapshotForm,
@@ -24,11 +28,6 @@ from .mdms import get_active_mdm_instance
 from .models import Device, Policy, PolicyApplication, PolicyVariable, PolicyVariableScope
 
 logger = structlog.get_logger()
-
-
-# ---------------------------------------------------------------------------
-# Firmware snapshot (existing API view)
-# ---------------------------------------------------------------------------
 
 
 @csrf_exempt
@@ -50,9 +49,92 @@ def firmware_snapshot_view(request):
         return HttpResponse(status=400)
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+@csrf_exempt
+@require_POST
+def amapi_notifications_view(request):
+    """Handle push notifications from AMAPI via Google Cloud Pub/Sub.
+
+    Google Cloud Pub/Sub delivers messages as HTTP POST requests to this endpoint.
+    Each message contains a base64-encoded Device resource in the ``data`` field
+    and a ``notificationType`` attribute.
+
+    Authentication is performed by comparing the ``token`` query parameter
+    against the ``ANDROID_ENTERPRISE_PUBSUB_TOKEN`` Django setting.  All
+    requests are rejected if the setting is not configured.
+
+    Returns HTTP 204 on success so that Pub/Sub acknowledges the message and
+    does not retry.
+    """
+    secret_token = settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN
+    if not secret_token:
+        logger.warning("AMAPI notification rejected: ANDROID_ENTERPRISE_PUBSUB_TOKEN is not set")
+        return HttpResponse(status=403)
+
+    # The push subscription URL should include ?token=<secret>
+    request_token = request.GET.get("token", "")
+    if not (request_token and request_token == secret_token):
+        logger.warning("AMAPI notification received with invalid or missing token")
+        return HttpResponse(status=403)
+
+    if not request.body:
+        return HttpResponse(status=400)
+
+    try:
+        body = json.loads(request.body)
+    except json.JSONDecodeError:
+        logger.error("AMAPI notification body is not valid JSON")
+        return HttpResponse(status=400)
+
+    message = body.get("message", {})
+    notification_type = message.get("attributes", {}).get("notificationType", "")
+    data_b64 = message.get("data", "")
+
+    if not data_b64:
+        logger.warning(
+            "AMAPI notification received without data payload",
+            notification_type=notification_type,
+        )
+        return HttpResponse(status=204)
+
+    try:
+        device_data = json.loads(base64.b64decode(data_b64).decode("utf-8"))
+    except (ValueError, json.JSONDecodeError):
+        logger.error("Failed to decode AMAPI notification data payload")
+        return HttpResponse(status=400)
+
+    logger.info(
+        "AMAPI notification received",
+        notification_type=notification_type,
+        device_name=device_data.get("name"),
+    )
+    device_name = device_data.get("name", "")
+    enterprise_name = "/".join(device_name.split("/")[:2])
+    account = AndroidEnterpriseAccount.objects.filter(enterprise_name=enterprise_name).first()
+    if account:
+        mdm = get_active_mdm_instance(organization=account.organization)
+    else:
+        mdm = None
+
+    if not (mdm and mdm.name == "Android Enterprise"):
+        logger.warning(
+            "Unknown enterprise or active MDM is not Android Enterprise. Ignoring",
+            enterprise_name=enterprise_name,
+            enterprise_account=account,
+            mdm=mdm,
+            notification_type=notification_type,
+        )
+    elif notification_type in ("ENROLLMENT", "STATUS_REPORT") and device_data.get(
+        "name", ""
+    ).startswith(mdm.enterprise_name):
+        mdm.handle_device_notification(device_data, notification_type)
+    else:
+        logger.info(
+            "Ignoring notification",
+            notification_type=notification_type,
+            device_name=device_data.get("name"),
+        )
+
+    return HttpResponse(status=204)
 
 
 def _get_policy_or_404(policy_id, organization):
@@ -67,7 +149,7 @@ def _get_policy_variables(policy):
     ).select_related("fleet")
 
 
-def _push_policy_to_mdm(policy):
+def _push_policy_to_mdm(policy, request):
     """Push a policy and any device-specific child policies to the MDM.
 
     Errors are logged but not raised so they don't interrupt the view response.
@@ -75,28 +157,47 @@ def _push_policy_to_mdm(policy):
     (fleet{id}_{device_id}) that must be updated independently of the base policy.
     We always attempt to push device-specific policies even if the base policy
     update fails, because the device may be on the device-specific policy only.
+
+    The base policy push (single API call) is always synchronous.  The
+    per-device child-policy pushes (one call per enrolled device) are
+    offloaded to Dagster so they don't block the view.
     """
-    active_mdm = get_active_mdm_instance(policy.organization)
+    active_mdm = get_active_mdm_instance(organization=policy.organization)
+    warning = (
+        "Your policy has been saved, but we encountered an issue syncing it to your devices. "
+        "Please try saving again, or contact support if the problem continues."
+    )
     if not active_mdm:
         logger.warning(
             "Skipping policy push: MDM is not configured. "
             "Check that the required environment variables are set and restart the server.",
             organization=policy.organization,
+            active_mdm_name=policy.organization.mdm,
             policy=policy,
         )
+        messages.warning(request, warning)
         return
     try:
         active_mdm.create_or_update_policy(policy)
     except Exception:
         logger.error("Failed to push base policy to MDM", policy=policy, exc_info=True)
-    for device in Device.objects.filter(
+    child_devices = Device.objects.filter(
         fleet__policy=policy,
         raw_mdm_device__policyName__endswith=F("device_id"),
-    ).select_related("fleet__policy"):
-        try:
-            active_mdm.push_device_config(device)
-        except Exception:
-            logger.error("Failed to push device config to MDM", device=device, exc_info=True)
+    )
+    device_pks = list(child_devices.values_list("pk", flat=True))
+    if not device_pks:
+        return
+    run_config = {"ops": {"push_mdm_device_config": {"config": {"device_pks": device_pks}}}}
+    try:
+        trigger_dagster_job(job_name="mdm_job", run_config=run_config)
+    except Exception:
+        logger.error(
+            "Failed to trigger Dagster mdm_job for child policies",
+            policy=policy,
+            exc_info=True,
+        )
+        messages.warning(request, warning)
 
 
 # ---------------------------------------------------------------------------
@@ -122,6 +223,12 @@ def policy_list(request, organization_slug):
 @login_required
 def policy_add(request, organization_slug):
     """Create a new policy."""
+    active_mdm = get_active_mdm_instance(organization=request.organization)
+    if not active_mdm:
+        messages.error(
+            request, "Sorry, cannot create a policy at this time. Please try again later."
+        )
+        return redirect("mdm:policy-list", organization_slug)
     if request.method == "POST":
         form = PolicyNameForm(request.POST)
         if form.is_valid():
@@ -137,7 +244,7 @@ def policy_add(request, organization_slug):
                 install_type="FORCE_INSTALLED",
                 order=0,
             )
-            _push_policy_to_mdm(policy)
+            _push_policy_to_mdm(policy, request)
             messages.success(request, f"Policy '{policy.name}' created.")
             return redirect("mdm:policy-edit", organization_slug, policy.pk)
     else:
@@ -211,8 +318,8 @@ def policy_edit(request, organization_slug, policy_id):
                 var.save()
             for var in var_formset.deleted_objects:
                 var.delete()
-            _push_policy_to_mdm(policy)
             messages.success(request, "Policy saved.")
+            _push_policy_to_mdm(policy, request)
             return redirect("mdm:policy-edit", organization_slug, policy.pk)
     else:
         form = PolicyEditForm(instance=policy)
@@ -260,7 +367,7 @@ def policy_save_managed_config(request, organization_slug, policy_id, app_id):
         app.save(update_fields=["managed_configuration"])
         saved = True
     if saved:
-        _push_policy_to_mdm(policy)
+        _push_policy_to_mdm(policy, request)
     return render(
         request,
         "mdm/partials/policy_managed_config_form.html",

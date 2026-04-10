@@ -1,6 +1,17 @@
 {% extends "base.html" %}
 {% load django_tables2 %}
 {% block content %}
+    {% if request.organization.mdm == "Android Enterprise" and not request.organization.android_enterprise.is_enrolled %}
+        <div class="p-4 mb-4 text-yellow-800 border border-yellow-300 rounded-lg bg-yellow-50"
+             role="alert">
+            <p class="font-semibold">Android Enterprise not configured</p>
+            <p class="mt-1 text-sm">Creating and updating fleets requires an Android Enterprise.</p>
+            <a href="{% url 'publish_mdm:enterprise-setup' request.organization.slug %}?next={{ request.get_full_path|urlencode }}"
+               class="inline-flex items-center mt-2 text-sm font-medium text-yellow-800 underline hover:no-underline">
+                Set up Android Enterprise
+            </a>
+        </div>
+    {% endif %}
     <div class="mb-4 items-end justify-between space-y-4 sm:flex sm:space-y-0 md:mb-8">
         <a href="{% url 'publish_mdm:add-fleet' request.organization.slug %}"
            class="btn btn-outline mr-4">Add fleet</a>

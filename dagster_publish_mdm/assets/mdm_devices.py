@@ -4,16 +4,37 @@ import requests
 
 django.setup()
 
+
 from apps.mdm.mdms import get_active_mdm_instance  # noqa: E402
 from apps.mdm.models import Device  # noqa: E402
 from apps.publish_mdm.models import Organization  # noqa: E402
+
+
+class SyncFleetsConfig(dg.Config):
+    organization_pk: int
+
+
+@dg.asset(
+    description="Sync specific MDM fleet devices and push device configurations",
+    group_name="mdm_assets",
+)
+def sync_and_push_mdm_devices(context: dg.AssetExecutionContext, config: SyncFleetsConfig):
+    """Sync an organization's fleets from the MDM and push device configurations."""
+    organization = Organization.objects.get(pk=config.organization_pk)
+    active_mdm = get_active_mdm_instance(organization=organization)
+    if not active_mdm:
+        context.log.warning(f"MDM not configured for organization {organization}")
+        return
+    for fleet in organization.fleets.all():
+        active_mdm.sync_fleet(fleet, push_config=True)
+        context.log.info(f"Synced fleet {fleet.name} (pk={fleet.pk})")
 
 
 @dg.asset(description="Get a list of devices from the MDM", group_name="mdm_assets")
 def mdm_device_snapshot():
     for org in Organization.objects.all():
         if active_mdm := get_active_mdm_instance(org):
-            active_mdm.sync_fleets(push_config=False, organization=org)
+            active_mdm.sync_fleets(push_config=False)
 
 
 class DeviceConfig(dg.Config):
@@ -31,9 +52,18 @@ def push_mdm_device_config(context: dg.AssetExecutionContext, config: DeviceConf
     if not devices.exists():
         raise ValueError(f"Devices with IDs {config.device_pks} not found.")
     failed_pks = []
+    # Group devices by organization so we use the correct MDM instance per org.
+    devices_by_org: dict[Organization, list[Device]] = {}
     for device in devices:
         org = device.fleet.organization
-        if active_mdm := get_active_mdm_instance(org):
+        devices_by_org.setdefault(org, []).append(device)
+    for org, org_devices in devices_by_org.items():
+        active_mdm = get_active_mdm_instance(organization=org)
+        if not active_mdm:
+            context.log.warning(f"MDM not configured for organization {org}")
+            failed_pks.extend(d.pk for d in org_devices)
+            continue
+        for device in org_devices:
             try:
                 active_mdm.push_device_config(device=device)
                 context.log.info(f"Configuration pushed for device {device.device_id}")

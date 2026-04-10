@@ -4,7 +4,11 @@ import os
 from functools import cached_property
 
 import structlog
+from django.conf import settings
+from django.contrib.sites.models import Site
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import F, OuterRef, Q, Subquery
+from django.urls import reverse
 from django.utils import timezone
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -16,7 +20,15 @@ from apps.publish_mdm.utils import create_qr_code
 from .base import MDM, MDMAPIError
 
 logger = structlog.getLogger(__name__)
-SCOPES = ["https://www.googleapis.com/auth/androidmanagement"]
+# Single set of scopes used for the combined credentials object.
+ALL_SCOPES = [
+    "https://www.googleapis.com/auth/androidmanagement",
+    "https://www.googleapis.com/auth/pubsub",
+]
+# Google-managed service account that Android Device Policy uses to publish notifications.
+ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT = "android-cloud-policy@system.gserviceaccount.com"
+# Fixed resource name suffix used for this application's Pub/Sub topic and subscription.
+PUBSUB_RESOURCE_NAME = "publish-mdm"
 
 
 class MDMDevice(dict):
@@ -33,36 +45,105 @@ class AndroidEnterprise(MDM):
     name = "Android Enterprise"
 
     def __init__(self, organization=None):
+        # Do not pass an organization if you only need to perform operations that are
+        # not organization or enterprise-specific (e.g. setting up Pub/Sub, enrolling an enterprise, etc.)
         self.api_errors = []
         self.organization = organization
-        self.enterprise_id = os.getenv("ANDROID_ENTERPRISE_ID")
         self.service_account_file = os.getenv("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE")
-        if (self.enterprise_id or self.service_account_file) and not self.is_configured:
+        if (
+            organization
+            and (self.enterprise_id or self.service_account_file)
+            and not self.is_configured
+        ):
             raise ValueError(
-                "Android Enterprise MDM credentials are not properly configured or service account file is missing."
+                "Android Enterprise MDM credentials are not properly configured or service account file is missing. "
                 f"{self.enterprise_id=}, {self.service_account_file=}"
             )
+
+    @property
+    def enterprise_id(self):
+        try:
+            account = self.organization.android_enterprise
+            if account.enterprise_id:
+                return account.enterprise_id
+        except (AttributeError, ObjectDoesNotExist):
+            pass
+        return None
 
     @property
     def enterprise_name(self):
         return f"enterprises/{self.enterprise_id}"
 
     @cached_property
-    def api(self):
-        if not self.is_configured:
-            return None
-        credentials = Credentials.from_service_account_file(
+    def credentials(self):
+        """Single :class:`~google.oauth2.service_account.Credentials` object with
+        both the Android Management and Pub/Sub OAuth scopes.  All API clients
+        share this object so that only one service-account key file read is needed.
+        """
+        if not self.has_valid_service_account_file:
+            raise ValueError("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE is not configured")
+        return Credentials.from_service_account_file(
             self.service_account_file,
-            scopes=SCOPES,
+            scopes=ALL_SCOPES,
         )
-        return build("androidmanagement", "v1", credentials=credentials)
+
+    @cached_property
+    def api(self):
+        return build("androidmanagement", "v1", credentials=self.credentials)
+
+    @cached_property
+    def pubsub_api(self):
+        return build("pubsub", "v1", credentials=self.credentials)
+
+    @property
+    def project_id(self) -> str | None:
+        """Google Cloud project ID derived from the service account credentials."""
+        return self.credentials.project_id
+
+    @property
+    def pubsub_topic(self) -> str:
+        """Fully-qualified Pub/Sub topic resource name for this application."""
+        return f"projects/{self.project_id}/topics/{PUBSUB_RESOURCE_NAME}-{settings.ENVIRONMENT}"
+
+    @property
+    def pubsub_subscription(self) -> str:
+        """Fully-qualified Pub/Sub subscription resource name for this application."""
+        return f"projects/{self.project_id}/subscriptions/{PUBSUB_RESOURCE_NAME}-{settings.ENVIRONMENT}"
 
     @property
     def is_configured(self):
-        return bool(
-            self.enterprise_id
-            and self.service_account_file
-            and os.path.isfile(self.service_account_file)
+        return bool(self.enterprise_id) and self.has_valid_service_account_file
+
+    @property
+    def has_valid_service_account_file(self):
+        return bool(self.service_account_file) and os.path.isfile(self.service_account_file)
+
+    def get_signup_url(self, callback_url: str) -> dict:
+        """Returns {'name': 'signupUrls/...', 'url': 'https://enterprise.google.com/...'}"""
+        return (
+            self.api.signupUrls()
+            .create(
+                projectId=self.credentials.project_id,
+                callbackUrl=callback_url,
+            )
+            .execute()
+        )
+
+    def create_enterprise(self, signup_name: str, enterprise_token: str, display_name: str) -> dict:
+        """Returns {'name': 'enterprises/LC00lvvue0'}"""
+        return (
+            self.api.enterprises()
+            .create(
+                projectId=self.credentials.project_id,
+                signupUrlName=signup_name,
+                enterpriseToken=enterprise_token,
+                body={
+                    "enterpriseDisplayName": display_name,
+                    "pubsubTopic": self.pubsub_topic,
+                    "enabledNotificationTypes": ["ENROLLMENT", "STATUS_REPORT"],
+                },
+            )
+            .execute()
         )
 
     def execute(self, resource_method, raise_exception=True):
@@ -134,21 +215,13 @@ class AndroidEnterprise(MDM):
             if device.id in current_fleet_device_ids:
                 # The device is currently linked to this Fleet in the DB
                 fleet_devices.append(device)
-            elif device.id not in other_fleets_device_ids and (
-                enrollment_token_data := device.get("enrollmentTokenData")
+            elif (
+                device.id not in other_fleets_device_ids
+                and self._get_fleet_pk_from_enrollment_token_data(device) == fleet.pk
             ):
                 # The device has not been assigned to another Fleet in the DB.
-                # Check if it enrolled using an enrollment token created for
-                # this Fleet
-                try:
-                    enrollment_token_data = json.loads(enrollment_token_data)
-                except json.JSONDecodeError:
-                    continue
-                if (
-                    isinstance(enrollment_token_data, dict)
-                    and enrollment_token_data.get("fleet") == fleet.pk
-                ):
-                    fleet_devices.append(device)
+                # and it enrolled using an enrollment token created for this Fleet.
+                fleet_devices.append(device)
         return fleet_devices
 
     def create_enrollment_token(self, fleet: Fleet):
@@ -204,10 +277,7 @@ class AndroidEnterprise(MDM):
                 db_serial_number=our_device.serial_number,
                 db_device_id=our_device.device_id,
             )
-            our_device.serial_number = mdm_device["hardwareInfo"]["serialNumber"]
-            our_device.device_id = mdm_device.id
-            our_device.name = mdm_device["name"]
-            our_device.raw_mdm_device = mdm_device
+            self._update_device(our_device, mdm_device)
 
         logger.debug("Updating existing devices", our_devices=our_devices, count=len(our_devices))
         Device.objects.bulk_update(
@@ -221,18 +291,8 @@ class AndroidEnterprise(MDM):
         received from the API. This list must not contain devices that
         already exist in our database.
         """
-        # bulk_create bypasses Device.save(), so set the default app user name here.
-        default_app_user_name = fleet.default_app_user.name if fleet.default_app_user_id else ""
         mdm_devices_to_create = [
-            Device(
-                fleet=fleet,
-                serial_number=mdm_device["hardwareInfo"]["serialNumber"],
-                device_id=mdm_device.id,
-                name=mdm_device["name"],
-                raw_mdm_device=mdm_device,
-                app_user_name=default_app_user_name,
-            )
-            for mdm_device in mdm_devices
+            self._create_device(fleet, mdm_device) for mdm_device in mdm_devices
         ]
         logger.debug(
             "Creating new devices",
@@ -418,14 +478,10 @@ class AndroidEnterprise(MDM):
     def sync_fleets(self, push_config: bool = True):
         """
         Synchronizes all configured fleets with Android Enterprise and updates the
-        applicable device configurations. If self.organization is set, only fleets
-        for that org are synced.
+        applicable device configurations.
         """
         logger.info("Syncing fleets with Android Enterprise")
-        qs = Fleet.objects.all()
-        if self.organization is not None:
-            qs = qs.filter(organization=self.organization)
-        for fleet in qs:
+        for fleet in self.organization.fleets.all():
             self.sync_fleet(fleet=fleet, push_config=push_config)
 
     def create_group(self, fleet: Fleet):
@@ -480,3 +536,383 @@ class AndroidEnterprise(MDM):
             return
         policy_name = f"{self.enterprise_name}/policies/{policy.policy_id}"
         self.execute(self.api.enterprises().policies().patch(name=policy_name, body=policy_data))
+
+    def configure_pubsub(
+        self,
+        push_endpoint_domain: str | None = None,
+    ) -> None:
+        """Configure Pub/Sub infrastructure.
+
+        Performs all required Pub/Sub setup steps:
+
+        1. Creates the Pub/Sub topic
+           ``projects/{project_id}/topics/publish-mdm-{environment}``
+           if it does not already exist.
+        2. Creates (or updates) a push subscription
+           ``projects/{project_id}/subscriptions/publish-mdm-{environment}``.
+           The push endpoint is built from ``push_endpoint_domain`` when
+           provided, otherwise from ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN``
+           (if set), otherwise from the current ``Site`` domain.
+        3. Grants ``android-cloud-policy@system.gserviceaccount.com``
+           ``roles/pubsub.publisher`` on the topic so that Android Device Policy
+           can publish AMAPI notifications to it.
+
+        To register the topic with the AMAPI enterprise, call
+        :meth:`patch_enterprise_pubsub` separately.
+
+        Args:
+            push_endpoint_domain: Domain (without scheme, e.g. ``example.com``)
+                used to construct the full push endpoint.  When ``None``,
+                ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` is used if set,
+                otherwise the domain is taken from the current
+                ``django.contrib.sites`` ``Site`` object.  HTTPS is always used.
+        """
+        push_endpoint = self._build_push_endpoint(domain=push_endpoint_domain)
+        logger.info(
+            "Configuring AMAPI Pub/Sub notifications",
+            topic_name=self.pubsub_topic,
+            subscription_name=self.pubsub_subscription,
+            push_endpoint=push_endpoint,
+        )
+        self._ensure_pubsub_topic()
+        self._ensure_pubsub_subscription(push_endpoint)
+        self._grant_pubsub_publisher()
+
+    def patch_enterprise_pubsub(self) -> dict:
+        """Patch the enterprise to register the Pub/Sub topic.
+
+        Calls ``enterprises.patch`` to set ``pubsubTopic`` and
+        ``enabledNotificationTypes`` on the AMAPI enterprise resource,
+        pointing it at the topic
+        ``projects/{project_id}/topics/publish-mdm-{environment}``.
+
+        This is intentionally separate from :meth:`configure_pubsub` so that
+        the Pub/Sub infrastructure (topic, subscription, IAM) and the enterprise
+        registration can be managed independently.
+
+        Returns:
+            The updated enterprise resource dict returned by the AMAPI.
+        """
+        return self.execute(
+            self.api.enterprises().patch(
+                name=self.enterprise_name,
+                updateMask="pubsubTopic,enabledNotificationTypes",
+                body={
+                    "pubsubTopic": self.pubsub_topic,
+                    "enabledNotificationTypes": ["ENROLLMENT", "STATUS_REPORT"],
+                },
+            )
+        )
+
+    def _build_push_endpoint(self, domain: str | None = None) -> str:
+        """Build the push endpoint URL.
+
+        Reverses the ``mdm:amapi_notifications`` URL and appends the
+        ``ANDROID_ENTERPRISE_PUBSUB_TOKEN`` as a query parameter.  HTTPS
+        is always used.  The domain is resolved with the following priority:
+
+        1. The ``domain`` argument (when explicitly supplied).
+        2. ``settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` (when set).
+        3. The current ``django.contrib.sites`` ``Site`` object domain (fallback).
+
+        Args:
+            domain: Optional domain override (without scheme, e.g.
+                ``example.com``).  When ``None``, the domain is read from
+                ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` or the ``Site`` model.
+
+        Returns:
+            Full HTTPS URL for the Pub/Sub push endpoint.
+        """
+        token = settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN
+        if not token:
+            raise ValueError(
+                "ANDROID_ENTERPRISE_PUBSUB_TOKEN must be set before configuring Pub/Sub. "
+                "The notification endpoint rejects all requests when this setting is absent."
+            )
+        path = reverse("mdm:amapi_notifications")
+        if domain is None:
+            domain = (
+                settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN or Site.objects.get_current().domain
+            )
+        return f"https://{domain.rstrip('/')}{path}?token={token}"
+
+    def _ensure_pubsub_topic(self) -> None:
+        """Create the Pub/Sub topic if it does not already exist."""
+        topic_name = self.pubsub_topic
+        try:
+            self.pubsub_api.projects().topics().create(name=topic_name, body={}).execute()
+            logger.info("Created Pub/Sub topic", topic=topic_name)
+        except HttpError as e:
+            if e.status_code == 409:
+                logger.info("Pub/Sub topic already exists", topic=topic_name)
+            else:
+                raise
+
+    def _grant_pubsub_publisher(self) -> None:
+        """Grant Android Device Policy the publisher role on the Pub/Sub topic.
+
+        Fetches the current IAM policy for the topic, appends
+        ``android-mdm-service@system.gserviceaccount.com`` to the
+        ``roles/pubsub.publisher`` binding (creating the binding if it is
+        absent), and writes the updated policy back.
+        """
+        topic_name = self.pubsub_topic
+        member = f"serviceAccount:{ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT}"
+        try:
+            policy = self.pubsub_api.projects().topics().getIamPolicy(resource=topic_name).execute()
+        except HttpError as e:
+            logger.error(
+                "Failed to get IAM policy for Pub/Sub topic",
+                topic=topic_name,
+                status_code=e.status_code,
+            )
+            raise
+        bindings = policy.get("bindings", [])
+        for binding in bindings:
+            if binding["role"] == "roles/pubsub.publisher":
+                if member in binding.get("members", []):
+                    logger.info(
+                        "Android Device Policy already has Pub/Sub publisher rights",
+                        topic=topic_name,
+                    )
+                    return
+                binding["members"].append(member)
+                break
+        else:
+            bindings.append({"role": "roles/pubsub.publisher", "members": [member]})
+            policy["bindings"] = bindings
+        try:
+            self.pubsub_api.projects().topics().setIamPolicy(
+                resource=topic_name, body={"policy": policy}
+            ).execute()
+        except HttpError as e:
+            logger.error(
+                "Failed to set IAM policy for Pub/Sub topic",
+                topic=topic_name,
+                status_code=e.status_code,
+            )
+            raise
+        logger.info("Granted Android Device Policy Pub/Sub publisher rights", topic=topic_name)
+
+    def _ensure_pubsub_subscription(self, push_endpoint: str) -> None:
+        """Create the Pub/Sub push subscription, or update its endpoint if it already exists."""
+        topic_name = self.pubsub_topic
+        subscription_name = self.pubsub_subscription
+        body: dict = {"topic": topic_name, "pushConfig": {"pushEndpoint": push_endpoint}}
+        try:
+            self.pubsub_api.projects().subscriptions().create(
+                name=subscription_name, body=body
+            ).execute()
+            logger.info(
+                "Created Pub/Sub subscription",
+                subscription=subscription_name,
+                push_endpoint=push_endpoint,
+            )
+        except HttpError as e:
+            if e.status_code == 409:
+                logger.info(
+                    "Pub/Sub subscription already exists, updating push endpoint",
+                    subscription=subscription_name,
+                    push_endpoint=push_endpoint,
+                )
+                self.pubsub_api.projects().subscriptions().modifyPushConfig(
+                    subscription=subscription_name,
+                    body={"pushConfig": {"pushEndpoint": push_endpoint}},
+                ).execute()
+                logger.info(
+                    "Updated Pub/Sub subscription push endpoint",
+                    subscription=subscription_name,
+                    push_endpoint=push_endpoint,
+                )
+            else:
+                raise
+
+    def handle_device_notification(self, device_data: dict, notification_type: str) -> None:
+        """Handle a device notification received from AMAPI via Pub/Sub.
+
+        For ``ENROLLMENT`` notifications a new :class:`~apps.mdm.models.Device`
+        record is created (or an existing one updated) using the Device resource
+        payload.
+
+        For ``STATUS_REPORT`` notifications the existing
+        :class:`~apps.mdm.models.Device` record is updated and a new
+        :class:`~apps.mdm.models.DeviceSnapshot` is created when sufficient
+        data is present.
+
+        Ignore all other notifications.
+
+        Args:
+            device_data: The decoded Device resource dict from the Pub/Sub
+                message ``data`` field.
+            notification_type: The value of the ``notificationType`` Pub/Sub
+                message attribute (e.g. ``"ENROLLMENT"`` or
+                ``"STATUS_REPORT"``).
+        """
+        mdm_device = MDMDevice(device_data)
+        logger.info(
+            "Handling AMAPI device notification",
+            notification_type=notification_type,
+            device_id=mdm_device.id,
+            device_name=mdm_device.get("name"),
+        )
+
+        if notification_type == "ENROLLMENT":
+            self._handle_enrollment_notification(mdm_device)
+        elif notification_type == "STATUS_REPORT":
+            self._handle_status_report_notification(mdm_device)
+        else:
+            logger.info("Ignoring notification type", notification_type=notification_type)
+
+    def _create_device(self, fleet: Fleet, mdm_device: MDMDevice) -> Device:
+        """Build a new :class:`~apps.mdm.models.Device` instance from MDM data.
+
+        The returned instance is **not** saved to the database; callers are
+        responsible for calling ``save()`` or passing it to ``bulk_create()``.
+
+        Args:
+            fleet: The fleet the device belongs to.
+            mdm_device: The MDM device data.
+
+        Returns:
+            An unsaved ``Device`` instance.
+        """
+        default_app_user_name = fleet.default_app_user.name if fleet.default_app_user_id else ""
+        serial_number = mdm_device.get("hardwareInfo", {}).get("serialNumber", "")
+        return Device(
+            fleet=fleet,
+            device_id=mdm_device.id,
+            name=mdm_device["name"],
+            serial_number=serial_number,
+            raw_mdm_device=dict(mdm_device),
+            app_user_name=default_app_user_name,
+        )
+
+    def _update_device(self, device: Device, mdm_device: MDMDevice) -> None:
+        """Apply MDM device data to an existing :class:`~apps.mdm.models.Device` instance.
+
+        Updates ``device_id``, ``name``, ``raw_mdm_device``, and (when non-empty)
+        ``serial_number`` in-place.  The caller is responsible for persisting the
+        changes via ``save()`` or ``bulk_update()``.
+
+        Args:
+            device: The existing ``Device`` instance to update.
+            mdm_device: The MDM device data.
+        """
+        device.device_id = mdm_device.id
+        device.name = mdm_device["name"]
+        serial_number = mdm_device.get("hardwareInfo", {}).get("serialNumber", "")
+        if serial_number:
+            device.serial_number = serial_number
+        device.raw_mdm_device = dict(mdm_device)
+
+    def _handle_enrollment_notification(self, mdm_device: MDMDevice) -> None:
+        """Create or update a Device record from an ENROLLMENT notification."""
+        fleet = self._get_fleet_from_enrollment_token_data(mdm_device)
+        if fleet is None:
+            logger.warning(
+                "Could not determine fleet for ENROLLMENT notification; skipping",
+                device_id=mdm_device.id,
+            )
+            return
+
+        existing_device = Device.objects.filter(device_id=mdm_device.id).first()
+        if existing_device:
+            logger.info(
+                "Updating existing device from ENROLLMENT notification",
+                device_id=mdm_device.id,
+            )
+            self._update_device(existing_device, mdm_device)
+            existing_device.save(
+                update_fields=["name", "device_id", "raw_mdm_device", "serial_number"],
+                push_to_mdm=False,
+            )
+        else:
+            logger.info(
+                "Creating new device from ENROLLMENT notification",
+                device_id=mdm_device.id,
+                fleet=fleet,
+            )
+            device = self._create_device(fleet, mdm_device)
+            device.save(push_to_mdm=False)
+
+    def _handle_status_report_notification(self, mdm_device: MDMDevice) -> None:
+        """Update device metadata and create a snapshot from a STATUS_REPORT notification."""
+        existing_device = Device.objects.filter(device_id=mdm_device.id).first()
+        if existing_device is None:
+            logger.warning(
+                "Received STATUS_REPORT for unknown device; skipping",
+                device_id=mdm_device.id,
+            )
+            return
+
+        logger.info(
+            "Updating device from STATUS_REPORT notification",
+            device_id=mdm_device.id,
+        )
+        previous_state = (existing_device.raw_mdm_device or {}).get("state")
+        self._update_device(existing_device, mdm_device)
+        existing_device.save(
+            update_fields=["name", "device_id", "raw_mdm_device", "serial_number"],
+            push_to_mdm=False,
+        )
+
+        # If the device just finished enrolling, has an assigned app user, and hasn't
+        # yet received a device-specific policy, push its config now.
+        if (
+            previous_state == "PROVISIONING"
+            and mdm_device.get("state") == "ACTIVE"
+            and existing_device.app_user_name
+            and not mdm_device.get("policyName", "").endswith(mdm_device.id)
+        ):
+            logger.info(
+                "Device transitioned from PROVISIONING to ACTIVE; pushing device config",
+                device_id=mdm_device.id,
+                app_user_name=existing_device.app_user_name,
+            )
+            self.push_device_config(existing_device)
+        # Only create a snapshot when the notification carries enough information.
+        elif "lastPolicySyncTime" in mdm_device and "hardwareInfo" in mdm_device:
+            self.create_device_snapshots(existing_device.fleet, [mdm_device])
+            # Link the newly created snapshot(s) to the device (create_device_snapshots
+            # leaves mdm_device_id as NULL; we resolve it here, scoped to this device).
+            # `device_id` in DeviceSnapshot stores the MDM device ID (not the Django pk).
+            DeviceSnapshot.objects.filter(
+                mdm_device_id=None,
+                device_id=mdm_device.id,
+            ).update(mdm_device_id=existing_device.pk)
+            # Refresh latest_snapshot_id for this device only.
+            Device.objects.filter(pk=existing_device.pk).update(
+                latest_snapshot_id=Subquery(
+                    DeviceSnapshot.objects.filter(mdm_device_id=existing_device.pk)
+                    .order_by("-synced_at")
+                    .values("id")[:1]
+                )
+            )
+
+    @staticmethod
+    def _get_fleet_pk_from_enrollment_token_data(mdm_device: MDMDevice) -> int | None:
+        """Extract the fleet primary key from the device's ``enrollmentTokenData``.
+
+        Returns the ``fleet`` value from the parsed JSON, or ``None`` when the
+        field is absent, not valid JSON, or does not contain a ``fleet`` key.
+        """
+        enrollment_token_data = mdm_device.get("enrollmentTokenData")
+        if not enrollment_token_data:
+            return None
+        try:
+            token_data = json.loads(enrollment_token_data)
+        except (json.JSONDecodeError, TypeError):
+            logger.warning(
+                "Could not parse enrollmentTokenData",
+                enrollment_token_data=enrollment_token_data,
+            )
+            return None
+        return token_data.get("fleet") if isinstance(token_data, dict) else None
+
+    @staticmethod
+    def _get_fleet_from_enrollment_token_data(mdm_device: MDMDevice) -> Fleet | None:
+        """Return the Fleet referenced by the device's enrollmentTokenData, or ``None``."""
+        fleet_pk = AndroidEnterprise._get_fleet_pk_from_enrollment_token_data(mdm_device)
+        if fleet_pk is None:
+            return None
+        return Fleet.objects.filter(pk=fleet_pk).first()

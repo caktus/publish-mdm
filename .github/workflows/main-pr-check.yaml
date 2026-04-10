@@ -1,0 +1,49 @@
+name: "main-pr-check"
+
+on:
+  pull_request:
+    branches:
+      - main # Only triggers for PRs where the destination is 'main'
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  enforce-quality:
+    name: "Check Author & Format"
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Block Non-Human Authors (Copilot, etc.)
+      - name: "Verify Human Author"
+        if: github.base_ref == 'main'
+        run: |
+          set -euo pipefail
+
+          AUTHOR_TYPE="${{ github.event.pull_request.user.type }}"
+          AUTHOR_NAME="${{ github.event.pull_request.user.login }}"
+
+          echo "Checking PR author: $AUTHOR_NAME"
+
+          if [[ "$AUTHOR_TYPE" != "User" ]]; then
+            echo "::error::PRs targeting 'main' must be authored by a human account. (Detected: $AUTHOR_TYPE)"
+            exit 1
+          fi
+
+      # 2. Lint PR Title (Conventional Commits)
+      - name: "Lint PR Title"
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # Standard types that usually trigger CI/CD
+          types: |
+            feat
+            fix
+            chore
+            ci
+            docs
+            perf
+            refactor
+          requireScope: false

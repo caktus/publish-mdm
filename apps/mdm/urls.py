@@ -6,6 +6,9 @@ app_name = "mdm"
 
 urlpatterns = [
     path("mdm/api/firmware/", views.firmware_snapshot_view, name="firmware_snapshot"),
+    path(
+        "mdm/api/amapi/notifications/", views.amapi_notifications_view, name="amapi_notifications"
+    ),
     # Policy editor
     path(
         "o/<slug:organization_slug>/policies/",

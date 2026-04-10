@@ -19,6 +19,7 @@ from requests.exceptions import RequestException
 
 from apps.mdm.forms import DeviceConfirmImportForm, DeviceImportForm
 from apps.publish_mdm.http import HttpRequest
+from config.dagster import trigger_dagster_job
 
 from .import_export import DeviceResource
 from .mdms import get_active_mdm_instance
@@ -54,7 +55,7 @@ class PolicyAdmin(admin.ModelAdmin):
         # Save inlines first so applications are persisted before pushing to MDM.
         super().save_related(request, form, formsets, change)
         policy = form.instance
-        if active_mdm := get_active_mdm_instance(policy.organization):
+        if active_mdm := get_active_mdm_instance(organization=policy.organization):
             try:
                 active_mdm.create_or_update_policy(policy)
             except (GoogleAPIClientError, RequestException) as e:
@@ -73,28 +74,31 @@ class PolicyAdmin(admin.ModelAdmin):
                 )
             if change:
                 # Update the policies for all related Devices that have a child
-                # policy (device-specific policy)
-                devices = Device.objects.filter(
+                # policy (device-specific policy) asynchronously via Dagster so
+                # the admin save does not block.
+                child_devices = Device.objects.filter(
                     fleet__policy=policy,
                     raw_mdm_device__policyName__endswith=models.F("device_id"),
                 )
-                logger.debug("Updating child policies", count=len(devices))
-                for device in devices:
+                device_pks = list(child_devices.values_list("pk", flat=True))
+                if device_pks:
+                    run_config = {
+                        "ops": {"push_mdm_device_config": {"config": {"device_pks": device_pks}}}
+                    }
                     try:
-                        active_mdm.push_device_config(device)
-                    except (GoogleAPIClientError, RequestException) as e:
+                        trigger_dagster_job(job_name="mdm_job", run_config=run_config)
+                    except Exception as e:
                         logger.debug(
-                            f"Unable to update the policy for {device} in {active_mdm}",
-                            device=device,
+                            "Failed to trigger Dagster mdm_job for child policies",
                             policy=policy,
                             exc_info=True,
                         )
                         messages.warning(
                             request,
                             mark_safe(
-                                f"Could not update the policy for {device} in "
-                                f"{active_mdm} due to the following error:"
-                                f"<br><code>{getattr(e, 'api_error', e)}</code>"
+                                "Could not queue device policy updates due to "
+                                "the following error:"
+                                f"<br><code>{e}</code>"
                             ),
                         )
 
@@ -121,13 +125,13 @@ class FleetAdmin(admin.ModelAdmin):
             messages.error(
                 request,
                 mark_safe(
-                    f"Unable to pull the fleet's devices from the MDM due to "
+                    f"Unable to pull the fleet's devices from {obj.organization.mdm} due to "
                     f"the following error:<br><code>{getattr(e, 'api_error', e)}</code>"
                 ),
             )
         # If the policy has changed, add the group to the new policy
         if "policy" in form.changed_data and (
-            active_mdm := get_active_mdm_instance(obj.organization)
+            active_mdm := get_active_mdm_instance(organization=obj.organization)
         ):
             try:
                 active_mdm.add_group_to_policy(obj)
@@ -188,7 +192,7 @@ class FleetAdmin(admin.ModelAdmin):
             # Delete the MDM group first. Won't delete anything if the fleet
             # is linked to devices either in the database or in the MDM.
             error = None
-            if active_mdm := get_active_mdm_instance(obj.organization):
+            if active_mdm := get_active_mdm_instance(organization=obj.organization):
                 try:
                     if not active_mdm.delete_group(obj):
                         error = "Cannot delete the fleet because it has devices linked to it."
@@ -272,14 +276,14 @@ class FleetAdmin(admin.ModelAdmin):
                 # BEGIN ADDED CODE
                 # Delete the MDM groups first. Won't delete a fleet if it
                 # is linked to devices either in the database or in the MDM.
-                if not (active_mdm := get_active_mdm_instance()):
-                    messages.error(request, "Cannot delete fleets. Please try again later.")
-                    return
-
                 has_devices = []
                 successful = []
 
                 for fleet in queryset:
+                    active_mdm = get_active_mdm_instance(organization=fleet.organization)
+                    if not active_mdm:
+                        messages.error(request, "Cannot delete fleets. Please try again later.")
+                        return
                     try:
                         if active_mdm.delete_group(fleet):
                             successful.append(fleet.pk)
@@ -362,7 +366,7 @@ class FleetAdmin(admin.ModelAdmin):
 
 @admin.register(Device)
 class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
-    list_display = ("name", "serial_number", "app_user_name", "fleet")
+    list_display = ("name", "serial_number", "manufacturer", "model", "app_user_name", "fleet")
     search_fields = (
         "id",
         "name",
@@ -371,8 +375,15 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
         "app_user_deterministic",
         "fleet__name",
     )
-    readonly_fields = ("name", "device_id", "raw_mdm_device", "latest_snapshot")
-    list_filter = ("fleet", "app_user_name")
+    readonly_fields = (
+        "name",
+        "manufacturer",
+        "model",
+        "device_id",
+        "raw_mdm_device",
+        "latest_snapshot",
+    )
+    list_filter = ("fleet", "manufacturer", "model", "app_user_name")
     import_form_class = DeviceImportForm
     confirm_form_class = DeviceConfirmImportForm
     export_form_class = ExportForm
@@ -386,7 +397,7 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
             messages.error(
                 request,
                 mark_safe(
-                    f"Unable to update the device in the MDM due to "
+                    f"Unable to update the device in {obj.fleet.organization.mdm} due to "
                     f"the following error:<br><code>{getattr(e, 'api_error', e)}</code>"
                 ),
             )
