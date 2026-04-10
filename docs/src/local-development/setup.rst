@@ -35,6 +35,9 @@ rather use Docker, see :doc:`../running/docker-compose`.
     export PGDATABASE=publish_mdm
     export DATABASE_URL=postgresql://$PGUSER@$PGHOST:$PGPORT/$PGDATABASE
 
+    # dagster:
+    export DAGSTER_URL=http://localhost:3000
+
     # google oauth for django-allauth
     export GOOGLE_CLIENT_ID=
     export GOOGLE_CLIENT_SECRET=
