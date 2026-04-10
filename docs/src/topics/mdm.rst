@@ -6,6 +6,11 @@ and capabilities. The MDM integration allows administrators to enforce security
 policies, deploy applications, and monitor device compliance across an
 organization's mobile and tablet devices.
 
+To jump into using device management with Publish MDM, check out the
+:doc:`Quickstart Guide (MDM) <quickstart-mdm>` for a step-by-step walkthrough of setting
+up an organization, enrolling a device, and automating ODK project deployment to
+your devices.
+
 Concepts
 --------
 .. _mdm-service-provider:

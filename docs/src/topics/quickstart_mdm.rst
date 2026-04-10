@@ -1,7 +1,9 @@
-Quickstart Guide
-================
+Quickstart Guide (MDM)
+======================
 
 This guide provides a step-by-step walkthrough for new users to set up an organization, enroll a device, and automate ODK project deployment using Publish MDM.
+
+Device management with Publish MDM is optional but enables powerful features like remote configuration, security policies, and automated form deployment. If you just want to publish forms without managing devices, check out the :doc:`Quickstart Guide (Form Publishing) <quickstart>` instead.
 
 Step 1: Create a New Organization
 ---------------------------------

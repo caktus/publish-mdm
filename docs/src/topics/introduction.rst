@@ -12,6 +12,21 @@ powerful data collection platform. It offers support for:
   correct forms and settings
 * VPN integration with :doc:`Tailscale <vpn>` to securely connect devices to ODK Central
 
+Getting Started
+---------------
+
+There are two main workflows depending on your needs:
+
+**1. Basic Form Publishing (Recommended for most users)**
+   If you want to publish forms from Google Sheets to ODK Central and share them with data collectors,
+   start with the :doc:`Publishing Your First Form <publish_first_form>` guide. This is the simplest
+   way to get started—no device management required.
+
+**2. Advanced: Automated Device Management**
+   If you want to manage Android devices and automatically configure them with forms, policies, and
+   security settings, see the :doc:`Quickstart Guide (MDM) <quickstart_mdm>`. This enables
+   enterprise-grade device management and automated deployment.
+
 Form Design Workflow
 --------------------
 
