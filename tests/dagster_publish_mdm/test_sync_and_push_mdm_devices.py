@@ -1,3 +1,5 @@
+from unittest.mock import call
+
 import dagster as dg
 import pytest
 
@@ -14,7 +16,7 @@ class TestSyncAndPushMDMDevices(TestAllMDMs):
     def test_sync_fleet_called_for_each_fleet(self, mocker, organization):
         """sync_fleet() is called for each fleet in the organization, with push_config=True."""
         mock_sync = mocker.patch.object(get_active_mdm_class(organization), "sync_fleet")
-        fleet1, fleet2 = FleetFactory.create_batch(2, organization=organization)
+        fleets = FleetFactory.create_batch(2, organization=organization)
 
         sync_and_push_mdm_devices(
             context=dg.build_asset_context(),
@@ -22,8 +24,9 @@ class TestSyncAndPushMDMDevices(TestAllMDMs):
         )
 
         assert mock_sync.call_count == 2
-        mock_sync.assert_any_call(fleet1, push_config=True)
-        mock_sync.assert_any_call(fleet2, push_config=True)
+        mock_sync.assert_has_calls(
+            [call(fleet=fleet, push_config=True) for fleet in fleets], any_order=True
+        )
 
     def test_no_matching_fleets(self, mocker, organization):
         """When the organization has no fleets, sync_fleet() is never called."""

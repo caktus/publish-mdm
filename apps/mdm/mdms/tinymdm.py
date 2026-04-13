@@ -317,14 +317,10 @@ class TinyMDM(MDM):
     def sync_fleets(self, push_config: bool = True):
         """
         Synchronizes all configured fleets with TinyMDM and updates the applicable
-        device configurations. If self.organization is set, only fleets for that org
-        are synced.
+        device configurations.
         """
         logger.info("Syncing fleets with TinyMDM")
-        qs = Fleet.objects.filter(mdm_group_id__isnull=False)
-        if self.organization is not None:
-            qs = qs.filter(organization=self.organization)
-        for fleet in qs:
+        for fleet in self.organization.fleets.filter(mdm_group_id__isnull=False):
             self.sync_fleet(fleet=fleet, push_config=push_config)
 
     def create_group(self, fleet: Fleet):

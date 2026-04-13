@@ -24,9 +24,8 @@ def sync_and_push_mdm_devices(context: dg.AssetExecutionContext, config: SyncFle
     if not active_mdm:
         context.log.warning(f"MDM not configured for organization {organization}")
         return
-    for fleet in organization.fleets.all():
-        active_mdm.sync_fleet(fleet, push_config=True)
-        context.log.info(f"Synced fleet {fleet.name} (pk={fleet.pk})")
+    active_mdm.sync_fleets(push_config=True)
+    context.log.info(f"Synced all fleets in {organization}")
 
 
 @dg.asset(description="Get a list of devices from the MDM", group_name="mdm_assets")
