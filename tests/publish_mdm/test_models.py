@@ -8,6 +8,7 @@ from django.db.utils import IntegrityError
 from apps.infisical.api import InfisicalKMS
 from apps.infisical.fields import EncryptedMixin
 from apps.mdm.mdms import get_active_mdm_class
+from apps.mdm.models import Fleet, Policy, PolicyApplication
 from apps.publish_mdm.etl import template
 from apps.publish_mdm.models import CentralServer
 from tests.mdm import TestAllMDMs
@@ -327,7 +328,9 @@ class TestOrganization(TestAllMDMs):
     def test_create_default_fleet_raises_if_policy_sync_fails(
         self, set_mdm_env_vars, mocker, settings
     ):
-        """Default fleet creation should fail fast when policy sync fails."""
+        """Default fleet creation should fail fast when policy sync fails, and
+        DB rows (Policy, PolicyApplication) should be rolled back atomically.
+        """
         organization = OrganizationFactory()
         if settings.ACTIVE_MDM["name"] == "Android Enterprise":
             AndroidEnterpriseAccountFactory(
@@ -346,6 +349,10 @@ class TestOrganization(TestAllMDMs):
         mock_create_group.assert_not_called()
         mock_add_group_to_policy.assert_not_called()
         mock_get_enrollment_qr_code.assert_not_called()
+        # The atomic block should have rolled back all DB changes.
+        assert not Policy.all_mdms.filter(organization=organization).exists()
+        assert not PolicyApplication.objects.filter(policy__organization=organization).exists()
+        assert not Fleet.objects.filter(organization=organization).exists()
 
     def test_create_default_fleet_policy_id_is_unique(self, set_mdm_env_vars, mocker, settings):
         """Two calls to create_default_fleet() must produce distinct policy_id values.
