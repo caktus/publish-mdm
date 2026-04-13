@@ -8,7 +8,7 @@
         {{ form.media }}
         <form method="post"
               class="max-w-2xl"
-              x-data="{ mdm: '{{ form.mdm.value }}' }">
+              x-data="{ mdm: '{{ form.mdm.value|escapejs }}' }">
             {% csrf_token %}
             {% for field in form.hidden_fields %}{{ field }}{% endfor %}
             <div class="grid gap-4 sm:grid-cols-1 sm:gap-6">

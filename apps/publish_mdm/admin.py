@@ -202,10 +202,15 @@ class OrganizationAdmin(admin.ModelAdmin):
         (
             "TinyMDM API Credentials",
             {
-                "fields": ("tinymdm_apikey_public", "tinymdm_apikey_secret", "tinymdm_account_id"),
+                "fields": (
+                    "tinymdm_apikey_public",
+                    "tinymdm_apikey_secret",
+                    "tinymdm_account_id",
+                    "tinymdm_policy_id",
+                ),
                 "description": (
-                    "Per-organization TinyMDM API credentials. "
-                    "Leave blank to use the server-wide environment variables."
+                    "Per-organization TinyMDM API credentials and policy configuration. "
+                    "Configure these values on the organization when using TinyMDM."
                 ),
             },
         ),

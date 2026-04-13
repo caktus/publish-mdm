@@ -1380,6 +1380,8 @@ def enterprise_setup(request: HttpRequest, organization_slug):
 def enterprise_callback(request: HttpRequest, callback_token):
     """Google calls this URL after the org admin completes enterprise signup."""
     account = get_object_or_404(AndroidEnterpriseAccount, callback_token=callback_token)
+    if account.organization.mdm != "Android Enterprise":
+        raise Http404
     redirect_to = request.GET.get("next", "")
     if not (
         redirect_to

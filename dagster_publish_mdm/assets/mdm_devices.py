@@ -75,9 +75,5 @@ def push_mdm_device_config(context: dg.AssetExecutionContext, config: DeviceConf
                     f"{error_data=})"
                 )
                 failed_pks.append(device.pk)
-        else:
-            context.log.warning(
-                f"MDM not configured for organization {org}. Skipping device {device.device_id}."
-            )
     if failed_pks:
         raise ValueError(f"Failed to push configuration for devices: {failed_pks}")
