@@ -487,7 +487,10 @@ class OrganizationForm(PlatformFormMixin, forms.ModelForm):
                     self.add_error(field, "This field is required when TinyMDM is selected.")
         else:
             for field in self.tinymdm_fields:
-                cleaned_data[field] = ""
+                if field == "tinymdm_policy_id":
+                    cleaned_data[field] = ""
+                else:
+                    cleaned_data[field] = None
         return cleaned_data
 
 
