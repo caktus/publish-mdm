@@ -9,7 +9,7 @@ from pytest_django.asserts import assertContains, assertMessages, assertRedirect
 
 from apps.mdm.mdms import AndroidEnterprise
 from apps.mdm.models import Device, DeviceSnapshot, Policy, PolicyApplication, PolicyVariable
-from tests.mdm import TestAllMDMs, TestAndroidEnterpriseOnly
+from tests.mdm import TestAllMDMs, TestAndroidEnterpriseOnly, TestTinyMDMOnly
 from tests.mdm.factories import (
     DeviceFactory,
     FleetFactory,
@@ -90,13 +90,14 @@ class TestPolicyAdd(PolicyViewBase):
         assert "form" in response.context
 
     def test_valid_post_creates_policy_and_redirects(
-        self, client, url, organization, set_mdm_env_vars
+        self, client, url, organization, set_mdm_env_vars, settings
     ):
-        response = client.post(url, {"name": "My Policy"})
+        response = client.post(url, {"name": "My Policy", "policy_id": "my-policy-id"})
         assert Policy.objects.filter(organization=organization, name="My Policy").exists()
         policy = Policy.objects.get(organization=organization, name="My Policy")
-        # Creates the default ODK Collect application row
-        assert policy.applications.filter(order=0).exists()
+        # Creates the default ODK Collect application row only for Android Enterprise
+        if settings.ACTIVE_MDM["name"] == "Android Enterprise":
+            assert policy.applications.filter(order=0).exists()
         assert response.status_code == 302
         assert (
             reverse("mdm:policy-edit", args=[organization.slug, policy.pk]) in response["Location"]
@@ -113,6 +114,55 @@ class TestPolicyAdd(PolicyViewBase):
         assertContains(
             response, "Sorry, cannot create a policy at this time. Please try again later."
         )
+
+
+# ---------------------------------------------------------------------------
+# policy_add (TinyMDM-specific)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestPolicyAddTinyMDM(TestTinyMDMOnly):
+    @pytest.fixture
+    def user(self, client):
+        user = UserFactory()
+        user.save()
+        client.force_login(user=user)
+        return user
+
+    @pytest.fixture(autouse=True)
+    def _login(self, user):
+        """Ensure user is logged in for all tests."""
+
+    @pytest.fixture
+    def organization(self, user):
+        org = OrganizationFactory()
+        org.users.add(user)
+        return org
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("mdm:policy-add", args=[organization.slug])
+
+    def test_get_includes_policy_id_field(self, client, url, set_mdm_env_vars):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "policy_id" in response.context["form"].fields
+        assert response.context["is_tinymdm"] is True
+
+    def test_valid_post_uses_provided_policy_id(self, client, url, organization, set_mdm_env_vars):
+        response = client.post(url, {"name": "My Policy", "policy_id": "tinymdm-123"})
+        assert Policy.objects.filter(organization=organization, name="My Policy").exists()
+        policy = Policy.objects.get(organization=organization, name="My Policy")
+        assert policy.policy_id == "tinymdm-123"
+        # No ODK Collect application row for TinyMDM
+        assert not policy.applications.filter(order=0).exists()
+        assert response.status_code == 302
+
+    def test_invalid_post_missing_policy_id(self, client, url, set_mdm_env_vars):
+        response = client.post(url, {"name": "My Policy"})
+        assert response.status_code == 200
+        assert response.context["form"].errors
 
 
 # ---------------------------------------------------------------------------
@@ -144,13 +194,18 @@ class TestPolicyEdit(PolicyViewBase):
         response = client.get(url)
         assert response.status_code == 404
 
-    def test_configured_badge_shown_for_empty_managed_configuration(self, client, url, policy):
+    def test_configured_badge_shown_for_empty_managed_configuration(
+        self, client, url, policy, settings
+    ):
         """The 'Configured' badge is shown even when managed_configuration is {}.
 
         Regression test: the template previously used
         ``{% if app.managed_configuration %}``, which treated ``{}`` as falsy
         and skipped the badge for an empty-but-present managed configuration.
+        Only applies to Android Enterprise where the Applications section is shown.
         """
+        if settings.ACTIVE_MDM["name"] == "TinyMDM":
+            pytest.skip("Applications section is not shown for TinyMDM")
         PolicyApplicationFactory(policy=policy, order=1, managed_configuration={})
         response = client.get(url)
         assert response.status_code == 200
@@ -172,6 +227,8 @@ class TestPolicyEditPost(PolicyViewBase):
         """Build valid POST data for PolicyEditForm + empty formsets."""
         data = {
             "name": "Updated Policy",
+            # policy_id is required for TinyMDM; ignored by PolicyEditForm for AMAPI
+            "policy_id": "updated-policy-id",
             "odk_collect_package": "org.odk.collect.android",
             "odk_collect_device_id_template": "",
             "device_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
@@ -236,8 +293,12 @@ class TestPolicyEditPost(PolicyViewBase):
         response = client.post(url, self._valid_data())
         assert response.status_code == 404
 
-    def test_kiosk_validation_error_when_app_has_kiosk_install_type(self, client, url, policy):
+    def test_kiosk_validation_error_when_app_has_kiosk_install_type(
+        self, client, url, policy, settings
+    ):
         """Enabling kiosk_custom_launcher while an app has KIOSK install type is rejected."""
+        if settings.ACTIVE_MDM["name"] == "TinyMDM":
+            pytest.skip("Kiosk validation only applies to Android Enterprise")
         PolicyApplicationFactory(
             policy=policy, install_type="KIOSK", package_name="com.example.kiosk"
         )
@@ -249,8 +310,12 @@ class TestPolicyEditPost(PolicyViewBase):
         assert form.non_field_errors()
         assert "com.example.kiosk" in str(form.non_field_errors())
 
-    def test_kiosk_launcher_allowed_when_no_kiosk_install_type_apps(self, client, url, policy):
+    def test_kiosk_launcher_allowed_when_no_kiosk_install_type_apps(
+        self, client, url, policy, settings
+    ):
         """Enabling kiosk_custom_launcher is allowed when no apps use KIOSK install type."""
+        if settings.ACTIVE_MDM["name"] == "TinyMDM":
+            pytest.skip("Kiosk validation only applies to Android Enterprise")
         data = self._valid_data()
         data["kiosk_custom_launcher_enabled"] = "on"
         response = client.post(url, data)
@@ -258,8 +323,10 @@ class TestPolicyEditPost(PolicyViewBase):
         policy.refresh_from_db()
         assert policy.kiosk_custom_launcher_enabled is True
 
-    def test_odk_collect_app_updated_on_package_name_change(self, client, url, policy):
+    def test_odk_collect_app_updated_on_package_name_change(self, client, url, policy, settings):
         """When odk_collect_package changes, the pinned order=0 app row is also updated."""
+        if settings.ACTIVE_MDM["name"] == "TinyMDM":
+            pytest.skip("ODK Collect app management only applies to Android Enterprise")
         pinned = PolicyApplicationFactory(
             policy=policy, order=0, package_name="org.odk.collect.android"
         )
@@ -277,6 +344,67 @@ class TestPolicyEditPost(PolicyViewBase):
         assert response.status_code == 302
         pinned.refresh_from_db()
         assert pinned.package_name == "org.custom.collect"
+
+
+# ---------------------------------------------------------------------------
+# policy_edit (TinyMDM-specific)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestPolicyEditTinyMDM(TestTinyMDMOnly):
+    @pytest.fixture
+    def user(self, client):
+        user = UserFactory()
+        user.save()
+        client.force_login(user=user)
+        return user
+
+    @pytest.fixture(autouse=True)
+    def _login(self, user):
+        """Ensure user is logged in for all tests."""
+
+    @pytest.fixture
+    def organization(self, user):
+        org = OrganizationFactory()
+        org.users.add(user)
+        return org
+
+    @pytest.fixture
+    def policy(self, organization):
+        return PolicyFactory(organization=organization, policy_id="original-id")
+
+    @pytest.fixture
+    def url(self, organization, policy):
+        return reverse("mdm:policy-edit", args=[organization.slug, policy.pk])
+
+    def test_get_shows_is_tinymdm_context(self, client, url, policy):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert response.context["is_tinymdm"] is True
+
+    def test_get_form_has_policy_id_field(self, client, url, policy):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "policy_id" in response.context["form"].fields
+
+    def test_get_no_app_or_var_formsets(self, client, url, policy):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert response.context["app_formset"] is None
+        assert response.context["var_formset"] is None
+
+    def test_valid_post_saves_name_and_policy_id(self, client, url, policy):
+        response = client.post(url, {"name": "Updated Name", "policy_id": "new-id"})
+        assert response.status_code == 302
+        policy.refresh_from_db()
+        assert policy.name == "Updated Name"
+        assert policy.policy_id == "new-id"
+
+    def test_invalid_post_missing_policy_id(self, client, url, policy):
+        response = client.post(url, {"name": "Updated Name"})
+        assert response.status_code == 200
+        assert response.context["form"].errors
 
 
 # ---------------------------------------------------------------------------
@@ -362,6 +490,11 @@ class TestFirmwareSnapshotView:
 
 @pytest.mark.django_db
 class TestPolicyEditFormsets(PolicyViewBase):
+    @pytest.fixture(autouse=True)
+    def _skip_for_tinymdm(self, settings):
+        if settings.ACTIVE_MDM["name"] == "TinyMDM":
+            pytest.skip("App/var formsets only apply to Android Enterprise")
+
     @pytest.fixture
     def url(self, organization, policy):
         return reverse("mdm:policy-edit", args=[organization.slug, policy.pk])
@@ -858,6 +991,11 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
 @pytest.mark.django_db
 class TestPushPolicyToMdmDagster(PolicyViewBase):
     """Tests that _push_policy_to_mdm() uses Dagster for child-device pushes."""
+
+    @pytest.fixture(autouse=True)
+    def _skip_for_tinymdm(self, settings):
+        if settings.ACTIVE_MDM["name"] == "TinyMDM":
+            pytest.skip("MDM push only applies to Android Enterprise")
 
     @pytest.fixture
     def policy_with_devices(self, organization):
