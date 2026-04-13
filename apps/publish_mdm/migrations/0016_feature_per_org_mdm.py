@@ -12,41 +12,33 @@ def set_org_mdm_from_policies(apps, schema_editor):
     """Seed Organization.mdm and TinyMDM credentials for all existing organizations.
 
     Strategy:
-    - If the org has at least one policy, use the mdm value from its first policy.
-    - If the org has no policies, fall back to the ACTIVE_MDM_NAME env var, then the first
-      MDM in the MDM_REGISTRY setting.
-    - If the resolved mdm is "TinyMDM", also copy the global TINYMDM_* env vars into
+    - Use the ACTIVE_MDM_NAME env var to determine the MDM for all existing orgs,
+      falling back to the first MDM in the MDM_REGISTRY setting if the env var is
+      unset or not a recognised MDM name.
+    - If the resolved MDM is "TinyMDM", also copy the global TINYMDM_* env vars into
       the org's credential fields so that existing deployments continue working without
-      using env vars.
+      re-entering credentials.
     """
     Organization = apps.get_model("publish_mdm", "Organization")
-    Policy = apps.get_model("mdm", "Policy")
-    fallback_mdm = os.environ.get("ACTIVE_MDM_NAME")
-    if fallback_mdm not in settings.MDM_REGISTRY:
-        fallback_mdm = next(iter(settings.MDM_REGISTRY))
+    mdm_name = os.environ.get("ACTIVE_MDM_NAME")
+    if mdm_name not in settings.MDM_REGISTRY:
+        mdm_name = next(iter(settings.MDM_REGISTRY))
 
-    for org in Organization.objects.all():
-        first_policy = Policy.objects.filter(organization=org).order_by("pk").first()
-        if first_policy and first_policy.mdm in settings.MDM_REGISTRY:
-            mdm_name = first_policy.mdm
-        else:
-            mdm_name = fallback_mdm
-
-        org.mdm = mdm_name
-
-        if mdm_name == "TinyMDM":
-            # Seed env-var credentials so existing orgs keep working
-            org.tinymdm_apikey_public = os.environ.get("TINYMDM_APIKEY_PUBLIC") or None
-            org.tinymdm_apikey_secret = os.environ.get("TINYMDM_APIKEY_SECRET") or None
-            org.tinymdm_account_id = os.environ.get("TINYMDM_ACCOUNT_ID") or None
-
-        org.save()
+    update_fields = {"mdm": mdm_name}
+    if mdm_name == "TinyMDM":
+        # Seed env-var credentials so existing orgs keep working
+        update_fields.update(
+            tinymdm_apikey_public=os.environ.get("TINYMDM_APIKEY_PUBLIC") or None,
+            tinymdm_apikey_secret=os.environ.get("TINYMDM_APIKEY_SECRET") or None,
+            tinymdm_account_id=os.environ.get("TINYMDM_ACCOUNT_ID") or None,
+            tinymdm_policy_id=os.environ.get("MDM_DEFAULT_POLICY") or "",
+        )
+    Organization.objects.update(**update_fields)
 
 
 class Migration(migrations.Migration):
     dependencies = [
         ("publish_mdm", "0015_androidenterpriseaccount"),
-        ("mdm", "0010_device_manufacturer_model"),
     ]
 
     operations = [
@@ -89,6 +81,17 @@ class Migration(migrations.Migration):
                 help_text="TinyMDM manager API secret key.",
                 null=True,
                 verbose_name="TinyMDM API key (secret)",
+            ),
+        ),
+        migrations.AddField(
+            model_name="organization",
+            name="tinymdm_policy_id",
+            field=models.CharField(
+                blank=True,
+                default="",
+                help_text="TinyMDM policy ID.",
+                max_length=255,
+                verbose_name="TinyMDM policy ID",
             ),
         ),
         migrations.RunPython(set_org_mdm_from_policies, migrations.RunPython.noop),

@@ -1,6 +1,7 @@
 import os
 
 import pytest
+from django.utils.crypto import get_random_string
 
 from apps.publish_mdm.models import AndroidEnterpriseAccount
 from tests.publish_mdm.factories import AndroidEnterpriseAccountFactory, OrganizationFactory
@@ -22,6 +23,7 @@ def _configure_mdm(mdm, organization):
         organization.tinymdm_apikey_public = "test"
         organization.tinymdm_apikey_secret = "test"
         organization.tinymdm_account_id = "test"
+        organization.tinymdm_policy_id = get_random_string(12)
     elif mdm == "Android Enterprise":
         if not AndroidEnterpriseAccount.objects.filter(organization=organization).exists():
             AndroidEnterpriseAccountFactory(

@@ -78,6 +78,13 @@ class Organization(AbstractBaseModel):
         verbose_name="TinyMDM account ID",
         help_text="TinyMDM account ID.",
     )
+    tinymdm_policy_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        verbose_name="TinyMDM policy ID",
+        help_text="TinyMDM policy ID.",
+    )
 
     def __str__(self):
         return self.name
@@ -93,9 +100,13 @@ class Organization(AbstractBaseModel):
         if not active_mdm:
             return None
         # Create an org-specific default policy
+        if self.mdm == "TinyMDM":
+            policy_id = self.tinymdm_policy_id
+        else:
+            policy_id = f"policy_default_{get_random_string(12)}"
         policy = Policy.objects.create(
             name="Default",
-            policy_id=f"policy_default_{get_random_string(12)}",
+            policy_id=policy_id,
             organization=self,
         )
         # Create the pinned ODK Collect app row (order=0) so new policies are consistent

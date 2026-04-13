@@ -1355,7 +1355,15 @@ class TestCreateOrganization(ViewTestBase):
         """Test a valid form with TinyMDM: create_default_fleet() is called immediately
         on organization creation.
         """
-        data = {"name": "New organization", "slug": "new-org", "mdm": "TinyMDM"}
+        data = {
+            "name": "New organization",
+            "slug": "new-org",
+            "mdm": "TinyMDM",
+            "tinymdm_apikey_public": "pubkey",
+            "tinymdm_apikey_secret": "seckey",
+            "tinymdm_account_id": "accountid",
+            "tinymdm_policy_id": "policyid",
+        }
         mock_create_default_fleet = mocker.patch.object(
             Organization, "create_default_fleet", side_effect=mdm_api_error
         )
