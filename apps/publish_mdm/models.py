@@ -22,7 +22,7 @@ from invitations.base_invitation import AbstractBaseInvitation
 from invitations.signals import invite_url_sent
 
 from apps.infisical.api import kms_api
-from apps.infisical.fields import EncryptedCharField, EncryptedEmailField
+from apps.infisical.fields import EncryptedCharField, EncryptedEmailField, EncryptedMixin
 from apps.infisical.managers import EncryptedManager
 from apps.mdm.mdms import get_active_mdm_instance
 from apps.mdm.models import Fleet, Policy, PolicyApplication
@@ -42,6 +42,25 @@ class AbstractBaseModel(models.Model):
 
     class Meta:
         abstract = True
+
+    @property
+    def is_decrypted(self):
+        return getattr(self, "_is_decrypted", False)
+
+    def decrypt(self):
+        """Decrypt any encrypted fields. Use this if they were not decrypted when
+        getting from the database (i.e. if EncryptedManager was not used).
+        """
+        if self.is_decrypted:
+            return
+        key_name = self.__class__.__name__.lower()
+        for field in self._meta.fields:
+            if isinstance(field, EncryptedMixin):
+                value = getattr(self, field.name)
+                if value:
+                    value = kms_api.decrypt(key_name, value)
+                    setattr(self, field.name, value)
+        self._is_decrypted = True
 
 
 class Organization(AbstractBaseModel):
@@ -85,6 +104,9 @@ class Organization(AbstractBaseModel):
         verbose_name="TinyMDM policy ID",
         help_text="TinyMDM policy ID.",
     )
+
+    objects = models.Manager()
+    decrypted = EncryptedManager()
 
     def __str__(self):
         return self.name
@@ -148,16 +170,6 @@ class CentralServer(AbstractBaseModel):
     def save(self, *args, **kwargs):
         self.base_url = self.base_url.rstrip("/")
         super().save(*args, **kwargs)
-
-    def decrypt(self):
-        """Decrypt username and password. Use this if they were not decrypted when
-        getting from the database (i.e. if the `decrypted` model manager was not used).
-        """
-        for field in ("username", "password"):
-            value = getattr(self, field)
-            if value:
-                value = kms_api.decrypt("centralserver", value)
-                setattr(self, field, value)
 
     @property
     def masked_username(self):

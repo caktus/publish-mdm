@@ -33,25 +33,28 @@ class TinyMDM(MDM):
         self.organization = organization
 
     @cached_property
-    def session(self) -> LimiterSession:
+    def session(self) -> LimiterSession | None:
         """
         Creates a requests session suitable for use with the TinyMDM API. Should be
         shared across all requests during a single operation to avoid hitting the rate limit.
-        Per-org credentials stored on the Organization take precedence over environment variables.
         """
-        session = LimiterSession(per_second=5)
-
         org = self.organization
-        headers = {
-            "X-Tinymdm-Manager-Apikey-Public": org and org.tinymdm_apikey_public,
-            "X-Tinymdm-Manager-Apikey-Secret": org and org.tinymdm_apikey_secret,
-            "X-Account-Id": org and org.tinymdm_account_id,
-        }
-        if not all(headers.values()):
+
+        if not (
+            org
+            and all([org.tinymdm_apikey_public, org.tinymdm_apikey_secret, org.tinymdm_account_id])
+        ):
             logger.warning("TinyMDM API credentials not configured.")
             return None
-        session.headers.update(headers)
 
+        org.decrypt()
+        headers = {
+            "X-Tinymdm-Manager-Apikey-Public": org.tinymdm_apikey_public,
+            "X-Tinymdm-Manager-Apikey-Secret": org.tinymdm_apikey_secret,
+            "X-Account-Id": org.tinymdm_account_id,
+        }
+        session = LimiterSession(per_second=5)
+        session.headers.update(headers)
         retries = TinyMDMRetry(
             total=5,
             backoff_factor=0.1,

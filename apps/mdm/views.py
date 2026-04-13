@@ -170,7 +170,7 @@ def _push_policy_to_mdm(policy, request):
     if not active_mdm:
         logger.warning(
             "Skipping policy push: MDM is not configured. "
-            "Check that the required environment variables are set and restart the server.",
+            "Check that an MDM is properly configured for the organization.",
             organization=policy.organization,
             active_mdm_name=policy.organization.mdm,
             policy=policy,

@@ -33,19 +33,19 @@ class TestModels(TestAllMDMs):
     def fleet(self, organization):
         return FleetFactory(organization=organization)
 
-    def test_fleet_save_without_mdm_env_vars(self, fleet, mocker):
-        """On Fleet.save(), pull_devices() shouldn't be called if the
-        active MDM's environment variables are not set.
+    def test_fleet_save_without_configured_mdm(self, fleet, mocker, unconfigure_mdm):
+        """On Fleet.save(sync_with_mdm=True), pull_devices() shouldn't be called
+        if an MDM is not configured for the organization.
         """
         mock_pull_devices = mocker.patch.object(
             get_active_mdm_class(fleet.organization), "pull_devices"
         )
-        fleet.save()
+        fleet.save(sync_with_mdm=True)
         mock_pull_devices.assert_not_called()
 
-    def test_fleet_save_with_mdm_env_vars(self, fleet, mocker):
-        """On Fleet.save(), pull_devices() should be called if the active MDM's
-        environment variables are set.
+    def test_fleet_save_with_configured_mdm(self, fleet, mocker):
+        """On Fleet.save(sync_with_mdm=True), pull_devices() should be called if
+        an MDM is configured for the organization.
         """
         mock_pull_devices = mocker.patch.object(
             get_active_mdm_class(fleet.organization), "pull_devices"
@@ -53,24 +53,25 @@ class TestModels(TestAllMDMs):
         fleet.save(sync_with_mdm=True)
         mock_pull_devices.assert_called_once()
 
-    def test_device_save_without_mdm_env_vars(self, fleet, mocker):
-        """On Device.save(), push_device_config() shouldn't be called if the
-        active MDM's environment variables are not set.
+    def test_device_save_without_configured_mdm(self, fleet, mocker, unconfigure_mdm):
+        """On Device.save(push_to_mdm=True), push_device_config() shouldn't be called if
+        an MDM is not configured for the organization.
         """
         mock_push_device_config = mocker.patch.object(
             get_active_mdm_class(fleet.organization), "push_device_config"
         )
-        DeviceFactory(fleet=fleet)
+        device = DeviceFactory.build(fleet=fleet)
+        device.save(push_to_mdm=True)
         mock_push_device_config.assert_not_called()
 
-    def test_device_save_with_mdm_env_vars(self, fleet, mocker):
-        """On Device.save(), push_device_config() should be called if the
-        active MDM's environment variables are set.
+    def test_device_save_with_configured_mdm(self, fleet, mocker):
+        """On Device.save(push_to_mdm=True), push_device_config() should be called if
+        an MDM is configured for the organization.
         """
         mock_push_device_config = mocker.patch.object(
             get_active_mdm_class(fleet.organization), "push_device_config"
         )
-        device = DeviceFactory(fleet=fleet)
+        device = DeviceFactory.build(fleet=fleet)
         device.save(push_to_mdm=True)
         mock_push_device_config.assert_called_once()
 

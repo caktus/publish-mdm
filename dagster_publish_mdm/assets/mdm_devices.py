@@ -20,7 +20,7 @@ class SyncFleetsConfig(dg.Config):
 )
 def sync_and_push_mdm_devices(context: dg.AssetExecutionContext, config: SyncFleetsConfig):
     """Sync an organization's fleets from the MDM and push device configurations."""
-    organization = Organization.objects.get(pk=config.organization_pk)
+    organization = Organization.decrypted.get(pk=config.organization_pk)
     active_mdm = get_active_mdm_instance(organization=organization)
     if not active_mdm:
         context.log.warning(f"MDM not configured for organization {organization}")
@@ -32,7 +32,7 @@ def sync_and_push_mdm_devices(context: dg.AssetExecutionContext, config: SyncFle
 
 @dg.asset(description="Get a list of devices from the MDM", group_name="mdm_assets")
 def mdm_device_snapshot():
-    for org in Organization.objects.all():
+    for org in Organization.decrypted.all():
         if active_mdm := get_active_mdm_instance(org):
             active_mdm.sync_fleets(push_config=False)
 
