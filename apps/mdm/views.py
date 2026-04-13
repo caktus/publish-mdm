@@ -246,11 +246,8 @@ def policy_add(request, organization_slug):
             policy = form.save(commit=False)
             policy.mdm = settings.ACTIVE_MDM["name"]
             policy.organization = request.organization
-            if is_tinymdm:
-                # For TinyMDM, policy_id is user-provided via the form.
-                pass
-            else:
-                # For AMAPI, auto-generate policy_id and create the pinned ODK Collect app.
+            if not is_tinymdm:
+                # For AMAPI, auto-generate policy_id; for TinyMDM it is user-provided via the form.
                 # policy_id: "policy_" (7) + up to 50 chars of slug + "_" (1) + 8 random chars = ≤66 chars,
                 # well within the 255-char field limit; random suffix prevents collisions.
                 policy.policy_id = f"policy_{slugify(policy.name)[:50]}_{get_random_string(8)}"
