@@ -2,27 +2,23 @@
 
 import os
 
-from django.conf import settings
 from django.db import migrations, models
 
 import apps.infisical.fields
 
 
-def set_org_mdm_from_policies(apps, schema_editor):
+def set_mdm_for_existing_orgs(apps, schema_editor):
     """Seed Organization.mdm and TinyMDM credentials for all existing organizations.
 
     Strategy:
     - Use the ACTIVE_MDM_NAME env var to determine the MDM for all existing orgs,
-      falling back to the first MDM in the MDM_REGISTRY setting if the env var is
-      unset or not a recognised MDM name.
+      falling back to "TinyMDM".
     - If the resolved MDM is "TinyMDM", also copy the global TINYMDM_* env vars into
       the org's credential fields so that existing deployments continue working without
       re-entering credentials.
     """
     Organization = apps.get_model("publish_mdm", "Organization")
-    mdm_name = os.environ.get("ACTIVE_MDM_NAME")
-    if mdm_name not in settings.MDM_REGISTRY:
-        mdm_name = next(iter(settings.MDM_REGISTRY))
+    mdm_name = os.environ.get("ACTIVE_MDM_NAME") or "TinyMDM"
 
     update_fields = {"mdm": mdm_name}
     if mdm_name == "TinyMDM":
@@ -94,5 +90,5 @@ class Migration(migrations.Migration):
                 verbose_name="TinyMDM policy ID",
             ),
         ),
-        migrations.RunPython(set_org_mdm_from_policies, migrations.RunPython.noop),
+        migrations.RunPython(set_mdm_for_existing_orgs, migrations.RunPython.noop),
     ]
