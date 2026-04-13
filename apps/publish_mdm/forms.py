@@ -460,7 +460,7 @@ class OrganizationForm(PlatformFormMixin, forms.ModelForm):
         widgets: ClassVar = {
             "name": TextInput,
             "slug": TextInput,
-            "mdm": Select,
+            "mdm": Select(attrs={"x-model": "mdm"}),
             "tinymdm_apikey_public": PasswordInput(render_value=True),
             "tinymdm_apikey_secret": PasswordInput(render_value=True),
             "tinymdm_account_id": TextInput,

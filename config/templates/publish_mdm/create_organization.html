@@ -8,25 +8,12 @@
         {{ form.media }}
         <form method="post"
               class="max-w-2xl"
-              x-data="{ mdm: '{{ form.mdm.value|default:'TinyMDM' }}' }">
+              x-data="{ mdm: '{{ form.mdm.value }}' }">
             {% csrf_token %}
             {% for field in form.hidden_fields %}{{ field }}{% endfor %}
             <div class="grid gap-4 sm:grid-cols-1 sm:gap-6">
                 {% for field in form.visible_fields %}
-                    {% if field.name == "mdm" %}
-                        <div id="id_{{ field.name }}_container">
-                            {{ field.label_tag }}
-                            <select name="{{ field.html_name }}"
-                                    id="{{ field.auto_id }}"
-                                    x-model="mdm"
-                                    class="{{ field.field.widget.attrs.class }}">
-                                {% for val, label in field.field.choices %}
-                                    <option value="{{ val }}" {% if field.value == val %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                            {{ field.errors }}
-                        </div>
-                    {% elif field.name in form.tinymdm_fields %}
+                    {% if field.name in form.tinymdm_fields %}
                         <div id="id_{{ field.name }}_container" x-show="mdm === 'TinyMDM'">
                             {{ field.label_tag }}
                             {{ field }}

@@ -58,6 +58,7 @@ class Migration(migrations.Migration):
                 default="TinyMDM",
                 help_text="The Mobile Device Management system used by this organization.",
                 max_length=50,
+                verbose_name="MDM",
             ),
         ),
         migrations.AddField(

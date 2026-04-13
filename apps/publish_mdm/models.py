@@ -57,6 +57,7 @@ class Organization(AbstractBaseModel):
         choices=[(name, name) for name in settings.MDM_REGISTRY],
         default=next(iter(settings.MDM_REGISTRY)),
         help_text="The Mobile Device Management system used by this organization.",
+        verbose_name="MDM",
     )
     # Per-org TinyMDM API credentials
     tinymdm_apikey_public = EncryptedCharField(
