@@ -15,7 +15,10 @@ __all__ = [
 
 def get_active_mdm_class(organization=None):
     if organization:
-        class_string = settings.MDM_REGISTRY[organization.mdm]
+        try:
+            class_string = settings.MDM_REGISTRY[organization.mdm]
+        except KeyError:
+            return None
     else:
         class_string = next(iter(settings.MDM_REGISTRY.values()))
     return import_string(class_string)
