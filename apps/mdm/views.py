@@ -170,8 +170,9 @@ def _push_policy_to_mdm(policy, request):
     if not active_mdm:
         logger.warning(
             "Skipping policy push: MDM is not configured. "
-            "Check that the required environment variables are set and restart the server.",
-            active_mdm_name=settings.ACTIVE_MDM["name"],
+            "Check that an MDM is properly configured for the organization.",
+            organization=policy.organization,
+            active_mdm_name=policy.organization.mdm,
             policy=policy,
         )
         messages.warning(request, warning)
@@ -210,8 +211,7 @@ def policy_list(request, organization_slug):
     policies = Policy.objects.filter(organization=request.organization)
     context = {
         "policies": policies,
-        "show_policy_id": settings.ACTIVE_MDM["name"] != "Android Enterprise",
-        "active_mdm_name": settings.ACTIVE_MDM["name"],
+        "show_policy_id": request.organization.mdm != "Android Enterprise",
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
             items=[("Policies", "mdm:policy-list")],
@@ -233,10 +233,12 @@ def policy_add(request, organization_slug):
         form = PolicyNameForm(request.POST)
         if form.is_valid():
             policy = form.save(commit=False)
-            policy.mdm = settings.ACTIVE_MDM["name"]
-            # policy_id: "policy_" (7) + up to 50 chars of slug + "_" (1) + 8 random chars = ≤66 chars,
-            # well within the 255-char field limit; random suffix prevents collisions.
-            policy.policy_id = f"policy_{slugify(policy.name)[:50]}_{get_random_string(8)}"
+            if request.organization.mdm == "TinyMDM":
+                policy.policy_id = request.organization.tinymdm_policy_id
+            else:
+                # policy_id: "policy_" (7) + up to 50 chars of slug + "_" (1) + 8 random chars = ≤66 chars,
+                # well within the 255-char field limit; random suffix prevents collisions.
+                policy.policy_id = f"policy_{slugify(policy.name)[:50]}_{get_random_string(8)}"
             policy.organization = request.organization
             policy.save()
             PolicyApplication.objects.create(

@@ -619,7 +619,7 @@ def create_organization(request: HttpRequest):
         messages.success(request, f"Successfully created {organization}.")
         # Create the default fleet; Android Enterprise requires an enrolled enterprise
         # first, so for that MDM the fleet is created in enterprise_callback after enrollment.
-        if settings.ACTIVE_MDM["name"] != "Android Enterprise":
+        if organization.mdm != "Android Enterprise":
             try:
                 organization.create_default_fleet()
             except RequestException as e:
@@ -629,7 +629,7 @@ def create_organization(request: HttpRequest):
                 messages.warning(
                     request,
                     mark_safe(
-                        f"The organization was created but the following {settings.ACTIVE_MDM['name']} "
+                        f"The organization was created but the following {organization.mdm} "
                         "API error occurred while setting up its default Fleet:"
                         f'<code class="block text-xs mt-2">{getattr(e, "api_error", e)}</code>'
                     ),
@@ -953,10 +953,9 @@ def devices_list(request: HttpRequest, organization_slug):
         "table_messages": devices_list_messages,
         "filter": filter_,
         "search_form": search_form,
-        "active_mdm_name": settings.ACTIVE_MDM["name"],
     }
 
-    if settings.ACTIVE_MDM["name"] == "TinyMDM":
+    if request.organization.mdm == "TinyMDM":
         context["byod_form"] = BYODDeviceEnrollmentForm(request.organization, prefix="byod")
 
     template = "publish_mdm/devices_list.html"
@@ -1070,7 +1069,6 @@ def fleets_list(request: HttpRequest, organization_slug):
             request=request,
             items=[("Fleets", "fleets-list")],
         ),
-        "active_mdm_name": settings.ACTIVE_MDM["name"],
     }
     if request.htmx:
         template = "patterns/tables/table-partial.html"
@@ -1268,7 +1266,7 @@ def add_byod_device(request: HttpRequest, organization_slug):
     Fleet. If successful, the user should receive an email from TinyMDM with
     instructions on how to enroll a device.
     """
-    if settings.ACTIVE_MDM["name"] != "TinyMDM":
+    if request.organization.mdm != "TinyMDM":
         raise Http404
     form = BYODDeviceEnrollmentForm(request.organization, request.POST or None, prefix="byod")
     enrollment_messages = []
@@ -1307,14 +1305,14 @@ def add_byod_device(request: HttpRequest, organization_slug):
 
 
 @login_required
-def check_mdm_license_limit(request: HttpRequest):
+def check_mdm_license_limit(request: HttpRequest, organization_slug):
     """Checks if the TinyMDM account's device limit has been reached. If it has
     been reached, returns HTML for displaying an error message.
     """
-    if settings.ACTIVE_MDM["name"] != "TinyMDM":
+    if request.organization.mdm != "TinyMDM":
         raise Http404
     message = None
-    if active_mdm := get_active_mdm_instance(organization=None):
+    if active_mdm := get_active_mdm_instance(organization=request.organization):
         try:
             limit, enrolled = active_mdm.check_license_limit()
         except RequestException as e:
@@ -1339,7 +1337,7 @@ def check_mdm_license_limit(request: HttpRequest):
 @login_required
 def enterprise_setup(request: HttpRequest, organization_slug):
     """Generate a Google Android Enterprise signup URL and redirect the user to it."""
-    if settings.ACTIVE_MDM["name"] != "Android Enterprise":
+    if request.organization.mdm != "Android Enterprise":
         raise Http404
 
     account, _ = AndroidEnterpriseAccount.objects.get_or_create(organization=request.organization)
@@ -1381,10 +1379,9 @@ def enterprise_setup(request: HttpRequest, organization_slug):
 
 def enterprise_callback(request: HttpRequest, callback_token):
     """Google calls this URL after the org admin completes enterprise signup."""
-    if settings.ACTIVE_MDM["name"] != "Android Enterprise":
-        raise Http404
-
     account = get_object_or_404(AndroidEnterpriseAccount, callback_token=callback_token)
+    if account.organization.mdm != "Android Enterprise":
+        raise Http404
     redirect_to = request.GET.get("next", "")
     if not (
         redirect_to

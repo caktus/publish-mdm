@@ -193,16 +193,34 @@ class AppUserFormVersionAdmin(admin.ModelAdmin):
 
 @admin.register(Organization)
 class OrganizationAdmin(admin.ModelAdmin):
-    list_display = ("name", "slug", "created_at", "modified_at", "public_signup_enabled")
+    list_display = ("name", "slug", "mdm", "created_at", "modified_at", "public_signup_enabled")
     search_fields = ("name", "slug")
     ordering = ("name",)
     filter_horizontal = ("users",)
+    fieldsets = (
+        (None, {"fields": ("name", "slug", "mdm", "public_signup_enabled", "users")}),
+        (
+            "TinyMDM API Credentials",
+            {
+                "fields": (
+                    "tinymdm_apikey_public",
+                    "tinymdm_apikey_secret",
+                    "tinymdm_account_id",
+                    "tinymdm_policy_id",
+                ),
+                "description": (
+                    "Per-organization TinyMDM API credentials and policy configuration. "
+                    "Configure these values on the organization when using TinyMDM."
+                ),
+            },
+        ),
+    )
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
         # Create the default fleet for new organizations, unless Android Enterprise is active —
         # it requires an enrolled enterprise first, so the fleet is created in enterprise_callback.
-        if not change and settings.ACTIVE_MDM["name"] != "Android Enterprise":
+        if not change and obj.mdm != "Android Enterprise":
             try:
                 obj.create_default_fleet()
             except RequestException as e:
@@ -211,7 +229,7 @@ class OrganizationAdmin(admin.ModelAdmin):
                     request,
                     mark_safe(
                         "The organization was created but the following "
-                        f"{settings.ACTIVE_MDM['name']} API error occurred while "
+                        f"{obj.mdm} API error occurred while "
                         f"setting up its default Fleet:<br><code>{getattr(e, 'api_error', e)}</code>"
                     ),
                 )

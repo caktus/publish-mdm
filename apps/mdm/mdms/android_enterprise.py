@@ -382,7 +382,7 @@ class AndroidEnterprise(MDM):
         self.create_new_devices(fleet, mdm_devices_to_create)
         # Link snapshots to devices
         # Get all snapshots that don't have a device
-        qs = DeviceSnapshot.all_mdms.filter(mdm_device_id=None).select_for_update()
+        qs = DeviceSnapshot.objects.filter(mdm_device_id=None).select_for_update()
         # Get the ID for each snapshot's device_id
         qs = qs.annotate(
             existing_device_id=Subquery(
@@ -876,14 +876,14 @@ class AndroidEnterprise(MDM):
             # Link the newly created snapshot(s) to the device (create_device_snapshots
             # leaves mdm_device_id as NULL; we resolve it here, scoped to this device).
             # `device_id` in DeviceSnapshot stores the MDM device ID (not the Django pk).
-            DeviceSnapshot.all_mdms.filter(
+            DeviceSnapshot.objects.filter(
                 mdm_device_id=None,
                 device_id=mdm_device.id,
             ).update(mdm_device_id=existing_device.pk)
             # Refresh latest_snapshot_id for this device only.
             Device.objects.filter(pk=existing_device.pk).update(
                 latest_snapshot_id=Subquery(
-                    DeviceSnapshot.all_mdms.filter(mdm_device_id=existing_device.pk)
+                    DeviceSnapshot.objects.filter(mdm_device_id=existing_device.pk)
                     .order_by("-synced_at")
                     .values("id")[:1]
                 )

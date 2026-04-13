@@ -26,7 +26,7 @@
     }
     </script>
     {% partialdef devices-list-partial inline %}
-        {% if active_mdm_name == "Android Enterprise" and not request.organization.android_enterprise.is_enrolled %}
+        {% if request.organization.mdm == "Android Enterprise" and not request.organization.android_enterprise.is_enrolled %}
             <div class="p-4 mb-4 text-yellow-800 border border-yellow-300 rounded-lg bg-yellow-50"
                  role="alert">
                 <p class="font-semibold">Android Enterprise not configured</p>
@@ -42,7 +42,7 @@
                 class="btn btn-outline btn-primary flex items-center justify-center text-sm px-4 py-2"
                 data-modal-target="qr-codes-modal"
                 data-modal-toggle="qr-codes-modal"
-                hx-get="{% url 'publish_mdm:check-mdm-license-limit' %}"
+                hx-get="{% url 'publish_mdm:check-mdm-license-limit' request.organization.slug %}"
                 hx-target="#license-limit-messages">
             <svg class="w-[20px] h-[20px] mr-2"
                  aria-hidden="true"

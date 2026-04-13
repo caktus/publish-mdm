@@ -430,10 +430,12 @@ if os.getenv("SECRETS_FILE"):
 else:
     SECRETS = {}
 
-# The currently active MDM. Defaults to TinyMDM
-ACTIVE_MDM = {
-    "name": os.getenv("ACTIVE_MDM_NAME", "TinyMDM"),
-    "class": os.getenv("ACTIVE_MDM_CLASS", "apps.mdm.mdms.TinyMDM"),
+# Registry mapping MDM display name → Python class import path.
+# Developers can override this setting to add custom MDM implementations or
+# replace existing ones. The keys drive the choices for Organization.mdm.
+MDM_REGISTRY = {
+    "TinyMDM": "apps.mdm.mdms.TinyMDM",
+    "Android Enterprise": "apps.mdm.mdms.AndroidEnterprise",
 }
 
 # Shared secret token for the AMAPI Pub/Sub push endpoint.  When set, all push

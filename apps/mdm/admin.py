@@ -1,5 +1,4 @@
 import structlog
-from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin import helpers
 from django.contrib.admin.decorators import action
@@ -126,7 +125,7 @@ class FleetAdmin(admin.ModelAdmin):
             messages.error(
                 request,
                 mark_safe(
-                    f"Unable to pull the fleet's devices from {settings.ACTIVE_MDM['name']} due to "
+                    f"Unable to pull the fleet's devices from {obj.organization.mdm} due to "
                     f"the following error:<br><code>{getattr(e, 'api_error', e)}</code>"
                 ),
             )
@@ -398,7 +397,7 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
             messages.error(
                 request,
                 mark_safe(
-                    f"Unable to update the device in {settings.ACTIVE_MDM['name']} due to "
+                    f"Unable to update the device in {obj.fleet.organization.mdm} due to "
                     f"the following error:<br><code>{getattr(e, 'api_error', e)}</code>"
                 ),
             )

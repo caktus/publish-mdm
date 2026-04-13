@@ -1,7 +1,6 @@
 import json
 
 import structlog
-from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
@@ -139,11 +138,6 @@ class PolicyVariableScope(models.TextChoices):
     FLEET = "fleet", "Fleet"
 
 
-class PolicyManager(models.Manager):
-    def get_queryset(self):
-        return super().get_queryset().filter(mdm=settings.ACTIVE_MDM["name"])
-
-
 class Policy(models.Model):
     """A device policy in the MDM."""
 
@@ -151,7 +145,6 @@ class Policy(models.Model):
     policy_id = models.CharField(
         verbose_name="Policy ID", max_length=255, help_text="The ID of the policy in the MDM."
     )
-    mdm = models.CharField(max_length=50, choices=MDMChoices, verbose_name="MDM")
     organization = models.ForeignKey(
         "publish_mdm.Organization",
         on_delete=models.CASCADE,
@@ -295,9 +288,6 @@ class Policy(models.Model):
         blank=True,
     )
 
-    all_mdms = models.Manager()
-    objects = PolicyManager()
-
     class Meta:
         verbose_name_plural = "policies"
         ordering = ("name",)
@@ -426,11 +416,6 @@ def enroll_qr_code_path(fleet, filename):
     return f"mdm-enroll-qr-codes/{fleet.organization.slug}/{filename}"
 
 
-class FleetManager(models.Manager):
-    def get_queryset(self):
-        return super().get_queryset().filter(policy__mdm=settings.ACTIVE_MDM["name"])
-
-
 class Fleet(models.Model):
     """A fleet of devices that corresponds to a single group in the MDM."""
 
@@ -477,9 +462,6 @@ class Fleet(models.Model):
     enroll_token_expires_at = models.DateTimeField(blank=True, null=True)
     enroll_token_value = models.CharField(max_length=30, blank=True)
 
-    all_mdms = models.Manager()
-    objects = FleetManager()
-
     class Meta:
         constraints = (
             models.UniqueConstraint(fields=["organization", "name"], name="unique_org_and_name"),
@@ -521,7 +503,7 @@ class Fleet(models.Model):
 
     @property
     def enrollment_url(self):
-        if self.enroll_token_value and self.policy.mdm == "Android Enterprise":
+        if self.enroll_token_value and self.organization.mdm == "Android Enterprise":
             return f"https://enterprise.google.com/android/enroll?et={self.enroll_token_value}"
 
 
@@ -530,11 +512,6 @@ class PushMethodChoices(models.TextChoices):
 
     NEW_AND_UPDATED = "new-and-updated", "Push New and Updated Devices Only"
     ALL = "all", "Push All Devices"
-
-
-class DeviceManager(models.Manager):
-    def get_queryset(self):
-        return super().get_queryset().filter(fleet__policy__mdm=settings.ACTIVE_MDM["name"])
 
 
 class Device(models.Model):
@@ -615,9 +592,6 @@ class Device(models.Model):
         blank=True,
     )
 
-    all_mdms = models.Manager()
-    objects = DeviceManager()
-
     def __str__(self):
         return f"{self.name} ({self.device_id})"
 
@@ -667,15 +641,6 @@ class Device(models.Model):
     @property
     def username(self):
         return f"{self.app_user_name} - {self.device_id}"
-
-
-class DeviceSnapshotManager(models.Manager):
-    def get_queryset(self):
-        return (
-            super()
-            .get_queryset()
-            .filter(mdm_device__fleet__policy__mdm=settings.ACTIVE_MDM["name"])
-        )
 
 
 class DeviceSnapshot(models.Model):
@@ -735,9 +700,6 @@ class DeviceSnapshot(models.Model):
     )
     synced_at = models.DateTimeField(help_text="When the device snapshot was synced.")
 
-    all_mdms = models.Manager()
-    objects = DeviceSnapshotManager()
-
     class Meta:
         indexes = (
             models.Index(fields=["last_sync"]),
@@ -778,11 +740,6 @@ class DeviceSnapshotApp(models.Model):
         return f"{self.app_name} ({self.package_name}) snapshot"
 
 
-class FirmwareSnapshotManager(models.Manager):
-    def get_queryset(self):
-        return super().get_queryset().filter(device__fleet__policy__mdm=settings.ACTIVE_MDM["name"])
-
-
 class FirmwareSnapshot(models.Model):
     """
     A firmware installed on a device enrolled in the MDM.
@@ -814,9 +771,6 @@ class FirmwareSnapshot(models.Model):
         null=True,
         blank=True,
     )
-
-    all_mdms = models.Manager()
-    objects = FirmwareSnapshotManager()
 
     class Meta:
         indexes = (models.Index(fields=["synced_at"]),)

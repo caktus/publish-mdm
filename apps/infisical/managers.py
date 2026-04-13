@@ -33,4 +33,6 @@ class EncryptedManager(models.Manager):
     """A manager that decrypts encrypted values after fetching them from the DB."""
 
     def get_queryset(self):
-        return models.QuerySet(self.model, query=EncryptedQuery(self.model), using=self._db)
+        return models.QuerySet(
+            self.model, query=EncryptedQuery(self.model), using=self._db
+        ).annotate(_is_decrypted=models.Value(True))

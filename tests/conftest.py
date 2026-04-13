@@ -1,41 +1,47 @@
-import os
-
 import pytest
 from googleapiclient.errors import Error as GoogleAPIClientError
 from requests.exceptions import HTTPError
 
-ENV_VARS = {
-    "TinyMDM": ("TINYMDM_APIKEY_PUBLIC", "TINYMDM_APIKEY_SECRET", "TINYMDM_ACCOUNT_ID"),
-    "Android Enterprise": ("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE",),
-}
-ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE = os.path.join(
-    os.path.dirname(__file__), "mdm", "android_enterprise_service_account.json"
-)
-
-
-@pytest.fixture(autouse=True)
-def del_mdm_env_vars(monkeypatch, settings):
-    """Delete environment variables for MDM API credentials, if they exist."""
-    for env_vars in ENV_VARS.values():
-        for var in env_vars:
-            monkeypatch.delenv(var, raising=False)
-            settings.SECRETS.pop(var, None)
+from apps.publish_mdm.models import AndroidEnterpriseAccount
+from tests.mdm import ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE, _configure_mdm
 
 
 @pytest.fixture
-def set_mdm_env_vars(monkeypatch, settings):
-    """Set environment variables for the currently active MDM's API credentials to fake values."""
-    for var in ENV_VARS[settings.ACTIVE_MDM["name"]]:
-        if var == "ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE":
-            value = ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE
-        else:
-            value = "test"
-        monkeypatch.setenv(var, value)
+def del_amapi_service_account_file(monkeypatch):
+    monkeypatch.delenv("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE", raising=False)
 
 
 @pytest.fixture
-def mdm_api_error_class(settings):
-    if settings.ACTIVE_MDM["name"] == "Android Enterprise":
+def set_amapi_service_account_file(monkeypatch):
+    monkeypatch.setenv(
+        "ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE", ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE
+    )
+
+
+@pytest.fixture
+def unconfigure_mdm(request, organization):
+    """Unconfigure MDM API credentials for an organization."""
+    if organization.mdm == "TinyMDM":
+        organization.tinymdm_apikey_public = None
+        organization.tinymdm_apikey_secret = None
+        organization.tinymdm_account_id = None
+        organization.save()
+    elif organization.mdm == "Android Enterprise":
+        AndroidEnterpriseAccount.objects.filter(organization=organization).delete()
+        request.getfixturevalue("del_amapi_service_account_file")
+
+
+@pytest.fixture
+def configure_mdm(request, organization):
+    """Configure MDM API credentials for an organization."""
+    _configure_mdm(organization.mdm, organization)
+    if organization.mdm == "Android Enterprise":
+        request.getfixturevalue("set_amapi_service_account_file")
+
+
+@pytest.fixture
+def mdm_api_error_class(organization):
+    if organization.mdm == "Android Enterprise":
         return GoogleAPIClientError
     return HTTPError
 
@@ -44,3 +50,13 @@ def mdm_api_error_class(settings):
 def mdm_api_error(request, mdm_api_error_class):
     if getattr(request, "param", True):
         return mdm_api_error_class("error")
+
+
+@pytest.fixture
+def force_tinymdm(organization):
+    _configure_mdm("TinyMDM", organization)
+
+
+@pytest.fixture
+def force_android_enterprise(organization, set_amapi_service_account_file):
+    _configure_mdm("Android Enterprise", organization)

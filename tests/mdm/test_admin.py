@@ -131,11 +131,11 @@ class TestDeviceAdmin(TestAdmin):
         )
 
     @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
-    def test_device_save(self, client, user, mocker, set_mdm_env_vars, mdm_api_error, organization):
+    def test_device_save(self, client, user, mocker, mdm_api_error, organization):
         """Ensures push_device_config() is called when saving a Device in Admin
         and if there is an MDM API error it is displayed to the user.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mock_push_device_config = mocker.patch.object(
             MDM, "push_device_config", side_effect=mdm_api_error
         )
@@ -163,7 +163,7 @@ class TestDeviceAdmin(TestAdmin):
 
 class TestFleetAdmin(TestAdmin):
     @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
-    def test_new_fleet(self, user, client, mocker, set_mdm_env_vars, mdm_api_error, organization):
+    def test_new_fleet(self, user, client, mocker, mdm_api_error, organization):
         """Ensures the add_group_to_policy() function is called for a new fleet."""
         fleet = FleetFactory.build(organization=organization, policy=PolicyFactory())
         data = {
@@ -172,7 +172,7 @@ class TestFleetAdmin(TestAdmin):
             "mdm_group_id": fleet.mdm_group_id,
             "policy": fleet.policy_id,
         }
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mock_add_group_to_policy = mocker.patch.object(
             MDM, "add_group_to_policy", side_effect=mdm_api_error
         )
@@ -193,13 +193,11 @@ class TestFleetAdmin(TestAdmin):
             )
 
     @pytest.mark.parametrize("policy_changed", [True, False])
-    def test_existing_fleet(
-        self, user, client, mocker, set_mdm_env_vars, policy_changed, organization
-    ):
+    def test_existing_fleet(self, user, client, mocker, policy_changed, organization):
         """Ensures the add_group_to_policy() function is called for an existing fleet
         if its policy is changed.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(MDM, "pull_devices")
         fleet = FleetFactory(organization=organization)
         data = {
@@ -220,11 +218,11 @@ class TestFleetAdmin(TestAdmin):
         else:
             mock_add_group_to_policy.assert_not_called()
 
-    def test_delete_fleet_successful(self, user, client, mocker, set_mdm_env_vars, organization):
+    def test_delete_fleet_successful(self, user, client, mocker, organization):
         """Ensures a Fleet is successfully deleted if it's not linked to any device
         either in the database or in the MDM.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(MDM, "pull_devices")
         fleet = FleetFactory(organization=organization)
         mock_delete_group = mocker.patch.object(MDM, "delete_group", return_value=True)
@@ -237,10 +235,10 @@ class TestFleetAdmin(TestAdmin):
         assert not Fleet.objects.filter(pk=fleet.pk).exists()
         assertContains(response, f"The fleet “{fleet}” was deleted successfully.")
 
-    def test_delete_fleet_no_api_credentials(self, user, client, mocker):
+    def test_delete_fleet_no_api_credentials(self, user, client, mocker, organization):
         """Ensures a Fleet is not deleted if the active MDM's API access is not configured."""
         fleet = FleetFactory()
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mock_delete_group = mocker.patch.object(MDM, "delete_group")
         response = client.post(
             reverse("admin:mdm_fleet_delete", args=[fleet.id]), data={"post": "yes"}, follow=True
@@ -253,11 +251,11 @@ class TestFleetAdmin(TestAdmin):
         assertNotContains(response, f"The fleet “{fleet}” was deleted successfully.")
         assertRedirects(response, reverse("admin:mdm_fleet_changelist"))
 
-    def test_delete_fleet_has_devices(self, user, client, mocker, set_mdm_env_vars, organization):
+    def test_delete_fleet_has_devices(self, user, client, mocker, organization):
         """Ensures a Fleet is not deleted if it's linked to some devices either in
         the database or in the MDM.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(MDM, "pull_devices")
         fleet = FleetFactory(organization=organization)
         mock_delete_group = mocker.patch.object(MDM, "delete_group", return_value=False)
@@ -272,13 +270,11 @@ class TestFleetAdmin(TestAdmin):
         assertNotContains(response, f"The fleet “{fleet}” was deleted successfully.")
         assertRedirects(response, reverse("admin:mdm_fleet_changelist"))
 
-    def test_delete_fleet_api_error(
-        self, user, client, mocker, set_mdm_env_vars, mdm_api_error_class, organization
-    ):
+    def test_delete_fleet_api_error(self, user, client, mocker, mdm_api_error_class, organization):
         """Ensures a Fleet is not deleted if an API error occurs when deleting the
         group in the MDM.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(MDM, "pull_devices")
         fleet = FleetFactory(organization=organization)
         api_error = mdm_api_error_class("error")
@@ -299,13 +295,11 @@ class TestFleetAdmin(TestAdmin):
         assertNotContains(response, f"The fleet “{fleet}” was deleted successfully.")
         assertRedirects(response, reverse("admin:mdm_fleet_changelist"))
 
-    def test_delete_selected_fully_successful(
-        self, user, client, mocker, set_mdm_env_vars, organization
-    ):
+    def test_delete_selected_fully_successful(self, user, client, mocker, organization):
         """Ensures fleets are successfully deleted using the delete_selected action
         if they are not linked to any device either in the database or in the MDM.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(MDM, "pull_devices")
         fleets = FleetFactory.create_batch(5, organization=organization)
         # Will delete 3 fleets, 2 should remain
@@ -326,7 +320,6 @@ class TestFleetAdmin(TestAdmin):
         user,
         client,
         mocker,
-        set_mdm_env_vars,
         partial_success,
         mdm_api_error_class,
         organization,
@@ -334,7 +327,7 @@ class TestFleetAdmin(TestAdmin):
         """Ensures fleets are not deleted using the delete_selected action if
         they are linked to devices either in the database or in the MDM.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(MDM, "pull_devices")
         fleets = FleetFactory.create_batch(6 if partial_success else 4, organization=organization)
         # Will try to delete all fleets. 2 will fail because they have devices,
@@ -380,12 +373,14 @@ class TestFleetAdmin(TestAdmin):
         else:
             assertNotContains(response, "Successfully deleted ")
 
-    def test_delete_selected_no_api_credentials(self, user, client, mocker):
+    def test_delete_selected_no_api_credentials(
+        self, user, client, mocker, organization, unconfigure_mdm
+    ):
         """Ensures fleets are not deleted using the delete_selected action if
         the active MDM's API access is not configured.
         """
-        fleets = FleetFactory.create_batch(3)
-        MDM = get_active_mdm_class()
+        fleets = FleetFactory.create_batch(3, organization=organization)
+        MDM = get_active_mdm_class(organization)
         mock_delete_group = mocker.patch.object(MDM, "delete_group")
         data = {
             "post": "yes",
@@ -400,11 +395,11 @@ class TestFleetAdmin(TestAdmin):
         assertNotContains(response, "Successfully deleted ")
 
     @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
-    def test_fleet_save(self, client, user, mocker, set_mdm_env_vars, mdm_api_error, organization):
+    def test_fleet_save(self, client, user, mocker, mdm_api_error, organization):
         """Ensures pull_devices() is called when saving a Fleet in Admin
         and if there is an MDM API error it is displayed to the user.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mock_pull_devices = mocker.patch.object(MDM, "pull_devices", side_effect=mdm_api_error)
         fleet = FleetFactory(organization=organization)
         data = {
@@ -431,15 +426,14 @@ class TestFleetAdmin(TestAdmin):
 
 class TestPolicyAdmin(TestAdmin):
     @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
-    def test_new_policy(self, user, client, mocker, set_mdm_env_vars, mdm_api_error, organization):
+    def test_new_policy(self, user, client, mocker, mdm_api_error, organization):
         """Ensures the create_or_update_policy() method is called for a new Policy
         when the active MDM has the method.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         data = {
             "name": "New policy",
             "policy_id": "policy",
-            "mdm": MDM.name,
             "odk_collect_package": "org.odk.collect.android",
             "device_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
             "device_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
@@ -478,7 +472,6 @@ class TestPolicyAdmin(TestAdmin):
         user,
         client,
         mocker,
-        set_mdm_env_vars,
         mdm_api_error,
         mdm_api_error_class,
         organization,
@@ -490,7 +483,6 @@ class TestPolicyAdmin(TestAdmin):
         data = {
             "name": policy.name,
             "policy_id": policy.policy_id,
-            "mdm": policy.mdm,
             "organization": policy.organization_id,
             "odk_collect_package": policy.odk_collect_package,
             "device_password_quality": policy.device_password_quality,
@@ -501,7 +493,7 @@ class TestPolicyAdmin(TestAdmin):
             "applications-TOTAL_FORMS": "0",
             "applications-INITIAL_FORMS": "0",
         }
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mdm_has_method = hasattr(MDM, "create_or_update_policy")
         devices_to_push = []
         if mdm_has_method:
@@ -550,7 +542,7 @@ class TestPolicyAdmin(TestAdmin):
             mock_trigger.assert_not_called()
 
     def test_policy_push_happens_after_inline_applications_saved(
-        self, user, client, mocker, set_mdm_env_vars, organization
+        self, user, client, mocker, organization
     ):
         """MDM push is triggered in save_related(), so inline applications added in the
         same POST are already persisted when create_or_update_policy() is called.
@@ -558,7 +550,7 @@ class TestPolicyAdmin(TestAdmin):
         Regression test: the push was previously in save_model(), which runs before
         Django's save_related() persists inline formset rows.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         if not hasattr(MDM, "create_or_update_policy"):
             pytest.skip("MDM does not have create_or_update_policy")
 
@@ -575,7 +567,6 @@ class TestPolicyAdmin(TestAdmin):
         data = {
             "name": "Test Policy",
             "policy_id": "test_policy_inline",
-            "mdm": MDM.name,
             "odk_collect_package": "org.odk.collect.android",
             "device_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
             "device_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
@@ -602,11 +593,9 @@ class TestPolicyAdminDagster(TestAdmin):
 
     @pytest.fixture
     def policy_data_base(self):
-        MDM = get_active_mdm_class()
         return {
             "name": "Dagster Test Policy",
             "policy_id": "dagster_test",
-            "mdm": MDM.name,
             "odk_collect_package": "org.odk.collect.android",
             "device_password_quality": "PASSWORD_QUALITY_UNSPECIFIED",
             "device_password_require_unlock": "REQUIRE_PASSWORD_UNLOCK_UNSPECIFIED",
@@ -631,10 +620,10 @@ class TestPolicyAdminDagster(TestAdmin):
         return policy, devices
 
     def test_dagster_triggered_for_child_devices(
-        self, user, client, mocker, set_mdm_env_vars, policy_with_child_devices
+        self, user, client, mocker, organization, policy_with_child_devices
     ):
         """save_related() queues per-device config pushes via Dagster mdm_job."""
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         policy, devices = policy_with_child_devices
         mocker.patch.object(MDM, "create_or_update_policy")
         mock_push = mocker.patch.object(MDM, "push_device_config")
@@ -642,7 +631,6 @@ class TestPolicyAdminDagster(TestAdmin):
         data = {
             "name": policy.name,
             "policy_id": policy.policy_id,
-            "mdm": policy.mdm,
             "odk_collect_package": policy.odk_collect_package,
             "device_password_quality": policy.device_password_quality,
             "device_password_require_unlock": policy.device_password_require_unlock,
@@ -669,10 +657,10 @@ class TestPolicyAdminDagster(TestAdmin):
         assert set(device_pks) == {d.pk for d in devices}
 
     def test_dagster_exception_shows_warning(
-        self, user, client, mocker, set_mdm_env_vars, policy_with_child_devices
+        self, user, client, mocker, organization, policy_with_child_devices
     ):
         """save_related() shows a warning and does not raise when trigger_dagster_job fails."""
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         if not hasattr(MDM, "create_or_update_policy"):
             pytest.skip("MDM does not have create_or_update_policy")
         policy, _ = policy_with_child_devices
@@ -682,7 +670,6 @@ class TestPolicyAdminDagster(TestAdmin):
         data = {
             "name": policy.name,
             "policy_id": policy.policy_id,
-            "mdm": policy.mdm,
             "odk_collect_package": policy.odk_collect_package,
             "device_password_quality": policy.device_password_quality,
             "device_password_require_unlock": policy.device_password_require_unlock,

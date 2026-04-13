@@ -22,7 +22,7 @@ from invitations.base_invitation import AbstractBaseInvitation
 from invitations.signals import invite_url_sent
 
 from apps.infisical.api import kms_api
-from apps.infisical.fields import EncryptedCharField, EncryptedEmailField
+from apps.infisical.fields import EncryptedCharField, EncryptedEmailField, EncryptedMixin
 from apps.infisical.managers import EncryptedManager
 from apps.mdm.mdms import get_active_mdm_instance
 from apps.mdm.models import Fleet, Policy, PolicyApplication
@@ -43,6 +43,25 @@ class AbstractBaseModel(models.Model):
     class Meta:
         abstract = True
 
+    @property
+    def is_decrypted(self):
+        return getattr(self, "_is_decrypted", False)
+
+    def decrypt(self):
+        """Decrypt any encrypted fields. Use this if they were not decrypted when
+        getting from the database (i.e. if EncryptedManager was not used).
+        """
+        if self.is_decrypted:
+            return
+        key_name = self.__class__.__name__.lower()
+        for field in self._meta.fields:
+            if isinstance(field, EncryptedMixin):
+                value = getattr(self, field.name)
+                if value:
+                    value = kms_api.decrypt(key_name, value)
+                    setattr(self, field.name, value)
+        self._is_decrypted = True
+
 
 class Organization(AbstractBaseModel):
     name = models.CharField(max_length=255)
@@ -52,6 +71,42 @@ class Organization(AbstractBaseModel):
         default=False,
         help_text="Enable a public sign-up page, where anyone can enter an email address to receive an invite.",
     )
+    mdm = models.CharField(
+        max_length=50,
+        choices=[(name, name) for name in settings.MDM_REGISTRY],
+        default=next(iter(settings.MDM_REGISTRY)),
+        help_text="The Mobile Device Management system used by this organization.",
+        verbose_name="MDM",
+    )
+    # Per-org TinyMDM API credentials
+    tinymdm_apikey_public = EncryptedCharField(
+        null=True,
+        blank=True,
+        verbose_name="TinyMDM API key (public)",
+        help_text="TinyMDM manager API public key.",
+    )
+    tinymdm_apikey_secret = EncryptedCharField(
+        null=True,
+        blank=True,
+        verbose_name="TinyMDM API key (secret)",
+        help_text="TinyMDM manager API secret key.",
+    )
+    tinymdm_account_id = EncryptedCharField(
+        null=True,
+        blank=True,
+        verbose_name="TinyMDM account ID",
+        help_text="TinyMDM account ID.",
+    )
+    tinymdm_policy_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        verbose_name="TinyMDM policy ID",
+        help_text="TinyMDM policy ID.",
+    )
+
+    objects = models.Manager()
+    decrypted = EncryptedManager()
 
     def __str__(self):
         return self.name
@@ -67,10 +122,13 @@ class Organization(AbstractBaseModel):
         if not active_mdm:
             return None
         # Create an org-specific default policy
-        policy = Policy.all_mdms.create(
+        if self.mdm == "TinyMDM":
+            policy_id = self.tinymdm_policy_id
+        else:
+            policy_id = f"policy_default_{get_random_string(12)}"
+        policy = Policy.objects.create(
             name="Default",
-            policy_id=f"policy_default_{get_random_string(12)}",
-            mdm=settings.ACTIVE_MDM["name"],
+            policy_id=policy_id,
             organization=self,
         )
         # Create the pinned ODK Collect app row (order=0) so new policies are consistent
@@ -112,16 +170,6 @@ class CentralServer(AbstractBaseModel):
     def save(self, *args, **kwargs):
         self.base_url = self.base_url.rstrip("/")
         super().save(*args, **kwargs)
-
-    def decrypt(self):
-        """Decrypt username and password. Use this if they were not decrypted when
-        getting from the database (i.e. if the `decrypted` model manager was not used).
-        """
-        for field in ("username", "password"):
-            value = getattr(self, field)
-            if value:
-                value = kms_api.decrypt("centralserver", value)
-                setattr(self, field, value)
 
     @property
     def masked_username(self):
