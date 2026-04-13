@@ -16,7 +16,6 @@ class SyncFleetsConfig(dg.Config):
 
 @dg.asset(
     description="Sync specific MDM fleet devices and push device configurations",
-    group_name="mdm_assets",
 )
 def sync_and_push_mdm_devices(context: dg.AssetExecutionContext, config: SyncFleetsConfig):
     """Sync an organization's fleets from the MDM and push device configurations."""
