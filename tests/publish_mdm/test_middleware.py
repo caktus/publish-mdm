@@ -171,3 +171,28 @@ class TestCustomMiddleware:
 
             with pytest.raises(Http404):
                 middleware[0].process_view(request, view_func, view_args, view_kwargs)
+
+    def test_deleted_organization_raises_404(self, organizations, rf, middleware, user):
+        """A soft-deleted organization cannot be resolved via the URL slug."""
+        organization = organizations[0]
+        organization.soft_delete()
+        url = reverse("publish_mdm:server-sync", args=[organization.slug])
+        request = self.get_request(rf, url, user)
+        view_func, view_args, view_kwargs = request.resolver_match
+
+        with pytest.raises(Http404):
+            middleware[0].process_view(request, view_func, view_args, view_kwargs)
+
+    def test_deleted_organization_excluded_from_user_organizations(
+        self, organizations, rf, middleware, user
+    ):
+        """A soft-deleted organization is not included in request.organizations."""
+        organizations[0].soft_delete()
+        url = reverse("publish_mdm:server-sync", args=[organizations[1].slug])
+        request = self.get_request(rf, url, user)
+        view_func, view_args, view_kwargs = request.resolver_match
+
+        middleware[0].process_view(request, view_func, view_args, view_kwargs)
+
+        assert organizations[0] not in request.organizations
+        assert len(list(request.organizations)) == len(organizations) - 1

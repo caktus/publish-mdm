@@ -428,6 +428,20 @@ def enroll_qr_code_path(fleet, filename):
 
 class FleetManager(models.Manager):
     def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .filter(policy__mdm=settings.ACTIVE_MDM["name"], organization__deleted_at__isnull=True)
+        )
+
+
+class FleetAllOrgsManager(models.Manager):
+    """Returns fleets for the active MDM including those belonging to soft-deleted organizations.
+
+    Intended for admin and internal tooling that needs visibility into all orgs.
+    """
+
+    def get_queryset(self):
         return super().get_queryset().filter(policy__mdm=settings.ACTIVE_MDM["name"])
 
 
@@ -479,6 +493,7 @@ class Fleet(models.Model):
 
     all_mdms = models.Manager()
     objects = FleetManager()
+    all_orgs = FleetAllOrgsManager()
 
     class Meta:
         constraints = (

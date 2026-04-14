@@ -53,6 +53,22 @@ class TestMdmDeviceSnapshotAndroidEnterprise(TestAndroidEnterpriseOnly):
         assert mock_sync.call_count == len(enrolled_orgs)
         mock_sync.assert_called_with(push_config=False)
 
+    def test_deleted_org_not_synced(self, mocker, organization, set_mdm_env_vars):
+        """A soft-deleted organization is not included in the Android Enterprise per-org sync.
+
+        The autouse fixture creates one active enrolled org (``organization``).
+        We additionally create one enrolled org and immediately soft-delete it.
+        Only the active org should be synced.
+        """
+        deleted_account = AndroidEnterpriseAccountFactory(enterprise_name="enterprises/deleted")
+        deleted_account.organization.soft_delete()
+
+        mock_sync = mocker.patch.object(get_active_mdm_class(), "sync_fleets")
+        mdm_device_snapshot()
+
+        # Only the autouse active org should be synced; deleted org is excluded
+        assert mock_sync.call_count == 1
+
 
 @pytest.mark.django_db
 class TestPushMDMDeviceConfig(TestAllMDMs):
