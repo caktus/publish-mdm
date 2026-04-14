@@ -36,7 +36,7 @@ If you haven't already, create a Publish MDM organization:
 .. note::
 
    For form publishing, you can use any Google account.
-   
+
 Step 2: Connect Your ODK Central Server
 ---------------------------------------
 
