@@ -9,7 +9,7 @@ from django.conf import settings
 from django.contrib.sites.shortcuts import get_current_site
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.validators import RegexValidator
-from django.db import models
+from django.db import models, transaction
 from django.db.models import F, Value
 from django.db.models.functions import NullIf
 from django.urls import reverse
@@ -132,26 +132,30 @@ class Organization(SoftDeleteModel, AbstractBaseModel):
         active_mdm = get_active_mdm_instance(organization=self)
         if not active_mdm:
             return None
-        # Create an org-specific default policy
-        policy = Policy.all_mdms.create(
-            name="Default",
-            policy_id=f"policy_default_{get_random_string(12)}",
-            mdm=settings.ACTIVE_MDM["name"],
-            organization=self,
-        )
-        # Create the pinned ODK Collect app row (order=0) so new policies are consistent
-        # with those created via the policy editor UI.
-        PolicyApplication.objects.create(
-            policy=policy,
-            package_name=policy.odk_collect_package,
-            install_type="FORCE_INSTALLED",
-            order=0,
-        )
-        fleet = Fleet(organization=self, name="Default", policy=policy)
-        active_mdm.create_group(fleet)
-        active_mdm.add_group_to_policy(fleet)
-        active_mdm.get_enrollment_qr_code(fleet)
-        fleet.save()
+        with transaction.atomic():
+            # Create an org-specific default policy
+            policy = Policy.all_mdms.create(
+                name="Default",
+                # Create a random policy ID to avoid collisions.
+                policy_id=f"policy_{get_random_string(20)}",
+                mdm=settings.ACTIVE_MDM["name"],
+                organization=self,
+            )
+            # Create the pinned ODK Collect app row (order=0) so new policies are consistent
+            # with those created via the policy editor UI.
+            PolicyApplication.objects.create(
+                policy=policy,
+                package_name=policy.odk_collect_package,
+                install_type="FORCE_INSTALLED",
+                order=0,
+            )
+            # Ensure the default policy exists in the MDM before linking groups to it.
+            active_mdm.create_or_update_policy(policy)
+            fleet = Fleet(organization=self, name="Default", policy=policy)
+            active_mdm.create_group(fleet)
+            active_mdm.add_group_to_policy(fleet)
+            active_mdm.get_enrollment_qr_code(fleet)
+            fleet.save()
         return fleet
 
 
