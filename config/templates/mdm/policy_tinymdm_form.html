@@ -11,16 +11,13 @@
             <div class="policy-section">
                 <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Policy Settings</h3>
                 <div class="max-w-md space-y-3">
-                    <div>
-                        {{ form.name.label_tag }}
-                        {{ form.name }}
-                        {{ form.name.errors }}
-                    </div>
-                    <div>
-                        {{ form.policy_id.label_tag }}
-                        {{ form.policy_id }}
-                        {{ form.policy_id.errors }}
-                    </div>
+                    {% for field in form %}
+                        <div>
+                            {{ field.label_tag }}
+                            {{ field }}
+                            {{ field.errors }}
+                        </div>
+                    {% endfor %}
                 </div>
             </div>
             <div class="flex items-center gap-4">
