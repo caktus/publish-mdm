@@ -19,11 +19,10 @@ from config.dagster import trigger_dagster_job
 
 from .forms import (
     FirmwareSnapshotForm,
-    PolicyAddTinyMDMForm,
     PolicyApplicationFormSet,
     PolicyEditForm,
-    PolicyEditTinyMDMForm,
     PolicyNameForm,
+    PolicyTinyMDMForm,
     PolicyVariableFormSet,
 )
 from .mdms import get_active_mdm_instance
@@ -239,7 +238,7 @@ def policy_add(request, organization_slug):
         )
         return redirect("mdm:policy-list", organization_slug)
     is_tinymdm = settings.ACTIVE_MDM["name"] == MDMChoices.TINYMDM
-    FormClass = PolicyAddTinyMDMForm if is_tinymdm else PolicyNameForm
+    FormClass = PolicyTinyMDMForm if is_tinymdm else PolicyNameForm
     if request.method == "POST":
         form = FormClass(request.POST)
         if form.is_valid():
@@ -261,6 +260,8 @@ def policy_add(request, organization_slug):
                 )
                 _push_policy_to_mdm(policy, request)
             messages.success(request, f"Policy '{policy.name}' created.")
+            if is_tinymdm:
+                return redirect("mdm:policy-list", organization_slug)
             return redirect("mdm:policy-edit", organization_slug, policy.pk)
     else:
         form = FormClass()
@@ -287,7 +288,7 @@ def policy_edit(request, organization_slug, policy_id):
 
     if request.method == "POST":
         if is_tinymdm:
-            form = PolicyEditTinyMDMForm(request.POST, instance=policy)
+            form = PolicyTinyMDMForm(request.POST, instance=policy)
             app_formset = None
             var_formset = None
             if form.is_valid():
@@ -349,7 +350,7 @@ def policy_edit(request, organization_slug, policy_id):
                 return redirect("mdm:policy-edit", organization_slug, policy.pk)
     else:
         if is_tinymdm:
-            form = PolicyEditTinyMDMForm(instance=policy)
+            form = PolicyTinyMDMForm(instance=policy)
             app_formset = None
             var_formset = None
         else:
@@ -376,7 +377,8 @@ def policy_edit(request, organization_slug, policy_id):
             ],
         ),
     }
-    return render(request, "mdm/policy_form.html", context)
+    template = "mdm/policy_tinymdm_form.html" if is_tinymdm else "mdm/policy_form.html"
+    return render(request, template, context)
 
 
 @login_required

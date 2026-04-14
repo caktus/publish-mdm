@@ -99,20 +99,8 @@ class PolicyNameForm(PlatformFormMixin, forms.ModelForm):
         widgets: ClassVar = {"name": TextInput(attrs={"placeholder": "Policy name"})}
 
 
-class PolicyAddTinyMDMForm(PlatformFormMixin, forms.ModelForm):
-    """Form for creating a new TinyMDM policy (name + policy_id)."""
-
-    class Meta:
-        model = Policy
-        fields = ("name", "policy_id")
-        widgets: ClassVar = {
-            "name": TextInput(attrs={"placeholder": "Policy name"}),
-            "policy_id": TextInput(attrs={"placeholder": "TinyMDM policy ID"}),
-        }
-
-
-class PolicyEditTinyMDMForm(PlatformFormMixin, forms.ModelForm):
-    """Form for editing a TinyMDM policy — only name and policy_id."""
+class PolicyTinyMDMForm(PlatformFormMixin, forms.ModelForm):
+    """Form for creating or editing a TinyMDM policy (name + policy_id only)."""
 
     class Meta:
         model = Policy

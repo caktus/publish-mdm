@@ -95,13 +95,19 @@ class TestPolicyAdd(PolicyViewBase):
         response = client.post(url, {"name": "My Policy", "policy_id": "my-policy-id"})
         assert Policy.objects.filter(organization=organization, name="My Policy").exists()
         policy = Policy.objects.get(organization=organization, name="My Policy")
-        # Creates the default ODK Collect application row only for Android Enterprise
-        if settings.ACTIVE_MDM["name"] == "Android Enterprise":
-            assert policy.applications.filter(order=0).exists()
         assert response.status_code == 302
-        assert (
-            reverse("mdm:policy-edit", args=[organization.slug, policy.pk]) in response["Location"]
-        )
+        if settings.ACTIVE_MDM["name"] == "Android Enterprise":
+            # Creates the default ODK Collect application row
+            assert policy.applications.filter(order=0).exists()
+            # Redirects to the policy editor
+            assert (
+                reverse("mdm:policy-edit", args=[organization.slug, policy.pk])
+                in response["Location"]
+            )
+        else:
+            # TinyMDM: no ODK app, redirects to the policy list
+            assert not policy.applications.filter(order=0).exists()
+            assert reverse("mdm:policy-list", args=[organization.slug]) in response["Location"]
 
     def test_invalid_post_returns_form(self, client, url, user, set_mdm_env_vars):
         response = client.post(url, {"name": ""})
@@ -158,6 +164,8 @@ class TestPolicyAddTinyMDM(TestTinyMDMOnly):
         # No ODK Collect application row for TinyMDM
         assert not policy.applications.filter(order=0).exists()
         assert response.status_code == 302
+        # Redirects to the policy list (no additional fields to edit)
+        assert reverse("mdm:policy-list", args=[organization.slug]) in response["Location"]
 
     def test_invalid_post_missing_policy_id(self, client, url, set_mdm_env_vars):
         response = client.post(url, {"name": "My Policy"})

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+    <div class="max-w-4xl">
+        <form method="post" autocomplete="off" class="space-y-6">
+            {% csrf_token %}
+            {% if form.non_field_errors %}
+                <div class="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+            <div class="policy-section">
+                <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Policy Settings</h3>
+                <div class="max-w-md space-y-3">
+                    <div>
+                        {{ form.name.label_tag }}
+                        {{ form.name }}
+                        {{ form.name.errors }}
+                    </div>
+                    <div>
+                        {{ form.policy_id.label_tag }}
+                        {{ form.policy_id }}
+                        {{ form.policy_id.errors }}
+                    </div>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <button type="submit" class="btn btn-outline btn-primary">Save policy</button>
+                <a href="{% url 'mdm:policy-list' request.organization.slug %}"
+                   class="btn btn-outline">Cancel</a>
+            </div>
+        </form>
+    </div>
+{% endblock content %}
