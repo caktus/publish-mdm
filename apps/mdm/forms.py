@@ -99,6 +99,24 @@ class PolicyNameForm(PlatformFormMixin, forms.ModelForm):
         widgets: ClassVar = {"name": TextInput(attrs={"placeholder": "Policy name"})}
 
 
+class PolicyTinyMDMForm(PlatformFormMixin, forms.ModelForm):
+    """Form for creating or editing a TinyMDM policy (name + policy_id only)."""
+
+    class Meta:
+        model = Policy
+        fields = ("name", "policy_id")
+        widgets: ClassVar = {
+            "name": TextInput(attrs={"placeholder": "Policy name"}),
+            "policy_id": TextInput(attrs={"placeholder": "TinyMDM policy ID"}),
+        }
+
+    def clean_policy_id(self):
+        policy_id = self.cleaned_data.get("policy_id") or ""
+        if policy_id and not policy_id.isalnum():
+            raise forms.ValidationError("Policy ID must contain only letters and numbers.")
+        return policy_id
+
+
 class PolicyApplicationForm(PlatformFormMixin, forms.ModelForm):
     """Form for a single PolicyApplication row."""
 
