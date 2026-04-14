@@ -336,11 +336,6 @@ class TestPolicyEditTinyMDM(PolicyViewBase, TestTinyMDMOnly):
     def url(self, organization, policy):
         return reverse("mdm:policy-edit", args=[organization.slug, policy.pk])
 
-    def test_get_shows_is_tinymdm_context(self, client, url, policy):
-        response = client.get(url)
-        assert response.status_code == 200
-        assert response.context["is_tinymdm"] is True
-
     def test_get_form_has_policy_id_field(self, client, url, policy):
         response = client.get(url)
         assert response.status_code == 200
@@ -349,8 +344,8 @@ class TestPolicyEditTinyMDM(PolicyViewBase, TestTinyMDMOnly):
     def test_get_no_app_or_var_formsets(self, client, url, policy):
         response = client.get(url)
         assert response.status_code == 200
-        assert response.context["app_formset"] is None
-        assert response.context["var_formset"] is None
+        assert "app_formset" not in response.context
+        assert "var_formset" not in response.context
 
     def test_valid_post_saves_name_and_policy_id(self, client, url, policy):
         response = client.post(url, {"name": "Updated Name", "policy_id": "newid"})

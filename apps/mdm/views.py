@@ -279,26 +279,26 @@ def policy_add(request, organization_slug):
     return render(request, "mdm/policy_add.html", context)
 
 
-def _handle_tinymdm_policy_edit(request, organization_slug, policy):
+def _handle_tinymdm_policy_edit(request, policy):
     """Handle TinyMDM policy edit (name and policy_id only).
 
-    Returns a redirect on success, or a dict of form context on GET/invalid POST.
+    Returns a redirect on success, or a 2-tuple (context dict and template name) on GET/invalid POST.
     """
     if request.method == "POST":
         form = PolicyTinyMDMForm(request.POST, instance=policy)
         if form.is_valid():
             form.save()
             messages.success(request, "Policy saved.")
-            return redirect("mdm:policy-edit", organization_slug, policy.pk)
+            return redirect("mdm:policy-edit", request.organization.slug, policy.pk)
     else:
         form = PolicyTinyMDMForm(instance=policy)
-    return {"form": form, "app_formset": None, "var_formset": None}
+    return {"form": form}, "mdm/policy_tinymdm_form.html"
 
 
-def _handle_amapi_policy_edit(request, organization_slug, policy, organization):
+def _handle_amapi_policy_edit(request, policy):
     """Handle Android Enterprise (AMAPI) policy edit: full form with apps and variables.
 
-    Returns a redirect on success, or a dict of form context on GET/invalid POST.
+    Returns a redirect on success, or a 2-tuple (context dict and template name) on GET/invalid POST.
     """
     if request.method == "POST":
         form = PolicyEditForm(request.POST, instance=policy)
@@ -307,7 +307,7 @@ def _handle_amapi_policy_edit(request, organization_slug, policy, organization):
             request.POST,
             queryset=_get_policy_variables(policy),
             prefix="vars",
-            organization=organization,
+            organization=request.organization,
             policy=policy,
         )
         if form.is_valid() and app_formset.is_valid() and var_formset.is_valid():
@@ -352,36 +352,41 @@ def _handle_amapi_policy_edit(request, organization_slug, policy, organization):
                 var.delete()
             messages.success(request, "Policy saved.")
             _push_policy_to_mdm(policy, request)
-            return redirect("mdm:policy-edit", organization_slug, policy.pk)
+            return redirect("mdm:policy-edit", request.organization.slug, policy.pk)
     else:
         form = PolicyEditForm(instance=policy)
         app_formset = PolicyApplicationFormSet(instance=policy, prefix="apps")
         var_formset = PolicyVariableFormSet(
             queryset=_get_policy_variables(policy),
             prefix="vars",
-            organization=organization,
+            organization=request.organization,
             policy=policy,
         )
-    return {"form": form, "app_formset": app_formset, "var_formset": var_formset}
+    return {
+        "form": form,
+        "app_formset": app_formset,
+        "var_formset": var_formset,
+    }, "mdm/policy_form.html"
 
 
 @login_required
 def policy_edit(request, organization_slug, policy_id):
     """Edit a policy: dispatches to MDM-specific handlers for TinyMDM and AMAPI."""
     policy = _get_policy_or_404(policy_id, request.organization)
-    is_tinymdm = policy.mdm == MDMChoices.TINYMDM
 
-    if is_tinymdm:
-        result = _handle_tinymdm_policy_edit(request, organization_slug, policy)
+    if policy.mdm == MDMChoices.TINYMDM:
+        handler = _handle_tinymdm_policy_edit
     else:
-        result = _handle_amapi_policy_edit(request, organization_slug, policy, request.organization)
+        handler = _handle_amapi_policy_edit
+
+    result = handler(request, policy)
 
     if isinstance(result, HttpResponse):
         return result
 
+    extra_context, template = result
     context = {
         "policy": policy,
-        "is_tinymdm": is_tinymdm,
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
             items=[
@@ -389,9 +394,8 @@ def policy_edit(request, organization_slug, policy_id):
                 (policy.name, "mdm:policy-edit", [policy.pk]),
             ],
         ),
-        **result,
+        **extra_context,
     }
-    template = "mdm/policy_tinymdm_form.html" if is_tinymdm else "mdm/policy_form.html"
     return render(request, template, context)
 
 
