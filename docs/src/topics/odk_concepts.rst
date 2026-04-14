@@ -8,7 +8,7 @@ Core Concepts
 -------------
 
 ODK Central Form
-"""""""""""""""
+""""""""""""""""
 
 The heart of the ODK ecosystem is the form. Forms provide a structured way
 to collect and provide information. They are defined in XML and can be

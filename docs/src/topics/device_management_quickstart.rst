@@ -38,7 +38,7 @@ To begin:
 5. After setup is complete, you can invite team members with their work Google accounts to join the organization (they will have the same access as the account that created it).
 
 Step 2: Set up Android Enterprise
---------------------------------
+---------------------------------
 
 To manage devices, your organization must be linked to Android Enterprise. An "enterprise" is a Google-managed resource tied to your dedicated Gmail account that acts as the enrollment authority for your devices. Since you created the organization with a dedicated Gmail account in Step 1, you are already set up for this step.
 
@@ -46,8 +46,8 @@ To manage devices, your organization must be linked to Android Enterprise. An "e
 
    Make sure you're still in the browser profile with your **dedicated Gmail account** before starting this step. If you've closed your profile or logged out, switch back to it now.
 
-1. While still logged in with your **dedicated Gmail account** (using the browser profile or incognito window from Step 1), navigate to the **Fleets** or **Devices** page in the sidebar.
-2. Click the **Setup Android Enterprise** button.
+1. While still logged in with your **dedicated Gmail account** (using the browser profile or incognito window from Step 1), navigate to the **Fleets**, **Policies**, or **Devices** page in the sidebar.
+2. Click the **Setup Android Enterprise** link.
 3. You will be redirected to Google's Android Enterprise enrollment page. If prompted, make sure you are logged into the **dedicated Gmail account** (the same one you used to create the organization).
 4. Select the **Sign up for Android only** option and follow the prompts to authorize Publish MDM to manage Android Enterprise on your behalf.
 5. Once complete, you'll see an "Android Enterprise enrollment completed successfully" message. You are now ready to enroll devices.

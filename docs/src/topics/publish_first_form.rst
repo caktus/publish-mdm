@@ -31,11 +31,12 @@ If you haven't already, create a Publish MDM organization:
 
 1. Log in to Publish MDM at https://app.publishmdm.com/
 2. On first login, you will be prompted to create a new organization. If you already have an existing organization, click your initials in the top right corner, select **Switch organization**, and then click **Create a new organization**.
-3. Enter an organization name (e.g., "My Organization") and click **Create**.
+3. Enter an organization name (e.g., "My Organization") and a slug (e.g., "my-organization", will be used in the URLs for the organization's pages) and click **Save**.
 
 .. note::
 
    For form publishing, you can use any Google account.
+   
 Step 2: Connect Your ODK Central Server
 ---------------------------------------
 
@@ -45,12 +46,11 @@ To publish forms, Publish MDM needs credentials to access your ODK Central serve
 2. Click **Add Central Server**.
 3. Enter the following information:
 
-   - **Server Name:** A friendly name for your server (e.g., "Production Server")
-   - **Server URL:** The base URL of your ODK Central instance (e.g., ``https://central.example.com``)
+   - **Base URL:** The base URL of your ODK Central instance (e.g., ``https://central.example.com``)
    - **Username:** Your ODK Central username
    - **Password:** Your ODK Central password
 
-4. Click **Save**. Publish MDM will verify your credentials and connection.
+4. Click **Add central server**. Publish MDM will verify your credentials and connection.
 
 .. important::
 
@@ -74,10 +74,11 @@ Publish MDM organizes forms within ODK projects. You can either sync an existing
 
 **Option B: Create a New Project**
 
-1. Navigate to **Projects** in the sidebar (if this option is available).
-2. Click **Create Project**.
-3. Enter a project name and click **Create**.
-4. (Optional) Add a description for context.
+1. Navigate to **Add Project** in the sidebar.
+2. Enter a project name.
+3. Select your Central Server.
+4. (Optional) Set template variables, app language, and/or project attachments.
+5. Click **Save project**.
 
 .. note::
 
@@ -172,7 +173,7 @@ Your data collectors now need to configure `ODK Collect`_ with their assigned fo
 
 
 Step 9: Collect Data
--------------------
+--------------------
 
 Your data collectors can now:
 
