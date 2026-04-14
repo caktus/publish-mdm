@@ -279,95 +279,108 @@ def policy_add(request, organization_slug):
     return render(request, "mdm/policy_add.html", context)
 
 
+def _handle_tinymdm_policy_edit(request, organization_slug, policy):
+    """Handle TinyMDM policy edit (name and policy_id only).
+
+    Returns a redirect on success, or a dict of form context on GET/invalid POST.
+    """
+    if request.method == "POST":
+        form = PolicyTinyMDMForm(request.POST, instance=policy)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Policy saved.")
+            return redirect("mdm:policy-edit", organization_slug, policy.pk)
+    else:
+        form = PolicyTinyMDMForm(instance=policy)
+    return {"form": form, "app_formset": None, "var_formset": None}
+
+
+def _handle_amapi_policy_edit(request, organization_slug, policy, organization):
+    """Handle Android Enterprise (AMAPI) policy edit: full form with apps and variables.
+
+    Returns a redirect on success, or a dict of form context on GET/invalid POST.
+    """
+    if request.method == "POST":
+        form = PolicyEditForm(request.POST, instance=policy)
+        app_formset = PolicyApplicationFormSet(request.POST, instance=policy, prefix="apps")
+        var_formset = PolicyVariableFormSet(
+            request.POST,
+            queryset=_get_policy_variables(policy),
+            prefix="vars",
+            organization=organization,
+            policy=policy,
+        )
+        if form.is_valid() and app_formset.is_valid() and var_formset.is_valid():
+            policy = form.save()
+            # save(commit=False) returns unsaved instances and populates deleted_objects
+            apps_to_save = app_formset.save(commit=False)
+            for app in app_formset.deleted_objects:
+                app.delete()
+            # Assign sequential order to new apps (order defaults to 0, which would
+            # wrongly match the pinned ODK app check on the next save)
+            current_max = policy.applications.aggregate(m=Max("order"))["m"] or 0
+            new_idx = 0
+            for app in apps_to_save:
+                if not app.pk:
+                    new_idx += 1
+                    app.order = current_max + new_idx
+                app.save()
+            # Keep the pinned ODK app in sync with the policy's odk_collect_package
+            odk_app = policy.applications.filter(
+                order=0, package_name=policy.odk_collect_package
+            ).first()
+            if not odk_app:
+                odk_app = policy.applications.filter(order=0).first()
+            if odk_app and odk_app.package_name != policy.odk_collect_package:
+                odk_app.package_name = policy.odk_collect_package
+                odk_app.save()
+            variables = var_formset.save(commit=False)
+            for var in variables:
+                if var.scope == PolicyVariableScope.POLICY:
+                    var.policy = policy
+                    var.fleet = None
+                elif var.scope == PolicyVariableScope.FLEET:
+                    var.policy = None
+                # Move plaintext value to encrypted field if is_encrypted is toggled
+                if var.is_encrypted and var.value:
+                    var.value_encrypted = var.value
+                    var.value = ""
+                elif not var.is_encrypted:
+                    var.value_encrypted = None
+                var.save()
+            for var in var_formset.deleted_objects:
+                var.delete()
+            messages.success(request, "Policy saved.")
+            _push_policy_to_mdm(policy, request)
+            return redirect("mdm:policy-edit", organization_slug, policy.pk)
+    else:
+        form = PolicyEditForm(instance=policy)
+        app_formset = PolicyApplicationFormSet(instance=policy, prefix="apps")
+        var_formset = PolicyVariableFormSet(
+            queryset=_get_policy_variables(policy),
+            prefix="vars",
+            organization=organization,
+            policy=policy,
+        )
+    return {"form": form, "app_formset": app_formset, "var_formset": var_formset}
+
+
 @login_required
 def policy_edit(request, organization_slug, policy_id):
-    """Edit a policy: all fields, applications, and variables in a single form."""
+    """Edit a policy: dispatches to MDM-specific handlers for TinyMDM and AMAPI."""
     policy = _get_policy_or_404(policy_id, request.organization)
-    organization = request.organization
     is_tinymdm = policy.mdm == MDMChoices.TINYMDM
 
-    if request.method == "POST":
-        if is_tinymdm:
-            form = PolicyTinyMDMForm(request.POST, instance=policy)
-            app_formset = None
-            var_formset = None
-            if form.is_valid():
-                form.save()
-                messages.success(request, "Policy saved.")
-                return redirect("mdm:policy-edit", organization_slug, policy.pk)
-        else:
-            form = PolicyEditForm(request.POST, instance=policy)
-            app_formset = PolicyApplicationFormSet(request.POST, instance=policy, prefix="apps")
-            var_formset = PolicyVariableFormSet(
-                request.POST,
-                queryset=_get_policy_variables(policy),
-                prefix="vars",
-                organization=organization,
-                policy=policy,
-            )
-            if form.is_valid() and app_formset.is_valid() and var_formset.is_valid():
-                policy = form.save()
-                # save(commit=False) returns unsaved instances and populates deleted_objects
-                apps_to_save = app_formset.save(commit=False)
-                for app in app_formset.deleted_objects:
-                    app.delete()
-                # Assign sequential order to new apps (order defaults to 0, which would
-                # wrongly match the pinned ODK app check on the next save)
-                current_max = policy.applications.aggregate(m=Max("order"))["m"] or 0
-                new_idx = 0
-                for app in apps_to_save:
-                    if not app.pk:
-                        new_idx += 1
-                        app.order = current_max + new_idx
-                    app.save()
-                # Keep the pinned ODK app in sync with the policy's odk_collect_package
-                odk_app = policy.applications.filter(
-                    order=0, package_name=policy.odk_collect_package
-                ).first()
-                if not odk_app:
-                    odk_app = policy.applications.filter(order=0).first()
-                if odk_app and odk_app.package_name != policy.odk_collect_package:
-                    odk_app.package_name = policy.odk_collect_package
-                    odk_app.save()
-                variables = var_formset.save(commit=False)
-                for var in variables:
-                    if var.scope == PolicyVariableScope.POLICY:
-                        var.policy = policy
-                        var.fleet = None
-                    elif var.scope == PolicyVariableScope.FLEET:
-                        var.policy = None
-                    # Move plaintext value to encrypted field if is_encrypted is toggled
-                    if var.is_encrypted and var.value:
-                        var.value_encrypted = var.value
-                        var.value = ""
-                    elif not var.is_encrypted:
-                        var.value_encrypted = None
-                    var.save()
-                for var in var_formset.deleted_objects:
-                    var.delete()
-                messages.success(request, "Policy saved.")
-                _push_policy_to_mdm(policy, request)
-                return redirect("mdm:policy-edit", organization_slug, policy.pk)
+    if is_tinymdm:
+        result = _handle_tinymdm_policy_edit(request, organization_slug, policy)
     else:
-        if is_tinymdm:
-            form = PolicyTinyMDMForm(instance=policy)
-            app_formset = None
-            var_formset = None
-        else:
-            form = PolicyEditForm(instance=policy)
-            app_formset = PolicyApplicationFormSet(instance=policy, prefix="apps")
-            var_formset = PolicyVariableFormSet(
-                queryset=_get_policy_variables(policy),
-                prefix="vars",
-                organization=organization,
-                policy=policy,
-            )
+        result = _handle_amapi_policy_edit(request, organization_slug, policy, request.organization)
+
+    if isinstance(result, HttpResponse):
+        return result
 
     context = {
         "policy": policy,
-        "form": form,
-        "app_formset": app_formset,
-        "var_formset": var_formset,
         "is_tinymdm": is_tinymdm,
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
@@ -376,6 +389,7 @@ def policy_edit(request, organization_slug, policy_id):
                 (policy.name, "mdm:policy-edit", [policy.pk]),
             ],
         ),
+        **result,
     }
     template = "mdm/policy_tinymdm_form.html" if is_tinymdm else "mdm/policy_form.html"
     return render(request, template, context)
