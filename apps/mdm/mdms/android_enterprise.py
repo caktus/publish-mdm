@@ -131,17 +131,17 @@ class AndroidEnterprise(MDM):
 
     def create_enterprise(self, signup_name: str, enterprise_token: str, display_name: str) -> dict:
         """Returns {'name': 'enterprises/LC00lvvue0'}"""
+        body: dict = {"enterpriseDisplayName": display_name}
+        if self.pubsub_topic_exists():
+            body["pubsubTopic"] = self.pubsub_topic
+            body["enabledNotificationTypes"] = ["ENROLLMENT", "STATUS_REPORT"]
         return (
             self.api.enterprises()
             .create(
                 projectId=self.credentials.project_id,
                 signupUrlName=signup_name,
                 enterpriseToken=enterprise_token,
-                body={
-                    "enterpriseDisplayName": display_name,
-                    "pubsubTopic": self.pubsub_topic,
-                    "enabledNotificationTypes": ["ENROLLMENT", "STATUS_REPORT"],
-                },
+                body=body,
             )
             .execute()
         )
@@ -578,7 +578,7 @@ class AndroidEnterprise(MDM):
         self._ensure_pubsub_subscription(push_endpoint)
         self._grant_pubsub_publisher()
 
-    def patch_enterprise_pubsub(self) -> dict:
+    def patch_enterprise_pubsub(self) -> dict | None:
         """Patch the enterprise to register the Pub/Sub topic.
 
         Calls ``enterprises.patch`` to set ``pubsubTopic`` and
@@ -591,8 +591,15 @@ class AndroidEnterprise(MDM):
         registration can be managed independently.
 
         Returns:
-            The updated enterprise resource dict returned by the AMAPI.
+            The updated enterprise resource dict returned by the AMAPI, or
+            ``None`` if the Pub/Sub topic does not exist.
         """
+        if not self.pubsub_topic_exists():
+            logger.warning(
+                "Cannot patch enterprise Pub/Sub: topic does not exist. Skipping",
+                topic=self.pubsub_topic,
+            )
+            return None
         return self.execute(
             self.api.enterprises().patch(
                 name=self.enterprise_name,
@@ -635,6 +642,16 @@ class AndroidEnterprise(MDM):
                 settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN or Site.objects.get_current().domain
             )
         return f"https://{domain.rstrip('/')}{path}?token={token}"
+
+    def pubsub_topic_exists(self) -> bool:
+        """Return True if the Pub/Sub topic already exists, False otherwise."""
+        try:
+            self.pubsub_api.projects().topics().get(topic=self.pubsub_topic).execute()
+            return True
+        except HttpError as e:
+            if e.status_code == 404:
+                return False
+            raise
 
     def _ensure_pubsub_topic(self) -> None:
         """Create the Pub/Sub topic if it does not already exist."""
