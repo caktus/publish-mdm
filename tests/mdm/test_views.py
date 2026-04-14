@@ -134,10 +134,10 @@ class TestPolicyAddTinyMDM(PolicyViewBase, TestTinyMDMOnly):
         assert response.context["is_tinymdm"] is True
 
     def test_valid_post_uses_provided_policy_id(self, client, url, organization, set_mdm_env_vars):
-        response = client.post(url, {"name": "My Policy", "policy_id": "tinymdm-123"})
+        response = client.post(url, {"name": "My Policy", "policy_id": "tinymdm123"})
         assert Policy.objects.filter(organization=organization, name="My Policy").exists()
         policy = Policy.objects.get(organization=organization, name="My Policy")
-        assert policy.policy_id == "tinymdm-123"
+        assert policy.policy_id == "tinymdm123"
         # No ODK Collect application row for TinyMDM
         assert not policy.applications.filter(order=0).exists()
         assert response.status_code == 302
@@ -330,7 +330,7 @@ class TestPolicyEditPostAndroidEnterprise(PolicyViewBase, TestAndroidEnterpriseO
 class TestPolicyEditTinyMDM(PolicyViewBase, TestTinyMDMOnly):
     @pytest.fixture
     def policy(self, organization):
-        return PolicyFactory(organization=organization, policy_id="original-id")
+        return PolicyFactory(organization=organization, policy_id="originalid")
 
     @pytest.fixture
     def url(self, organization, policy):
@@ -353,11 +353,11 @@ class TestPolicyEditTinyMDM(PolicyViewBase, TestTinyMDMOnly):
         assert response.context["var_formset"] is None
 
     def test_valid_post_saves_name_and_policy_id(self, client, url, policy):
-        response = client.post(url, {"name": "Updated Name", "policy_id": "new-id"})
+        response = client.post(url, {"name": "Updated Name", "policy_id": "newid"})
         assert response.status_code == 302
         policy.refresh_from_db()
         assert policy.name == "Updated Name"
-        assert policy.policy_id == "new-id"
+        assert policy.policy_id == "newid"
 
     def test_invalid_post_missing_policy_id(self, client, url, policy):
         response = client.post(url, {"name": "Updated Name"})
