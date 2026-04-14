@@ -123,10 +123,6 @@ class TestPolicyAddAndroidEnterprise(PolicyViewBase, TestAndroidEnterpriseOnly):
 
 @pytest.mark.django_db
 class TestPolicyAddTinyMDM(PolicyViewBase, TestTinyMDMOnly):
-    @pytest.fixture(autouse=True)
-    def _login(self, user):
-        """Ensure user is logged in for all tests."""
-
     @pytest.fixture
     def url(self, organization):
         return reverse("mdm:policy-add", args=[organization.slug])
@@ -332,10 +328,6 @@ class TestPolicyEditPostAndroidEnterprise(PolicyViewBase, TestAndroidEnterpriseO
 
 @pytest.mark.django_db
 class TestPolicyEditTinyMDM(PolicyViewBase, TestTinyMDMOnly):
-    @pytest.fixture(autouse=True)
-    def _login(self, user):
-        """Ensure user is logged in for all tests."""
-
     @pytest.fixture
     def policy(self, organization):
         return PolicyFactory(organization=organization, policy_id="original-id")
