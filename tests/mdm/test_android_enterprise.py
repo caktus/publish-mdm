@@ -3,11 +3,9 @@ import json
 from collections import namedtuple
 
 import faker
-import httplib2
 import pytest
 from django.contrib.sites.models import Site
 from googleapiclient.errors import HttpError
-from googleapiclient.http import RequestMockBuilder
 
 from apps.mdm.mdms import AndroidEnterprise, MDMAPIError
 from apps.mdm.mdms.android_enterprise import (
@@ -206,35 +204,6 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         """enterprise_id is None when AndroidEnterprise is instantiated without an organization."""
         mdm = AndroidEnterprise(organization=None)
         assert mdm.enterprise_id is None
-
-    def get_mock_request_builder(self, *responses, prefix="androidmanagement.enterprises."):
-        """Creates a RequestMockBuilder that can be used to mock API responses
-        in the Google API Client. Takes MockAPIResponse objects as args, where
-        the `method_id` should be without the prefix.
-
-        Args:
-            *responses: MockAPIResponse objects describing each expected call.
-            prefix: The method-ID prefix for the target API.  Defaults to
-                ``'androidmanagement.enterprises.'`` for the Android Management
-                API.  Use ``'pubsub.projects.'`` for the Cloud Pub/Sub API.
-        """
-        responses_dict = {}
-        for response in responses:
-            if response.content:
-                response_content = json.dumps(response.content)
-            else:
-                response_content = ""
-            if response.status_code:
-                response_obj = httplib2.Response({"status": response.status_code})
-            else:
-                # None results in a 200 response
-                response_obj = None
-            value = [response_obj, response_content.encode()]
-            if response.expected_request_body is not None:
-                # Will raise an error if the actual request body does not match exactly
-                value.append(response.expected_request_body)
-            responses_dict[f"{prefix}{response.method_id}"] = value
-        return RequestMockBuilder(responses_dict, check_unexpected=True)
 
     @pytest.mark.parametrize("with_default_app_user", [False, True])
     def test_pull_devices(
@@ -902,9 +871,12 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         result = active_mdm.configure_pubsub(push_endpoint_domain="example.com")
         assert result is None
 
-    def test_patch_enterprise_pubsub(self, set_amapi_service_account_file, monkeypatch):
-        """patch_enterprise_pubsub() patches the enterprise with the Pub/Sub topic."""
-        active_mdm = AndroidEnterprise()
+    def test_patch_enterprise_pubsub(
+        self, organization, set_amapi_service_account_file, mocker, monkeypatch
+    ):
+        """patch_enterprise_pubsub() sets pubsubTopic and enabledNotificationTypes when enabled."""
+        mocker.patch.object(AndroidEnterprise, "pubsub_enabled", return_value=True)
+        active_mdm = AndroidEnterprise(organization=organization)
         enterprise_patch_result = {
             "name": active_mdm.enterprise_name,
             "pubsubTopic": active_mdm.pubsub_topic,
@@ -927,6 +899,38 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
 
         result = active_mdm.patch_enterprise_pubsub()
         assert result == enterprise_patch_result
+
+    def test_patch_enterprise_pubsub_clears_when_not_enabled(
+        self, organization, set_amapi_service_account_file, mocker, monkeypatch
+    ):
+        """patch_enterprise_pubsub() clears pubsubTopic and enabledNotificationTypes when pubsub_enabled() is False.
+
+        This covers both the case where the token is not set and where the topic does not yet exist.
+        """
+        mocker.patch.object(AndroidEnterprise, "pubsub_enabled", return_value=False)
+        active_mdm = AndroidEnterprise(organization=organization)
+        clear_result = {
+            "name": active_mdm.enterprise_name,
+            "pubsubTopic": "",
+            "enabledNotificationTypes": [],
+        }
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse(
+                    "patch",
+                    clear_result,
+                    expected_request_body={
+                        "pubsubTopic": "",
+                        "enabledNotificationTypes": [],
+                    },
+                ),
+            ),
+        )
+
+        result = active_mdm.patch_enterprise_pubsub()
+        assert result == clear_result
 
     @pytest.mark.django_db
     def test_build_push_endpoint(self, set_amapi_service_account_file, settings):
@@ -1300,14 +1304,18 @@ class TestGetSignupUrl(TestAndroidEnterpriseOnly):
 class TestCreateEnterprise(TestAndroidEnterpriseOnly):
     """Tests for AndroidEnterprise.create_enterprise method."""
 
-    def test_calls_api_and_returns_result(self, set_amapi_service_account_file, mocker):
-        """Calls enterprises.create with the correct parameters and returns the API result."""
+    @pytest.mark.parametrize("topic_exists", [True, False])
+    def test_calls_api_and_returns_result(
+        self, set_amapi_service_account_file, mocker, topic_exists
+    ):
+        """Calls enterprises.create including pubsub fields only when the topic exists."""
         expected = {"name": "enterprises/LC00lvvue0"}
         mock_api = mocker.MagicMock()
         mock_api.enterprises.return_value.create.return_value.execute.return_value = expected
         mocker.patch("apps.mdm.mdms.android_enterprise.build", return_value=mock_api)
 
         mdm = AndroidEnterprise()
+        mocker.patch.object(mdm, "pubsub_enabled", return_value=topic_exists)
         result = mdm.create_enterprise(
             signup_name="signupUrls/C455570ef9b12bfc",
             enterprise_token="T1234abcd",
@@ -1315,15 +1323,15 @@ class TestCreateEnterprise(TestAndroidEnterpriseOnly):
         )
 
         assert result == expected
+        expected_body: dict = {"enterpriseDisplayName": "Acme Corp"}
+        if topic_exists:
+            expected_body["pubsubTopic"] = mdm.pubsub_topic
+            expected_body["enabledNotificationTypes"] = ["ENROLLMENT", "STATUS_REPORT"]
         mock_api.enterprises.return_value.create.assert_called_once_with(
             projectId="example-project",
             signupUrlName="signupUrls/C455570ef9b12bfc",
             enterpriseToken="T1234abcd",
-            body={
-                "enterpriseDisplayName": "Acme Corp",
-                "pubsubTopic": mdm.pubsub_topic,
-                "enabledNotificationTypes": ["ENROLLMENT", "STATUS_REPORT"],
-            },
+            body=expected_body,
         )
 
     def test_raises_when_not_configured(self, del_amapi_service_account_file):
@@ -1336,3 +1344,63 @@ class TestCreateEnterprise(TestAndroidEnterpriseOnly):
                 enterprise_token="T1234abcd",
                 display_name="Acme Corp",
             )
+
+
+@pytest.mark.django_db
+class TestPubsubEnabled(TestAndroidEnterpriseOnly):
+    """Tests for AndroidEnterprise.pubsub_enabled method."""
+
+    def test_returns_false_when_token_not_set(self, set_amapi_service_account_file, settings):
+        """Returns False immediately (no API call) when ANDROID_ENTERPRISE_PUBSUB_TOKEN is unset."""
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = None
+        active_mdm = AndroidEnterprise()
+        assert active_mdm.pubsub_enabled() is False
+
+    def test_returns_true_when_token_set_and_topic_exists(
+        self, set_amapi_service_account_file, monkeypatch, settings
+    ):
+        """Returns True when the token is configured and topics.get succeeds (200)."""
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = "secret"
+        active_mdm = AndroidEnterprise()
+        monkeypatch.setattr(
+            active_mdm.pubsub_api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse("topics.get", {"name": active_mdm.pubsub_topic}),
+                prefix="pubsub.projects.",
+            ),
+        )
+        assert active_mdm.pubsub_enabled() is True
+
+    def test_returns_false_when_token_set_and_topic_not_found(
+        self, set_amapi_service_account_file, monkeypatch, settings
+    ):
+        """Returns False when the token is configured but topics.get returns 404."""
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = "secret"
+        active_mdm = AndroidEnterprise()
+        monkeypatch.setattr(
+            active_mdm.pubsub_api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse("topics.get", status_code=404),
+                prefix="pubsub.projects.",
+            ),
+        )
+        assert active_mdm.pubsub_enabled() is False
+
+    def test_reraises_other_http_errors(
+        self, set_amapi_service_account_file, monkeypatch, settings
+    ):
+        """Re-raises non-404 HttpErrors (e.g., 403 permission denied) when the token is set."""
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = "secret"
+        active_mdm = AndroidEnterprise()
+        monkeypatch.setattr(
+            active_mdm.pubsub_api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse("topics.get", status_code=403),
+                prefix="pubsub.projects.",
+            ),
+        )
+        with pytest.raises(HttpError):
+            active_mdm.pubsub_enabled()
