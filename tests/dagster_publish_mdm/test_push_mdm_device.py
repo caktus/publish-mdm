@@ -19,7 +19,7 @@ from tests.publish_mdm.factories import OrganizationFactory
 class TestMdmDeviceSnapshot(TestAllMDMs):
     """Tests for mdm_device_snapshot."""
 
-    def test_sync_fleets_called(self, mocker, organization, monkeypatch):
+    def test_sync_fleets_called(self, mocker, organization):
         """sync_fleets is called for each configured organization with push_config=False."""
         MDM = get_active_mdm_class(organization)
         # Create 2 more configured organizations
@@ -31,6 +31,23 @@ class TestMdmDeviceSnapshot(TestAllMDMs):
         mdm_device_snapshot()
         # Expect 3 calls: one for each configured organization
         mock_sync.assert_has_calls([call(push_config=False)] * 3)
+
+    def test_deleted_org_not_synced(self, mocker, organization):
+        """A soft-deleted organization is not included in the Android Enterprise per-org sync.
+
+        The autouse fixture creates one active enrolled org (``organization``).
+        We additionally create one enrolled org and immediately soft-delete it.
+        Only the active org should be synced.
+        """
+        other_org = OrganizationFactory()
+        _configure_mdm(self.mdm, other_org)
+        other_org.soft_delete()
+
+        mock_sync = mocker.patch.object(get_active_mdm_class(organization), "sync_fleets")
+        mdm_device_snapshot()
+
+        # Only the autouse active org should be synced; deleted org is excluded
+        assert mock_sync.call_count == 1
 
 
 @pytest.mark.django_db

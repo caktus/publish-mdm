@@ -23,7 +23,7 @@ def _configure_mdm(mdm, organization):
         organization.tinymdm_apikey_public = "test"
         organization.tinymdm_apikey_secret = "test"
         organization.tinymdm_account_id = "test"
-        organization.tinymdm_policy_id = get_random_string(12)
+        organization.tinymdm_default_policy_id = get_random_string(12)
     elif mdm == "Android Enterprise":
         if not AndroidEnterpriseAccount.objects.filter(organization=organization).exists():
             AndroidEnterpriseAccountFactory(

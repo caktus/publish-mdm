@@ -27,14 +27,14 @@ def set_mdm_for_existing_orgs(apps, schema_editor):
             tinymdm_apikey_public=os.environ.get("TINYMDM_APIKEY_PUBLIC") or None,
             tinymdm_apikey_secret=os.environ.get("TINYMDM_APIKEY_SECRET") or None,
             tinymdm_account_id=os.environ.get("TINYMDM_ACCOUNT_ID") or None,
-            tinymdm_policy_id=os.environ.get("MDM_DEFAULT_POLICY") or "",
+            tinymdm_default_policy_id=os.environ.get("MDM_DEFAULT_POLICY") or "",
         )
     Organization.objects.update(**update_fields)
 
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("publish_mdm", "0015_androidenterpriseaccount"),
+        ("publish_mdm", "0016_organization_soft_delete"),
     ]
 
     operations = [
@@ -81,13 +81,13 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name="organization",
-            name="tinymdm_policy_id",
+            name="tinymdm_default_policy_id",
             field=models.CharField(
                 blank=True,
                 default="",
-                help_text="TinyMDM policy ID.",
+                help_text="TinyMDM default policy ID. A Policy with this ID will be created in the database.",
                 max_length=255,
-                verbose_name="TinyMDM policy ID",
+                verbose_name="TinyMDM default policy ID",
             ),
         ),
         migrations.RunPython(set_mdm_for_existing_orgs, migrations.RunPython.noop),

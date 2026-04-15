@@ -620,6 +620,7 @@ def create_organization(request: HttpRequest):
         # Create the default fleet; Android Enterprise requires an enrolled enterprise
         # first, so for that MDM the fleet is created in enterprise_callback after enrollment.
         if organization.mdm != "Android Enterprise":
+            organization._is_decrypted = True
             try:
                 organization.create_default_fleet()
             except RequestException as e:

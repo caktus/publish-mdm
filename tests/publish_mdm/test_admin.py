@@ -315,6 +315,63 @@ class TestOrganizationAdmin(BaseTestAdmin):
         assert organization.name == data["name"]
         assert organization.slug == data["slug"]
 
+    def test_admin_lists_soft_deleted_organizations(self, user, client):
+        """Admin changeList shows both active and soft-deleted organizations."""
+        active = OrganizationFactory()
+        deleted = OrganizationFactory()
+        deleted.soft_delete()
+
+        response = client.get(reverse("admin:publish_mdm_organization_changelist"))
+
+        assert response.status_code == 200
+        assert active.name in response.content.decode()
+        assert deleted.name in response.content.decode()
+
+    def test_admin_deleted_filter_active(self, user, client):
+        """Filtering by deleted=no returns only active organizations."""
+        active = OrganizationFactory()
+        deleted = OrganizationFactory()
+        deleted.soft_delete()
+
+        url = reverse("admin:publish_mdm_organization_changelist") + "?deleted_at__isnull=True"
+        response = client.get(url)
+
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert active.name in content
+        assert deleted.name not in content
+
+    def test_admin_soft_delete_action(self, user, client):
+        """The soft-delete admin action marks organizations as deleted."""
+        org = OrganizationFactory()
+        data = {
+            "action": "soft_delete_organizations",
+            "_selected_action": [org.pk],
+        }
+        response = client.post(
+            reverse("admin:publish_mdm_organization_changelist"), data, follow=True
+        )
+
+        assert response.status_code == 200
+        org.refresh_from_db()
+        assert org.is_deleted
+
+    def test_admin_restore_action(self, user, client):
+        """The restore admin action clears deleted_at, making an org visible again."""
+        org = OrganizationFactory()
+        org.soft_delete()
+        data = {
+            "action": "restore_organizations",
+            "_selected_action": [org.pk],
+        }
+        response = client.post(
+            reverse("admin:publish_mdm_organization_changelist"), data, follow=True
+        )
+
+        assert response.status_code == 200
+        org.refresh_from_db()
+        assert not org.is_deleted
+
 
 @pytest.mark.django_db
 class TestAndroidEnterpriseAccountAdmin(BaseTestAdmin):

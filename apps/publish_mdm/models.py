@@ -9,7 +9,7 @@ from django.conf import settings
 from django.contrib.sites.shortcuts import get_current_site
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.validators import RegexValidator
-from django.db import models
+from django.db import models, transaction
 from django.db.models import F, Value
 from django.db.models.functions import NullIf
 from django.urls import reverse
@@ -63,7 +63,73 @@ class AbstractBaseModel(models.Model):
         self._is_decrypted = True
 
 
-class Organization(AbstractBaseModel):
+class SoftDeleteQuerySet(models.QuerySet):
+    """QuerySet mixin with soft-delete and restore helpers."""
+
+    def active(self):
+        return self.filter(deleted_at__isnull=True)
+
+    def deleted(self):
+        return self.filter(deleted_at__isnull=False)
+
+    def soft_delete(self):
+        return self.update(deleted_at=timezone.now())
+
+    def restore(self):
+        return self.update(deleted_at=None)
+
+
+class ActiveManager(models.Manager):
+    """Default manager - returns only non-deleted rows."""
+
+    def get_queryset(self):
+        return SoftDeleteQuerySet(self.model, using=self._db).active()
+
+
+class AllObjectsManager(models.Manager):
+    """Manager that returns all rows, including soft-deleted ones."""
+
+    def get_queryset(self):
+        return SoftDeleteQuerySet(self.model, using=self._db)
+
+
+class SoftDeleteModel(models.Model):
+    """Abstract mixin that adds soft-delete support to a model.
+
+    Apply by listing this class before other base models so its default manager
+    takes precedence::
+
+        class MyModel(SoftDeleteModel, AbstractBaseModel):
+            ...
+
+    ``objects`` (the default manager) excludes soft-deleted rows.
+    ``all_objects`` includes every row regardless of deletion state.
+    """
+
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    objects = ActiveManager()
+    all_objects = AllObjectsManager()
+
+    class Meta:
+        abstract = True
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None
+
+    def soft_delete(self) -> None:
+        """Mark this row as deleted without removing it from the database."""
+        self.deleted_at = timezone.now()
+        self.save(update_fields=["deleted_at"])
+
+    def restore(self) -> None:
+        """Un-delete this row, making it visible to the default manager again."""
+        self.deleted_at = None
+        self.save(update_fields=["deleted_at"])
+
+
+class Organization(SoftDeleteModel, AbstractBaseModel):
     name = models.CharField(max_length=255)
     slug = models.SlugField(max_length=255, unique=True)
     users = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="organizations")
@@ -97,16 +163,13 @@ class Organization(AbstractBaseModel):
         verbose_name="TinyMDM account ID",
         help_text="TinyMDM account ID.",
     )
-    tinymdm_policy_id = models.CharField(
+    tinymdm_default_policy_id = models.CharField(
         max_length=255,
         blank=True,
         default="",
-        verbose_name="TinyMDM policy ID",
-        help_text="TinyMDM policy ID.",
+        verbose_name="TinyMDM default policy ID",
+        help_text="TinyMDM default policy ID. A Policy with this ID will be created in the database.",
     )
-
-    objects = models.Manager()
-    decrypted = EncryptedManager()
 
     def __str__(self):
         return self.name
@@ -123,27 +186,32 @@ class Organization(AbstractBaseModel):
             return None
         # Create an org-specific default policy
         if self.mdm == "TinyMDM":
-            policy_id = self.tinymdm_policy_id
+            policy_id = self.tinymdm_default_policy_id
         else:
-            policy_id = f"policy_default_{get_random_string(12)}"
-        policy = Policy.objects.create(
-            name="Default",
-            policy_id=policy_id,
-            organization=self,
-        )
-        # Create the pinned ODK Collect app row (order=0) so new policies are consistent
-        # with those created via the policy editor UI.
-        PolicyApplication.objects.create(
-            policy=policy,
-            package_name=policy.odk_collect_package,
-            install_type="FORCE_INSTALLED",
-            order=0,
-        )
-        fleet = Fleet(organization=self, name="Default", policy=policy)
-        active_mdm.create_group(fleet)
-        active_mdm.add_group_to_policy(fleet)
-        active_mdm.get_enrollment_qr_code(fleet)
-        fleet.save()
+            # Create a random policy ID to avoid collisions.
+            policy_id = policy_id = f"policy_{get_random_string(20)}"
+        with transaction.atomic():
+            policy = Policy.objects.create(
+                name="Default",
+                policy_id=policy_id,
+                organization=self,
+            )
+            if self.mdm != "TinyMDM":
+                # Create the pinned ODK Collect app row (order=0) so new policies are consistent
+                # with those created via the policy editor UI.
+                PolicyApplication.objects.create(
+                    policy=policy,
+                    package_name=policy.odk_collect_package,
+                    install_type="FORCE_INSTALLED",
+                    order=0,
+                )
+            # Ensure the default policy exists in the MDM before linking groups to it.
+            active_mdm.create_or_update_policy(policy)
+            fleet = Fleet(organization=self, name="Default", policy=policy)
+            active_mdm.create_group(fleet)
+            active_mdm.add_group_to_policy(fleet)
+            active_mdm.get_enrollment_qr_code(fleet)
+            fleet.save()
         return fleet
 
 

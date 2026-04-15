@@ -456,7 +456,7 @@ class OrganizationForm(PlatformFormMixin, forms.ModelForm):
             "tinymdm_apikey_public",
             "tinymdm_apikey_secret",
             "tinymdm_account_id",
-            "tinymdm_policy_id",
+            "tinymdm_default_policy_id",
         )
         widgets: ClassVar = {
             "name": TextInput,
@@ -465,7 +465,7 @@ class OrganizationForm(PlatformFormMixin, forms.ModelForm):
             "tinymdm_apikey_public": PasswordInput(render_value=True),
             "tinymdm_apikey_secret": PasswordInput(render_value=True),
             "tinymdm_account_id": TextInput,
-            "tinymdm_policy_id": TextInput,
+            "tinymdm_default_policy_id": TextInput,
         }
 
     def __init__(self, *args, **kwargs):
@@ -475,7 +475,7 @@ class OrganizationForm(PlatformFormMixin, forms.ModelForm):
             "tinymdm_apikey_public",
             "tinymdm_apikey_secret",
             "tinymdm_account_id",
-            "tinymdm_policy_id",
+            "tinymdm_default_policy_id",
         ]
 
     def clean(self):
@@ -487,7 +487,7 @@ class OrganizationForm(PlatformFormMixin, forms.ModelForm):
                     self.add_error(field, "This field is required when TinyMDM is selected.")
         else:
             for field in self.tinymdm_fields:
-                if field == "tinymdm_policy_id":
+                if field == "tinymdm_default_policy_id":
                     cleaned_data[field] = ""
                 else:
                     cleaned_data[field] = None

@@ -193,7 +193,15 @@ class AppUserFormVersionAdmin(admin.ModelAdmin):
 
 @admin.register(Organization)
 class OrganizationAdmin(admin.ModelAdmin):
-    list_display = ("name", "slug", "mdm", "created_at", "modified_at", "public_signup_enabled")
+    list_display = (
+        "name",
+        "slug",
+        "mdm",
+        "created_at",
+        "modified_at",
+        "public_signup_enabled",
+        "deleted_at",
+    )
     search_fields = ("name", "slug")
     ordering = ("name",)
     filter_horizontal = ("users",)
@@ -206,7 +214,7 @@ class OrganizationAdmin(admin.ModelAdmin):
                     "tinymdm_apikey_public",
                     "tinymdm_apikey_secret",
                     "tinymdm_account_id",
-                    "tinymdm_policy_id",
+                    "tinymdm_default_policy_id",
                 ),
                 "description": (
                     "Per-organization TinyMDM API credentials and policy configuration. "
@@ -215,12 +223,28 @@ class OrganizationAdmin(admin.ModelAdmin):
             },
         ),
     )
+    list_filter = ("deleted_at",)
+    actions: ClassVar = ["soft_delete_organizations", "restore_organizations"]
+
+    def get_queryset(self, request):
+        return Organization.all_objects.all()
+
+    @admin.action(description="Soft-delete selected organizations")
+    def soft_delete_organizations(self, request, queryset):
+        count = queryset.filter(deleted_at__isnull=True).soft_delete()
+        self.message_user(request, f"{count} organization(s) soft-deleted.")
+
+    @admin.action(description="Restore selected organizations")
+    def restore_organizations(self, request, queryset):
+        count = queryset.filter(deleted_at__isnull=False).restore()
+        self.message_user(request, f"{count} organization(s) restored.")
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
         # Create the default fleet for new organizations, unless Android Enterprise is active —
         # it requires an enrolled enterprise first, so the fleet is created in enterprise_callback.
         if not change and obj.mdm != "Android Enterprise":
+            obj._is_decrypted = True
             try:
                 obj.create_default_fleet()
             except RequestException as e:

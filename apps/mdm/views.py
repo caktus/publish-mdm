@@ -9,7 +9,6 @@ from django.db.models import F, Max, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.crypto import get_random_string
-from django.utils.text import slugify
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 
@@ -22,10 +21,17 @@ from .forms import (
     PolicyApplicationFormSet,
     PolicyEditForm,
     PolicyNameForm,
+    PolicyTinyMDMForm,
     PolicyVariableFormSet,
 )
 from .mdms import get_active_mdm_instance
-from .models import Device, Policy, PolicyApplication, PolicyVariable, PolicyVariableScope
+from .models import (
+    Device,
+    Policy,
+    PolicyApplication,
+    PolicyVariable,
+    PolicyVariableScope,
+)
 
 logger = structlog.get_logger()
 
@@ -229,31 +235,35 @@ def policy_add(request, organization_slug):
             request, "Sorry, cannot create a policy at this time. Please try again later."
         )
         return redirect("mdm:policy-list", organization_slug)
+    is_tinymdm = request.organization.mdm == "TinyMDM"
+    FormClass = PolicyTinyMDMForm if is_tinymdm else PolicyNameForm
     if request.method == "POST":
-        form = PolicyNameForm(request.POST)
+        form = FormClass(request.POST)
         if form.is_valid():
             policy = form.save(commit=False)
-            if request.organization.mdm == "TinyMDM":
-                policy.policy_id = request.organization.tinymdm_policy_id
-            else:
-                # policy_id: "policy_" (7) + up to 50 chars of slug + "_" (1) + 8 random chars = ≤66 chars,
-                # well within the 255-char field limit; random suffix prevents collisions.
-                policy.policy_id = f"policy_{slugify(policy.name)[:50]}_{get_random_string(8)}"
             policy.organization = request.organization
+            if not is_tinymdm:
+                # For AMAPI, auto-generate policy_id; for TinyMDM it is user-provided via the form.
+                # Create a random policy ID to avoid collisions.
+                policy.policy_id = f"policy_{get_random_string(20)}"
             policy.save()
-            PolicyApplication.objects.create(
-                policy=policy,
-                package_name=policy.odk_collect_package,
-                install_type="FORCE_INSTALLED",
-                order=0,
-            )
-            _push_policy_to_mdm(policy, request)
+            if not is_tinymdm:
+                PolicyApplication.objects.create(
+                    policy=policy,
+                    package_name=policy.odk_collect_package,
+                    install_type="FORCE_INSTALLED",
+                    order=0,
+                )
+                _push_policy_to_mdm(policy, request)
             messages.success(request, f"Policy '{policy.name}' created.")
+            if is_tinymdm:
+                return redirect("mdm:policy-list", organization_slug)
             return redirect("mdm:policy-edit", organization_slug, policy.pk)
     else:
-        form = PolicyNameForm()
+        form = FormClass()
     context = {
         "form": form,
+        "is_tinymdm": is_tinymdm,
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
             items=[
@@ -265,12 +275,27 @@ def policy_add(request, organization_slug):
     return render(request, "mdm/policy_add.html", context)
 
 
-@login_required
-def policy_edit(request, organization_slug, policy_id):
-    """Edit a policy: all fields, applications, and variables in a single form."""
-    policy = _get_policy_or_404(policy_id, request.organization)
-    organization = request.organization
+def _handle_tinymdm_policy_edit(request, policy):
+    """Handle TinyMDM policy edit (name and policy_id only).
 
+    Returns a redirect on success, or a 2-tuple (context dict and template name) on GET/invalid POST.
+    """
+    if request.method == "POST":
+        form = PolicyTinyMDMForm(request.POST, instance=policy)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Policy saved.")
+            return redirect("mdm:policy-edit", request.organization.slug, policy.pk)
+    else:
+        form = PolicyTinyMDMForm(instance=policy)
+    return {"form": form}, "mdm/policy_tinymdm_form.html"
+
+
+def _handle_amapi_policy_edit(request, policy):
+    """Handle Android Enterprise (AMAPI) policy edit: full form with apps and variables.
+
+    Returns a redirect on success, or a 2-tuple (context dict and template name) on GET/invalid POST.
+    """
     if request.method == "POST":
         form = PolicyEditForm(request.POST, instance=policy)
         app_formset = PolicyApplicationFormSet(request.POST, instance=policy, prefix="apps")
@@ -278,7 +303,7 @@ def policy_edit(request, organization_slug, policy_id):
             request.POST,
             queryset=_get_policy_variables(policy),
             prefix="vars",
-            organization=organization,
+            organization=request.organization,
             policy=policy,
         )
         if form.is_valid() and app_formset.is_valid() and var_formset.is_valid():
@@ -323,22 +348,41 @@ def policy_edit(request, organization_slug, policy_id):
                 var.delete()
             messages.success(request, "Policy saved.")
             _push_policy_to_mdm(policy, request)
-            return redirect("mdm:policy-edit", organization_slug, policy.pk)
+            return redirect("mdm:policy-edit", request.organization.slug, policy.pk)
     else:
         form = PolicyEditForm(instance=policy)
         app_formset = PolicyApplicationFormSet(instance=policy, prefix="apps")
         var_formset = PolicyVariableFormSet(
             queryset=_get_policy_variables(policy),
             prefix="vars",
-            organization=organization,
+            organization=request.organization,
             policy=policy,
         )
-
-    context = {
-        "policy": policy,
+    return {
         "form": form,
         "app_formset": app_formset,
         "var_formset": var_formset,
+    }, "mdm/policy_form.html"
+
+
+@login_required
+def policy_edit(request, organization_slug, policy_id):
+    """Edit a policy: dispatches to MDM-specific handlers for TinyMDM and AMAPI."""
+    policy = _get_policy_or_404(policy_id, request.organization)
+
+    if request.organization.mdm == "TinyMDM":
+        handler = _handle_tinymdm_policy_edit
+    else:
+        handler = _handle_amapi_policy_edit
+
+    result = handler(request, policy)
+
+    if isinstance(result, HttpResponse):
+        return result
+
+    extra_context, template = result
+    context = {
+        "policy": policy,
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
             items=[
@@ -346,8 +390,9 @@ def policy_edit(request, organization_slug, policy_id):
                 (policy.name, "mdm:policy-edit", [policy.pk]),
             ],
         ),
+        **extra_context,
     }
-    return render(request, "mdm/policy_form.html", context)
+    return render(request, template, context)
 
 
 @login_required

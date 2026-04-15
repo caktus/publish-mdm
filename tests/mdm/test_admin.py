@@ -218,6 +218,34 @@ class TestFleetAdmin(TestAdmin):
         else:
             mock_add_group_to_policy.assert_not_called()
 
+    def test_changelist_includes_fleet_from_deleted_organization(
+        self, user, client, mocker, organization
+    ):
+        """Fleet changelist includes fleets belonging to soft-deleted organizations."""
+        MDM = get_active_mdm_class(organization)
+        mocker.patch.object(MDM, "pull_devices")
+        fleet = FleetFactory(organization=organization)
+        fleet.organization.soft_delete()
+
+        response = client.get(reverse("admin:mdm_fleet_changelist"))
+
+        assert response.status_code == 200
+        assertContains(response, fleet.name)
+
+    def test_change_form_organization_dropdown_includes_deleted_selected_org(
+        self, user, client, mocker, organization
+    ):
+        """Fleet change form still shows a deleted organization in the dropdown."""
+        MDM = get_active_mdm_class(organization)
+        mocker.patch.object(MDM, "pull_devices")
+        fleet = FleetFactory(organization=organization)
+        fleet.organization.soft_delete()
+
+        response = client.get(reverse("admin:mdm_fleet_change", args=[fleet.pk]))
+
+        assert response.status_code == 200
+        assertContains(response, f'value="{fleet.organization_id}" selected')
+
     def test_delete_fleet_successful(self, user, client, mocker, organization):
         """Ensures a Fleet is successfully deleted if it's not linked to any device
         either in the database or in the MDM.

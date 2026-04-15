@@ -18,11 +18,6 @@ from .serializers import PolicySerializer
 logger = structlog.get_logger()
 
 
-class MDMChoices(models.TextChoices):
-    TINYMDM = "TinyMDM", "TinyMDM"
-    ANDROID_ENTERPRISE = "Android Enterprise", "Android Enterprise"
-
-
 class PasswordQuality(models.TextChoices):
     PASSWORD_QUALITY_UNSPECIFIED = "PASSWORD_QUALITY_UNSPECIFIED", "Unspecified"
     BIOMETRIC_WEAK = "BIOMETRIC_WEAK", "Biometric weak"
@@ -416,6 +411,11 @@ def enroll_qr_code_path(fleet, filename):
     return f"mdm-enroll-qr-codes/{fleet.organization.slug}/{filename}"
 
 
+class FleetManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(organization__deleted_at__isnull=True)
+
+
 class Fleet(models.Model):
     """A fleet of devices that corresponds to a single group in the MDM."""
 
@@ -461,6 +461,9 @@ class Fleet(models.Model):
     )
     enroll_token_expires_at = models.DateTimeField(blank=True, null=True)
     enroll_token_value = models.CharField(max_length=30, blank=True)
+
+    objects = FleetManager()
+    all_orgs = models.Manager()  # noqa: DJ012
 
     class Meta:
         constraints = (

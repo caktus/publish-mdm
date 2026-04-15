@@ -1362,7 +1362,7 @@ class TestCreateOrganization(ViewTestBase):
             "tinymdm_apikey_public": "pubkey",
             "tinymdm_apikey_secret": "seckey",
             "tinymdm_account_id": "accountid",
-            "tinymdm_policy_id": "policyid",
+            "tinymdm_default_policy_id": "policyid",
         }
         mock_create_default_fleet = mocker.patch.object(
             Organization, "create_default_fleet", side_effect=mdm_api_error
