@@ -11,10 +11,9 @@ from apps.mdm.mdms import get_active_mdm_class
 from apps.mdm.models import Fleet, Policy, PolicyApplication
 from apps.publish_mdm.etl import template
 from apps.publish_mdm.models import CentralServer
-from tests.mdm import TestAllMDMs
+from tests.mdm import TestAllMDMs, _configure_mdm
 
 from .factories import (
-    AndroidEnterpriseAccountFactory,
     AppUserFactory,
     AppUserFormTemplateFactory,
     AppUserTemplateVariableFactory,
@@ -299,16 +298,11 @@ class TestAppUser:
 
 @pytest.mark.django_db
 class TestOrganization(TestAllMDMs):
-    def test_create_default_fleet(self, set_mdm_env_vars, mocker, settings):
+    def test_create_default_fleet(self, mocker, organization):
         """Ensures calling create_default_fleet() creates a default Fleet and
         org-specific policy for an organization when the active MDM is configured.
         """
-        organization = OrganizationFactory()
-        if settings.ACTIVE_MDM["name"] == "Android Enterprise":
-            AndroidEnterpriseAccountFactory(
-                organization=organization, enterprise_name="enterprises/test"
-            )
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mock_create_or_update_policy = mocker.patch.object(MDM, "create_or_update_policy")
         mock_create_group = mocker.patch.object(MDM, "create_group")
         mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
@@ -325,18 +319,11 @@ class TestOrganization(TestAllMDMs):
         mock_add_group_to_policy.assert_called_once()
         mock_get_enrollment_qr_code.assert_called_once()
 
-    def test_create_default_fleet_raises_if_policy_sync_fails(
-        self, set_mdm_env_vars, mocker, settings
-    ):
+    def test_create_default_fleet_raises_if_policy_sync_fails(self, organization, mocker):
         """Default fleet creation should fail fast when policy sync fails, and
         DB rows (Policy, PolicyApplication) should be rolled back atomically.
         """
-        organization = OrganizationFactory()
-        if settings.ACTIVE_MDM["name"] == "Android Enterprise":
-            AndroidEnterpriseAccountFactory(
-                organization=organization, enterprise_name="enterprises/test"
-            )
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mocker.patch.object(MDM, "create_or_update_policy", side_effect=RuntimeError("sync failed"))
         mock_create_group = mocker.patch.object(MDM, "create_group")
         mock_add_group_to_policy = mocker.patch.object(MDM, "add_group_to_policy")
@@ -350,30 +337,28 @@ class TestOrganization(TestAllMDMs):
         mock_add_group_to_policy.assert_not_called()
         mock_get_enrollment_qr_code.assert_not_called()
         # The atomic block should have rolled back all DB changes.
-        assert not Policy.all_mdms.filter(organization=organization).exists()
+        assert not Policy.objects.filter(organization=organization).exists()
         assert not PolicyApplication.objects.filter(policy__organization=organization).exists()
         assert not Fleet.objects.filter(organization=organization).exists()
 
-    def test_create_default_fleet_policy_id_is_unique(self, set_mdm_env_vars, mocker, settings):
+    def test_create_default_fleet_policy_id_is_unique(self, mocker, organization):
         """Two calls to create_default_fleet() must produce distinct policy_id values.
 
         Regression test: the previous implementation used
         ``f"policy_default_{Policy.all_mdms.count()}"`` which produces collisions
         under concurrency or after deletions.
         """
-        MDM = get_active_mdm_class()
+        MDM = get_active_mdm_class(organization)
         mock_create_or_update_policy = mocker.patch.object(MDM, "create_or_update_policy")
         mocker.patch.object(MDM, "create_group")
         mocker.patch.object(MDM, "add_group_to_policy")
         mocker.patch.object(MDM, "get_enrollment_qr_code")
         mocker.patch.object(MDM, "pull_devices")
 
-        org1 = OrganizationFactory()
-        org2 = OrganizationFactory()
-        if settings.ACTIVE_MDM["name"] == "Android Enterprise":
-            AndroidEnterpriseAccountFactory(organization=org1, enterprise_name="enterprises/test")
-            AndroidEnterpriseAccountFactory(organization=org2, enterprise_name="enterprises/test")
-        fleet1 = org1.create_default_fleet()
-        fleet2 = org2.create_default_fleet()
-        assert fleet1.policy.policy_id != fleet2.policy.policy_id
-        assert mock_create_or_update_policy.call_count == 2
+        policy_ids = set()
+        for org in OrganizationFactory.create_batch(3):
+            _configure_mdm(self.mdm, org)
+            fleet = org.create_default_fleet()
+            policy_ids.add(fleet.policy.policy_id)
+        assert len(policy_ids) == 3
+        assert mock_create_or_update_policy.call_count == 3

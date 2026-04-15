@@ -170,7 +170,7 @@ class TestPolicyEditForm:
         policy = PolicyFactory()
         PolicyApplicationFactory(policy=policy, install_type="KIOSK")
         # Simulate a new (unsaved) policy instance
-        new_policy = Policy(name="New", mdm="Android Enterprise")
+        new_policy = Policy(name="New")
         data = {**self._base_data(), "kiosk_custom_launcher_enabled": True}
         form = PolicyEditForm(data, instance=new_policy)
         assert form.is_valid(), form.errors

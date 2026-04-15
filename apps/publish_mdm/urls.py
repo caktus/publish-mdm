@@ -178,7 +178,7 @@ urlpatterns = [
         name="add-byod-device",
     ),
     path(
-        "check-mdm-license-limit/",
+        "o/<slug:organization_slug>/check-mdm-license-limit/",
         views.check_mdm_license_limit,
         name="check-mdm-license-limit",
     ),

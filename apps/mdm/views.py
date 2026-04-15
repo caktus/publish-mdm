@@ -27,7 +27,6 @@ from .forms import (
 from .mdms import get_active_mdm_instance
 from .models import (
     Device,
-    MDMChoices,
     Policy,
     PolicyApplication,
     PolicyVariable,
@@ -177,8 +176,9 @@ def _push_policy_to_mdm(policy, request):
     if not active_mdm:
         logger.warning(
             "Skipping policy push: MDM is not configured. "
-            "Check that the required environment variables are set and restart the server.",
-            active_mdm_name=settings.ACTIVE_MDM["name"],
+            "Check that an MDM is properly configured for the organization.",
+            organization=policy.organization,
+            active_mdm_name=policy.organization.mdm,
             policy=policy,
         )
         messages.warning(request, warning)
@@ -217,8 +217,7 @@ def policy_list(request, organization_slug):
     policies = Policy.objects.filter(organization=request.organization)
     context = {
         "policies": policies,
-        "show_policy_id": settings.ACTIVE_MDM["name"] != "Android Enterprise",
-        "active_mdm_name": settings.ACTIVE_MDM["name"],
+        "show_policy_id": request.organization.mdm != "Android Enterprise",
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
             items=[("Policies", "mdm:policy-list")],
@@ -236,13 +235,12 @@ def policy_add(request, organization_slug):
             request, "Sorry, cannot create a policy at this time. Please try again later."
         )
         return redirect("mdm:policy-list", organization_slug)
-    is_tinymdm = settings.ACTIVE_MDM["name"] == MDMChoices.TINYMDM
+    is_tinymdm = request.organization.mdm == "TinyMDM"
     FormClass = PolicyTinyMDMForm if is_tinymdm else PolicyNameForm
     if request.method == "POST":
         form = FormClass(request.POST)
         if form.is_valid():
             policy = form.save(commit=False)
-            policy.mdm = settings.ACTIVE_MDM["name"]
             policy.organization = request.organization
             if not is_tinymdm:
                 # For AMAPI, auto-generate policy_id; for TinyMDM it is user-provided via the form.
@@ -372,7 +370,7 @@ def policy_edit(request, organization_slug, policy_id):
     """Edit a policy: dispatches to MDM-specific handlers for TinyMDM and AMAPI."""
     policy = _get_policy_or_404(policy_id, request.organization)
 
-    if policy.mdm == MDMChoices.TINYMDM:
+    if request.organization.mdm == "TinyMDM":
         handler = _handle_tinymdm_policy_edit
     else:
         handler = _handle_amapi_policy_edit

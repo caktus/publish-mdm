@@ -40,10 +40,8 @@ Development <../local-development/index>` guide to run Publish MDM locally.
 
    - ``INFISICAL_API_URL``, ``INFISICAL_TOKEN``, and ``INFISICAL_KMS_PROJECT_ID``: See :doc:`../local-development/infisical`.
 
-   - To use Android EMM as your :ref:`mdm-service-provider`, set the following environment variables:
+   - To use Android Enterprise as your :ref:`mdm-service-provider`, set these server-wide environment variables:
 
-      - ``ACTIVE_MDM_NAME="Android Enterprise"``
-      - ``ACTIVE_MDM_CLASS=apps.mdm.mdms.AndroidEnterprise``
       - ``ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE``: The path to a Google service account file.
         See the `Google docs <https://developers.google.com/android/management/service-account>`_ on how to create one.
       - ``ANDROID_ENTERPRISE_PUBSUB_TOKEN``: (Optional, needed if you'll enable real-time device enrollment notifications).
@@ -54,8 +52,8 @@ Development <../local-development/index>` guide to run Publish MDM locally.
         (``projects/{project_id}/topics/publish-mdm-{environment}``) and subscription, and grant
         Android Device Policy the right to publish to it.
 
-   - To use TinyMDM as your MDM service provider (the default if ``ACTIVE_MDM_NAME`` is not set),
-     set ``TINYMDM_ACCOUNT_ID``, ``TINYMDM_APIKEY_PUBLIC``, and ``TINYMDM_APIKEY_SECRET``.
+   - The MDM type (TinyMDM or Android Enterprise) and TinyMDM API credentials are configured
+     per-organization in the Django admin (``/admin/publish_mdm/organization/``).
 
 2. Start the Publish MDM server, login with your Google account, and make
    yourself an admin.

@@ -257,9 +257,7 @@ class TestCentralServerAdmin(BaseTestAdmin):
 
 class TestOrganizationAdmin(BaseTestAdmin):
     @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
-    def test_new_organization(
-        self, user, client, mocker, all_mdms, set_mdm_env_vars, mdm_api_error
-    ):
+    def test_new_organization(self, user, client, mocker, all_mdms, mdm_api_error):
         """For TinyMDM, create_default_fleet() is called immediately when creating a new
         organization. For Android Enterprise, fleet creation is deferred until enterprise
         enrollment completes via enterprise_callback, so create_default_fleet() is not
@@ -269,6 +267,7 @@ class TestOrganizationAdmin(BaseTestAdmin):
         data = {
             "name": organization.name,
             "slug": organization.slug,
+            "mdm": self.mdm,
             "users": [user.id],
         }
         mock_create_default_fleet = mocker.patch.object(
@@ -280,7 +279,7 @@ class TestOrganizationAdmin(BaseTestAdmin):
 
         assert response.status_code == 200
         assert Organization.objects.filter(name=data["name"], slug=data["slug"]).exists()
-        if settings.ACTIVE_MDM["name"] == "Android Enterprise":
+        if self.mdm == "Android Enterprise":
             mock_create_default_fleet.assert_not_called()
         else:
             mock_create_default_fleet.assert_called_once()
@@ -288,20 +287,20 @@ class TestOrganizationAdmin(BaseTestAdmin):
                 assertContains(
                     response,
                     (
-                        f"The organization was created but the following {settings.ACTIVE_MDM['name']} "
+                        f"The organization was created but the following {self.mdm} "
                         f"API error occurred while setting up its default Fleet:<br><code>{mdm_api_error}</code>"
                     ),
                 )
 
-    def test_edit_organization(self, user, client, mocker):
+    def test_edit_organization(self, user, client, mocker, organization):
         """Ensures the create_default_fleet() method is not called when editing
         an organization.
         """
-        organization = OrganizationFactory()
         data = {
             "name": organization.name + "edited",
             "slug": organization.slug + "edited",
             "users": [user.id],
+            "mdm": organization.mdm,
         }
         mock_create_default_fleet = mocker.patch.object(Organization, "create_default_fleet")
         response = client.post(

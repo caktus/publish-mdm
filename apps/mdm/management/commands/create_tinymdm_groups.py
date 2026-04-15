@@ -1,9 +1,8 @@
 import structlog
-from django.conf import settings
 from django.core.management.base import BaseCommand
 from requests.exceptions import RequestException
 
-from apps.mdm.mdms import TinyMDM
+from apps.mdm.mdms import get_active_mdm_instance
 from apps.mdm.models import Fleet
 
 logger = structlog.getLogger(__name__)
@@ -13,13 +12,15 @@ class Command(BaseCommand):
     help = "Create groups in TinyMDM for any Fleets whose mdm_group_id is not set."
 
     def handle(self, *args, **options):
-        if not (settings.ACTIVE_MDM["name"] == "TinyMDM" and (active_mdm := TinyMDM())):
-            return
-
-        fleets = Fleet.objects.filter(mdm_group_id__isnull=True).select_related()
+        fleets = Fleet.objects.filter(
+            mdm_group_id__isnull=True, organization__mdm="TinyMDM"
+        ).select_related("organization")
         logger.info(f"Creating TinyMDM groups for {len(fleets)} Fleets")
 
         for fleet in fleets:
+            active_mdm = get_active_mdm_instance(fleet.organization)
+            if not active_mdm:
+                continue
             try:
                 active_mdm.create_group(fleet)
             except RequestException:

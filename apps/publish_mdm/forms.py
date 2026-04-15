@@ -452,11 +452,46 @@ class OrganizationForm(PlatformFormMixin, forms.ModelForm):
         fields = (
             "name",
             "slug",
+            "mdm",
+            "tinymdm_apikey_public",
+            "tinymdm_apikey_secret",
+            "tinymdm_account_id",
+            "tinymdm_default_policy_id",
         )
         widgets: ClassVar = {
             "name": TextInput,
             "slug": TextInput,
+            "mdm": Select(attrs={"x-model": "mdm"}),
+            "tinymdm_apikey_public": PasswordInput(render_value=True),
+            "tinymdm_apikey_secret": PasswordInput(render_value=True),
+            "tinymdm_account_id": TextInput,
+            "tinymdm_default_policy_id": TextInput,
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # TinyMDM credential fields are only relevant when mdm == "TinyMDM"
+        self.tinymdm_fields = [
+            "tinymdm_apikey_public",
+            "tinymdm_apikey_secret",
+            "tinymdm_account_id",
+            "tinymdm_default_policy_id",
+        ]
+
+    def clean(self):
+        cleaned_data = super().clean()
+        mdm = cleaned_data.get("mdm")
+        if mdm == "TinyMDM":
+            for field in self.tinymdm_fields:
+                if not cleaned_data.get(field):
+                    self.add_error(field, "This field is required when TinyMDM is selected.")
+        else:
+            for field in self.tinymdm_fields:
+                if field == "tinymdm_default_policy_id":
+                    cleaned_data[field] = ""
+                else:
+                    cleaned_data[field] = None
+        return cleaned_data
 
 
 class CleanOrganizationInvitationMixin:

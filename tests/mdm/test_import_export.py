@@ -52,7 +52,7 @@ class TestDeviceResource(TestAllMDMs):
         for row in dataset:
             assert tuple(str(i) for i in row) in expected_export_values
 
-    def test_valid_import(self, fleet, devices, dataset, organization, set_mdm_env_vars):
+    def test_valid_import(self, fleet, devices, dataset, organization):
         """Ensure a valid import updates the database as expected."""
         # Add all current devices to the dataset
         dataset.extend(models.Device.objects.values_list(*dataset.headers))
@@ -167,7 +167,7 @@ class TestDeviceResource(TestAllMDMs):
         assert isinstance(error_list[0].error, models.Fleet.DoesNotExist)
 
     @pytest.mark.parametrize("dry_run", [True, False])
-    def test_valid_import_dry_run(self, fleet, devices, dataset, mocker, dry_run, set_mdm_env_vars):
+    def test_valid_import_dry_run(self, fleet, devices, dataset, mocker, dry_run, organization):
         """Ensure Device saves do not push to MDM directly; Dagster handles MDM pushes."""
         # Add one edited device to the import data
         device = devices[0]
@@ -177,7 +177,9 @@ class TestDeviceResource(TestAllMDMs):
 
         resource = import_export.DeviceResource()
         mock_device_save = mocker.patch.object(models.Device, "save", wraps=device.save)
-        mock_push_device_config = mocker.patch.object(get_active_mdm_class(), "push_device_config")
+        mock_push_device_config = mocker.patch.object(
+            get_active_mdm_class(organization), "push_device_config"
+        )
 
         # Do the import
         result = resource.import_data(dataset, dry_run=dry_run)

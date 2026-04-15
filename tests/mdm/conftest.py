@@ -1,6 +1,12 @@
 import pytest
 
 from apps.infisical.api import InfisicalKMS
+from tests.publish_mdm.factories import OrganizationFactory
+
+
+@pytest.fixture
+def organization():
+    return OrganizationFactory()
 
 
 @pytest.fixture(autouse=True)

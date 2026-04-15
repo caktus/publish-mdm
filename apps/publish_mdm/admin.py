@@ -196,6 +196,7 @@ class OrganizationAdmin(admin.ModelAdmin):
     list_display = (
         "name",
         "slug",
+        "mdm",
         "created_at",
         "modified_at",
         "public_signup_enabled",
@@ -204,6 +205,24 @@ class OrganizationAdmin(admin.ModelAdmin):
     search_fields = ("name", "slug")
     ordering = ("name",)
     filter_horizontal = ("users",)
+    fieldsets = (
+        (None, {"fields": ("name", "slug", "mdm", "public_signup_enabled", "users")}),
+        (
+            "TinyMDM API Credentials",
+            {
+                "fields": (
+                    "tinymdm_apikey_public",
+                    "tinymdm_apikey_secret",
+                    "tinymdm_account_id",
+                    "tinymdm_default_policy_id",
+                ),
+                "description": (
+                    "Per-organization TinyMDM API credentials and policy configuration. "
+                    "Configure these values on the organization when using TinyMDM."
+                ),
+            },
+        ),
+    )
     list_filter = ("deleted_at",)
     actions: ClassVar = ["soft_delete_organizations", "restore_organizations"]
 
@@ -224,7 +243,8 @@ class OrganizationAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         # Create the default fleet for new organizations, unless Android Enterprise is active —
         # it requires an enrolled enterprise first, so the fleet is created in enterprise_callback.
-        if not change and settings.ACTIVE_MDM["name"] != "Android Enterprise":
+        if not change and obj.mdm != "Android Enterprise":
+            obj._is_decrypted = True
             try:
                 obj.create_default_fleet()
             except RequestException as e:
@@ -233,7 +253,7 @@ class OrganizationAdmin(admin.ModelAdmin):
                     request,
                     mark_safe(
                         "The organization was created but the following "
-                        f"{settings.ACTIVE_MDM['name']} API error occurred while "
+                        f"{obj.mdm} API error occurred while "
                         f"setting up its default Fleet:<br><code>{getattr(e, 'api_error', e)}</code>"
                     ),
                 )

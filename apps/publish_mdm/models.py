@@ -22,7 +22,7 @@ from invitations.base_invitation import AbstractBaseInvitation
 from invitations.signals import invite_url_sent
 
 from apps.infisical.api import kms_api
-from apps.infisical.fields import EncryptedCharField, EncryptedEmailField
+from apps.infisical.fields import EncryptedCharField, EncryptedEmailField, EncryptedMixin
 from apps.infisical.managers import EncryptedManager
 from apps.mdm.mdms import get_active_mdm_instance
 from apps.mdm.models import Fleet, Policy, PolicyApplication
@@ -42,6 +42,25 @@ class AbstractBaseModel(models.Model):
 
     class Meta:
         abstract = True
+
+    @property
+    def is_decrypted(self):
+        return getattr(self, "_is_decrypted", False)
+
+    def decrypt(self):
+        """Decrypt any encrypted fields. Use this if they were not decrypted when
+        getting from the database (i.e. if EncryptedManager was not used).
+        """
+        if self.is_decrypted:
+            return
+        key_name = self.__class__.__name__.lower()
+        for field in self._meta.fields:
+            if isinstance(field, EncryptedMixin):
+                value = getattr(self, field.name)
+                if value:
+                    value = kms_api.decrypt(key_name, value)
+                    setattr(self, field.name, value)
+        self._is_decrypted = True
 
 
 class SoftDeleteQuerySet(models.QuerySet):
@@ -118,6 +137,39 @@ class Organization(SoftDeleteModel, AbstractBaseModel):
         default=False,
         help_text="Enable a public sign-up page, where anyone can enter an email address to receive an invite.",
     )
+    mdm = models.CharField(
+        max_length=50,
+        choices=[(name, name) for name in settings.MDM_REGISTRY],
+        default=next(iter(settings.MDM_REGISTRY)),
+        help_text="The Mobile Device Management system used by this organization.",
+        verbose_name="MDM",
+    )
+    # Per-org TinyMDM API credentials
+    tinymdm_apikey_public = EncryptedCharField(
+        null=True,
+        blank=True,
+        verbose_name="TinyMDM API key (public)",
+        help_text="TinyMDM manager API public key.",
+    )
+    tinymdm_apikey_secret = EncryptedCharField(
+        null=True,
+        blank=True,
+        verbose_name="TinyMDM API key (secret)",
+        help_text="TinyMDM manager API secret key.",
+    )
+    tinymdm_account_id = EncryptedCharField(
+        null=True,
+        blank=True,
+        verbose_name="TinyMDM account ID",
+        help_text="TinyMDM account ID.",
+    )
+    tinymdm_default_policy_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        verbose_name="TinyMDM default policy ID",
+        help_text="TinyMDM default policy ID. A Policy with this ID will be created in the database.",
+    )
 
     def __str__(self):
         return self.name
@@ -132,23 +184,27 @@ class Organization(SoftDeleteModel, AbstractBaseModel):
         active_mdm = get_active_mdm_instance(organization=self)
         if not active_mdm:
             return None
+        # Create an org-specific default policy
+        if self.mdm == "TinyMDM":
+            policy_id = self.tinymdm_default_policy_id
+        else:
+            # Create a random policy ID to avoid collisions.
+            policy_id = policy_id = f"policy_{get_random_string(20)}"
         with transaction.atomic():
-            # Create an org-specific default policy
-            policy = Policy.all_mdms.create(
+            policy = Policy.objects.create(
                 name="Default",
-                # Create a random policy ID to avoid collisions.
-                policy_id=f"policy_{get_random_string(20)}",
-                mdm=settings.ACTIVE_MDM["name"],
+                policy_id=policy_id,
                 organization=self,
             )
-            # Create the pinned ODK Collect app row (order=0) so new policies are consistent
-            # with those created via the policy editor UI.
-            PolicyApplication.objects.create(
-                policy=policy,
-                package_name=policy.odk_collect_package,
-                install_type="FORCE_INSTALLED",
-                order=0,
-            )
+            if self.mdm != "TinyMDM":
+                # Create the pinned ODK Collect app row (order=0) so new policies are consistent
+                # with those created via the policy editor UI.
+                PolicyApplication.objects.create(
+                    policy=policy,
+                    package_name=policy.odk_collect_package,
+                    install_type="FORCE_INSTALLED",
+                    order=0,
+                )
             # Ensure the default policy exists in the MDM before linking groups to it.
             active_mdm.create_or_update_policy(policy)
             fleet = Fleet(organization=self, name="Default", policy=policy)
@@ -182,16 +238,6 @@ class CentralServer(AbstractBaseModel):
     def save(self, *args, **kwargs):
         self.base_url = self.base_url.rstrip("/")
         super().save(*args, **kwargs)
-
-    def decrypt(self):
-        """Decrypt username and password. Use this if they were not decrypted when
-        getting from the database (i.e. if the `decrypted` model manager was not used).
-        """
-        for field in ("username", "password"):
-            value = getattr(self, field)
-            if value:
-                value = kms_api.decrypt("centralserver", value)
-                setattr(self, field, value)
 
     @property
     def masked_username(self):

@@ -2,7 +2,6 @@ import datetime as dt
 
 import factory
 import faker
-from django.conf import settings
 
 from apps.mdm.models import (
     Device,
@@ -24,7 +23,6 @@ class PolicyFactory(factory.django.DjangoModelFactory):
 
     name = factory.Faker("word")
     policy_id = factory.Faker("word")
-    mdm = factory.LazyAttribute(lambda _: settings.ACTIVE_MDM["name"])
     organization = factory.SubFactory(OrganizationFactory)
 
 
@@ -50,14 +48,14 @@ class DeviceFactory(factory.django.DjangoModelFactory):
     name = factory.LazyAttribute(
         lambda obj: (
             f"enterprises/test/devices/{fake.unique.pystr()}"
-            if obj.fleet.policy.mdm == "Android Enterprise"
+            if obj.fleet.organization.mdm == "Android Enterprise"
             else fake.word()
         )
     )
     device_id = factory.LazyAttribute(
         lambda obj: (
             obj.name.split("/")[-1]
-            if obj.fleet.policy.mdm == "Android Enterprise"
+            if obj.fleet.organization.mdm == "Android Enterprise"
             else fake.unique.word()
         )
     )

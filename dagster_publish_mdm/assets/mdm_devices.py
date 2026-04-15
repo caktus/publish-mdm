@@ -4,7 +4,6 @@ import requests
 
 django.setup()
 
-from django.conf import settings  # noqa: E402
 
 from apps.mdm.mdms import get_active_mdm_instance  # noqa: E402
 from apps.mdm.models import Device  # noqa: E402
@@ -17,7 +16,6 @@ class SyncFleetsConfig(dg.Config):
 
 @dg.asset(
     description="Sync specific MDM fleet devices and push device configurations",
-    group_name="mdm_assets",
 )
 def sync_and_push_mdm_devices(context: dg.AssetExecutionContext, config: SyncFleetsConfig):
     """Sync an organization's fleets from the MDM and push device configurations."""
@@ -26,20 +24,14 @@ def sync_and_push_mdm_devices(context: dg.AssetExecutionContext, config: SyncFle
     if not active_mdm:
         context.log.warning(f"MDM not configured for organization {organization}")
         return
-    for fleet in organization.fleets.all():
-        active_mdm.sync_fleet(fleet, push_config=True)
-        context.log.info(f"Synced fleet {fleet.name} (pk={fleet.pk})")
+    active_mdm.sync_fleets(push_config=True)
+    context.log.info(f"Synced all fleets in {organization}")
 
 
 @dg.asset(description="Get a list of devices from the MDM", group_name="mdm_assets")
 def mdm_device_snapshot():
-    if settings.ACTIVE_MDM["name"] == "Android Enterprise":
-        # For Android Enterprise, sync per org so each instance uses the correct enterprise.
-        for org in Organization.objects.filter(android_enterprise__enterprise_name__gt=""):
-            if active_mdm := get_active_mdm_instance(organization=org):
-                active_mdm.sync_fleets(push_config=False)
-    else:
-        if active_mdm := get_active_mdm_instance(organization=None):
+    for org in Organization.objects.all():
+        if active_mdm := get_active_mdm_instance(org):
             active_mdm.sync_fleets(push_config=False)
 
 
