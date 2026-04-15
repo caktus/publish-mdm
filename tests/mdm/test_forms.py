@@ -1,13 +1,40 @@
 import pytest
+from pytest_django.asserts import assertFormError
 
 from apps.mdm.forms import (
     FirmwareSnapshotForm,
     PolicyApplicationAddForm,
     PolicyEditForm,
+    PolicyTinyMDMForm,
     PolicyVariableForm,
 )
 from apps.mdm.models import Policy, PolicyVariable
 from tests.mdm.factories import DeviceFactory, PolicyApplicationFactory, PolicyFactory
+
+
+@pytest.mark.django_db
+class TestPolicyTinyMDMForm:
+    @pytest.mark.parametrize(
+        "policy_id",
+        ["abcdef", "123456", "abcd1234"],
+    )
+    def test_valid_policy_id(self, policy_id):
+        form = PolicyTinyMDMForm({"name": "My Policy", "policy_id": policy_id})
+        assert form.is_valid(), form.errors
+
+    @pytest.mark.parametrize(
+        "policy_id",
+        ["abc-123", "abc 123", "abc_123!", ""],
+    )
+    def test_invalid_policy_id(self, policy_id):
+        form = PolicyTinyMDMForm({"name": "My Policy", "policy_id": policy_id})
+        assert not form.is_valid()
+        error_msg = (
+            "Policy ID must contain only letters and numbers."
+            if policy_id
+            else "This field is required."
+        )
+        assertFormError(form, "policy_id", error_msg)
 
 
 class TestFirmwareSnapshotForm:
@@ -143,7 +170,7 @@ class TestPolicyEditForm:
         policy = PolicyFactory()
         PolicyApplicationFactory(policy=policy, install_type="KIOSK")
         # Simulate a new (unsaved) policy instance
-        new_policy = Policy(name="New", mdm="Android Enterprise")
+        new_policy = Policy(name="New")
         data = {**self._base_data(), "kiosk_custom_launcher_enabled": True}
         form = PolicyEditForm(data, instance=new_policy)
         assert form.is_valid(), form.errors

@@ -411,7 +411,7 @@ class TestDeviceImport(ImportTestBase):
         not the push_device_config method of the currently active MDM.
         """
         mock_trigger = mocker.patch("apps.publish_mdm.import_export.trigger_dagster_job")
-        mock_push = mocker.patch.object(get_active_mdm_class(), "push_device_config")
+        mock_push = mocker.patch.object(get_active_mdm_class(organization), "push_device_config")
 
         import_format_cls, _, form_format = self.FORMATS["csv"]
         import_file_data = dataset.export("csv")
@@ -436,13 +436,13 @@ class TestDeviceImport(ImportTestBase):
         assert set(device_pks) == {d.pk for d in devices}
 
     def test_push_device_config_not_called_on_dry_run(
-        self, client, url, user, devices, dataset, mocker
+        self, client, url, user, devices, dataset, mocker, organization
     ):
         """During the dry-run preview stage, neither the Dagster mdm_job nor the
         push_device_config method of the currently active MDM is called.
         """
         mock_trigger = mocker.patch("apps.publish_mdm.import_export.trigger_dagster_job")
-        mock_push = mocker.patch.object(get_active_mdm_class(), "push_device_config")
+        mock_push = mocker.patch.object(get_active_mdm_class(organization), "push_device_config")
 
         _, io_class, form_format = self.FORMATS["csv"]
         import_file_data = dataset.export("csv")

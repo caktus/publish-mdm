@@ -33,36 +33,45 @@ class TestModels(TestAllMDMs):
     def fleet(self, organization):
         return FleetFactory(organization=organization)
 
-    def test_fleet_save_without_mdm_env_vars(self, fleet, mocker):
-        """On Fleet.save(), pull_devices() shouldn't be called if the
-        active MDM's environment variables are not set.
+    def test_fleet_save_without_configured_mdm(self, fleet, mocker, unconfigure_mdm):
+        """On Fleet.save(sync_with_mdm=True), pull_devices() shouldn't be called
+        if an MDM is not configured for the organization.
         """
-        mock_pull_devices = mocker.patch.object(get_active_mdm_class(), "pull_devices")
-        fleet.save()
+        mock_pull_devices = mocker.patch.object(
+            get_active_mdm_class(fleet.organization), "pull_devices"
+        )
+        fleet.save(sync_with_mdm=True)
         mock_pull_devices.assert_not_called()
 
-    def test_fleet_save_with_mdm_env_vars(self, fleet, mocker, set_mdm_env_vars):
-        """On Fleet.save(), pull_devices() should be called if the active MDM's
-        environment variables are set.
+    def test_fleet_save_with_configured_mdm(self, fleet, mocker):
+        """On Fleet.save(sync_with_mdm=True), pull_devices() should be called if
+        an MDM is configured for the organization.
         """
-        mock_pull_devices = mocker.patch.object(get_active_mdm_class(), "pull_devices")
+        mock_pull_devices = mocker.patch.object(
+            get_active_mdm_class(fleet.organization), "pull_devices"
+        )
         fleet.save(sync_with_mdm=True)
         mock_pull_devices.assert_called_once()
 
-    def test_device_save_without_mdm_env_vars(self, fleet, mocker):
-        """On Device.save(), push_device_config() shouldn't be called if the
-        active MDM's environment variables are not set.
+    def test_device_save_without_configured_mdm(self, fleet, mocker, unconfigure_mdm):
+        """On Device.save(push_to_mdm=True), push_device_config() shouldn't be called if
+        an MDM is not configured for the organization.
         """
-        mock_push_device_config = mocker.patch.object(get_active_mdm_class(), "push_device_config")
-        DeviceFactory(fleet=fleet)
+        mock_push_device_config = mocker.patch.object(
+            get_active_mdm_class(fleet.organization), "push_device_config"
+        )
+        device = DeviceFactory.build(fleet=fleet)
+        device.save(push_to_mdm=True)
         mock_push_device_config.assert_not_called()
 
-    def test_device_save_with_mdm_env_vars(self, fleet, mocker, set_mdm_env_vars):
-        """On Device.save(), push_device_config() should be called if the
-        active MDM's environment variables are set.
+    def test_device_save_with_configured_mdm(self, fleet, mocker):
+        """On Device.save(push_to_mdm=True), push_device_config() should be called if
+        an MDM is configured for the organization.
         """
-        mock_push_device_config = mocker.patch.object(get_active_mdm_class(), "push_device_config")
-        device = DeviceFactory(fleet=fleet)
+        mock_push_device_config = mocker.patch.object(
+            get_active_mdm_class(fleet.organization), "push_device_config"
+        )
+        device = DeviceFactory.build(fleet=fleet)
         device.save(push_to_mdm=True)
         mock_push_device_config.assert_called_once()
 
@@ -94,14 +103,16 @@ class TestModels(TestAllMDMs):
         assert device.app_user_name == app_user.name
         assert device.serial_number.endswith("_edited")
 
-    def test_device_save_auto_assigns_and_pushes_to_mdm(self, fleet, mocker, set_mdm_env_vars):
+    def test_device_save_auto_assigns_and_pushes_to_mdm(self, fleet, mocker):
         """When auto-assigning the default_app_user, push_device_config should
         still fire if push_to_mdm=True.
         """
         app_user = AppUserFactory(project=fleet.project)
         fleet.default_app_user = app_user
         fleet.save()
-        mock_push_device_config = mocker.patch.object(get_active_mdm_class(), "push_device_config")
+        mock_push_device_config = mocker.patch.object(
+            get_active_mdm_class(fleet.organization), "push_device_config"
+        )
         device = DeviceFactory(fleet=fleet, app_user_name="")
         device.app_user_name = ""
         device.save(push_to_mdm=True)
@@ -304,10 +315,10 @@ class TestModels(TestAllMDMs):
         fleet = FleetFactory(enroll_token_expires_at=fake.future_datetime(tzinfo=dt.UTC))
         assert not fleet.enroll_token_expired
 
-    def test_fleet_enrollment_url(self, settings):
+    def test_fleet_enrollment_url(self, organization):
         """Tests the Fleet.enrollment_url property."""
-        fleet = FleetFactory(enroll_token_value=fake.pystr())
-        if settings.ACTIVE_MDM["name"] == "Android Enterprise":
+        fleet = FleetFactory(enroll_token_value=fake.pystr(), organization=organization)
+        if fleet.organization.mdm == "Android Enterprise":
             assert (
                 fleet.enrollment_url
                 == f"https://enterprise.google.com/android/enroll?et={fleet.enroll_token_value}"

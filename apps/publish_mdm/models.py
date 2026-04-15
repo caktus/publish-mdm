@@ -9,7 +9,7 @@ from django.conf import settings
 from django.contrib.sites.shortcuts import get_current_site
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.validators import RegexValidator
-from django.db import models
+from django.db import models, transaction
 from django.db.models import F, Value
 from django.db.models.functions import NullIf
 from django.urls import reverse
@@ -22,7 +22,7 @@ from invitations.base_invitation import AbstractBaseInvitation
 from invitations.signals import invite_url_sent
 
 from apps.infisical.api import kms_api
-from apps.infisical.fields import EncryptedCharField, EncryptedEmailField
+from apps.infisical.fields import EncryptedCharField, EncryptedEmailField, EncryptedMixin
 from apps.infisical.managers import EncryptedManager
 from apps.mdm.mdms import get_active_mdm_instance
 from apps.mdm.models import Fleet, Policy, PolicyApplication
@@ -43,14 +43,132 @@ class AbstractBaseModel(models.Model):
     class Meta:
         abstract = True
 
+    @property
+    def is_decrypted(self):
+        return getattr(self, "_is_decrypted", False)
 
-class Organization(AbstractBaseModel):
+    def decrypt(self):
+        """Decrypt any encrypted fields. Use this if they were not decrypted when
+        getting from the database (i.e. if EncryptedManager was not used).
+        """
+        if self.is_decrypted:
+            return
+        key_name = self.__class__.__name__.lower()
+        for field in self._meta.fields:
+            if isinstance(field, EncryptedMixin):
+                value = getattr(self, field.name)
+                if value:
+                    value = kms_api.decrypt(key_name, value)
+                    setattr(self, field.name, value)
+        self._is_decrypted = True
+
+
+class SoftDeleteQuerySet(models.QuerySet):
+    """QuerySet mixin with soft-delete and restore helpers."""
+
+    def active(self):
+        return self.filter(deleted_at__isnull=True)
+
+    def deleted(self):
+        return self.filter(deleted_at__isnull=False)
+
+    def soft_delete(self):
+        return self.update(deleted_at=timezone.now())
+
+    def restore(self):
+        return self.update(deleted_at=None)
+
+
+class ActiveManager(models.Manager):
+    """Default manager - returns only non-deleted rows."""
+
+    def get_queryset(self):
+        return SoftDeleteQuerySet(self.model, using=self._db).active()
+
+
+class AllObjectsManager(models.Manager):
+    """Manager that returns all rows, including soft-deleted ones."""
+
+    def get_queryset(self):
+        return SoftDeleteQuerySet(self.model, using=self._db)
+
+
+class SoftDeleteModel(models.Model):
+    """Abstract mixin that adds soft-delete support to a model.
+
+    Apply by listing this class before other base models so its default manager
+    takes precedence::
+
+        class MyModel(SoftDeleteModel, AbstractBaseModel):
+            ...
+
+    ``objects`` (the default manager) excludes soft-deleted rows.
+    ``all_objects`` includes every row regardless of deletion state.
+    """
+
+    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
+
+    objects = ActiveManager()
+    all_objects = AllObjectsManager()
+
+    class Meta:
+        abstract = True
+
+    @property
+    def is_deleted(self) -> bool:
+        return self.deleted_at is not None
+
+    def soft_delete(self) -> None:
+        """Mark this row as deleted without removing it from the database."""
+        self.deleted_at = timezone.now()
+        self.save(update_fields=["deleted_at"])
+
+    def restore(self) -> None:
+        """Un-delete this row, making it visible to the default manager again."""
+        self.deleted_at = None
+        self.save(update_fields=["deleted_at"])
+
+
+class Organization(SoftDeleteModel, AbstractBaseModel):
     name = models.CharField(max_length=255)
     slug = models.SlugField(max_length=255, unique=True)
     users = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="organizations")
     public_signup_enabled = models.BooleanField(
         default=False,
         help_text="Enable a public sign-up page, where anyone can enter an email address to receive an invite.",
+    )
+    mdm = models.CharField(
+        max_length=50,
+        choices=[(name, name) for name in settings.MDM_REGISTRY],
+        default=next(iter(settings.MDM_REGISTRY)),
+        help_text="The Mobile Device Management system used by this organization.",
+        verbose_name="MDM",
+    )
+    # Per-org TinyMDM API credentials
+    tinymdm_apikey_public = EncryptedCharField(
+        null=True,
+        blank=True,
+        verbose_name="TinyMDM API key (public)",
+        help_text="TinyMDM manager API public key.",
+    )
+    tinymdm_apikey_secret = EncryptedCharField(
+        null=True,
+        blank=True,
+        verbose_name="TinyMDM API key (secret)",
+        help_text="TinyMDM manager API secret key.",
+    )
+    tinymdm_account_id = EncryptedCharField(
+        null=True,
+        blank=True,
+        verbose_name="TinyMDM account ID",
+        help_text="TinyMDM account ID.",
+    )
+    tinymdm_default_policy_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        verbose_name="TinyMDM default policy ID",
+        help_text="TinyMDM default policy ID. A Policy with this ID will be created in the database.",
     )
 
     def __str__(self):
@@ -67,25 +185,33 @@ class Organization(AbstractBaseModel):
         if not active_mdm:
             return None
         # Create an org-specific default policy
-        policy = Policy.all_mdms.create(
-            name="Default",
-            policy_id=f"policy_default_{get_random_string(12)}",
-            mdm=settings.ACTIVE_MDM["name"],
-            organization=self,
-        )
-        # Create the pinned ODK Collect app row (order=0) so new policies are consistent
-        # with those created via the policy editor UI.
-        PolicyApplication.objects.create(
-            policy=policy,
-            package_name=policy.odk_collect_package,
-            install_type="FORCE_INSTALLED",
-            order=0,
-        )
-        fleet = Fleet(organization=self, name="Default", policy=policy)
-        active_mdm.create_group(fleet)
-        active_mdm.add_group_to_policy(fleet)
-        active_mdm.get_enrollment_qr_code(fleet)
-        fleet.save()
+        if self.mdm == "TinyMDM":
+            policy_id = self.tinymdm_default_policy_id
+        else:
+            # Create a random policy ID to avoid collisions.
+            policy_id = policy_id = f"policy_{get_random_string(20)}"
+        with transaction.atomic():
+            policy = Policy.objects.create(
+                name="Default",
+                policy_id=policy_id,
+                organization=self,
+            )
+            if self.mdm != "TinyMDM":
+                # Create the pinned ODK Collect app row (order=0) so new policies are consistent
+                # with those created via the policy editor UI.
+                PolicyApplication.objects.create(
+                    policy=policy,
+                    package_name=policy.odk_collect_package,
+                    install_type="FORCE_INSTALLED",
+                    order=0,
+                )
+            # Ensure the default policy exists in the MDM before linking groups to it.
+            active_mdm.create_or_update_policy(policy)
+            fleet = Fleet(organization=self, name="Default", policy=policy)
+            active_mdm.create_group(fleet)
+            active_mdm.add_group_to_policy(fleet)
+            active_mdm.get_enrollment_qr_code(fleet)
+            fleet.save()
         return fleet
 
 
@@ -112,16 +238,6 @@ class CentralServer(AbstractBaseModel):
     def save(self, *args, **kwargs):
         self.base_url = self.base_url.rstrip("/")
         super().save(*args, **kwargs)
-
-    def decrypt(self):
-        """Decrypt username and password. Use this if they were not decrypted when
-        getting from the database (i.e. if the `decrypted` model manager was not used).
-        """
-        for field in ("username", "password"):
-            value = getattr(self, field)
-            if value:
-                value = kms_api.decrypt("centralserver", value)
-                setattr(self, field, value)
 
     @property
     def masked_username(self):

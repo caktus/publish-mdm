@@ -1,5 +1,4 @@
 import structlog
-from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin import helpers
 from django.contrib.admin.decorators import action
@@ -20,6 +19,7 @@ from requests.exceptions import RequestException
 
 from apps.mdm.forms import DeviceConfirmImportForm, DeviceImportForm
 from apps.publish_mdm.http import HttpRequest
+from apps.publish_mdm.models import Organization
 from config.dagster import trigger_dagster_job
 
 from .import_export import DeviceResource
@@ -118,6 +118,16 @@ class FleetAdmin(admin.ModelAdmin):
     list_filter = ("organization", "policy", "project")
     actions = ("delete_selected",)
 
+    def get_queryset(self, request):
+        # Admin must retain visibility into fleets whose organizations are soft-deleted.
+        return Fleet.all_orgs.all()
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        # Keep the currently selected organization available on edit forms, even when deleted.
+        if db_field.name == "organization":
+            kwargs["queryset"] = Organization.all_objects.order_by("name")
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
     def save_model(self, request, obj, form, change):
         # Always sync with MDM when saving a Fleet in the admin
         try:
@@ -126,7 +136,7 @@ class FleetAdmin(admin.ModelAdmin):
             messages.error(
                 request,
                 mark_safe(
-                    f"Unable to pull the fleet's devices from {settings.ACTIVE_MDM['name']} due to "
+                    f"Unable to pull the fleet's devices from {obj.organization.mdm} due to "
                     f"the following error:<br><code>{getattr(e, 'api_error', e)}</code>"
                 ),
             )
@@ -398,7 +408,7 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
             messages.error(
                 request,
                 mark_safe(
-                    f"Unable to update the device in {settings.ACTIVE_MDM['name']} due to "
+                    f"Unable to update the device in {obj.fleet.organization.mdm} due to "
                     f"the following error:<br><code>{getattr(e, 'api_error', e)}</code>"
                 ),
             )

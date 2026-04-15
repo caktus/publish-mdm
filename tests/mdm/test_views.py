@@ -9,7 +9,7 @@ from pytest_django.asserts import assertContains, assertMessages, assertRedirect
 
 from apps.mdm.mdms import AndroidEnterprise
 from apps.mdm.models import Device, DeviceSnapshot, Policy, PolicyApplication, PolicyVariable
-from tests.mdm import TestAllMDMs, TestAndroidEnterpriseOnly
+from tests.mdm import TestAllMDMs, TestAndroidEnterpriseOnly, TestTinyMDMOnly
 from tests.mdm.factories import (
     DeviceFactory,
     FleetFactory,
@@ -19,7 +19,7 @@ from tests.mdm.factories import (
 from tests.publish_mdm.factories import OrganizationFactory, UserFactory
 
 
-class PolicyViewBase(TestAllMDMs):
+class PolicyViewBase:
     """Base class for policy editor view tests."""
 
     @pytest.fixture
@@ -51,7 +51,7 @@ class PolicyViewBase(TestAllMDMs):
 
 
 @pytest.mark.django_db
-class TestPolicyList(PolicyViewBase):
+class TestPolicyList(PolicyViewBase, TestAllMDMs):
     @pytest.fixture
     def url(self, organization):
         return reverse("mdm:policy-list", args=[organization.slug])
@@ -74,7 +74,7 @@ class TestPolicyList(PolicyViewBase):
 
 
 @pytest.mark.django_db
-class TestPolicyAdd(PolicyViewBase):
+class TestPolicyAddAndroidEnterprise(PolicyViewBase, TestAndroidEnterpriseOnly):
     @pytest.fixture
     def url(self, organization):
         return reverse("mdm:policy-add", args=[organization.slug])
@@ -84,14 +84,13 @@ class TestPolicyAdd(PolicyViewBase):
         response = client.get(url)
         assert response.status_code == 302
 
-    def test_get(self, client, url, user, set_mdm_env_vars):
+    def test_get(self, client, url, user):
         response = client.get(url)
         assert response.status_code == 200
         assert "form" in response.context
 
-    def test_valid_post_creates_policy_and_redirects(
-        self, client, url, organization, set_mdm_env_vars
-    ):
+    def test_valid_post_creates_policy_and_redirects(self, client, url, organization, mocker):
+        mocker.patch.object(AndroidEnterprise, "create_or_update_policy")
         response = client.post(url, {"name": "My Policy"})
         assert Policy.objects.filter(organization=organization, name="My Policy").exists()
         policy = Policy.objects.get(organization=organization, name="My Policy")
@@ -102,12 +101,53 @@ class TestPolicyAdd(PolicyViewBase):
             reverse("mdm:policy-edit", args=[organization.slug, policy.pk]) in response["Location"]
         )
 
-    def test_invalid_post_returns_form(self, client, url, user, set_mdm_env_vars):
+    def test_invalid_post_returns_form(self, client, url, user):
         response = client.post(url, {"name": ""})
         assert response.status_code == 200
         assert response.context["form"].errors
 
-    def test_requires_configured_mdm(self, client, url, user, organization):
+    def test_requires_configured_mdm(self, client, url, user, organization, unconfigure_mdm):
+        response = client.get(url, follow=True)
+        assertRedirects(response, reverse("mdm:policy-list", args=[organization.slug]))
+        assertContains(
+            response, "Sorry, cannot create a policy at this time. Please try again later."
+        )
+
+
+# ---------------------------------------------------------------------------
+# policy_add (TinyMDM-specific)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestPolicyAddTinyMDM(PolicyViewBase, TestTinyMDMOnly):
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("mdm:policy-add", args=[organization.slug])
+
+    def test_get_includes_policy_id_field(self, client, url):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "policy_id" in response.context["form"].fields
+        assert response.context["is_tinymdm"] is True
+
+    def test_valid_post_uses_provided_policy_id(self, client, url, organization):
+        response = client.post(url, {"name": "My Policy", "policy_id": "tinymdm123"})
+        assert Policy.objects.filter(organization=organization, name="My Policy").exists()
+        policy = Policy.objects.get(organization=organization, name="My Policy")
+        assert policy.policy_id == "tinymdm123"
+        # No ODK Collect application row for TinyMDM
+        assert not policy.applications.filter(order=0).exists()
+        assert response.status_code == 302
+        # Redirects to the policy list (no additional fields to edit)
+        assert reverse("mdm:policy-list", args=[organization.slug]) in response["Location"]
+
+    def test_invalid_post_missing_policy_id(self, client, url):
+        response = client.post(url, {"name": "My Policy"})
+        assert response.status_code == 200
+        assert response.context["form"].errors
+
+    def test_requires_configured_mdm(self, client, url, user, organization, unconfigure_mdm):
         response = client.get(url, follow=True)
         assertRedirects(response, reverse("mdm:policy-list", args=[organization.slug]))
         assertContains(
@@ -121,7 +161,7 @@ class TestPolicyAdd(PolicyViewBase):
 
 
 @pytest.mark.django_db
-class TestPolicyEdit(PolicyViewBase):
+class TestPolicyEditAndroidEnterprise(PolicyViewBase, TestAndroidEnterpriseOnly):
     @pytest.fixture
     def url(self, organization, policy):
         return reverse("mdm:policy-edit", args=[organization.slug, policy.pk])
@@ -163,7 +203,7 @@ class TestPolicyEdit(PolicyViewBase):
 
 
 @pytest.mark.django_db
-class TestPolicyEditPost(PolicyViewBase):
+class TestPolicyEditPostAndroidEnterprise(PolicyViewBase, TestAndroidEnterpriseOnly):
     @pytest.fixture
     def url(self, organization, policy):
         return reverse("mdm:policy-edit", args=[organization.slug, policy.pk])
@@ -280,12 +320,51 @@ class TestPolicyEditPost(PolicyViewBase):
 
 
 # ---------------------------------------------------------------------------
+# policy_edit (TinyMDM-specific)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestPolicyEditTinyMDM(PolicyViewBase, TestTinyMDMOnly):
+    @pytest.fixture
+    def policy(self, organization):
+        return PolicyFactory(organization=organization, policy_id="originalid")
+
+    @pytest.fixture
+    def url(self, organization, policy):
+        return reverse("mdm:policy-edit", args=[organization.slug, policy.pk])
+
+    def test_get_form_has_policy_id_field(self, client, url, policy):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "policy_id" in response.context["form"].fields
+
+    def test_get_no_app_or_var_formsets(self, client, url, policy):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "app_formset" not in response.context
+        assert "var_formset" not in response.context
+
+    def test_valid_post_saves_name_and_policy_id(self, client, url, policy):
+        response = client.post(url, {"name": "Updated Name", "policy_id": "newid"})
+        assert response.status_code == 302
+        policy.refresh_from_db()
+        assert policy.name == "Updated Name"
+        assert policy.policy_id == "newid"
+
+    def test_invalid_post_missing_policy_id(self, client, url, policy):
+        response = client.post(url, {"name": "Updated Name"})
+        assert response.status_code == 200
+        assert response.context["form"].errors
+
+
+# ---------------------------------------------------------------------------
 # policy_save_managed_config
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.django_db
-class TestPolicySaveManagedConfig(PolicyViewBase):
+class TestPolicySaveManagedConfig(PolicyViewBase, TestAndroidEnterpriseOnly):
     @pytest.fixture
     def app(self, policy):
         return PolicyApplicationFactory(policy=policy, order=1)
@@ -361,7 +440,7 @@ class TestFirmwareSnapshotView:
 
 
 @pytest.mark.django_db
-class TestPolicyEditFormsets(PolicyViewBase):
+class TestPolicyEditFormsets(PolicyViewBase, TestAndroidEnterpriseOnly):
     @pytest.fixture
     def url(self, organization, policy):
         return reverse("mdm:policy-edit", args=[organization.slug, policy.pk])
@@ -610,7 +689,7 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
         settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = self.TOKEN
 
     @pytest.fixture(autouse=True)
-    def set_enterprise_env(self, set_mdm_env_vars):
+    def set_enterprise_env(self, set_amapi_service_account_file):
         """Ensure ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE env var is set."""
 
     def post(self, client, body, token=TOKEN):
@@ -649,16 +728,6 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
         enterprise from the currently configured one.
         """
         body = self.build_pubsub_body({"name": "enterprises/different/devices/abc"})
-        response = self.post(client, body, token=self.TOKEN)
-        assert response.status_code == 204
-        mock_notification_handler.assert_not_called()
-
-    def test_valid_request_with_different_mdm(self, client, settings, mock_notification_handler):
-        """A valid enrollment notification is not handled if Android Enterprise is
-        not the currently configured MDM.
-        """
-        settings.ACTIVE_MDM = {"name": "TinyMDM", "class": "apps.mdm.mdms.TinyMDM"}
-        body = self.build_pubsub_body({"name": "enterprises/test/devices/abc"})
         response = self.post(client, body, token=self.TOKEN)
         assert response.status_code == 204
         mock_notification_handler.assert_not_called()
@@ -856,7 +925,7 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
 
 
 @pytest.mark.django_db
-class TestPushPolicyToMdmDagster(PolicyViewBase):
+class TestPushPolicyToMdmDagster(PolicyViewBase, TestAndroidEnterpriseOnly):
     """Tests that _push_policy_to_mdm() uses Dagster for child-device pushes."""
 
     @pytest.fixture
@@ -911,7 +980,6 @@ class TestPushPolicyToMdmDagster(PolicyViewBase):
         organization,
         policy_with_devices,
         mocker,
-        set_mdm_env_vars,
     ):
         """_push_policy_to_mdm() queues child-device config pushes via Dagster mdm_job."""
         _, devices = policy_with_devices
@@ -938,7 +1006,6 @@ class TestPushPolicyToMdmDagster(PolicyViewBase):
         organization,
         policy_with_devices,
         mocker,
-        set_mdm_env_vars,
         caplog,
     ):
         """_push_policy_to_mdm() logs and swallows a trigger_dagster_job exception without
