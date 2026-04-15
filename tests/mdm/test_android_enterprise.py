@@ -874,8 +874,8 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
     def test_patch_enterprise_pubsub(
         self, organization, set_amapi_service_account_file, mocker, monkeypatch
     ):
-        """patch_enterprise_pubsub() patches the enterprise with the Pub/Sub topic if it exists."""
-        mocker.patch.object(AndroidEnterprise, "pubsub_topic_exists", return_value=True)
+        """patch_enterprise_pubsub() sets pubsubTopic and enabledNotificationTypes when enabled."""
+        mocker.patch.object(AndroidEnterprise, "pubsub_enabled", return_value=True)
         active_mdm = AndroidEnterprise(organization=organization)
         enterprise_patch_result = {
             "name": active_mdm.enterprise_name,
@@ -900,14 +900,37 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         result = active_mdm.patch_enterprise_pubsub()
         assert result == enterprise_patch_result
 
-    def test_patch_enterprise_pubsub_topic_not_found(
-        self, organization, set_amapi_service_account_file, mocker
+    def test_patch_enterprise_pubsub_clears_when_not_enabled(
+        self, organization, set_amapi_service_account_file, mocker, monkeypatch
     ):
-        """patch_enterprise_pubsub() returns None without calling the API when the Pub/Sub topic does not exist."""
-        mocker.patch.object(AndroidEnterprise, "pubsub_topic_exists", return_value=False)
+        """patch_enterprise_pubsub() clears pubsubTopic and enabledNotificationTypes when pubsub_enabled() is False.
+
+        This covers both the case where the token is not set and where the topic does not yet exist.
+        """
+        mocker.patch.object(AndroidEnterprise, "pubsub_enabled", return_value=False)
         active_mdm = AndroidEnterprise(organization=organization)
+        clear_result = {
+            "name": active_mdm.enterprise_name,
+            "pubsubTopic": "",
+            "enabledNotificationTypes": [],
+        }
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse(
+                    "patch",
+                    clear_result,
+                    expected_request_body={
+                        "pubsubTopic": "",
+                        "enabledNotificationTypes": [],
+                    },
+                ),
+            ),
+        )
+
         result = active_mdm.patch_enterprise_pubsub()
-        assert result is None
+        assert result == clear_result
 
     @pytest.mark.django_db
     def test_build_push_endpoint(self, set_amapi_service_account_file, settings):
@@ -1292,7 +1315,7 @@ class TestCreateEnterprise(TestAndroidEnterpriseOnly):
         mocker.patch("apps.mdm.mdms.android_enterprise.build", return_value=mock_api)
 
         mdm = AndroidEnterprise()
-        mocker.patch.object(mdm, "pubsub_topic_exists", return_value=topic_exists)
+        mocker.patch.object(mdm, "pubsub_enabled", return_value=topic_exists)
         result = mdm.create_enterprise(
             signup_name="signupUrls/C455570ef9b12bfc",
             enterprise_token="T1234abcd",
@@ -1324,11 +1347,20 @@ class TestCreateEnterprise(TestAndroidEnterpriseOnly):
 
 
 @pytest.mark.django_db
-class TestPubsubTopicExists(TestAndroidEnterpriseOnly):
-    """Tests for AndroidEnterprise.pubsub_topic_exists method."""
+class TestPubsubEnabled(TestAndroidEnterpriseOnly):
+    """Tests for AndroidEnterprise.pubsub_enabled method."""
 
-    def test_returns_true_when_topic_exists(self, set_amapi_service_account_file, monkeypatch):
-        """Returns True when topics.get succeeds (200), meaning the topic exists."""
+    def test_returns_false_when_token_not_set(self, set_amapi_service_account_file, settings):
+        """Returns False immediately (no API call) when ANDROID_ENTERPRISE_PUBSUB_TOKEN is unset."""
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = None
+        active_mdm = AndroidEnterprise()
+        assert active_mdm.pubsub_enabled() is False
+
+    def test_returns_true_when_token_set_and_topic_exists(
+        self, set_amapi_service_account_file, monkeypatch, settings
+    ):
+        """Returns True when the token is configured and topics.get succeeds (200)."""
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = "secret"
         active_mdm = AndroidEnterprise()
         monkeypatch.setattr(
             active_mdm.pubsub_api,
@@ -1338,10 +1370,13 @@ class TestPubsubTopicExists(TestAndroidEnterpriseOnly):
                 prefix="pubsub.projects.",
             ),
         )
-        assert active_mdm.pubsub_topic_exists() is True
+        assert active_mdm.pubsub_enabled() is True
 
-    def test_returns_false_when_topic_not_found(self, set_amapi_service_account_file, monkeypatch):
-        """Returns False when topics.get returns 404, meaning the topic does not exist."""
+    def test_returns_false_when_token_set_and_topic_not_found(
+        self, set_amapi_service_account_file, monkeypatch, settings
+    ):
+        """Returns False when the token is configured but topics.get returns 404."""
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = "secret"
         active_mdm = AndroidEnterprise()
         monkeypatch.setattr(
             active_mdm.pubsub_api,
@@ -1351,10 +1386,13 @@ class TestPubsubTopicExists(TestAndroidEnterpriseOnly):
                 prefix="pubsub.projects.",
             ),
         )
-        assert active_mdm.pubsub_topic_exists() is False
+        assert active_mdm.pubsub_enabled() is False
 
-    def test_reraises_other_http_errors(self, set_amapi_service_account_file, monkeypatch):
-        """Re-raises non-404 HttpErrors (e.g., 403 permission denied)."""
+    def test_reraises_other_http_errors(
+        self, set_amapi_service_account_file, monkeypatch, settings
+    ):
+        """Re-raises non-404 HttpErrors (e.g., 403 permission denied) when the token is set."""
+        settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = "secret"
         active_mdm = AndroidEnterprise()
         monkeypatch.setattr(
             active_mdm.pubsub_api,
@@ -1365,4 +1403,4 @@ class TestPubsubTopicExists(TestAndroidEnterpriseOnly):
             ),
         )
         with pytest.raises(HttpError):
-            active_mdm.pubsub_topic_exists()
+            active_mdm.pubsub_enabled()

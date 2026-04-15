@@ -132,7 +132,7 @@ class AndroidEnterprise(MDM):
     def create_enterprise(self, signup_name: str, enterprise_token: str, display_name: str) -> dict:
         """Returns {'name': 'enterprises/LC00lvvue0'}"""
         body: dict = {"enterpriseDisplayName": display_name}
-        if self.pubsub_topic_exists():
+        if self.pubsub_enabled():
             body["pubsubTopic"] = self.pubsub_topic
             body["enabledNotificationTypes"] = ["ENROLLMENT", "STATUS_REPORT"]
         return (
@@ -557,8 +557,9 @@ class AndroidEnterprise(MDM):
            ``roles/pubsub.publisher`` on the topic so that Android Device Policy
            can publish AMAPI notifications to it.
 
-        To register the topic with the AMAPI enterprise, call
-        :meth:`patch_enterprise_pubsub` separately.
+        To register the topic with each enrolled AMAPI enterprise, call
+        :meth:`patch_enterprise_pubsub` separately (e.g. via the
+        ``configure_amapi_pubsub`` management command).
 
         Args:
             push_endpoint_domain: Domain (without scheme, e.g. ``example.com``)
@@ -578,36 +579,34 @@ class AndroidEnterprise(MDM):
         self._ensure_pubsub_subscription(push_endpoint)
         self._grant_pubsub_publisher()
 
-    def patch_enterprise_pubsub(self) -> dict | None:
-        """Patch the enterprise to register the Pub/Sub topic.
+    def patch_enterprise_pubsub(self) -> dict:
+        """Patch the enterprise Pub/Sub registration.
 
-        Calls ``enterprises.patch`` to set ``pubsubTopic`` and
-        ``enabledNotificationTypes`` on the AMAPI enterprise resource,
-        pointing it at the topic
-        ``projects/{project_id}/topics/publish-mdm-{environment}``.
+        Calls ``enterprises.patch`` to update ``pubsubTopic`` and
+        ``enabledNotificationTypes`` on the AMAPI enterprise resource.
 
-        This is intentionally separate from :meth:`configure_pubsub` so that
-        the Pub/Sub infrastructure (topic, subscription, IAM) and the enterprise
-        registration can be managed independently.
+        - If :meth:`pubsub_enabled` returns ``True`` (token configured and
+          topic exists), points the enterprise at
+          ``projects/{project_id}/topics/publish-mdm-{environment}`` and
+          enables ``ENROLLMENT`` and ``STATUS_REPORT`` notification types.
+        - Otherwise (token not set or topic does not yet exist), clears both
+          fields.
 
         Returns:
-            The updated enterprise resource dict returned by the AMAPI, or
-            ``None`` if the Pub/Sub topic does not exist.
+            The updated enterprise resource dict returned by the AMAPI.
         """
-        if not self.pubsub_topic_exists():
-            logger.warning(
-                "Cannot patch enterprise Pub/Sub: topic does not exist. Skipping",
-                topic=self.pubsub_topic,
-            )
-            return None
+        if self.pubsub_enabled():
+            body = {
+                "pubsubTopic": self.pubsub_topic,
+                "enabledNotificationTypes": ["ENROLLMENT", "STATUS_REPORT"],
+            }
+        else:
+            body = {"pubsubTopic": "", "enabledNotificationTypes": []}
         return self.execute(
             self.api.enterprises().patch(
                 name=self.enterprise_name,
                 updateMask="pubsubTopic,enabledNotificationTypes",
-                body={
-                    "pubsubTopic": self.pubsub_topic,
-                    "enabledNotificationTypes": ["ENROLLMENT", "STATUS_REPORT"],
-                },
+                body=body,
             )
         )
 
@@ -643,8 +642,16 @@ class AndroidEnterprise(MDM):
             )
         return f"https://{domain.rstrip('/')}{path}?token={token}"
 
-    def pubsub_topic_exists(self) -> bool:
-        """Return True if the Pub/Sub topic already exists, False otherwise."""
+    def pubsub_enabled(self) -> bool:
+        """Return True if Pub/Sub is fully enabled.
+
+        Requires both that ``ANDROID_ENTERPRISE_PUBSUB_TOKEN`` is configured
+        (so the push endpoint can authenticate incoming notifications) and that
+        the Pub/Sub topic already exists.  When either condition is not met,
+        returns ``False``.
+        """
+        if not settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN:
+            return False
         try:
             self.pubsub_api.projects().topics().get(topic=self.pubsub_topic).execute()
             return True
