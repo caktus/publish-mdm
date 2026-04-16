@@ -1,6 +1,7 @@
 import dagster as dg
 import django
 import requests
+from googleapiclient.errors import Error as GoogleAPIClientError
 
 django.setup()
 
@@ -29,10 +30,17 @@ def sync_and_push_mdm_devices(context: dg.AssetExecutionContext, config: SyncFle
 
 
 @dg.asset(description="Get a list of devices from the MDM", group_name="mdm_assets")
-def mdm_device_snapshot():
+def mdm_device_snapshot(context: dg.AssetExecutionContext):
     for org in Organization.objects.all():
         if active_mdm := get_active_mdm_instance(org):
-            active_mdm.sync_fleets(push_config=False)
+            try:
+                active_mdm.sync_fleets(push_config=False)
+            except (GoogleAPIClientError, requests.exceptions.RequestException) as e:
+                context.log.error(f"Failed to sync devices for {org} ({org.slug=} {e=!s})")
+            else:
+                context.log.info(f"Synced all fleets in {org}")
+        else:
+            context.log.warning(f"MDM not configured for organization {org}")
 
 
 class DeviceConfig(dg.Config):
