@@ -1,5 +1,6 @@
 import json
 import uuid
+from datetime import timedelta
 from urllib.parse import urlencode
 
 import faker
@@ -2827,14 +2828,23 @@ class TestFleetQRCode(ViewTestBase, TestAllMDMsNoAutouse):
     def url(self, organization):
         return reverse("publish_mdm:fleet-qr-code", args=[organization.slug])
 
-    def test_saved_qr_code(self, client, url, user, organization):
+    def test_saved_qr_code(self, client, url, user, organization, all_mdms):
         """Ensure an img tag with the saved QR code is included in the response."""
-        fleet = FleetFactory(organization=organization)
+        enroll_token_expires_at = now() + timedelta(1) if self.mdm == "Android Enterprise" else None
+        fleet = FleetFactory(
+            organization=organization, enroll_token_expires_at=enroll_token_expires_at
+        )
         data = {
             "fleet": fleet.id,
         }
         response = client.post(url, data=data)
         assertContains(response, f'<img src="{fleet.enroll_qr_code.url}"')
+        if self.mdm == "Android Enterprise":
+            assertContains(response, "How to use this QR code")
+            assertContains(response, "The QR code and link expire in")
+        else:
+            assertNotContains(response, "How to use this QR code")
+            assertNotContains(response, "The QR code and link expire in")
 
     def test_no_saved_qr_code(
         self,

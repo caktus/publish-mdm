@@ -6,6 +6,31 @@
         <p class="text-center">{{ error }}</p>
     </div>
 {% else %}
+    {% if fleet.enroll_qr_code and request.organization.mdm == "Android Enterprise" %}
+        <details class="mb-3">
+            <summary class="cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 ">How to use this QR code</summary>
+            <div class="px-3 pt-2 text-sm text-gray-600 dark:border-gray-600 dark:text-gray-400">
+                <p>
+                    The QR code can be used to enroll both company-owned and personally-owned
+                    devices. However, the setup method is different on both types of devices.
+                </p>
+                <ul class="mt-2 list-inside list-disc space-y-1">
+                    <li>
+                        <a href="https://developers.google.com/android/management/provision-device#add_work_profile_from_settings"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           class="text-primary-600 hover:underline">Instructions for a personally-owned device</a>
+                    </li>
+                    <li>
+                        <a href="https://developers.google.com/android/management/provision-device#qr_code_method"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           class="text-primary-600 hover:underline">Instructions for a company-owned device</a>
+                    </li>
+                </ul>
+            </div>
+        </details>
+    {% endif %}
     <div class="flex flex-col items-center justify-center w-full aspect-square border bg-primary-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600">
         {% if fleet.enroll_qr_code %}
             <img src="{{ fleet.enroll_qr_code.url }}"
@@ -26,10 +51,24 @@
         {% endif %}
     </div>
     {% if fleet.enrollment_url %}
-        <p class="mt-2 text-sm">
-            For a BYOD device, you can also enroll by opening this link on your device:
+        <p class="mt-3 text-sm text-gray-700 dark:text-gray-300 ">
+            For a <strong>personally-owned device</strong>, you can also enroll by opening this link on your device:
             <a href="{{ fleet.enrollment_url }}"
                class="block text-primary-600 hover:underline">{{ fleet.enrollment_url }}</a>
+        </p>
+    {% endif %}
+    {% if request.organization.mdm == "Android Enterprise" and fleet.enroll_qr_code and fleet.enroll_token_expires_at %}
+        <p class="mt-3 flex items-center gap-1.5 text-sm text-gray-400">
+            <svg class="w-4 h-4"
+                 aria-hidden="true"
+                 xmlns="http://www.w3.org/2000/svg"
+                 width="24"
+                 height="24"
+                 fill="none"
+                 viewBox="0 0 24 24">
+                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            The QR code and link expire in <span class="font-medium">{{ fleet.enroll_token_expires_at|timeuntil }}</span>
         </p>
     {% endif %}
 {% endif %}
