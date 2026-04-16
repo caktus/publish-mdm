@@ -67,7 +67,6 @@ def push_mdm_device_config(context: dg.AssetExecutionContext, config: DeviceConf
         active_mdm = get_active_mdm_instance(organization=org)
         if not active_mdm:
             context.log.warning(f"MDM not configured for organization {org}")
-            failed_pks.extend(d.pk for d in org_devices)
             continue
         for device in org_devices:
             try:
