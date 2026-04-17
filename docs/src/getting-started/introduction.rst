@@ -8,9 +8,9 @@ powerful data collection platform. It offers support for:
 * Form templates and variables, which can be used to create multiple versions of
   a form for different app users
 * A user-friendly interface for publishing form versions
-* MDM integration with :doc:`either TinyMDM or Android EMM <mdm>` to automatically configure devices with the
+* MDM integration with :doc:`either TinyMDM or Android EMM <../topics/mdm>` to automatically configure devices with the
   correct forms and settings
-* VPN integration with :doc:`Tailscale <vpn>` to securely connect devices to ODK Central
+* VPN integration with :doc:`Tailscale <../topics/vpn>` to securely connect devices to ODK Central
 
 Getting Started
 ---------------
@@ -32,9 +32,9 @@ Next Steps
 
 To learn more about how Publish MDM works, check out:
 
-- :doc:`Understanding the Form Workflow <form_workflow>` — See how Publish MDM simplifies publishing forms compared to manual ODK Central workflows
-- :doc:`ODK Central Concepts <odk_concepts>` — Understand the core concepts behind ODK Central that power Publish MDM
-- :doc:`Dynamic Forms with Template Variables <form_templates>` — Learn how to create customizable forms for different users and use cases
+- :doc:`Understanding the Form Workflow <../topics/form_workflow>` — See how Publish MDM simplifies publishing forms compared to manual ODK Central workflows
+- :doc:`ODK Central Concepts <../topics/odk_concepts>` — Understand the core concepts behind ODK Central that power Publish MDM
+- :doc:`Dynamic Forms with Template Variables <../topics/form_templates>` — Learn how to create customizable forms for different users and use cases
 
 .. _ODK Central: https://docs.getodk.org/central-intro/
 .. _ODK Collect: https://docs.getodk.org/collect-intro/

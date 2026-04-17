@@ -12,6 +12,10 @@ BUILDDIR      = _build
 help:
 	@$(SPHINXBUILD) -M help "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
+rtd-deps:
+	@echo "# DO NOT UPDATE THIS FILE MANUALLY! Edit pyproject.toml, then run 'make rtd-deps'\n#" > requirements-docs.txt
+	uv export --only-group docs --format requirements.txt >> requirements-docs.txt
+
 .PHONY: help Makefile
 
 # Catch-all target: route all unknown targets to Sphinx using the new

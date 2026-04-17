@@ -6,13 +6,16 @@ This guide provides a step-by-step walkthrough for new users to set up an organi
 .. note::
    Device management with Publish MDM is optional but enables powerful features like remote configuration, security policies, and automated form deployment. If you just want to publish forms without managing devices, check out the :doc:`Publishing Your First Form <publish_first_form>` guide instead.
 
+.. note::
+   This guide covers the **Google Android Management API** integration. If your organization is using **TinyMDM**, refer to the `TinyMDM documentation <https://www.tinymdm.net/help-resources/>`_ instead.
+
 Step 1: Create a New Organization
 ---------------------------------
 
 All organizations in Publish MDM are independent, with their own settings and devices.
 
 .. important::
-   Due to Android Enterprise enrollment requirements, you must enroll the organization with a **dedicated Gmail account** (not a Google Workspace account).
+   Due to Android Enterprise enrollment requirements, you must enroll the organization with a **dedicated Gmail account** (e.g., ``name@gmail.com``), **not** a Google Workspace account linked to your company or organization.
 
    Additionally, the dedicated Gmail account **must be the only and primary account** in the browser profile you use for Android Enterprise enrollment and Publish MDM administration. Using a separate browser profile ensures Google's enrollment process works smoothly.
 
@@ -63,33 +66,30 @@ Initial enrollment automatically creates a **Default Policy** (which defines dev
 
    .. tip::
 
-      The Default Policy is a basic policy with minimal apps and restrictions. It's designed for testing. Once you're ready for production, you can modify the policy to add security restrictions, app bundles, VPN, and other settings. See the :doc:`Mobile Device Management <mdm>` guide for more details.
+      The Default Policy is a basic policy with minimal apps and restrictions. It's designed for testing. Once you're ready for production, you can modify the policy to add security restrictions, app bundles, VPN, and other settings. See the :doc:`Mobile Device Management <../topics/mdm>` guide for more details.
 
 Step 4: Enroll Your First Device
 --------------------------------
 
 There are two primary enrollment methods depending on the device's use case:
 
-**Option A: Fully Managed (QR Code)**
-*This method is for devices that have been factory reset. If possible, this approach is generally recommended as it provides more control over the devices (e.g., app installation, security policies, restrictions).*
+**Option A: Fully Managed — Company-Owned Device (QR Code)**
+*Recommended for dedicated field devices. Provides full control over the device, including app installation, security policies, and restrictions. Requires a factory reset.*
 
-1. Factory reset your Android device.
-2. On the initial setup screen ("Hi there" or "Welcome", depending on your Android version), **rapidly** tap the center or bottom of the screen **seven times or more** to reveal the hidden QR code scanner.
+.. tip::
 
-   .. tip::
+   :doc:`📱 Enroll a Company-Owned Device <enroll_company_owned_device>` — Share this guide with the person setting up the device.
 
-      The QR code scanner is only available during the **first setup** of brand-new devices. If the device has already been set up, you must factory reset it again. The scanner location varies by Android version, so be patient and try different areas if needed.
+   Once enrolled, refresh the **Devices** page to confirm the device appears in the list.
 
-3. Use the QR code scanner to scan the QR code displayed under the **Enroll** button on the **Devices** page in Publish MDM.
-4. Follow the prompts on the device to complete the enrollment process. Once enrollment finishes, you will see the standard Android home screen or a kiosk screen (depending on your policy settings).
-5. Refresh the **Devices** page to confirm your device appears in the list. The device will be configured according to the assigned **Policy**.
+**Option B: Work Profile — Personally-Owned Device**
+*"Bring Your Own Device" (BYOD) option. Creates a separate work profile on a personal phone. Provides less control than fully managed mode, but allows employees or field staff to use their personal devices. Personal data remains private.*
 
-**Option B: Work Profile (Link)**
-*This method allows "Bring Your Own Device" (BYOD) where a separate work profile is created on a personal device. This provides less control over the device than fully managed mode (e.g., you cannot block system apps or force certain security settings), but allows employees or field staff to use their personal phones.*
+.. tip::
 
-1. On the target device, navigate to the enrollment link provided at the bottom of the **Enroll** dialog on the **Devices** page. You may need to send this link to the device via email, SMS, QR code, or another method.
-2. Open the link and follow the prompts to create a work profile. Once complete, the work profile is enrolled and will receive app assignments and policies. For more details on the work profile user experience, see `What is an Android Work Profile? <https://support.google.com/work/android/answer/6191949>`_
-3. Refresh the **Devices** page to confirm your device appears in the list. The device will be configured according to the assigned **Policy**.
+   :doc:`👤 Enroll a Personally-Owned Device <enroll_personally_owned_device>` — Share this guide with the device owner.
+
+   Once enrolled, refresh the **Devices** page to confirm the device appears in the list.
 
 .. note::
    For work profiles, the serial number that appears is a random identifier assigned to the work profile, not the actual serial number of the device.
@@ -124,8 +124,8 @@ What's Next?
 
 Here are some useful next steps:
 
-- **Enroll More Devices:** Follow the same steps in Step 4 to enroll additional devices using the same or different methods.
+- **Enroll More Devices:** Share the :doc:`company-owned <enroll_company_owned_device>` or :doc:`personally-owned <enroll_personally_owned_device>` enrollment guides with your team to enroll additional devices.
 - **Create Device Fleets:** Use the **Fleets** section to organize devices by region, team, or project, and assign different forms to different groups.
-- **Learn More about Device Management:** Visit the :doc:`Mobile Device Management <mdm>` guide to understand policies, device security, and advanced MDM concepts.
-- **Customize Forms with Template Variables:** Check out :doc:`Dynamic Forms with Template Variables <form_templates>` to learn how to personalize forms for different users or locations without creating multiple form versions.
+- **Learn More about Device Management:** Visit the :doc:`Mobile Device Management <../topics/mdm>` guide to understand policies, device security, and advanced MDM concepts.
+- **Customize Forms with Template Variables:** Check out :doc:`Dynamic Forms with Template Variables <../topics/form_templates>` to learn how to personalize forms for different users or locations without creating multiple form versions.
 - **Troubleshoot Issues:** If you encounter any problems, refer to the :doc:`Troubleshooting Guide <troubleshooting>` or contact support.
