@@ -63,7 +63,7 @@ Initial enrollment automatically creates a **Default Policy** (which defines dev
 
    .. tip::
 
-      The Default Policy is a basic policy with minimal apps and restrictions. It's designed for testing. Once you're ready for production, you can modify the policy to add security restrictions, app bundles, VPN, and other settings. See the :doc:`Mobile Device Management <mdm>` guide for more details.
+      The Default Policy is a basic policy with minimal apps and restrictions. It's designed for testing. Once you're ready for production, you can modify the policy to add security restrictions, app bundles, VPN, and other settings. See the :doc:`Mobile Device Management <../topics/mdm>` guide for more details.
 
 Step 4: Enroll Your First Device
 --------------------------------
@@ -123,6 +123,6 @@ Here are some useful next steps:
 
 - **Enroll More Devices:** Share the :doc:`company-owned <enroll_company_owned_device>` or :doc:`personally-owned <enroll_personally_owned_device>` enrollment guides with your team to enroll additional devices.
 - **Create Device Fleets:** Use the **Fleets** section to organize devices by region, team, or project, and assign different forms to different groups.
-- **Learn More about Device Management:** Visit the :doc:`Mobile Device Management <mdm>` guide to understand policies, device security, and advanced MDM concepts.
-- **Customize Forms with Template Variables:** Check out :doc:`Dynamic Forms with Template Variables <form_templates>` to learn how to personalize forms for different users or locations without creating multiple form versions.
+- **Learn More about Device Management:** Visit the :doc:`Mobile Device Management <../topics/mdm>` guide to understand policies, device security, and advanced MDM concepts.
+- **Customize Forms with Template Variables:** Check out :doc:`Dynamic Forms with Template Variables <../topics/form_templates>` to learn how to personalize forms for different users or locations without creating multiple form versions.
 - **Troubleshoot Issues:** If you encounter any problems, refer to the :doc:`Troubleshooting Guide <troubleshooting>` or contact support.
