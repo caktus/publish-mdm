@@ -27,7 +27,7 @@ What You'll Need
 Step 1: Start the Device
 ------------------------
 
-Power on the factory-reset device. You will see a welcome or "Hi there" screen — this is
+Power on the factory-reset device. You will see a welcome or "Hi there" screen; this is
 the initial Android setup wizard.
 
 Step 2: Open the QR Code Scanner
@@ -61,9 +61,11 @@ The QR code is shown in Publish MDM on the **Devices** page under the **Enroll**
 Step 4: Complete the Setup Wizard
 ----------------------------------
 
+.. tip::
+   An internet connection is required to download the management software.
+
 Continue through the remaining prompts. When asked, connect to your Wi-Fi network and
-enter the password — an internet connection is required to download the management
-software.
+enter the password.
 
 The device will automatically:
 
