@@ -16,6 +16,8 @@ to learn how managing your Android devices with an MDM could enhance your workfl
    introduction
    publish_first_form
    device_management_quickstart
+   enroll_company_owned_device
+   enroll_personally_owned_device
    form_workflow
    odk_concepts
    form_templates
