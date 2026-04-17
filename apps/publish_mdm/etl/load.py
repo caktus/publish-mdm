@@ -96,10 +96,24 @@ def publish_form_template(event: PublishTemplateEvent, user: User, send_message:
         with attachment_paths_for_upload(attachments) as attachment_paths:
             # Publish each app user form version to ODK Central
             for app_user_version in app_user_versions:
+                # Create a draft form
                 form = client.publish_mdm.create_or_update_form(
                     xml_form_id=app_user_version.app_user_form_template.xml_form_id,
                     definition=app_user_version.file.read(),
                     attachments=attachment_paths,
+                )
+                # Delete attachments that don't exist in Publish MDM but exist in Central.
+                # When a new form draft is created, any attachments that match existing ones
+                # on the currently published form are automatically copied over to the new draft,
+                # which can lead to attachments that exist in Central but not in Publish MDM.
+                # https://docs.getodk.org/central-api-form-management/#creating-a-draft-form
+                client.publish_mdm.clear_missing_attachments(
+                    xml_form_id=app_user_version.app_user_form_template.xml_form_id,
+                    attachment_names=[Path(p).name for p in attachment_paths],
+                )
+                # Publish the draft
+                client.publish_mdm.publish_form_draft(
+                    xml_form_id=app_user_version.app_user_form_template.xml_form_id,
                 )
                 send_message(f"Published form: {form.xmlFormId}")
         # Create or update the form assignments on the server

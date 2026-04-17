@@ -236,11 +236,6 @@ class TestPublishServiceForms:
                 "name": "New Form",
             },
         )
-        # Second request is to publish the draft
-        requests_mock.post(
-            "https://central/v1/projects/1/forms/newform_10000/draft/publish",
-            json={"success": True},
-        )
         if with_attachments:
             attachment = NamedTemporaryFile()
             basename = Path(attachment.name).name
@@ -255,8 +250,8 @@ class TestPublishServiceForms:
         form = odk_client.publish_mdm.create_or_update_form(
             xml_form_id="newform_10000", definition=definition, attachments=attachments
         )
-        # Two total requests to the ODK Central API if no attachment, 3 otherwise
-        assert requests_mock.call_count == 2 + with_attachments
+        # One request to the ODK Central API if no attachment, 2 otherwise
+        assert requests_mock.call_count == 1 + with_attachments
         assert form.xmlFormId == "newform_10000"
         assert form.name == "New Form"
 
@@ -272,12 +267,7 @@ class TestPublishServiceForms:
             "https://central/v1/projects/1/forms/myform_10000/draft",
             json={"success": True},
         )
-        # Second request is to publish the draft
-        requests_mock.post(
-            "https://central/v1/projects/1/forms/myform_10000/draft/publish",
-            json={"success": True},
-        )
-        # Third request is to get the updated form
+        # Second request is to get the updated form
         requests_mock.get(
             "https://central/v1/projects/1/forms/myform_10000",
             json={
@@ -312,9 +302,110 @@ class TestPublishServiceForms:
         form = odk_client.publish_mdm.create_or_update_form(
             xml_form_id="myform_10000", definition=definition, attachments=attachments
         )
-        # Three total requests to the ODK Central API if no attachment, 4 otherwise
-        assert requests_mock.call_count == 3 + with_attachments
+        # Two total requests to the ODK Central API if no attachment, 3 otherwise
+        assert requests_mock.call_count == 2 + with_attachments
         assert form.version == "newversion"
+
+    def test_publish_form_draft(self, requests_mock, odk_client: PublishMDMClient):
+        requests_mock.post(
+            "https://central/v1/projects/1/forms/myform_10000/draft/publish",
+            json={"success": True},
+        )
+        odk_client.publish_mdm.publish_form_draft(xml_form_id="myform_10000")
+        assert requests_mock.call_count == 1
+
+
+class TestPublishServiceDraftAttachments:
+    @pytest.fixture
+    def attachment_response(self) -> list[dict]:
+        return [
+            {
+                "name": "hospitals.csv",
+                "type": "file",
+                "exists": True,
+                "blobExists": True,
+                "datasetExists": False,
+                "hash": "abc123",
+                "updatedAt": "2024-01-01T00:00:00.000Z",
+            },
+            {
+                "name": "regions.csv",
+                "type": "file",
+                "exists": False,
+                "blobExists": False,
+                "datasetExists": False,
+                "hash": None,
+                "updatedAt": None,
+            },
+            {
+                "name": "patients",
+                "type": "file",
+                "exists": True,
+                "blobExists": True,
+                "datasetExists": True,
+                "hash": "def456",
+                "updatedAt": "2024-01-01T00:00:00.000Z",
+            },
+        ]
+
+    def test_list_form_attachments(
+        self, requests_mock, odk_client: PublishMDMClient, attachment_response
+    ):
+        requests_mock.get(
+            "https://central/v1/projects/1/forms/myform_10000/draft/attachments",
+            json=attachment_response,
+        )
+        attachments = odk_client.publish_mdm.list_form_attachments(xml_form_id="myform_10000")
+        assert len(attachments) == 3
+        assert attachments[0].name == "hospitals.csv"
+        assert attachments[0].exists is True
+        assert attachments[0].datasetExists is False
+        assert attachments[2].datasetExists is True
+
+    def test_clear_form_attachment(self, requests_mock, odk_client: PublishMDMClient):
+        requests_mock.delete(
+            "https://central/v1/projects/1/forms/myform_10000/draft/attachments/hospitals.csv",
+            json={"success": True},
+        )
+        odk_client.publish_mdm.clear_form_attachment(
+            xml_form_id="myform_10000", attachment_name="hospitals.csv"
+        )
+        assert requests_mock.call_count == 1
+
+    def test_clear_missing_attachments(
+        self, requests_mock, odk_client: PublishMDMClient, attachment_response
+    ):
+        requests_mock.get(
+            "https://central/v1/projects/1/forms/myform_10000/draft/attachments",
+            json=attachment_response,
+        )
+        # hospitals.csv is kept; regions.csv has no blob (exists=False); patients is
+        # dataset-backed — nothing to delete
+        odk_client.publish_mdm.clear_missing_attachments(
+            xml_form_id="myform_10000",
+            attachment_names=["hospitals.csv"],
+        )
+        assert requests_mock.call_count == 1  # 1 list, 0 deletes
+
+    def test_clear_missing_attachments_skips_datasets(
+        self, requests_mock, odk_client: PublishMDMClient, attachment_response
+    ):
+        requests_mock.get(
+            "https://central/v1/projects/1/forms/myform_10000/draft/attachments",
+            json=attachment_response,
+        )
+        # Empty keep list: hospitals.csv (blobExists=True) cleared; regions.csv skipped
+        # (blobExists=False — nothing to clear); patients skipped (datasetExists=True
+        # protects it even though blobExists=True)
+        requests_mock.delete(
+            "https://central/v1/projects/1/forms/myform_10000/draft/attachments/hospitals.csv",
+            json={"success": True},
+        )
+        odk_client.publish_mdm.clear_missing_attachments(
+            xml_form_id="myform_10000",
+            attachment_names=[],
+        )
+        assert requests_mock.call_count == 2  # 1 list + 1 delete (hospitals.csv only)
 
 
 class TestPublishServiceFormVersions:

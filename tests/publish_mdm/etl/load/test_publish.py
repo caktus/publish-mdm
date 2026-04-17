@@ -126,6 +126,12 @@ class TestPublishFormTemplate:
             "apps.publish_mdm.etl.odk.publish.PublishService.create_or_update_form",
             return_value=mocker.Mock(),
         )
+        mock_clear_missing_attachments = mocker.patch(
+            "apps.publish_mdm.etl.odk.publish.PublishService.clear_missing_attachments"
+        )
+        mock_publish_form_draft = mocker.patch(
+            "apps.publish_mdm.etl.odk.publish.PublishService.publish_form_draft"
+        )
         mock_assign_app_users_forms = mocker.patch(
             "apps.publish_mdm.etl.odk.publish.PublishService.assign_app_users_forms"
         )
@@ -139,6 +145,8 @@ class TestPublishFormTemplate:
             xml_form_id_base=form_template.form_id_base, form_template=form_template
         )
         mock_create_or_update_form.assert_called_once()
+        mock_clear_missing_attachments.assert_called_once()
+        mock_publish_form_draft.assert_called_once()
         for call in mock_create_or_update_form.mock_calls:
             call.kwargs["xml_form_id"] = user_form1.xml_form_id
             call.kwargs["definition"] = b"file content"
