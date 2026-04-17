@@ -27,30 +27,26 @@ What You'll Need
 Step 1: Start the Device
 ------------------------
 
-Power on the factory-reset device. You will see a welcome or "Hi there" screen; this is
+Power on the factory-reset device. You will see a welcome or **"Hi there"** screen; this is
 the initial Android setup wizard.
+
+.. tip::
+   Don't tap Start or any other buttons yet—you'll tap the screen itself in the next step.
 
 Step 2: Open the QR Code Scanner
 ---------------------------------
 
-On the welcome screen, tap the same spot **very fast and repeatedly** until a QR code scanner
-appears. The exact location varies by Android version and manufacturer:
+On the same screen, tap the **center** on a blank area (avoid buttons or text) **six times as quickly as possible**.
+A QR code scanner should appear.
 
-- In general, you want to tap a blank area and avoid any buttons or links.
-- On some devices, tap the **center** of the screen.
-- On others, tap the **bottom** of the screen.
-- If nothing happens, try another location and keep tapping.
+If nothing happens after six quick taps, try the **bottom** of the screen and keep tapping rapidly.
+**This often takes several attempts**—stay consistent with fast, repeated taps until the scanner opens.
 
-The QR code scanner should appear directly. Keep tapping or increase the speed of your tapping
-until it does. Google's official documentation states that six taps are required, however, rather
-than counting it's easier to simply keep tapping until the scanner appears.
-
-.. tip::
-   If tapping doesn't work after many attempts, try the
-   `DPC identifier method <https://developers.google.com/android/management/provision-device#dpc_identifier_method>`_ instead:
-   proceed through the normal setup wizard, connect to Wi-Fi when prompted, and when
-   asked to sign in to a Google account, type ``afw#setup`` instead of an email address.
-   This will download Android Device Policy and prompt you to scan a QR code.
+.. note::
+   If tapping never opens the scanner, you can use an alternative method: continue through
+   the normal setup wizard, connect to Wi-Fi when prompted, and when asked to sign in to a
+   Google account, type ``afw#setup`` instead of an email address. This downloads Android
+   Device Policy and prompts you to scan a QR code.
 
 Step 3: Scan the Enrollment QR Code
 -------------------------------------
@@ -61,37 +57,32 @@ The QR code is shown in Publish MDM on the **Devices** page under the **Enroll**
 Step 4: Complete the Setup Wizard
 ----------------------------------
 
-.. tip::
-   An internet connection is required to download the management software.
+.. important::
+   The device needs an internet connection to complete setup. Connect to Wi-Fi when prompted.
 
-Continue through the remaining prompts. When asked, connect to your Wi-Fi network and
-enter the password.
-
-The device will automatically:
+Continue through the remaining prompts. The device will automatically:
 
 1. Download **Android Device Policy** (Google's device management app)
 2. Configure the device according to your organization's policy
 3. Install any required apps (such as ODK Collect)
 
-This process may take a few minutes. Depending on your organization's policy, you may
-also be asked to set a PIN, password, or pattern lock and agree to terms and conditions.
+This may take a few minutes. You may also be asked to set a PIN, password, or pattern
+lock, and to agree to your organization's terms.
 
-Once setup is complete, the device will show the standard Android home screen (or a
-managed home screen, if your organization uses one). The device is now enrolled and
-managed by your organization.
+Once setup is complete, the device will show the home screen and is ready to use. It
+is now enrolled and managed by your organization.
 
 Verifying Enrollment
 --------------------
 
 Your IT administrator can confirm the device is enrolled by checking the **Devices** page
-in Publish MDM. The device should appear in the list within a few minutes of completing
-setup.
+in Publish MDM. The device should appear within a few minutes of completing setup.
 
 If the device does not appear, check that:
 
 - The device is connected to the internet
-- You scanned the correct QR code (ask your IT admin to confirm)
-- The device meets the minimum Android version requirement (7.0+)
+- You scanned the correct QR code (check with your IT administrator)
+- The device is running Android 7.0 or later
 
 Next Steps
 ----------
@@ -102,6 +93,6 @@ Once enrolled, your device will automatically receive:
 - Form configurations for your project
 - Security and usage policies defined by your organization
 
-You do not need to do anything else; the apps and forms will appear on the device
-automatically within a few minutes. If they don't appear after 10 minutes, try opening
-ODK Collect manually to trigger a sync.
+You don't need to do anything else — the apps and forms will appear on the device
+within a few minutes. If they don't appear after 10 minutes, try opening ODK Collect
+manually to trigger a sync.

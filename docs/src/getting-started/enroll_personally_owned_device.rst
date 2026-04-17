@@ -19,7 +19,7 @@ What You'll Need
 ----------------
 
 - An Android device running Android 5.1 or later
-- The enrollment QR code from your IT administrator (displayed in Publish MDM under
+- The enrollment QR code from your IT administrator (shown in Publish MDM under
   **Devices → Enroll**), or an enrollment link sent to you by email or SMS
 - A Wi-Fi or mobile data connection
 
@@ -50,34 +50,34 @@ This is the most straightforward method for most users.
 **Step 1: Install Android Device Policy**
 
 On your Android device, open the **Google Play Store** and search for
-**"Android Device Policy"**, or open the following link:
+**"Android Device Policy"**, or tap the badge below:
 
 .. image:: https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png
    :target: https://play.google.com/store/apps/details?id=com.google.android.apps.work.clouddpc
    :alt: Get it on Google Play
    :height: 60px
 
-Tap **Install** and wait for the download to complete. If an update is pending, tap **Update** instead.
+Tap **Install**. If the app is already installed and an update is available, tap **Update** instead.
 
 .. tip::
    Android Device Policy is published by **Google LLC**. Make sure you're installing the
-   official app from Google, not a third-party app with a similar name.
+   official app — not a third-party app with a similar name.
 
 **Step 2: Open Android Device Policy**
 
-Once installed, tap **Open**. The app will launch and show a QR code scanner.
+Once installed, tap **Open**. The app will launch and display a QR code scanner.
 
 **Step 3: Scan the QR Code**
 
-Point your camera at the enrollment QR code provided by your IT administrator.
+Hold your phone's camera over the enrollment QR code provided by your IT administrator.
 The QR code is shown in Publish MDM on the **Devices** page under the **Enroll** button.
 
 The app will read the QR code and begin setting up your Work Profile automatically.
 
 **Step 4: Accept Work Profile Setup**
 
-You will be asked to confirm that you want to set up a Work Profile on your device.
-Follow the on-screen prompts to accept and complete the setup. You may be asked to:
+You will be asked to confirm that you want to set up a Work Profile. Follow the on-screen
+prompts to accept. You may also be asked to:
 
 - Set a Work Profile PIN, password, or pattern
 - Agree to your organization's terms
@@ -88,23 +88,20 @@ Android will then:
 2. Configure it according to your organization's policy
 3. Install any required work apps (such as ODK Collect)
 
-This may take a few minutes.
-
-Once complete, you will see work apps appear under a "Work" tab in your applications list.
+This may take a few minutes. Once complete, you will see work apps appear under a "Work"
+tab in your app drawer.
 
 Option B: Enroll via an Enrollment Link
 -----------------------------------------
 
-If your IT administrator sent you an enrollment link (by email, SMS, or another
-method), you can use it instead of scanning a QR code.
+If your IT administrator sent you an enrollment link by email, SMS, or another method:
 
 1. Open the link on your Android device.
-2. You will be guided through Work Profile setup automatically.
-3. Follow the on-screen prompts to complete enrollment.
+2. Follow the on-screen prompts to complete Work Profile setup.
 
 .. note::
-   If the link doesn't open correctly, make sure Google Play Services is up to date on
-   your device. Go to **Settings → Apps → Google Play Services** and check for updates.
+   If the link doesn't open correctly, make sure Google Play Services is up to date.
+   Go to **Settings → Apps → Google Play Services** and check for updates.
 
 Verifying Enrollment
 ---------------------
@@ -112,14 +109,14 @@ Verifying Enrollment
 Your IT administrator can confirm your device is enrolled by checking the **Devices**
 page in Publish MDM.
 
-On your device, you'll know enrollment was successful when:
+On your device, enrollment was successful when:
 
 - Work apps (with briefcase badges) appear in your app drawer
 - A **Work** tab or section appears in your app drawer or settings
 - You receive a notification that the Work Profile has been set up
 
-If apps don't appear after 10 minutes, try opening the **Android Device Policy** app
-and checking for any pending setup steps.
+If work apps don't appear after 10 minutes, open the **Android Device Policy** app to
+check for any pending setup steps.
 
 .. note::
    For personally-owned devices, the serial number shown in Publish MDM is a randomly
@@ -135,13 +132,13 @@ Once enrolled, you can:
   Work Profile on/off, or go to **Settings → Work profile**.
 - **Access work apps**: Look for the briefcase badge on apps, or find a dedicated
   Work tab in your app drawer.
-- **Check your work policy**: Open **Android Device Policy** to see what settings
-  your organization has applied to your Work Profile.
+- **Review your work policy**: Open **Android Device Policy** to see what settings
+  your organization has applied.
 
 Unenrolling
 -----------
 
 If you need to remove the Work Profile (for example, if you leave the organization),
 your IT administrator can remove it remotely. You can also remove it yourself by going
-to **Settings → Work profile → Remove work profile**. This removes only the Work Profile
-and all work data; your personal apps and data are not affected.
+to **Settings → Work profile → Remove work profile**. Only the Work Profile and its
+data are removed — your personal apps and data are not affected.
