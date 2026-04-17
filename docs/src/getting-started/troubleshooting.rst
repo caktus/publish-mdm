@@ -40,7 +40,7 @@ Policy & Fleet Configuration
 Device Enrollment
 -----------------
 
-**The "Seven Taps" method isn't showing the QR scanner.**
+**The "Six Taps" method isn't showing the QR scanner.**
 
     **Cause:** You may not be on the first setup screen or the device is not fully factory reset.
     **Solution:** Ensure you're on the initial setup screen. Tap a white space area (away from buttons) repeatedly. You may need to tap more than 7 times; keep tapping until the QR scanner appears. If the device has progressed to Wi-Fi setup, factory reset it again.
