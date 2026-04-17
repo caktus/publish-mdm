@@ -33,19 +33,21 @@ the initial Android setup wizard.
 Step 2: Open the QR Code Scanner
 ---------------------------------
 
-On the welcome screen, **tap the same spot repeatedly** until the QR code scanner
+On the welcome screen, tap the same spot **very fast and repeatedly** until a QR code scanner
 appears. The exact location varies by Android version and manufacturer:
 
+- In general, you want to tap a blank area and avoid any buttons or links.
 - On some devices, tap the **center** of the screen.
 - On others, tap the **bottom** of the screen.
-- If nothing happens, try the other location and keep tapping.
+- If nothing happens, try another location and keep tapping.
 
-The QR code scanner should appear directly — keep tapping until it does. Google's official
-documentation states that six taps are required, however, rather than counting it's easier
-to simply keep tapping until the scanner appears.
+The QR code scanner should appear directly. Keep tapping or increase the speed of your tapping
+until it does. Google's official documentation states that six taps are required, however, rather
+than counting it's easier to simply keep tapping until the scanner appears.
 
 .. tip::
-   If tapping doesn't work after many attempts, try the DPC identifier method instead:
+   If tapping doesn't work after many attempts, try the
+   `DPC identifier method <https://developers.google.com/android/management/provision-device#dpc_identifier_method>`_ instead:
    proceed through the normal setup wizard, connect to Wi-Fi when prompted, and when
    asked to sign in to a Google account, type ``afw#setup`` instead of an email address.
    This will download Android Device Policy and prompt you to scan a QR code.
@@ -56,11 +58,12 @@ Step 3: Scan the Enrollment QR Code
 Point the device's camera at the enrollment QR code provided by your IT administrator.
 The QR code is shown in Publish MDM on the **Devices** page under the **Enroll** button.
 
-Step 4: Connect to Wi-Fi
--------------------------
+Step 4: Complete the Setup Wizard
+----------------------------------
 
-When prompted, select your Wi-Fi network and enter the password. An active internet
-connection is required to download the management software and complete enrollment.
+Continue through the remaining prompts. When asked, connect to your Wi-Fi network and
+enter the password — an internet connection is required to download the management
+software.
 
 The device will automatically:
 
@@ -68,16 +71,8 @@ The device will automatically:
 2. Configure the device according to your organization's policy
 3. Install any required apps (such as ODK Collect)
 
-This process may take a few minutes depending on your network speed.
-
-Step 5: Complete Setup
------------------------
-
-Follow any remaining on-screen prompts. Depending on your organization's policy, you
-may be asked to:
-
-- Set a PIN, password, or pattern lock
-- Agree to terms and conditions
+This process may take a few minutes. Depending on your organization's policy, you may
+also be asked to set a PIN, password, or pattern lock and agree to terms and conditions.
 
 Once setup is complete, the device will show the standard Android home screen (or a
 managed home screen, if your organization uses one). The device is now enrolled and
