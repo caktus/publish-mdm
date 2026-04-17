@@ -130,7 +130,13 @@ Once enrolled, we recommend reviewing the following resources to better understa
 how to manage your Work Profile and use work apps:
 
 - `What is an Android Work Profile? <https://support.google.com/work/android/answer/6191949>`_
-- `Learn about work profile <https://support.google.com/work/android/topic/7069773>`_
+- `Calls, texts, & contacts in your Work Profile <https://support.google.com/work/android/answer/6275589>`_
+- `Pause or turn on your work profile <https://support.google.com/work/android/answer/7029561>`_
+- `Turn your work profile location on or off <https://support.google.com/work/android/answer/7029265>`_
+- `Lock your work profile <https://support.google.com/work/android/answer/7029958>`_
+- `Control work profile notifications <https://support.google.com/work/android/answer/7029165>`_
+
+For other documentation Google may add from time to time, see `Learn about work profile <https://support.google.com/work/android/topic/7069773>`_.
 
 Unenrolling
 -----------
