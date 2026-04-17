@@ -123,22 +123,19 @@ check for any pending setup steps.
    generated identifier assigned to the Work Profile; it is **not** the device's
    actual serial number. This Google limitation is by design to protect users' privacy.
 
-Managing Your Work Profile
----------------------------
+Learn More
+----------
 
-Once enrolled, you can:
+Once enrolled, we recommend reviewing the following resources to better understand
+how to manage your Work Profile and use work apps:
 
-- **Pause work notifications**: Swipe down the notification shade and toggle the
-  Work Profile on/off, or go to **Settings → Work profile**.
-- **Access work apps**: Look for the briefcase badge on apps, or find a dedicated
-  Work tab in your app drawer.
-- **Review your work policy**: Open **Android Device Policy** to see what settings
-  your organization has applied.
+- `What is an Android Work Profile? <https://support.google.com/work/android/answer/6191949>`_
+- `Learn about work profile <https://support.google.com/work/android/topic/7069773>`_
 
 Unenrolling
 -----------
 
 If you need to remove the Work Profile (for example, if you leave the organization),
 your IT administrator can remove it remotely. You can also remove it yourself by going
-to **Settings → Work profile → Remove work profile**. Only the Work Profile and its
-data are removed — your personal apps and data are not affected.
+following the instructions to `Remove a work account from an Android device <https://support.google.com/a/users/answer/7579983>`_.
+Only the Work Profile and its data are removed — your personal apps and data are not affected.
