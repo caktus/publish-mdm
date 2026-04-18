@@ -80,6 +80,9 @@ known-first-party = ["apps", "config"]
 module_name = "dagster_publish_mdm.definitions"
 code_location_name = "dagster_publish_mdm"
 
+[tool.uv]
+default-groups = ["dev", "docs"]
+
 [tool.uv.sources]
 django-email-bandit = { git = "https://github.com/caktus/django-email-bandit", rev = "8d84bb5571e531946b46c63301b136f5369e149b" }
 pyodk = { git = "https://github.com/getodk/pyodk.git", rev = "c20fbd36622fe3a309292b7f646bd7347858aaa6" }
@@ -160,6 +163,12 @@ dev = [
     "pytest-responses==0.5.1",
     "requests-mock==1.12.1",
 ]
+# After updating docs dependencies, you should also run the following
+# commands to update the dependencies used by Read the Docs:
+#
+#   cd docs/
+#   make rtd-deps
+#
 docs = [
     "shibuya>=2025.8.16",
     "sphinx>=8.2.3",
