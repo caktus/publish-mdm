@@ -967,6 +967,63 @@ def devices_list(request: HttpRequest, organization_slug):
 
 
 @login_required
+def device_detail(request: HttpRequest, organization_slug, device_pk):
+    """Detail page for an MDM Device, with soft-delete support."""
+    if request.method == "POST" and request.POST.get("action") == "soft_delete":
+        device = get_object_or_404(
+            Device.objects, pk=device_pk, fleet__organization=request.organization
+        )
+        device.soft_delete()
+        messages.success(request, f"Device “{device.device_id or device.name}” has been deleted.")
+        return redirect("publish_mdm:devices-list", organization_slug)
+
+    device = get_object_or_404(
+        Device.objects.select_related("fleet__organization", "fleet__project", "latest_snapshot")
+        .prefetch_related(
+            "latest_snapshot__apps",
+            models.Prefetch(
+                "fleet__project__app_users",
+                queryset=AppUser.objects.order_by("name"),
+            ),
+        )
+        .annotate(
+            firmware_version=Subquery(
+                FirmwareSnapshot.objects.filter(device=OuterRef("id"))
+                .values("version")
+                .order_by("-synced_at")[:1]
+            ),
+            last_seen_vpn=Subquery(
+                TailscaleDevice.objects.filter(
+                    Q(name__contains=Lower(NullIf(OuterRef("serial_number"), Value(""))))
+                    | Q(name__contains=Lower(NullIf(OuterRef("device_id"), Value(""))))
+                )
+                .values("last_seen")
+                .order_by("-last_seen")[:1]
+            ),
+        ),
+        pk=device_pk,
+        fleet__organization=request.organization,
+    )
+
+    context = {
+        "device": device,
+        "app_user_form": DeviceAppUserForm(instance=device),
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[
+                ("Devices", "devices-list"),
+                (
+                    device.device_id or device.name or f"Device {device.pk}",
+                    "device-detail",
+                    [device.pk],
+                ),
+            ],
+        ),
+    }
+    return render(request, "publish_mdm/device_detail.html", context)
+
+
+@login_required
 def device_export(request, organization_slug):
     """Exports Devices to a CSV or Excel file.
 

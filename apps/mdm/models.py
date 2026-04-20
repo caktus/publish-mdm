@@ -12,6 +12,7 @@ from django.utils.timezone import now
 
 from apps.infisical.fields import EncryptedCharField
 from apps.infisical.managers import EncryptedManager
+from apps.patterns.soft_delete import SoftDeleteModel
 
 from .serializers import PolicySerializer
 
@@ -517,7 +518,7 @@ class PushMethodChoices(models.TextChoices):
     ALL = "all", "Push All Devices"
 
 
-class Device(models.Model):
+class Device(SoftDeleteModel):
     """A device that is enrolled in the MDM."""
 
     fleet = models.ForeignKey(
