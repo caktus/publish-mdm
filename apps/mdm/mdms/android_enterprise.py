@@ -267,10 +267,8 @@ class AndroidEnterprise(MDM):
             else:
                 mdm_device = devices_by_serial.get(our_device.serial_number)
             if not mdm_device:
-                # TODO: Remove the device from our database?
-                logger.debug(
-                    "Skipping device in our DB but not in the API response", device=our_device
-                )
+                logger.info("Soft-deleting device not found in API response", device=our_device)
+                our_device.soft_delete(commit=False)
                 continue
             logger.debug(
                 "Updating device",
@@ -281,7 +279,8 @@ class AndroidEnterprise(MDM):
 
         logger.debug("Updating existing devices", our_devices=our_devices, count=len(our_devices))
         Device.objects.bulk_update(
-            our_devices, fields=["serial_number", "device_id", "raw_mdm_device", "name"]
+            our_devices,
+            fields=["serial_number", "device_id", "raw_mdm_device", "name", "deleted_at"],
         )
         return our_devices
 

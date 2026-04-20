@@ -54,10 +54,16 @@ class SoftDeleteModel(models.Model):
     def is_deleted(self) -> bool:
         return self.deleted_at is not None
 
-    def soft_delete(self) -> None:
-        """Mark this row as deleted without removing it from the database."""
+    def soft_delete(self, commit: bool = True) -> None:
+        """Mark this row as deleted.
+
+        If ``commit`` is True (the default), the change is persisted immediately.
+        Pass ``commit=False`` to set ``deleted_at`` in memory only, for use when
+        the caller will persist the change itself (e.g. via ``bulk_update``).
+        """
         self.deleted_at = timezone.now()
-        self.save(update_fields=["deleted_at"])
+        if commit:
+            self.save(update_fields=["deleted_at"])
 
     def restore(self) -> None:
         """Un-delete this row, making it visible to the default manager again."""
