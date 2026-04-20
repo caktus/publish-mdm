@@ -2840,7 +2840,7 @@ class TestFleetQRCode(ViewTestBase, TestAllMDMsNoAutouse):
         response = client.post(url, data=data)
         assertContains(response, f'<img src="{fleet.enroll_qr_code.url}"')
         how_to_use = "How to use this QR code"
-        expiry = """The QR code <span x-show="deviceType === 'personally-owned'">and enrollment link</span> will expire in"""
+        expiry = """The QR code <span x-show="device === 'byod'">and enrollment link</span> will expire in"""
         if self.mdm == "Android Enterprise":
             assertContains(response, how_to_use)
             assertContains(response, expiry)
