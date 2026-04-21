@@ -6,6 +6,7 @@ import faker
 from apps.mdm.models import (
     Device,
     DeviceSnapshot,
+    DeviceSnapshotApp,
     FirmwareSnapshot,
     Fleet,
     Policy,
@@ -76,6 +77,17 @@ class DeviceSnapshotFactory(factory.django.DjangoModelFactory):
     mdm_device = factory.SubFactory(DeviceFactory)
     raw_mdm_device = factory.LazyAttribute(lambda obj: {"id": obj.device_id})
     synced_at = factory.Faker("date_time", tzinfo=dt.UTC)
+
+
+class DeviceSnapshotAppFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = DeviceSnapshotApp
+
+    device_snapshot = factory.SubFactory(DeviceSnapshotFactory)
+    package_name = factory.Sequence(lambda n: f"com.example.app{n}")
+    app_name = factory.LazyAttribute(lambda o: fake.word() + " App")
+    version_code = factory.Faker("pyint", min_value=1, max_value=9999)
+    version_name = factory.Faker("numerify", text="##.##.##")
 
 
 class FirmwareSnapshotFactory(factory.django.DjangoModelFactory):

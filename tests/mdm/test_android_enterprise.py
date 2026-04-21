@@ -596,9 +596,10 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         result = active_mdm.get_devices()
         assert result == []
 
-    def test_update_existing_devices_skips_device_with_unmatched_id(self, fleet):
-        """update_existing_devices() skips devices whose device_id is set but not found
-        in the MDM response by ID — matched into the queryset via serial number only."""
+    def test_update_existing_devices_soft_deletes_unmatched_device(self, fleet):
+        """update_existing_devices() soft-deletes a device whose device_id is set but not
+        found in the MDM response by ID — matched into the queryset via serial number only,
+        then soft-deleted via bulk_update because the per-device ID lookup returns None."""
         # Our device has device_id that does NOT match the MDM device name suffix
         our_device = DeviceFactory(fleet=fleet, device_id="OUR-DEVICE-ID", serial_number="SN999")
         # MDM device name has a different ID suffix; serial_number matches our_device
@@ -613,11 +614,12 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             }
         )
         active_mdm = AndroidEnterprise(organization=fleet.organization)
-        original_name = our_device.name
         active_mdm.update_existing_devices(fleet=fleet, mdm_devices=[mdm_device])
+        # deleted_at is persisted to the DB
         our_device.refresh_from_db()
-        # Device was skipped — name unchanged
-        assert our_device.name == original_name
+        assert our_device.is_deleted
+        # Device is no longer visible via the default manager
+        assert not Device.objects.filter(pk=our_device.pk).exists()
 
     def test_pubsub_topic_and_subscription_names(self, mocker, set_amapi_service_account_file):
         """pubsub_topic and pubsub_subscription are derived from the project_id and the ENVIRONMENT setting.

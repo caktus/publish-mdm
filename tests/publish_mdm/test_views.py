@@ -61,9 +61,10 @@ from apps.publish_mdm.models import (
     OrganizationInvitation,
     Project,
 )
-from tests.mdm import TestAllMDMsNoAutouse, TestAndroidEnterpriseOnly, TestTinyMDMOnly
+from tests.mdm import TestAllMDMs, TestAllMDMsNoAutouse, TestAndroidEnterpriseOnly, TestTinyMDMOnly
 from tests.mdm.factories import (
     DeviceFactory,
+    DeviceSnapshotAppFactory,
     DeviceSnapshotFactory,
     FirmwareSnapshotFactory,
     FleetFactory,
@@ -3210,6 +3211,82 @@ class TestDeviceUpdateAppUser(ViewTestBase, TestAllMDMsNoAutouse):
         assert response.status_code == 200
         device.refresh_from_db()
         assert device.app_user_name == "some_user"
+
+
+@pytest.mark.django_db
+class TestDeviceDetail(ViewTestBase, TestAllMDMs):
+    """Tests for the device detail page."""
+
+    @pytest.fixture
+    def device(self, organization):
+        return DeviceFactory(fleet__organization=organization)
+
+    @pytest.fixture
+    def url(self, device):
+        return reverse(
+            "publish_mdm:device-detail", args=[device.fleet.organization.slug, device.pk]
+        )
+
+    def test_get(self, client, url, user, device):
+        """GET renders device info, snapshot fields, firmware version, installed apps, and app user form."""
+        snapshot = DeviceSnapshotFactory(mdm_device=device)
+        device.latest_snapshot = snapshot
+        device.save()
+        FirmwareSnapshotFactory(device=device, version="1.2.3")
+        apps = DeviceSnapshotAppFactory.create_batch(3, device_snapshot=snapshot)
+
+        response = client.get(url)
+
+        assert response.status_code == 200
+        assertContains(response, device.device_id)
+        assertContains(response, device.name)
+        assertContains(response, device.fleet.name)
+        assertContains(response, snapshot.os_version)
+        assertContains(response, snapshot.enrollment_type)
+        assertContains(response, "1.2.3")
+        assert isinstance(response.context.get("app_user_form"), DeviceAppUserForm)
+        for app in apps:
+            assertContains(response, app.app_name)
+            assertContains(response, app.package_name)
+            assertContains(response, app.version_name)
+
+    def test_login_required(self, client, url):
+        client.logout()
+        response = client.get(url)
+        assert response.status_code == 302
+
+    def test_org_isolation(self, client, user):
+        """A device belonging to another organisation returns 404."""
+        other_device = DeviceFactory()
+        url = reverse(
+            "publish_mdm:device-detail",
+            args=[other_device.fleet.organization.slug, other_device.pk],
+        )
+        response = client.get(url)
+        assert response.status_code == 404
+
+    def test_soft_delete(self, client, url, user, device):
+        """POSTing action=soft_delete marks the device deleted, redirects, and shows a success message."""
+        response = client.post(url, {"action": "soft_delete"}, follow=True)
+        assertRedirects(
+            response,
+            reverse("publish_mdm:devices-list", args=[device.fleet.organization.slug]),
+        )
+        assertContains(response, device.device_id)
+        device.refresh_from_db()
+        assert device.is_deleted is True
+
+    def test_get_soft_deleted_device_returns_404(self, client, url, user, device):
+        """GETting a soft-deleted device's URL returns 404."""
+        device.soft_delete()
+        response = client.get(url)
+        assert response.status_code == 404
+
+    def test_soft_delete_already_deleted_returns_404(self, client, url, user, device):
+        """POSTing soft_delete on an already-deleted device returns 404."""
+        device.soft_delete()
+        response = client.post(url, {"action": "soft_delete"})
+        assert response.status_code == 404
 
 
 @pytest.mark.django_db

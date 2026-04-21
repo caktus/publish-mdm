@@ -803,3 +803,66 @@ class TestFleetAdminDeleteConfirmation(TestAdmin):
             "delete" in response.context.get("title", "").lower()
             or b"delete" in response.content.lower()
         )
+
+
+class TestDeviceAdminSoftDelete(TestAdmin):
+    """Tests for soft-delete and restore admin actions on Device."""
+
+    @pytest.fixture
+    def device(self, organization):
+        return DeviceFactory(fleet__organization=organization)
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("admin:mdm_device_changelist")
+
+    def test_get_queryset_includes_soft_deleted(self, client, user, device):
+        """The changelist shows soft-deleted devices."""
+        device.soft_delete()
+        response = client.get(reverse("admin:mdm_device_changelist"))
+        assert response.status_code == 200
+        assertContains(response, device.name)
+
+    def test_soft_delete_action(self, client, user, device):
+        """The soft_delete_devices action marks selected devices as deleted."""
+        data = {
+            "action": "soft_delete_devices",
+            "_selected_action": [device.pk],
+        }
+        response = client.post(reverse("admin:mdm_device_changelist"), data, follow=True)
+        assert response.status_code == 200
+        device.refresh_from_db()
+        assert device.is_deleted is True
+
+    def test_soft_delete_action_skips_already_deleted(self, client, user, device):
+        """Re-running soft_delete on an already-deleted device reports 0 affected."""
+        device.soft_delete()
+        data = {
+            "action": "soft_delete_devices",
+            "_selected_action": [device.pk],
+        }
+        response = client.post(reverse("admin:mdm_device_changelist"), data, follow=True)
+        assert response.status_code == 200
+        assertContains(response, "0 device(s) soft-deleted")
+
+    def test_restore_action(self, client, user, device):
+        """The restore_devices action clears deleted_at."""
+        device.soft_delete()
+        data = {
+            "action": "restore_devices",
+            "_selected_action": [device.pk],
+        }
+        response = client.post(reverse("admin:mdm_device_changelist"), data, follow=True)
+        assert response.status_code == 200
+        device.refresh_from_db()
+        assert device.is_deleted is False
+
+    def test_restore_action_skips_active_devices(self, client, user, device):
+        """Restore on an active (non-deleted) device reports 0 affected."""
+        data = {
+            "action": "restore_devices",
+            "_selected_action": [device.pk],
+        }
+        response = client.post(reverse("admin:mdm_device_changelist"), data, follow=True)
+        assert response.status_code == 200
+        assertContains(response, "0 device(s) restored")
