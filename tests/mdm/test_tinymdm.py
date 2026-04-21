@@ -140,6 +140,7 @@ class TestTinyMDM(TestTinyMDMOnly):
         devices,
         device_in_different_fleet,
         with_default_app_user,
+        caplog,
     ):
         """Ensures calling pull_devices() updates and creates Devices as expected."""
         if with_default_app_user:
@@ -153,6 +154,10 @@ class TestTinyMDM(TestTinyMDMOnly):
             # attempting to create a new Device which leads to an IntegrityError.
             devices[0].fleet = fleets[0]
             devices[0].save()
+
+        # Soft-deleted device should be skipped during update
+        soft_deleted_device = DeviceFactory(fleet=fleet)
+        soft_deleted_device.soft_delete()
 
         requests_mock.get("https://www.tinymdm.net/api/v1/devices", json=devices_response)
         apps = {}
@@ -218,6 +223,16 @@ class TestTinyMDM(TestTinyMDMOnly):
                     "package_name", "app_name", "version_code", "version_name"
                 )
             )
+
+        expected_skip_msg = {
+            "event": "Skipping device",
+            "device": soft_deleted_device,
+        }
+        assert any(
+            record
+            for record in caplog.records
+            if record.levelname == "DEBUG" and expected_skip_msg.items() <= record.msg.items()
+        )
 
     @pytest.mark.parametrize("device", [False, True], indirect=True)
     def test_push_device_config(self, device, requests_mock):

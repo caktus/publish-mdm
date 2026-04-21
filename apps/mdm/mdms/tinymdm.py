@@ -108,11 +108,18 @@ class TinyMDM(MDM):
             device["serial_number"]: device for device in mdm_devices if device["serial_number"]
         }
 
-        our_devices = Device.objects.filter(
-            Q(device_id__in=devices_by_id.keys()) | Q(serial_number__in=devices_by_serial.keys())
+        our_devices = Device.all_objects.filter(
+            Q(device_id__in=devices_by_id.keys())
+            | Q(serial_number__in=devices_by_serial.keys())
+            | Q(fleet=fleet)
         )
+        to_update = []
 
         for our_device in our_devices:
+            if our_device.is_deleted:
+                logger.debug("Skipping device", device=our_device, is_deleted=our_device.is_deleted)
+                continue
+            to_update.append(our_device)
             if our_device.device_id:
                 mdm_device = devices_by_id.get(our_device.device_id)
             else:
@@ -133,9 +140,9 @@ class TinyMDM(MDM):
                     correct_fleet_id=fleet.id,
                 )
 
-        logger.debug("Updating existing devices", our_devices=our_devices)
+        logger.debug("Updating existing devices", to_update=to_update)
         Device.objects.bulk_update(
-            our_devices,
+            to_update,
             fields=["serial_number", "device_id", "raw_mdm_device", "name", "deleted_at"],
         )
         return our_devices
@@ -244,7 +251,7 @@ class TinyMDM(MDM):
         # Get the ID for each snapshot's device_id
         qs = qs.annotate(
             existing_device_id=Subquery(
-                Device.objects.filter(device_id=OuterRef("device_id")).values("id")[:1]
+                Device.all_objects.filter(device_id=OuterRef("device_id")).values("id")[:1]
             )
         )
         # Update the device_id field with the existing device ID
