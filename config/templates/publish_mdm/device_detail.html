@@ -23,21 +23,9 @@
                 </dd>
             </div>
             <div>
-                <dt class="font-medium text-gray-700 dark:text-gray-400">App User</dt>
-                <dd class="mt-0.5 w-fit">
-                    {% include "includes/device_app_user_select.html" with form=app_user_form %}
-                </dd>
-            </div>
-            <div>
                 <dt class="font-medium text-gray-700 dark:text-gray-400">Manufacturer</dt>
                 <dd class="text-gray-900 dark:text-white mt-0.5">
                     {{ device.manufacturer|default:"—" }}
-                </dd>
-            </div>
-            <div>
-                <dt class="font-medium text-gray-700 dark:text-gray-400">Fleet</dt>
-                <dd class="text-gray-900 dark:text-white mt-0.5">
-                    {{ device.fleet.name }}
                 </dd>
             </div>
             <div>
@@ -47,9 +35,21 @@
                 </dd>
             </div>
             <div>
+                <dt class="font-medium text-gray-700 dark:text-gray-400">Fleet</dt>
+                <dd class="text-gray-900 dark:text-white mt-0.5">
+                    {{ device.fleet.name }}
+                </dd>
+            </div>
+            <div>
                 <dt class="font-medium text-gray-700 dark:text-gray-400">Project</dt>
                 <dd class="text-gray-900 dark:text-white mt-0.5">
                     {{ device.fleet.project|default:"—" }}
+                </dd>
+            </div>
+            <div>
+                <dt class="font-medium text-gray-700 dark:text-gray-400">App User</dt>
+                <dd class="mt-0.5 w-fit">
+                    {% include "includes/device_app_user_select.html" with form=app_user_form %}
                 </dd>
             </div>
         </dl>
@@ -141,8 +141,18 @@
                 class="btn btn-outline border-red-600 text-red-600 hover:bg-red-600 hover:text-white focus:ring-red-300 dark:border-red-500 dark:text-red-500 dark:hover:bg-red-600 dark:hover:text-white dark:focus:ring-red-900">
             Delete device
         </button>
+        <button type="button"
+                data-modal-target="reset-device-modal"
+                data-modal-toggle="reset-device-modal"
+                class="btn btn-outline border-red-600 text-red-600 hover:bg-red-600 hover:text-white focus:ring-red-300 dark:border-red-500 dark:text-red-500 dark:hover:bg-red-600 dark:hover:text-white dark:focus:ring-red-900">
+            {% if device.is_fully_managed %}
+                Factory reset device
+            {% else %}
+                Delete work profile from device
+            {% endif %}
+        </button>
     </div>
-    <!-- Confirmation modal -->
+    <!-- Soft-delete confirmation modal (removes from our database only, does not touch the MDM) -->
     <div id="delete-device-modal"
          tabindex="-1"
          aria-hidden="true"
@@ -167,7 +177,12 @@
                 <div class="p-4 md:p-5">
                     <p class="text-gray-600 dark:text-gray-400">
                         Are you sure you want to delete device
-                        <strong class="text-gray-900 dark:text-white">{{ device.device_id|default:device.name|default:"this device" }}</strong>?
+                        <strong class="text-gray-900 dark:text-white">{{ device_label }}</strong>
+                        from our database?
+                    </p>
+                    <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                        This only removes the device record from Publish MDM. The device will
+                        <strong>not</strong> be wiped or removed from the MDM.
                     </p>
                 </div>
                 <div class="flex items-center gap-3 p-4 border-t dark:border-gray-600 border-gray-200 rounded-b">
@@ -176,11 +191,80 @@
                         <input type="hidden" name="action" value="soft_delete">
                         <button type="submit"
                                 class="btn border-red-600 text-red-600 hover:bg-red-600 hover:text-white focus:ring-red-300 dark:border-red-500 dark:text-red-500 dark:hover:bg-red-600 dark:hover:text-white dark:focus:ring-red-900">
-                            Yes, delete
+                            Yes, delete from database
                         </button>
                     </form>
                     <button type="button"
                             data-modal-hide="delete-device-modal"
+                            class="btn btn-outline">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Factory reset / work-profile removal confirmation modal (deletes from MDM AND our database) -->
+    <div id="reset-device-modal"
+         tabindex="-1"
+         aria-hidden="true"
+         class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
+        <div class="relative p-4 w-full max-w-[550px] max-h-full">
+            <div class="relative bg-white rounded-lg shadow dark:bg-gray-700">
+                <div class="flex items-center justify-between p-4 border-b dark:border-gray-600 border-gray-200 rounded-t">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        {% if device.is_fully_managed %}
+                            Confirm factory reset
+                        {% else %}
+                            Confirm work profile removal
+                        {% endif %}
+                    </h3>
+                    <button type="button"
+                            data-modal-hide="reset-device-modal"
+                            class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white">
+                        <svg class="w-3 h-3"
+                             aria-hidden="true"
+                             xmlns="http://www.w3.org/2000/svg"
+                             fill="none"
+                             viewBox="0 0 14 14">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
+                        </svg>
+                        <span class="sr-only">Close modal</span>
+                    </button>
+                </div>
+                <div class="p-4 md:p-5">
+                    <p class="text-gray-600 dark:text-gray-400">
+                        Are you sure you want to
+                        {% if device.is_fully_managed %}
+                            <strong>factory reset</strong>
+                        {% else %}
+                            <strong>remove the work profile</strong> from
+                        {% endif %}
+                        device
+                        <strong class="text-gray-900 dark:text-white">{{ device_label }}</strong>?
+                    </p>
+                    <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                        This will send a
+                        {% if device.is_fully_managed %}
+                            <strong>factory reset</strong> command to the device via the MDM, erasing all data on it.
+                        {% else %}
+                            <strong>work profile removal</strong> command to the device via the MDM.
+                        {% endif %}
+                        The device record will also be removed from our database.
+                    </p>
+                </div>
+                <div class="flex items-center gap-3 p-4 border-t dark:border-gray-600 border-gray-200 rounded-b">
+                    <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="reset_and_delete">
+                        <button type="submit"
+                                class="btn border-red-600 text-red-600 hover:bg-red-600 hover:text-white focus:ring-red-300 dark:border-red-500 dark:text-red-500 dark:hover:bg-red-600 dark:hover:text-white dark:focus:ring-red-900">
+                            {% if device.is_fully_managed %}
+                                Yes, factory reset device
+                            {% else %}
+                                Yes, remove work profile
+                            {% endif %}
+                        </button>
+                    </form>
+                    <button type="button"
+                            data-modal-hide="reset-device-modal"
                             class="btn btn-outline">Cancel</button>
                 </div>
             </div>

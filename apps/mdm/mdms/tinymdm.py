@@ -419,6 +419,28 @@ class TinyMDM(MDM):
         self.request("DELETE", f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}")
         return True
 
+    def delete_device(self, device: Device) -> None:
+        """Wipes a device in TinyMDM. For fully managed devices this triggers a factory
+        reset; for work-profile devices it removes the work profile.
+
+        https://www.tinymdm.net/mobile-device-management/api/#post-/devices/wipe
+        """
+        logger.info("Wiping device in TinyMDM", device_id=device.device_id)
+        try:
+            self.request(
+                "POST",
+                "https://www.tinymdm.net/api/v1/devices/wipe",
+                json={"devices": [device.device_id]},
+            )
+        except requests.exceptions.RequestException as e:
+            if getattr(e, "response", None) is not None and e.response.status_code == 404:
+                logger.warning(
+                    "Device not found in TinyMDM; it may already be wiped",
+                    device_id=device.device_id,
+                )
+                return
+            raise
+
     def create_user(self, name: str, email: str, fleet: Fleet):
         """Creates a TinyMDM user and adds them to the provided fleet's TinyMDM group."""
         logger.info("Creating a TinyMDM user", name=name, email=email)

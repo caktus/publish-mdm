@@ -547,6 +547,25 @@ class AndroidEnterprise(MDM):
             return False
         return True
 
+    def delete_device(self, device: Device) -> None:
+        """Deletes a device from Android Enterprise. For fully managed (DEVICE_OWNER)
+        devices this triggers a factory reset; for work-profile devices it removes the
+        work profile.
+
+        https://developers.google.com/android/management/reference/rest/v1/enterprises.devices/delete
+        """
+        logger.info("Deleting device from Android Enterprise", device_name=device.name)
+        try:
+            self.execute(self.api.enterprises().devices().delete(name=device.name))
+        except HttpError as e:
+            if e.status_code == 404:
+                logger.warning(
+                    "Device not found in Android Enterprise; it may already be wiped",
+                    device_name=device.name,
+                )
+                return
+            raise
+
     def create_or_update_policy(self, policy: Policy):
         """Creates or updates a policy in the MDM based on the normalized
         Policy fields.

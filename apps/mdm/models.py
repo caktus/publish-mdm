@@ -646,6 +646,13 @@ class Device(SoftDeleteModel):
     def username(self):
         return f"{self.app_user_name} - {self.device_id}"
 
+    @property
+    def is_fully_managed(self):
+        return self.latest_snapshot and self.latest_snapshot.enrollment_type in (
+            "DEVICE_OWNER",
+            "fully_managed",
+        )
+
 
 class DeviceSnapshot(models.Model):
     """

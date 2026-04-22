@@ -969,12 +969,45 @@ def devices_list(request: HttpRequest, organization_slug):
 @login_required
 def device_detail(request: HttpRequest, organization_slug, device_pk):
     """Detail page for an MDM Device, with soft-delete support."""
-    if request.method == "POST" and request.POST.get("action") == "soft_delete":
+    if request.method == "POST" and request.POST.get("action") in (
+        "soft_delete",
+        "reset_and_delete",
+    ):
         device = get_object_or_404(
-            Device.objects, pk=device_pk, fleet__organization=request.organization
+            Device.objects.select_related("latest_snapshot"),
+            pk=device_pk,
+            fleet__organization=request.organization,
         )
+        device_label = device.device_id or device.name
+        if request.POST["action"] == "reset_and_delete":
+            active_mdm = get_active_mdm_instance(organization=request.organization)
+            success = False
+            if active_mdm:
+                try:
+                    active_mdm.delete_device(device)
+                except (GoogleAPIClientError, RequestException):
+                    logger.debug("Unable to delete device from MDM", exc_info=True)
+                else:
+                    success = True
+            if not success:
+                if device.is_fully_managed:
+                    reset = "factory reset"
+                else:
+                    reset = "delete the work profile from"
+                messages.error(
+                    request, f"Unable to {reset} device “{device_label}”. Please try again later."
+                )
+                return redirect("publish_mdm:devices-list", organization_slug)
+            if device.is_fully_managed:
+                success_message = (
+                    f"Device “{device_label}” has been factory reset and deleted from our database."
+                )
+            else:
+                success_message = f"The work profile has been deleted from device “{device_label}” and it has been deleted from our database."
+        else:
+            success_message = f"Device “{device_label}” has been deleted from our database."
         device.soft_delete()
-        messages.success(request, f"Device “{device.device_id or device.name}” has been deleted.")
+        messages.success(request, success_message)
         return redirect("publish_mdm:devices-list", organization_slug)
 
     device = get_object_or_404(
@@ -1004,16 +1037,18 @@ def device_detail(request: HttpRequest, organization_slug, device_pk):
         pk=device_pk,
         fleet__organization=request.organization,
     )
+    device_label = device.device_id or device.name or f"Device {device.pk}"
 
     context = {
         "device": device,
+        "device_label": device_label,
         "app_user_form": DeviceAppUserForm(instance=device),
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
             items=[
                 ("Devices", "devices-list"),
                 (
-                    device.device_id or device.name or f"Device {device.pk}",
+                    device_label,
                     "device-detail",
                     [device.pk],
                 ),
