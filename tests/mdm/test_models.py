@@ -426,3 +426,37 @@ class TestModels(TestAllMDMs):
         """is_fully_managed returns False when the device has no latest snapshot."""
         device = DeviceFactory(latest_snapshot=None)
         assert device.is_fully_managed is False
+
+    def test_wipe_and_soft_delete_success(self, organization, mocker):
+        """wipe_and_soft_delete calls MDM delete_device, soft-deletes the device,
+        and returns True.
+        """
+        device = DeviceFactory(fleet__organization=organization)
+        MDM = get_active_mdm_class(organization)
+        mock_delete = mocker.patch.object(MDM, "delete_device")
+        result = device.wipe_and_soft_delete()
+        assert result is True
+        mock_delete.assert_called_once_with(device)
+        device.refresh_from_db()
+        assert device.is_deleted is True
+
+    def test_wipe_and_soft_delete_no_mdm(self, organization, mocker, unconfigure_mdm):
+        """wipe_and_soft_delete returns False and does not soft-delete if MDM is not configured."""
+        device = DeviceFactory(fleet__organization=organization)
+        MDM = get_active_mdm_class(organization)
+        mock_delete = mocker.patch.object(MDM, "delete_device")
+        result = device.wipe_and_soft_delete()
+        assert result is False
+        mock_delete.assert_not_called()
+        device.refresh_from_db()
+        assert device.is_deleted is False
+
+    def test_wipe_and_soft_delete_mdm_error(self, organization, mocker, mdm_api_error):
+        """wipe_and_soft_delete returns False and does not soft-delete if delete_device raises."""
+        device = DeviceFactory(fleet__organization=organization)
+        MDM = get_active_mdm_class(organization)
+        mocker.patch.object(MDM, "delete_device", side_effect=mdm_api_error)
+        result = device.wipe_and_soft_delete()
+        assert result is False
+        device.refresh_from_db()
+        assert device.is_deleted is False

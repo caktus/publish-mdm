@@ -805,8 +805,8 @@ class TestFleetAdminDeleteConfirmation(TestAdmin):
         )
 
 
-class TestDeviceAdminSoftDelete(TestAdmin):
-    """Tests for soft-delete and restore admin actions on Device."""
+class TestDeviceAdminWipeAndSoftDelete(TestAdmin):
+    """Tests for wipe-and-delete and restore admin actions on Device."""
 
     @pytest.fixture
     def device(self, organization):
@@ -823,27 +823,75 @@ class TestDeviceAdminSoftDelete(TestAdmin):
         assert response.status_code == 200
         assertContains(response, device.name)
 
-    def test_soft_delete_action(self, client, user, device):
-        """The soft_delete_devices action marks selected devices as deleted."""
+    def test_wipe_and_soft_delete_action(self, client, user, device, organization, mocker):
+        """The wipe_and_soft_delete_devices action calls MDM delete_device, soft-deletes
+        each selected device, and reports the success count.
+        """
+        MDM = get_active_mdm_class(organization)
+        mock_delete = mocker.patch.object(MDM, "delete_device")
         data = {
-            "action": "soft_delete_devices",
+            "action": "wipe_and_soft_delete_devices",
+            "_selected_action": [device.pk],
+        }
+        response = client.post(reverse("admin:mdm_device_changelist"), data, follow=True)
+        assert response.status_code == 200
+        mock_delete.assert_called_once_with(device)
+        device.refresh_from_db()
+        assert device.is_deleted is True
+        assertContains(response, "1 device(s) wiped and deleted.")
+
+    def test_wipe_and_soft_delete_action_skips_already_deleted(
+        self, client, user, device, organization, mocker
+    ):
+        """Already-deleted devices are skipped and no MDM call is made."""
+        device.soft_delete()
+        MDM = get_active_mdm_class(organization)
+        mock_delete = mocker.patch.object(MDM, "delete_device")
+        data = {
+            "action": "wipe_and_soft_delete_devices",
+            "_selected_action": [device.pk],
+        }
+        response = client.post(reverse("admin:mdm_device_changelist"), data, follow=True)
+        assert response.status_code == 200
+        mock_delete.assert_not_called()
+        assertNotContains(response, "wiped and deleted")
+
+    def test_wipe_and_soft_delete_action_mdm_error(
+        self, client, user, device, organization, mocker, mdm_api_error
+    ):
+        """If the MDM raises an error, the device is not soft-deleted and a failure
+        count is reported.
+        """
+        MDM = get_active_mdm_class(organization)
+        mocker.patch.object(MDM, "delete_device", side_effect=mdm_api_error)
+        data = {
+            "action": "wipe_and_soft_delete_devices",
             "_selected_action": [device.pk],
         }
         response = client.post(reverse("admin:mdm_device_changelist"), data, follow=True)
         assert response.status_code == 200
         device.refresh_from_db()
-        assert device.is_deleted is True
+        assert device.is_deleted is False
+        assertContains(response, "1 device(s) could not be wiped and deleted.")
 
-    def test_soft_delete_action_skips_already_deleted(self, client, user, device):
-        """Re-running soft_delete on an already-deleted device reports 0 affected."""
-        device.soft_delete()
+    def test_wipe_and_soft_delete_action_no_mdm(
+        self, client, user, device, organization, mocker, unconfigure_mdm
+    ):
+        """If the MDM is not configured, the device is not soft-deleted and a failure
+        count is reported.
+        """
+        MDM = get_active_mdm_class(organization)
+        mock_delete = mocker.patch.object(MDM, "delete_device")
         data = {
-            "action": "soft_delete_devices",
+            "action": "wipe_and_soft_delete_devices",
             "_selected_action": [device.pk],
         }
         response = client.post(reverse("admin:mdm_device_changelist"), data, follow=True)
         assert response.status_code == 200
-        assertContains(response, "0 device(s) soft-deleted")
+        mock_delete.assert_not_called()
+        device.refresh_from_db()
+        assert device.is_deleted is False
+        assertContains(response, "1 device(s) could not be wiped and deleted.")
 
     def test_restore_action(self, client, user, device):
         """The restore_devices action clears deleted_at."""

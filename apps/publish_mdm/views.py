@@ -970,55 +970,36 @@ def devices_list(request: HttpRequest, organization_slug):
 def device_detail(request: HttpRequest, organization_slug, device_pk):
     """Device detail page.
 
-    Supports two POST actions via the ``action`` form field:
-
-    * ``soft_delete`` — marks the device as deleted in our database only; the
-      device is not touched in the MDM.
-    * ``reset_and_delete`` — sends a factory-reset (fully managed) or
-      work-profile removal command to the device via the MDM, then
-      soft-deletes it from our database.  If the MDM reports the device was
-      not found (404) the deletion is still considered successful.  Any other
-      MDM error is surfaced as an error message and the device is not
-      soft-deleted.
+    POSTing with ``action=reset_and_delete`` sends a factory-reset (fully managed)
+    or work-profile removal command to the device via the MDM, then soft-deletes it
+    from our database.  Any MDM error is surfaced as an error message and the device
+    is not deleted.
     """
-    if request.method == "POST" and request.POST.get("action") in (
-        "soft_delete",
-        "reset_and_delete",
-    ):
+    if request.method == "POST" and request.POST.get("action") == "reset_and_delete":
         device = get_object_or_404(
-            Device.objects.select_related("latest_snapshot"),
+            Device.objects.select_related("latest_snapshot", "fleet__organization"),
             pk=device_pk,
             fleet__organization=request.organization,
         )
         device_label = device.device_id or device.name
-        if request.POST["action"] == "reset_and_delete":
-            active_mdm = get_active_mdm_instance(organization=request.organization)
-            success = False
-            if active_mdm:
-                try:
-                    active_mdm.delete_device(device)
-                except (GoogleAPIClientError, RequestException):
-                    logger.debug("Unable to delete device from MDM", exc_info=True)
-                else:
-                    success = True
-            if not success:
-                if device.is_fully_managed:
-                    reset = "factory reset"
-                else:
-                    reset = "delete the work profile from"
-                messages.error(
-                    request, f"Unable to {reset} device “{device_label}”. Please try again later."
-                )
-                return redirect("publish_mdm:devices-list", organization_slug)
+        if not device.wipe_and_soft_delete():
             if device.is_fully_managed:
-                success_message = (
-                    f"Device “{device_label}” has been factory reset and deleted from our database."
-                )
+                reset = "factory reset"
             else:
-                success_message = f"The work profile has been deleted from device “{device_label}” and it has been deleted from our database."
+                reset = "delete the work profile from"
+            messages.error(
+                request, f"Unable to {reset} device “{device_label}”. Please try again later."
+            )
+            return redirect("publish_mdm:devices-list", organization_slug)
+        if device.is_fully_managed:
+            success_message = (
+                f"Device “{device_label}” has been factory reset and deleted from our database."
+            )
         else:
-            success_message = f"Device “{device_label}” has been deleted from our database."
-        device.soft_delete()
+            success_message = (
+                f"The work profile has been deleted from device “{device_label}” "
+                "and it has been deleted from our database."
+            )
         messages.success(request, success_message)
         return redirect("publish_mdm:devices-list", organization_slug)
 

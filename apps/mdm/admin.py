@@ -409,7 +409,7 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
     confirm_form_class = DeviceConfirmImportForm
     export_form_class = ExportForm
     resource_classes = (DeviceResource,)
-    actions: ClassVar = ["soft_delete_devices", "restore_devices"]
+    actions: ClassVar = ["wipe_and_soft_delete_devices", "restore_devices"]
 
     def save_model(self, request, obj, form, change):
         """Always push to MDM when saving a Device in the admin."""
@@ -431,10 +431,26 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
             .annotate(app_user_deterministic=Collate("app_user_name", "und-x-icu"))
         )
 
-    @admin.action(description="Soft-delete selected devices")
-    def soft_delete_devices(self, request, queryset):
-        count = queryset.filter(deleted_at__isnull=True).soft_delete()
-        self.message_user(request, f"{count} device(s) soft-deleted.")
+    @admin.action(description="Wipe and soft-delete selected devices")
+    def wipe_and_soft_delete_devices(self, request, queryset):
+        succeeded = 0
+        failed = 0
+        active_devices = queryset.filter(deleted_at__isnull=True).select_related(
+            "fleet__organization"
+        )
+        for device in active_devices:
+            if device.wipe_and_soft_delete():
+                succeeded += 1
+            else:
+                failed += 1
+        if succeeded:
+            self.message_user(request, f"{succeeded} device(s) wiped and deleted.")
+        if failed:
+            self.message_user(
+                request,
+                f"{failed} device(s) could not be wiped and deleted.",
+                level=messages.ERROR,
+            )
 
     @admin.action(description="Restore selected devices")
     def restore_devices(self, request, queryset):

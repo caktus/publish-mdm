@@ -3277,27 +3277,10 @@ class TestDeviceDetail(ViewTestBase, TestAllMDMs):
         response = client.get(url)
         assert response.status_code == 404
 
-    def test_soft_delete(self, client, url, user, device):
-        """POSTing action=soft_delete marks the device deleted, redirects, and shows a success message."""
-        response = client.post(url, {"action": "soft_delete"}, follow=True)
-        assertRedirects(
-            response,
-            reverse("publish_mdm:devices-list", args=[device.fleet.organization.slug]),
-        )
-        assertContains(response, f"Device “{device.device_id}” has been deleted from our database.")
-        device.refresh_from_db()
-        assert device.is_deleted is True
-
     def test_get_soft_deleted_device_returns_404(self, client, url, user, device):
         """GETting a soft-deleted device's URL returns 404."""
         device.soft_delete()
         response = client.get(url)
-        assert response.status_code == 404
-
-    def test_soft_delete_already_deleted_returns_404(self, client, url, user, device):
-        """POSTing soft_delete on an already-deleted device returns 404."""
-        device.soft_delete()
-        response = client.post(url, {"action": "soft_delete"})
         assert response.status_code == 404
 
     @pytest.mark.parametrize("is_fully_managed", [True, False])

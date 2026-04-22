@@ -9,6 +9,8 @@ from django.db.models.fields.json import KeyTextTransform, KeyTransform
 from django.db.models.functions import Coalesce
 from django.utils.html import mark_safe
 from django.utils.timezone import now
+from googleapiclient.errors import Error as GoogleAPIClientError
+from requests.exceptions import RequestException
 
 from apps.infisical.fields import EncryptedCharField
 from apps.infisical.managers import EncryptedManager
@@ -659,6 +661,27 @@ class Device(SoftDeleteModel):
             "DEVICE_OWNER",
             "fully_managed",
         )
+
+    def wipe_and_soft_delete(self) -> bool:
+        """Send an MDM wipe/delete command and soft-delete this device.
+
+        Calls ``delete_device`` on the active MDM instance for this device's
+        organization.  If the MDM is not configured or ``delete_device`` raises
+        an error, logs the failure and returns ``False`` without modifying the
+        device.  On success, soft-deletes the device and returns ``True``.
+        """
+        from .mdms import get_active_mdm_instance  # noqa: PLC0415
+
+        active_mdm = get_active_mdm_instance(organization=self.fleet.organization)
+        if not active_mdm:
+            return False
+        try:
+            active_mdm.delete_device(self)
+        except (GoogleAPIClientError, RequestException):
+            logger.debug("Unable to delete device from MDM", device=self, exc_info=True)
+            return False
+        self.soft_delete()
+        return True
 
 
 class DeviceSnapshot(models.Model):
