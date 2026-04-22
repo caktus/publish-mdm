@@ -404,3 +404,25 @@ class TestModels(TestAllMDMs):
             version="2.3.1",
         )
         assert str(snap) == "TMDM-DEVICE-99 (2.3.1) firmware snapshot"
+
+    @pytest.mark.parametrize(
+        "enrollment_type, expected",
+        [
+            ("DEVICE_OWNER", True),
+            ("fully_managed", True),
+            ("work_profile", False),
+            ("PROFILE_OWNER", False),
+        ],
+    )
+    def test_is_fully_managed_with_snapshot(self, enrollment_type, expected):
+        """is_fully_managed returns True only for DEVICE_OWNER / fully_managed enrollment types."""
+        snapshot = DeviceSnapshotFactory(enrollment_type=enrollment_type)
+        device = snapshot.mdm_device
+        device.latest_snapshot = snapshot
+        device.save()
+        assert device.is_fully_managed is expected
+
+    def test_is_fully_managed_no_snapshot(self):
+        """is_fully_managed returns False when the device has no latest snapshot."""
+        device = DeviceFactory(latest_snapshot=None)
+        assert device.is_fully_managed is False

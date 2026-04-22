@@ -648,7 +648,14 @@ class Device(SoftDeleteModel):
 
     @property
     def is_fully_managed(self):
-        return self.latest_snapshot and self.latest_snapshot.enrollment_type in (
+        """Return True if this device is enrolled in fully-managed (device-owner) mode.
+
+        A device is considered fully managed when its latest snapshot's
+        ``enrollment_type`` is ``"DEVICE_OWNER"`` (Android Enterprise) or
+        ``"fully_managed"`` (TinyMDM).  Returns False when there is no snapshot or
+        the enrollment type indicates work-profile mode.
+        """
+        return self.latest_snapshot is not None and self.latest_snapshot.enrollment_type in (
             "DEVICE_OWNER",
             "fully_managed",
         )

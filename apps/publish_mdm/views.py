@@ -968,7 +968,19 @@ def devices_list(request: HttpRequest, organization_slug):
 
 @login_required
 def device_detail(request: HttpRequest, organization_slug, device_pk):
-    """Detail page for an MDM Device, with soft-delete support."""
+    """Device detail page.
+
+    Supports two POST actions via the ``action`` form field:
+
+    * ``soft_delete`` — marks the device as deleted in our database only; the
+      device is not touched in the MDM.
+    * ``reset_and_delete`` — sends a factory-reset (fully managed) or
+      work-profile removal command to the device via the MDM, then
+      soft-deletes it from our database.  If the MDM reports the device was
+      not found (404) the deletion is still considered successful.  Any other
+      MDM error is surfaced as an error message and the device is not
+      soft-deleted.
+    """
     if request.method == "POST" and request.POST.get("action") in (
         "soft_delete",
         "reset_and_delete",

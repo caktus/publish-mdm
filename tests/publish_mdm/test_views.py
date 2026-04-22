@@ -3272,7 +3272,7 @@ class TestDeviceDetail(ViewTestBase, TestAllMDMs):
             response,
             reverse("publish_mdm:devices-list", args=[device.fleet.organization.slug]),
         )
-        assertContains(response, device.device_id)
+        assertContains(response, f"Device “{device.device_id}” has been deleted from our database.")
         device.refresh_from_db()
         assert device.is_deleted is True
 
@@ -3287,6 +3287,91 @@ class TestDeviceDetail(ViewTestBase, TestAllMDMs):
         device.soft_delete()
         response = client.post(url, {"action": "soft_delete"})
         assert response.status_code == 404
+
+    @pytest.mark.parametrize("is_fully_managed", [True, False])
+    def test_reset_and_delete(
+        self, client, url, user, device, organization, mocker, is_fully_managed
+    ):
+        """POSTing reset_and_delete calls MDM.delete_device with the correct device, soft-deletes
+        the device, and shows the expected success message.
+        """
+        snapshot = DeviceSnapshotFactory(
+            mdm_device=device,
+            enrollment_type="fully_managed" if is_fully_managed else "work_profile",
+        )
+        device.latest_snapshot = snapshot
+        device.save()
+        MDM = get_active_mdm_class(organization)
+        mock_delete = mocker.patch.object(MDM, "delete_device")
+        response = client.post(url, {"action": "reset_and_delete"}, follow=True)
+        mock_delete.assert_called_once_with(device)
+        assertRedirects(
+            response,
+            reverse("publish_mdm:devices-list", args=[organization.slug]),
+        )
+        if is_fully_managed:
+            assertContains(
+                response,
+                f"Device “{device.device_id}” has been factory reset and deleted from our database.",
+            )
+        else:
+            assertContains(
+                response,
+                f"The work profile has been deleted from device “{device.device_id}” and it has been deleted from our database.",
+            )
+        device.refresh_from_db()
+        assert device.is_deleted is True
+
+    @pytest.mark.parametrize("is_fully_managed", [True, False])
+    def test_reset_and_delete_mdm_error_does_not_soft_delete(
+        self, client, url, user, device, organization, mocker, mdm_api_error, is_fully_managed
+    ):
+        """If the MDM raises an error, an error message is shown and the device
+        is not soft-deleted.
+        """
+        snapshot = DeviceSnapshotFactory(
+            mdm_device=device,
+            enrollment_type="fully_managed" if is_fully_managed else "work_profile",
+        )
+        device.latest_snapshot = snapshot
+        device.save()
+        MDM = get_active_mdm_class(organization)
+        mocker.patch.object(MDM, "delete_device", side_effect=mdm_api_error)
+        response = client.post(url, {"action": "reset_and_delete"}, follow=True)
+        assertRedirects(
+            response,
+            reverse("publish_mdm:devices-list", args=[organization.slug]),
+        )
+        if is_fully_managed:
+            assertContains(
+                response,
+                f"Unable to factory reset device “{device.device_id}”. Please try again later.",
+            )
+        else:
+            assertContains(
+                response,
+                f"Unable to delete the work profile from device “{device.device_id}”. Please try again later.",
+            )
+        device.refresh_from_db()
+        assert device.is_deleted is False
+
+    def test_reset_and_delete_no_active_mdm_does_not_soft_delete(
+        self, client, url, user, device, organization, mocker, unconfigure_mdm
+    ):
+        """If the MDM is not configured, an error message is shown and the device
+        is not soft-deleted.
+        """
+        MDM = get_active_mdm_class(organization)
+        mock_delete = mocker.patch.object(MDM, "delete_device")
+        response = client.post(url, {"action": "reset_and_delete"}, follow=True)
+        assertRedirects(
+            response,
+            reverse("publish_mdm:devices-list", args=[organization.slug]),
+        )
+        mock_delete.assert_not_called()
+        assertContains(response, "Unable to")
+        device.refresh_from_db()
+        assert device.is_deleted is False
 
 
 @pytest.mark.django_db

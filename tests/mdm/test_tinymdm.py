@@ -589,6 +589,42 @@ class TestTinyMDM(TestTinyMDMOnly):
         our_device.refresh_from_db()
         assert our_device.deleted_at is not None
 
+    def test_delete_device_success(self, fleet, requests_mock):
+        """delete_device() POSTs to the wipe endpoint with the correct device ID."""
+        device = DeviceFactory(fleet=fleet)
+        wipe_request = requests_mock.post(
+            "https://www.tinymdm.net/api/v1/devices/wipe", status_code=200
+        )
+        active_mdm = TinyMDM(fleet.organization)
+        active_mdm.delete_device(device)
+        assert wipe_request.called_once
+        assert wipe_request.last_request.json() == {"devices": [device.device_id]}
+
+    def test_delete_device_404_logs_warning_and_does_not_raise(self, fleet, requests_mock, caplog):
+        """delete_device() logs a WARNING and does not raise when the MDM returns 404."""
+        device = DeviceFactory(fleet=fleet)
+        requests_mock.post("https://www.tinymdm.net/api/v1/devices/wipe", status_code=404)
+        active_mdm = TinyMDM(fleet.organization)
+        active_mdm.delete_device(device)
+        assert any(
+            record
+            for record in caplog.records
+            if record.levelname == "WARNING"
+            and {
+                ("event", "Device not found in TinyMDM; it may already be wiped"),
+                ("device_id", device.device_id),
+            }
+            <= record.msg.items()
+        )
+
+    def test_delete_device_non_404_error_raises(self, fleet, requests_mock):
+        """delete_device() re-raises non-404 errors from the MDM."""
+        device = DeviceFactory(fleet=fleet)
+        requests_mock.post("https://www.tinymdm.net/api/v1/devices/wipe", status_code=500)
+        active_mdm = TinyMDM(fleet.organization)
+        with pytest.raises(HTTPError):
+            active_mdm.delete_device(device)
+
 
 @pytest.mark.django_db
 class TestTinyMDMDeviceManufacturerModel:

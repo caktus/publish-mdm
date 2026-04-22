@@ -1328,6 +1328,53 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         active_mdm._handle_status_report_notification(mdm_device)
         mock_push.assert_not_called()
 
+    def test_delete_device_success(self, fleet, monkeypatch, organization):
+        """delete_device() calls enterprises.devices.delete."""
+        device = DeviceFactory(fleet=fleet)
+        active_mdm = AndroidEnterprise(organization=organization)
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(MockAPIResponse("devices.delete")),
+        )
+        active_mdm.delete_device(device)  # should not raise
+
+    def test_delete_device_404_logs_warning_and_does_not_raise(
+        self, fleet, monkeypatch, caplog, organization
+    ):
+        """delete_device() logs a WARNING and does not raise when the MDM returns 404."""
+        device = DeviceFactory(fleet=fleet)
+        active_mdm = AndroidEnterprise(organization=organization)
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(MockAPIResponse("devices.delete", status_code=404)),
+        )
+        active_mdm.delete_device(device)
+        assert any(
+            record
+            for record in caplog.records
+            if record.levelname == "WARNING"
+            and {
+                ("event", "Device not found in Android Enterprise; it may already be wiped"),
+                ("device_name", device.name),
+            }
+            <= record.msg.items()
+        )
+
+    def test_delete_device_non_404_error_raises(self, fleet, monkeypatch, organization):
+        """delete_device() re-raises non-404 HTTP errors from the MDM."""
+        device = DeviceFactory(fleet=fleet)
+        active_mdm = AndroidEnterprise(organization=organization)
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(MockAPIResponse("devices.delete", status_code=500)),
+        )
+        with pytest.raises(HttpError) as exc:
+            active_mdm.delete_device(device)
+        assert exc.value.status_code == 500
+
 
 @pytest.mark.django_db
 class TestCredentials(TestAndroidEnterpriseOnly):
