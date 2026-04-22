@@ -108,17 +108,25 @@ class TinyMDM(MDM):
             device["serial_number"]: device for device in mdm_devices if device["serial_number"]
         }
 
-        our_devices = Device.objects.filter(
-            Q(device_id__in=devices_by_id.keys()) | Q(serial_number__in=devices_by_serial.keys())
+        our_devices = Device.all_objects.filter(
+            Q(device_id__in=devices_by_id.keys())
+            | Q(serial_number__in=devices_by_serial.keys())
+            | Q(fleet=fleet)
         )
+        to_update = []
 
         for our_device in our_devices:
+            if our_device.is_deleted:
+                logger.debug("Skipping device", device=our_device, is_deleted=our_device.is_deleted)
+                continue
+            to_update.append(our_device)
             if our_device.device_id:
                 mdm_device = devices_by_id.get(our_device.device_id)
             else:
                 mdm_device = devices_by_serial.get(our_device.serial_number)
             if not mdm_device:
-                # TODO: Remove the device from our database?
+                logger.info("Soft-deleting device not found in API response", device=our_device)
+                our_device.soft_delete(commit=False)
                 continue
             our_device.serial_number = mdm_device["serial_number"] or ""
             our_device.device_id = mdm_device["id"]
@@ -132,9 +140,10 @@ class TinyMDM(MDM):
                     correct_fleet_id=fleet.id,
                 )
 
-        logger.debug("Updating existing devices", our_devices=our_devices)
+        logger.debug("Updating existing devices", to_update=to_update)
         Device.objects.bulk_update(
-            our_devices, fields=["serial_number", "device_id", "raw_mdm_device", "name"]
+            to_update,
+            fields=["serial_number", "device_id", "raw_mdm_device", "name", "deleted_at"],
         )
         return our_devices
 
@@ -242,7 +251,7 @@ class TinyMDM(MDM):
         # Get the ID for each snapshot's device_id
         qs = qs.annotate(
             existing_device_id=Subquery(
-                Device.objects.filter(device_id=OuterRef("device_id")).values("id")[:1]
+                Device.all_objects.filter(device_id=OuterRef("device_id")).values("id")[:1]
             )
         )
         # Update the device_id field with the existing device ID
@@ -409,6 +418,28 @@ class TinyMDM(MDM):
         # Delete the group in TinyMDM
         self.request("DELETE", f"https://www.tinymdm.net/api/v1/groups/{fleet.mdm_group_id}")
         return True
+
+    def delete_device(self, device: Device) -> None:
+        """Wipes a device in TinyMDM. For fully managed devices this triggers a factory
+        reset; for work-profile devices it removes the work profile.
+
+        https://www.tinymdm.net/mobile-device-management/api/#post-/devices/wipe
+        """
+        logger.info("Wiping device in TinyMDM", device_id=device.device_id)
+        try:
+            self.request(
+                "POST",
+                "https://www.tinymdm.net/api/v1/devices/wipe",
+                json={"devices": [device.device_id]},
+            )
+        except requests.exceptions.RequestException as e:
+            if getattr(e, "response", None) is not None and e.response.status_code == 404:
+                logger.warning(
+                    "Device not found in TinyMDM; it may already be wiped",
+                    device_id=device.device_id,
+                )
+                return
+            raise
 
     def create_user(self, name: str, email: str, fleet: Fleet):
         """Creates a TinyMDM user and adds them to the provided fleet's TinyMDM group."""

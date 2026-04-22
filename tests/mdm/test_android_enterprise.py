@@ -214,6 +214,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         devices,
         monkeypatch,
         with_default_app_user,
+        caplog,
     ):
         """Ensures calling pull_devices() updates and creates Devices as expected."""
         if with_default_app_user:
@@ -252,6 +253,11 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             "_requestBuilder",
             self.get_mock_request_builder(MockAPIResponse("devices.list", full_devices_response)),
         )
+
+        # Soft-deleted device should be skipped during update
+        soft_deleted_device = DeviceFactory(fleet=fleet)
+        soft_deleted_device.soft_delete()
+
         active_mdm.pull_devices(fleet)
 
         assert fleet.devices.count() == 10
@@ -299,6 +305,16 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
                 )
             else:
                 assert not snapshot.apps.exists()
+
+        expected_skip_msg = {
+            "event": "Skipping device",
+            "device": soft_deleted_device,
+        }
+        assert any(
+            record
+            for record in caplog.records
+            if record.levelname == "DEBUG" and expected_skip_msg.items() <= record.msg.items()
+        )
 
     def test_get_devices(self, mocker, monkeypatch, organization):
         """Ensures calling get_devices() downloads device data as expected."""
@@ -596,9 +612,10 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         result = active_mdm.get_devices()
         assert result == []
 
-    def test_update_existing_devices_skips_device_with_unmatched_id(self, fleet):
-        """update_existing_devices() skips devices whose device_id is set but not found
-        in the MDM response by ID — matched into the queryset via serial number only."""
+    def test_update_existing_devices_soft_deletes_unmatched_device(self, fleet):
+        """update_existing_devices() soft-deletes a device whose device_id is set but not
+        found in the MDM response by ID — matched into the queryset via serial number only,
+        then soft-deleted via bulk_update because the per-device ID lookup returns None."""
         # Our device has device_id that does NOT match the MDM device name suffix
         our_device = DeviceFactory(fleet=fleet, device_id="OUR-DEVICE-ID", serial_number="SN999")
         # MDM device name has a different ID suffix; serial_number matches our_device
@@ -613,11 +630,39 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             }
         )
         active_mdm = AndroidEnterprise(organization=fleet.organization)
-        original_name = our_device.name
         active_mdm.update_existing_devices(fleet=fleet, mdm_devices=[mdm_device])
+        # deleted_at is persisted to the DB
         our_device.refresh_from_db()
-        # Device was skipped — name unchanged
-        assert our_device.name == original_name
+        assert our_device.is_deleted
+        # Device is no longer visible via the default manager
+        assert not Device.objects.filter(pk=our_device.pk).exists()
+
+    def test_update_existing_devices_soft_deletes_reenrolled_device(self, fleet):
+        """A device whose name appears in another MDM device's previousDeviceNames
+        is soft-deleted (via bulk_update) rather than updated.
+        """
+        old_device = DeviceFactory(
+            fleet=fleet,
+            device_id="OLDID",
+            name="enterprises/test/devices/OLDID",
+            serial_number="SN-REENROLL",
+        )
+        new_mdm_device = MDMDevice(
+            {
+                "name": "enterprises/test/devices/NEWID",
+                "hardwareInfo": {
+                    "serialNumber": "SN-REENROLL",
+                    "imei": "000000000",
+                },
+                "previousDeviceNames": ["enterprises/test/devices/OLDID"],
+                "policyName": "enterprises/test/policies/base",
+            }
+        )
+        active_mdm = AndroidEnterprise(organization=fleet.organization)
+        active_mdm.update_existing_devices(fleet=fleet, mdm_devices=[new_mdm_device])
+        old_device.refresh_from_db()
+        assert old_device.is_deleted
+        assert not Device.objects.filter(pk=old_device.pk).exists()
 
     def test_pubsub_topic_and_subscription_names(self, mocker, set_amapi_service_account_file):
         """pubsub_topic and pubsub_subscription are derived from the project_id and the ENVIRONMENT setting.
@@ -1096,6 +1141,47 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         assert existing.serial_number == "NEW-SN"
         assert existing.name == "enterprises/test/devices/existdev"
 
+    def test_handle_enrollment_notification_soft_deletes_previous_devices(self):
+        """previousDeviceNames entries are soft-deleted after the new device is saved."""
+        fleet = FleetFactory()
+        old_device = DeviceFactory(
+            fleet=fleet,
+            device_id="olddev",
+            name="enterprises/test/devices/olddev",
+        )
+        active_mdm = AndroidEnterprise()
+        mdm_device = MDMDevice(
+            {
+                "name": "enterprises/test/devices/newdev",
+                "enrollmentTokenData": json.dumps({"fleet": fleet.pk}),
+                "hardwareInfo": {"serialNumber": "SN-NEW"},
+                "previousDeviceNames": ["enterprises/test/devices/olddev"],
+            }
+        )
+        active_mdm._handle_enrollment_notification(mdm_device)
+        # New device created
+        assert Device.objects.filter(device_id="newdev").exists()
+        # Old device soft-deleted
+        old_device.refresh_from_db()
+        assert old_device.is_deleted
+        assert not Device.objects.filter(pk=old_device.pk).exists()
+
+    def test_handle_enrollment_notification_no_previous_devices(self):
+        """When previousDeviceNames is absent, no extra deletions occur."""
+        fleet = FleetFactory()
+        unrelated = DeviceFactory(fleet=fleet)
+        active_mdm = AndroidEnterprise()
+        mdm_device = MDMDevice(
+            {
+                "name": "enterprises/test/devices/newdev2",
+                "enrollmentTokenData": json.dumps({"fleet": fleet.pk}),
+                "hardwareInfo": {"serialNumber": "SN-NEW2"},
+            }
+        )
+        active_mdm._handle_enrollment_notification(mdm_device)
+        unrelated.refresh_from_db()
+        assert not unrelated.is_deleted
+
     def test_handle_enrollment_notification_skips_without_fleet(self):
         """_handle_enrollment_notification() does nothing when fleet cannot be determined."""
         active_mdm = AndroidEnterprise()
@@ -1241,6 +1327,53 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         )
         active_mdm._handle_status_report_notification(mdm_device)
         mock_push.assert_not_called()
+
+    def test_delete_device_success(self, fleet, monkeypatch, organization):
+        """delete_device() calls enterprises.devices.delete."""
+        device = DeviceFactory(fleet=fleet)
+        active_mdm = AndroidEnterprise(organization=organization)
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(MockAPIResponse("devices.delete")),
+        )
+        active_mdm.delete_device(device)  # should not raise
+
+    def test_delete_device_404_logs_warning_and_does_not_raise(
+        self, fleet, monkeypatch, caplog, organization
+    ):
+        """delete_device() logs a WARNING and does not raise when the MDM returns 404."""
+        device = DeviceFactory(fleet=fleet)
+        active_mdm = AndroidEnterprise(organization=organization)
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(MockAPIResponse("devices.delete", status_code=404)),
+        )
+        active_mdm.delete_device(device)
+        assert any(
+            record
+            for record in caplog.records
+            if record.levelname == "WARNING"
+            and {
+                ("event", "Device not found in Android Enterprise; it may already be wiped"),
+                ("device_name", device.name),
+            }
+            <= record.msg.items()
+        )
+
+    def test_delete_device_non_404_error_raises(self, fleet, monkeypatch, organization):
+        """delete_device() re-raises non-404 HTTP errors from the MDM."""
+        device = DeviceFactory(fleet=fleet)
+        active_mdm = AndroidEnterprise(organization=organization)
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(MockAPIResponse("devices.delete", status_code=500)),
+        )
+        with pytest.raises(HttpError) as exc:
+            active_mdm.delete_device(device)
+        assert exc.value.status_code == 500
 
 
 @pytest.mark.django_db

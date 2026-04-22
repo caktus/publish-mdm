@@ -1,0 +1,298 @@
+{% extends "base.html" %}
+{% block page_header %}
+    <span class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between w-full">
+        <span>{{ breadcrumbs.crumbs|last }}</span>
+        <!-- Actions dropdown -->
+        <div class="relative">
+            <button id="deleteDeviceDropdownButton"
+                    data-dropdown-toggle="deleteDeviceDropdown"
+                    type="button"
+                    class="btn btn-outline border-red-600 text-red-600 hover:bg-red-600 hover:text-white focus:ring-red-300 dark:border-red-500 dark:text-red-500 dark:hover:bg-red-600 dark:hover:text-white dark:focus:ring-red-900 flex items-center">
+                Actions
+                <svg class="-mr-1 ml-1.5 w-4 h-4"
+                     fill="currentColor"
+                     viewBox="0 0 20 20"
+                     xmlns="http://www.w3.org/2000/svg"
+                     aria-hidden="true">
+                    <path clip-rule="evenodd" fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                </svg>
+            </button>
+            <div id="deleteDeviceDropdown"
+                 class="z-50 hidden w-72 divide-y divide-gray-100 rounded-lg bg-white shadow dark:bg-gray-700 dark:divide-gray-600">
+                <ul class="p-2 text-sm" aria-labelledby="deleteDeviceDropdownButton">
+                    <li>
+                        <button type="button"
+                                data-modal-target="reset-device-modal"
+                                data-modal-toggle="reset-device-modal"
+                                class="w-full rounded-md px-3 py-2 text-sm font-normal text-left text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-gray-600 dark:hover:text-red-300">
+                            {% if device.is_fully_managed %}
+                                Factory reset device and delete from our database
+                            {% else %}
+                                Delete work profile from device and delete from our database
+                            {% endif %}
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </span>
+{% endblock page_header %}
+{% block content %}
+    <!-- Device information card (full-width, 2-column field layout) -->
+    <div class="mb-6 p-6 bg-white rounded-lg border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+        <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Device Information</h3>
+        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-3 text-sm">
+            <div>
+                <dt class="font-medium text-gray-700 dark:text-gray-400">Device ID</dt>
+                <dd class="text-gray-900 dark:text-white break-all mt-0.5">
+                    {{ device.device_id|default:"—" }}
+                </dd>
+            </div>
+            <div>
+                <dt class="font-medium text-gray-700 dark:text-gray-400">Name</dt>
+                <dd class="text-gray-900 dark:text-white mt-0.5">
+                    {{ device.name|default:"—" }}
+                </dd>
+            </div>
+            <div>
+                <dt class="font-medium text-gray-700 dark:text-gray-400">Serial Number</dt>
+                <dd class="text-gray-900 dark:text-white break-all mt-0.5">
+                    {{ device.serial_number|default:"—" }}
+                </dd>
+            </div>
+            <div>
+                <dt class="font-medium text-gray-700 dark:text-gray-400">Manufacturer</dt>
+                <dd class="text-gray-900 dark:text-white mt-0.5">
+                    {{ device.manufacturer|default:"—" }}
+                </dd>
+            </div>
+            <div>
+                <dt class="font-medium text-gray-700 dark:text-gray-400">Model</dt>
+                <dd class="text-gray-900 dark:text-white mt-0.5">
+                    {{ device.model|default:"—" }}
+                </dd>
+            </div>
+            <div>
+                <dt class="font-medium text-gray-700 dark:text-gray-400">Fleet</dt>
+                <dd class="text-gray-900 dark:text-white mt-0.5">
+                    {{ device.fleet.name }}
+                </dd>
+            </div>
+            <div>
+                <dt class="font-medium text-gray-700 dark:text-gray-400">Project</dt>
+                <dd class="text-gray-900 dark:text-white mt-0.5">
+                    {{ device.fleet.project|default:"—" }}
+                </dd>
+            </div>
+            <div>
+                <dt class="font-medium text-gray-700 dark:text-gray-400">App User</dt>
+                <dd class="mt-0.5 w-fit">
+                    {% include "includes/device_app_user_select.html" with form=app_user_form %}
+                </dd>
+            </div>
+        </dl>
+    </div>
+    <!-- Latest Snapshot section -->
+    <div class="mb-6 p-6 bg-white rounded-lg border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+        <h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Latest Snapshot</h3>
+        {% if device.latest_snapshot %}
+            {% with snap=device.latest_snapshot %}
+                <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-3 text-sm mb-6">
+                    <div>
+                        <dt class="font-medium text-gray-700 dark:text-gray-400">Last seen (MDM)</dt>
+                        <dd class="text-gray-900 dark:text-white mt-0.5">
+                            {{ snap.last_sync }}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="font-medium text-gray-700 dark:text-gray-400">Last seen (VPN)</dt>
+                        <dd class="text-gray-900 dark:text-white mt-0.5">
+                            {{ device.last_seen_vpn|default:"—" }}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="font-medium text-gray-700 dark:text-gray-400">OS Version</dt>
+                        <dd class="text-gray-900 dark:text-white mt-0.5">
+                            {{ snap.os_version|default:"—" }}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="font-medium text-gray-700 dark:text-gray-400">Firmware Version</dt>
+                        <dd class="text-gray-900 dark:text-white mt-0.5">
+                            {{ device.firmware_version|default:"—" }}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="font-medium text-gray-700 dark:text-gray-400">Battery</dt>
+                        <dd class="text-gray-900 dark:text-white mt-0.5">
+                            {% if snap.battery_level is not None %}
+                                {{ snap.battery_level }}%
+                            {% else %}
+                                —
+                            {% endif %}
+                        </dd>
+                    </div>
+                    <div>
+                        <dt class="font-medium text-gray-700 dark:text-gray-400">Enrollment Type</dt>
+                        <dd class="text-gray-900 dark:text-white mt-0.5">
+                            {{ snap.enrollment_type|default:"—" }}
+                        </dd>
+                    </div>
+                </dl>
+                <h4 class="mb-3 text-sm font-semibold text-gray-900 dark:text-white">Installed Apps</h4>
+                {% with apps=snap.apps.all %}
+                    {% if apps %}
+                        <div class="overflow-x-auto">
+                            <table class="text-left w-full text-sm text-gray-500 dark:text-gray-400">
+                                <thead class="text-xs text-gray-700 uppercase bg-primary-100 dark:bg-gray-700 dark:text-gray-400">
+                                    <tr>
+                                        <th scope="col" class="px-4 py-3 whitespace-nowrap">App Name</th>
+                                        <th scope="col" class="px-4 py-3 whitespace-nowrap">Package</th>
+                                        <th scope="col" class="px-4 py-3 whitespace-nowrap">Version</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for app in apps %}
+                                        <tr class="border-b border-primary-100 dark:border-gray-700">
+                                            <td class="px-4 py-3">{{ app.app_name }}</td>
+                                            <td class="px-4 py-3 break-all">{{ app.package_name }}</td>
+                                            <td class="px-4 py-3 whitespace-nowrap">{{ app.version_name }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <p class="text-sm text-gray-500 dark:text-gray-400 italic">No installed apps recorded.</p>
+                    {% endif %}
+                {% endwith %}
+            {% endwith %}
+        {% else %}
+            <p class="text-sm text-gray-500 dark:text-gray-400 italic">No snapshot data available.</p>
+        {% endif %}
+    </div>
+    <!-- Soft-delete confirmation modal (removes from our database only, does not touch the MDM) -->
+    <div id="delete-device-modal"
+         tabindex="-1"
+         aria-hidden="true"
+         class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
+        <div class="relative p-4 w-full max-w-[550px] max-h-full">
+            <div class="relative bg-white rounded-lg shadow dark:bg-gray-700">
+                <div class="flex items-center justify-between p-4 border-b dark:border-gray-600 border-gray-200 rounded-t">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Confirm deletion</h3>
+                    <button type="button"
+                            data-modal-hide="delete-device-modal"
+                            class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white">
+                        <svg class="w-3 h-3"
+                             aria-hidden="true"
+                             xmlns="http://www.w3.org/2000/svg"
+                             fill="none"
+                             viewBox="0 0 14 14">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
+                        </svg>
+                        <span class="sr-only">Close modal</span>
+                    </button>
+                </div>
+                <div class="p-4 md:p-5">
+                    <p class="text-gray-600 dark:text-gray-400">
+                        Are you sure you want to delete device
+                        <strong class="text-gray-900 dark:text-white">{{ device_label }}</strong>
+                        from our database?
+                    </p>
+                    <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                        This only removes the device record from Publish MDM. The device will
+                        <strong>not</strong> be wiped or removed from the MDM.
+                    </p>
+                </div>
+                <div class="flex items-center gap-3 p-4 border-t dark:border-gray-600 border-gray-200 rounded-b">
+                    <form method="post"
+                          x-data="{submitting: false}"
+                          @submit="submitting = true">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="soft_delete">
+                        <button type="submit"
+                                :disabled="submitting"
+                                class="btn border-red-600 text-red-600 hover:bg-red-600 hover:text-white focus:ring-red-300 dark:border-red-500 dark:text-red-500 dark:hover:bg-red-600 dark:hover:text-white dark:focus:ring-red-900 disabled:opacity-50 disabled:cursor-not-allowed">
+                            Yes, delete from database
+                        </button>
+                    </form>
+                    <button type="button"
+                            data-modal-hide="delete-device-modal"
+                            class="btn btn-outline">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Factory reset / work-profile removal confirmation modal (deletes from MDM AND our database) -->
+    <div id="reset-device-modal"
+         tabindex="-1"
+         aria-hidden="true"
+         class="hidden overflow-y-auto overflow-x-hidden fixed top-0 right-0 left-0 z-50 justify-center items-center w-full md:inset-0 h-[calc(100%-1rem)] max-h-full">
+        <div class="relative p-4 w-full max-w-[550px] max-h-full">
+            <div class="relative bg-white rounded-lg shadow dark:bg-gray-700">
+                <div class="flex items-center justify-between p-4 border-b dark:border-gray-600 border-gray-200 rounded-t">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        {% if device.is_fully_managed %}
+                            Confirm factory reset
+                        {% else %}
+                            Confirm work profile removal
+                        {% endif %}
+                    </h3>
+                    <button type="button"
+                            data-modal-hide="reset-device-modal"
+                            class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm w-8 h-8 ms-auto inline-flex justify-center items-center dark:hover:bg-gray-600 dark:hover:text-white">
+                        <svg class="w-3 h-3"
+                             aria-hidden="true"
+                             xmlns="http://www.w3.org/2000/svg"
+                             fill="none"
+                             viewBox="0 0 14 14">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m1 1 6 6m0 0 6 6M7 7l6-6M7 7l-6 6" />
+                        </svg>
+                        <span class="sr-only">Close modal</span>
+                    </button>
+                </div>
+                <div class="p-4 md:p-5">
+                    <p class="text-gray-600 dark:text-gray-400">
+                        Are you sure you want to
+                        {% if device.is_fully_managed %}
+                            <strong>factory reset</strong>
+                        {% else %}
+                            <strong>remove the work profile</strong> from
+                        {% endif %}
+                        device
+                        <strong class="text-gray-900 dark:text-white">{{ device_label }}</strong>?
+                    </p>
+                    <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                        This will send a
+                        {% if device.is_fully_managed %}
+                            <strong>factory reset</strong> command to the device via the MDM, erasing all data on it.
+                        {% else %}
+                            <strong>work profile removal</strong> command to the device via the MDM.
+                        {% endif %}
+                        The device record will also be removed from our database.
+                    </p>
+                </div>
+                <div class="flex items-center gap-3 p-4 border-t dark:border-gray-600 border-gray-200 rounded-b">
+                    <form method="post"
+                          x-data="{submitting: false}"
+                          @submit="submitting = true">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="reset_and_delete">
+                        <button type="submit"
+                                :disabled="submitting"
+                                class="btn border-red-600 text-red-600 hover:bg-red-600 hover:text-white focus:ring-red-300 dark:border-red-500 dark:text-red-500 dark:hover:bg-red-600 dark:hover:text-white dark:focus:ring-red-900 disabled:opacity-50 disabled:cursor-not-allowed">
+                            {% if device.is_fully_managed %}
+                                Yes, factory reset device
+                            {% else %}
+                                Yes, remove work profile
+                            {% endif %}
+                        </button>
+                    </form>
+                    <button type="button"
+                            data-modal-hide="reset-device-modal"
+                            class="btn btn-outline">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

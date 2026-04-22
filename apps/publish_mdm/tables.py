@@ -107,6 +107,12 @@ class AppUserNameColumn(tables.TemplateColumn):
 class DeviceTable(tables.Table):
     """A table for listing MDM Devices."""
 
+    device_id = tables.LinkColumn(
+        "publish_mdm:device-detail",
+        args=[tables.A("fleet__organization__slug"), tables.A("pk")],
+        verbose_name="Device ID",
+        attrs={"a": {"class": "text-primary-600 hover:underline"}},
+    )
     serial_number = TruncatedColumn(
         attrs={"td": {"class": "px-4 py-3"}},
     )

@@ -140,6 +140,7 @@ class TestTinyMDM(TestTinyMDMOnly):
         devices,
         device_in_different_fleet,
         with_default_app_user,
+        caplog,
     ):
         """Ensures calling pull_devices() updates and creates Devices as expected."""
         if with_default_app_user:
@@ -153,6 +154,10 @@ class TestTinyMDM(TestTinyMDMOnly):
             # attempting to create a new Device which leads to an IntegrityError.
             devices[0].fleet = fleets[0]
             devices[0].save()
+
+        # Soft-deleted device should be skipped during update
+        soft_deleted_device = DeviceFactory(fleet=fleet)
+        soft_deleted_device.soft_delete()
 
         requests_mock.get("https://www.tinymdm.net/api/v1/devices", json=devices_response)
         apps = {}
@@ -218,6 +223,16 @@ class TestTinyMDM(TestTinyMDMOnly):
                     "package_name", "app_name", "version_code", "version_name"
                 )
             )
+
+        expected_skip_msg = {
+            "event": "Skipping device",
+            "device": soft_deleted_device,
+        }
+        assert any(
+            record
+            for record in caplog.records
+            if record.levelname == "DEBUG" and expected_skip_msg.items() <= record.msg.items()
+        )
 
     @pytest.mark.parametrize("device", [False, True], indirect=True)
     def test_push_device_config(self, device, requests_mock):
@@ -550,10 +565,10 @@ class TestTinyMDM(TestTinyMDMOnly):
             responses.assert_call_count(url, 3)
             assert response.status_code == 200
 
-    def test_update_devices_skips_device_with_unmatched_id(self, fleet):
-        """update_devices() skips a device whose device_id is set but not found in the
-        MDM response dict — the device is matched into the queryset via serial number
-        but the per-device lookup by ID returns None and it is skipped via continue."""
+    def test_update_existing_devices_soft_deletes_unmatched_device(self, fleet):
+        """update_existing_devices() soft-deletes a device whose device_id is set but not
+        found in the MDM response — matched into the queryset via serial number but the
+        per-device lookup by ID returns None, so it is soft-deleted via bulk_update."""
         # Create a device with device_id that won't match any MDM device by ID,
         # but whose serial_number is present in the MDM response.
         our_device = DeviceFactory(fleet=fleet, device_id="OUR-DEVICE-ID", serial_number="SN001")
@@ -564,16 +579,51 @@ class TestTinyMDM(TestTinyMDMOnly):
             "nickname": "MDM Nickname",
             "user_id": "user1",
         }
-        # mdm_devices list: our_device serial_number matches, but device_id doesn't
-        # devices_by_id: {"DIFFERENT-MDM-ID": mdm_device}
-        # devices_by_serial: {"SN001": mdm_device}
-        # our_device is in the queryset via serial_number, but devices_by_id.get("OUR-DEVICE-ID") → None
         active_mdm = TinyMDM(fleet.organization)
-        original_serial = our_device.serial_number
         active_mdm.update_existing_devices(fleet=fleet, mdm_devices=[mdm_device])
+        # Device is soft-deleted — not visible via the default manager
+        assert not Device.objects.filter(pk=our_device.pk).exists()
+        # But still accessible via all_objects
+        assert Device.all_objects.filter(pk=our_device.pk).exists()
+        # deleted_at is persisted to the DB
         our_device.refresh_from_db()
-        # Device was not updated because it was skipped
-        assert our_device.serial_number == original_serial
+        assert our_device.deleted_at is not None
+
+    def test_delete_device_success(self, fleet, requests_mock):
+        """delete_device() POSTs to the wipe endpoint with the correct device ID."""
+        device = DeviceFactory(fleet=fleet)
+        wipe_request = requests_mock.post(
+            "https://www.tinymdm.net/api/v1/devices/wipe", status_code=200
+        )
+        active_mdm = TinyMDM(fleet.organization)
+        active_mdm.delete_device(device)
+        assert wipe_request.called_once
+        assert wipe_request.last_request.json() == {"devices": [device.device_id]}
+
+    def test_delete_device_404_logs_warning_and_does_not_raise(self, fleet, requests_mock, caplog):
+        """delete_device() logs a WARNING and does not raise when the MDM returns 404."""
+        device = DeviceFactory(fleet=fleet)
+        requests_mock.post("https://www.tinymdm.net/api/v1/devices/wipe", status_code=404)
+        active_mdm = TinyMDM(fleet.organization)
+        active_mdm.delete_device(device)
+        assert any(
+            record
+            for record in caplog.records
+            if record.levelname == "WARNING"
+            and {
+                ("event", "Device not found in TinyMDM; it may already be wiped"),
+                ("device_id", device.device_id),
+            }
+            <= record.msg.items()
+        )
+
+    def test_delete_device_non_404_error_raises(self, fleet, requests_mock):
+        """delete_device() re-raises non-404 errors from the MDM."""
+        device = DeviceFactory(fleet=fleet)
+        requests_mock.post("https://www.tinymdm.net/api/v1/devices/wipe", status_code=500)
+        active_mdm = TinyMDM(fleet.organization)
+        with pytest.raises(HTTPError):
+            active_mdm.delete_device(device)
 
 
 @pytest.mark.django_db

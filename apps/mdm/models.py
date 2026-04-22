@@ -9,9 +9,12 @@ from django.db.models.fields.json import KeyTextTransform, KeyTransform
 from django.db.models.functions import Coalesce
 from django.utils.html import mark_safe
 from django.utils.timezone import now
+from googleapiclient.errors import Error as GoogleAPIClientError
+from requests.exceptions import RequestException
 
 from apps.infisical.fields import EncryptedCharField
 from apps.infisical.managers import EncryptedManager
+from apps.patterns.soft_delete import SoftDeleteModel
 
 from .serializers import PolicySerializer
 
@@ -517,7 +520,7 @@ class PushMethodChoices(models.TextChoices):
     ALL = "all", "Push All Devices"
 
 
-class Device(models.Model):
+class Device(SoftDeleteModel):
     """A device that is enrolled in the MDM."""
 
     fleet = models.ForeignKey(
@@ -644,6 +647,41 @@ class Device(models.Model):
     @property
     def username(self):
         return f"{self.app_user_name} - {self.device_id}"
+
+    @property
+    def is_fully_managed(self):
+        """Return True if this device is enrolled in fully-managed (device-owner) mode.
+
+        A device is considered fully managed when its latest snapshot's
+        ``enrollment_type`` is ``"DEVICE_OWNER"`` (Android Enterprise) or
+        ``"fully_managed"`` (TinyMDM).  Returns False when there is no snapshot or
+        the enrollment type indicates work-profile mode.
+        """
+        return self.latest_snapshot is not None and self.latest_snapshot.enrollment_type in (
+            "DEVICE_OWNER",
+            "fully_managed",
+        )
+
+    def wipe_and_soft_delete(self) -> bool:
+        """Send an MDM wipe/delete command and soft-delete this device.
+
+        Calls ``delete_device`` on the active MDM instance for this device's
+        organization.  If the MDM is not configured or ``delete_device`` raises
+        an error, logs the failure and returns ``False`` without modifying the
+        device.  On success, soft-deletes the device and returns ``True``.
+        """
+        from .mdms import get_active_mdm_instance  # noqa: PLC0415
+
+        active_mdm = get_active_mdm_instance(organization=self.fleet.organization)
+        if not active_mdm:
+            return False
+        try:
+            active_mdm.delete_device(self)
+        except (GoogleAPIClientError, RequestException):
+            logger.debug("Unable to delete device from MDM", device=self, exc_info=True)
+            return False
+        self.soft_delete()
+        return True
 
 
 class DeviceSnapshot(models.Model):
