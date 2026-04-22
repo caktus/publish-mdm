@@ -1,4 +1,50 @@
 {% extends "base.html" %}
+{% block page_header %}
+    <span class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between w-full">
+        <span>{{ breadcrumbs.crumbs|last }}</span>
+        <!-- Delete device dropdown -->
+        <div class="relative">
+            <button id="deleteDeviceDropdownButton"
+                    data-dropdown-toggle="deleteDeviceDropdown"
+                    type="button"
+                    class="btn btn-outline border-red-600 text-red-600 hover:bg-red-600 hover:text-white focus:ring-red-300 dark:border-red-500 dark:text-red-500 dark:hover:bg-red-600 dark:hover:text-white dark:focus:ring-red-900 flex items-center">
+                Delete device
+                <svg class="-mr-1 ml-1.5 w-4 h-4"
+                     fill="currentColor"
+                     viewBox="0 0 20 20"
+                     xmlns="http://www.w3.org/2000/svg"
+                     aria-hidden="true">
+                    <path clip-rule="evenodd" fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                </svg>
+            </button>
+            <div id="deleteDeviceDropdown"
+                 class="z-50 hidden w-72 divide-y divide-gray-100 rounded-lg bg-white shadow dark:bg-gray-700 dark:divide-gray-600">
+                <ul class="p-2 text-sm" aria-labelledby="deleteDeviceDropdownButton">
+                    <li>
+                        <button type="button"
+                                data-modal-target="delete-device-modal"
+                                data-modal-toggle="delete-device-modal"
+                                class="w-full rounded-md px-3 py-2 text-sm font-normal text-left text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-gray-600 dark:hover:text-red-300">
+                            Delete from our database only
+                        </button>
+                    </li>
+                    <li>
+                        <button type="button"
+                                data-modal-target="reset-device-modal"
+                                data-modal-toggle="reset-device-modal"
+                                class="w-full rounded-md px-3 py-2 text-sm font-normal text-left text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-gray-600 dark:hover:text-red-300">
+                            {% if device.is_fully_managed %}
+                                Factory reset device and delete from our database
+                            {% else %}
+                                Delete work profile from device and delete from our database
+                            {% endif %}
+                        </button>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </span>
+{% endblock page_header %}
 {% block content %}
     <!-- Device information card (full-width, 2-column field layout) -->
     <div class="mb-6 p-6 bg-white rounded-lg border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
@@ -133,25 +179,6 @@
             <p class="text-sm text-gray-500 dark:text-gray-400 italic">No snapshot data available.</p>
         {% endif %}
     </div>
-    <!-- Actions -->
-    <div class="flex items-center gap-4">
-        <button type="button"
-                data-modal-target="delete-device-modal"
-                data-modal-toggle="delete-device-modal"
-                class="btn btn-outline border-red-600 text-red-600 hover:bg-red-600 hover:text-white focus:ring-red-300 dark:border-red-500 dark:text-red-500 dark:hover:bg-red-600 dark:hover:text-white dark:focus:ring-red-900">
-            Delete device
-        </button>
-        <button type="button"
-                data-modal-target="reset-device-modal"
-                data-modal-toggle="reset-device-modal"
-                class="btn btn-outline border-red-600 text-red-600 hover:bg-red-600 hover:text-white focus:ring-red-300 dark:border-red-500 dark:text-red-500 dark:hover:bg-red-600 dark:hover:text-white dark:focus:ring-red-900">
-            {% if device.is_fully_managed %}
-                Factory reset device
-            {% else %}
-                Delete work profile from device
-            {% endif %}
-        </button>
-    </div>
     <!-- Soft-delete confirmation modal (removes from our database only, does not touch the MDM) -->
     <div id="delete-device-modal"
          tabindex="-1"
@@ -186,11 +213,14 @@
                     </p>
                 </div>
                 <div class="flex items-center gap-3 p-4 border-t dark:border-gray-600 border-gray-200 rounded-b">
-                    <form method="post">
+                    <form method="post"
+                          x-data="{submitting: false}"
+                          @submit="submitting = true">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="soft_delete">
                         <button type="submit"
-                                class="btn border-red-600 text-red-600 hover:bg-red-600 hover:text-white focus:ring-red-300 dark:border-red-500 dark:text-red-500 dark:hover:bg-red-600 dark:hover:text-white dark:focus:ring-red-900">
+                                :disabled="submitting"
+                                class="btn border-red-600 text-red-600 hover:bg-red-600 hover:text-white focus:ring-red-300 dark:border-red-500 dark:text-red-500 dark:hover:bg-red-600 dark:hover:text-white dark:focus:ring-red-900 disabled:opacity-50 disabled:cursor-not-allowed">
                             Yes, delete from database
                         </button>
                     </form>
@@ -251,11 +281,14 @@
                     </p>
                 </div>
                 <div class="flex items-center gap-3 p-4 border-t dark:border-gray-600 border-gray-200 rounded-b">
-                    <form method="post">
+                    <form method="post"
+                          x-data="{submitting: false}"
+                          @submit="submitting = true">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="reset_and_delete">
                         <button type="submit"
-                                class="btn border-red-600 text-red-600 hover:bg-red-600 hover:text-white focus:ring-red-300 dark:border-red-500 dark:text-red-500 dark:hover:bg-red-600 dark:hover:text-white dark:focus:ring-red-900">
+                                :disabled="submitting"
+                                class="btn border-red-600 text-red-600 hover:bg-red-600 hover:text-white focus:ring-red-300 dark:border-red-500 dark:text-red-500 dark:hover:bg-red-600 dark:hover:text-white dark:focus:ring-red-900 disabled:opacity-50 disabled:cursor-not-allowed">
                             {% if device.is_fully_managed %}
                                 Yes, factory reset device
                             {% else %}
