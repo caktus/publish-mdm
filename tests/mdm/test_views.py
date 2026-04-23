@@ -64,8 +64,32 @@ class TestPolicyList(PolicyViewBase, TestAllMDMs):
     def test_lists_org_policies(self, client, url, policy, other_org_policy):
         response = client.get(url)
         assert response.status_code == 200
-        assert policy in response.context["policies"]
-        assert other_org_policy not in response.context["policies"]
+        table_data = list(response.context["table"].data)
+        assert policy in table_data
+        assert other_org_policy not in table_data
+
+    def test_name_links_to_edit_page(self, client, url, organization, policy):
+        response = client.get(url)
+        edit_url = reverse("mdm:policy-edit", args=[organization.slug, policy.pk])
+        assertContains(response, f'href="{edit_url}"')
+
+    def test_fleet_count_column(self, client, url, organization, policy):
+        FleetFactory(policy=policy, organization=organization)
+        FleetFactory(policy=policy, organization=organization)
+        response = client.get(url)
+        assert response.status_code == 200
+        rows = list(response.context["table"].as_values())
+        # First row is headers, second is the policy row
+        policy_row = dict(zip(rows[0], rows[1], strict=True))
+        assert policy_row["Fleets"] == 2
+
+    def test_policy_id_column_visibility(self, client, url):
+        response = client.get(url)
+        assert response.status_code == 200
+        if self.mdm == "Android Enterprise":
+            assert "Policy ID" not in response.content.decode()
+        else:
+            assertContains(response, "Policy ID")
 
 
 # ---------------------------------------------------------------------------
