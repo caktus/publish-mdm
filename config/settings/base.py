@@ -123,18 +123,20 @@ ASGI_APPLICATION = "config.asgi.application"
 WSGI_APPLICATION = "config.wsgi.application"
 
 # Database
-# https://docs.djangoproject.com/en/4.2/ref/settings/#databases
+# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# https://docs.djangoproject.com/en/4.1/ref/settings/#conn-max-age
-CONN_MAX_AGE = os.getenv("DATABASE_CONN_MAX_AGE")
-if CONN_MAX_AGE is not None:
-    CONN_MAX_AGE = int(CONN_MAX_AGE)
-# https://docs.djangoproject.com/en/4.1/ref/settings/#conn-health-checks
+# https://docs.djangoproject.com/en/5.2/ref/settings/#conn-max-age
+# Default to 60s to avoid holding connections open indefinitely.
+# None (unlimited) without health checks risks 500 errors on stale connections.
+_conn_max_age_env = os.getenv("DATABASE_CONN_MAX_AGE")
+CONN_MAX_AGE = int(_conn_max_age_env) if _conn_max_age_env is not None else 60
+# https://docs.djangoproject.com/en/5.2/ref/settings/#conn-health-checks
 CONN_HEALTH_CHECKS = os.getenv("DATABASE_CONN_HEALTH_CHECKS", "True") == "True"
 DATABASES = {
     "default": dj_database_url.config(
         default="postgresql://postgres@localhost:9061/publish_mdm",
         conn_max_age=CONN_MAX_AGE,
+        conn_health_checks=CONN_HEALTH_CHECKS,
         ssl_require=os.getenv("DATABASE_SSL_REQUIRE", "False") == "True",
     ),
 }
