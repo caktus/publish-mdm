@@ -250,7 +250,8 @@ class AndroidEnterprise(MDM):
     def update_existing_devices(self, fleet: Fleet, mdm_devices: list[dict]):
         """
         Updates existing devices in our database based on the full list
-        of mdm_devices returned from the Android Enterprise API.
+        of mdm_devices returned from the Android Enterprise API. Devices in
+        the fleet that are not in the mdm_devices list will be soft-deleted.
         """
         devices_by_id = {device.id: device for device in mdm_devices}
         devices_by_serial = {
@@ -478,7 +479,8 @@ class AndroidEnterprise(MDM):
             # in the raw_mdm_device field stays in sync
             mdm_device = MDMDevice(mdm_device)
             self.create_device_snapshots(device.fleet, [mdm_device])
-            self.update_existing_devices(device.fleet, [mdm_device])
+            self._update_device(device, mdm_device)
+            device.save()
             # Delete the current policy if it's also device-specific
             if current_policy_name.endswith(device.device_id):
                 logger.debug(
