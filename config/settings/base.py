@@ -134,10 +134,12 @@ WSGI_APPLICATION = "config.wsgi.application"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
 # https://docs.djangoproject.com/en/5.2/ref/settings/#conn-max-age
-# Default to 60s to avoid holding connections open indefinitely.
-# None (unlimited) without health checks risks 500 errors on stale connections.
+# Persistent connections are not safe for ASGI (concurrent requests on one thread).
+# Default to 0 for ASGI/Daphne workers, 60 for WSGI/Gunicorn workers.
+# Can be overridden via DATABASE_CONN_MAX_AGE env var for specific deployments.
 _conn_max_age_env = os.getenv("DATABASE_CONN_MAX_AGE")
-CONN_MAX_AGE = int(_conn_max_age_env) if _conn_max_age_env is not None else 60
+_default_conn_max_age = 60 if os.getenv("USE_GUNICORN") else 0
+CONN_MAX_AGE = int(_conn_max_age_env) if _conn_max_age_env is not None else _default_conn_max_age
 # https://docs.djangoproject.com/en/5.2/ref/settings/#conn-health-checks
 CONN_HEALTH_CHECKS = os.getenv("DATABASE_CONN_HEALTH_CHECKS", "True") == "True"
 DATABASES = {
