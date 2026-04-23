@@ -2,6 +2,7 @@ import datetime as dt
 from collections import defaultdict
 from collections.abc import Iterable
 from os import PathLike
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
@@ -221,7 +222,6 @@ class PublishService(bases.Service):
         self,
         xml_form_id: str,
         definition: PathLike | bytes,
-        attachments: list[PathLike | bytes] | None = None,
         project_id: int | None = None,
     ) -> Form:
         """Return forms for the given form IDs, creating them if they don't exist."""
@@ -231,7 +231,6 @@ class PublishService(bases.Service):
             self.client.forms.update(
                 form_id=xml_form_id,
                 definition=definition,
-                attachments=attachments,
                 project_id=project_id,
             )
             # Retrieve updated form to get the version
@@ -248,7 +247,6 @@ class PublishService(bases.Service):
             form = self.client.forms.create(
                 form_id=xml_form_id,
                 definition=definition,
-                attachments=attachments,
                 project_id=project_id,
             )
             logger.info(
@@ -259,6 +257,60 @@ class PublishService(bases.Service):
                 name=form.name,
             )
         return form
+
+    def sync_form_attachments(
+        self,
+        xml_form_id: str,
+        attachment_map: dict[str, Path],
+        draft_attachments: list[FormDraftAttachment],
+        project_id: int | None = None,
+    ) -> None:
+        """Upload expected attachments and clear stale ones from the current form draft.
+
+        For each attachment in draft_attachments where datasetExists=False:
+        - If the attachment name is in attachment_map, upload it using the canonical name.
+        - If the attachment exists on the server (exists=True) but is not in
+          attachment_map, clear it.
+
+        draft_attachments should be the result of list_form_attachments() for this form,
+        passed in by the caller to avoid a redundant API call.
+        """
+        project_id = project_id or self.client.project_id
+        fda = FormDraftAttachmentService(session=self.client.session, default_project_id=project_id)
+        fp_ids = {"form_id": xml_form_id, "project_id": project_id}
+        for attachment in draft_attachments:
+            if attachment.datasetExists:
+                continue
+            if attachment.name in attachment_map:
+                logger.info(
+                    "Uploading form attachment",
+                    xml_form_id=xml_form_id,
+                    attachment_name=attachment.name,
+                    project_id=project_id,
+                )
+                if not fda.upload(
+                    file_path=attachment_map[attachment.name], file_name=attachment.name, **fp_ids
+                ):
+                    raise PyODKError(f"Form attachment upload failed for {attachment.name}.")
+            else:
+                logger.warning(
+                    "Expected form attachment not found in project attachments",
+                    xml_form_id=xml_form_id,
+                    attachment_name=attachment.name,
+                    project_id=project_id,
+                )
+                if attachment.exists:
+                    logger.info(
+                        "Clearing stale form attachment",
+                        xml_form_id=xml_form_id,
+                        attachment_name=attachment.name,
+                        project_id=project_id,
+                    )
+                    self.clear_form_attachment(
+                        xml_form_id=xml_form_id,
+                        attachment_name=attachment.name,
+                        project_id=project_id,
+                    )
 
     def publish_form_draft(
         self,

@@ -3,12 +3,11 @@ from collections.abc import Generator
 from pathlib import Path
 
 import pytest
-from django.core.files.temp import NamedTemporaryFile
 from django.core.serializers.json import DjangoJSONEncoder
 from pyodk.errors import PyODKError
 
 from apps.publish_mdm.etl.odk.client import PublishMDMClient
-from apps.publish_mdm.etl.odk.publish import Form, ProjectAppUserAssignment
+from apps.publish_mdm.etl.odk.publish import Form, FormDraftAttachment, ProjectAppUserAssignment
 from tests.publish_mdm.factories import (
     CentralServerFactory,
     FormTemplateFactory,
@@ -208,10 +207,7 @@ class TestPublishServiceForms:
         assert form2.version == "2025-01-10-v6"
         assert form2.name == "My Other From"
 
-    @pytest.mark.parametrize("with_attachments", [False, True])
-    def test_create_form(
-        self, mocker, requests_mock, forms, odk_client: PublishMDMClient, with_attachments: bool
-    ):
+    def test_create_form(self, mocker, requests_mock, forms, odk_client: PublishMDMClient):
         definition = Path(__file__).parent / "../transform/ODK XLSForm Template.xlsx"
         # Mock the get_forms method to return the existing forms
         mocker.patch.object(odk_client.publish_mdm, "get_forms", return_value=forms)
@@ -236,29 +232,14 @@ class TestPublishServiceForms:
                 "name": "New Form",
             },
         )
-        if with_attachments:
-            attachment = NamedTemporaryFile()
-            basename = Path(attachment.name).name
-            # Third request is to upload the attachment
-            requests_mock.post(
-                f"https://central/v1/projects/1/forms/newform_10000/draft/attachments/{basename}",
-                json={"success": True},
-            )
-            attachments = [attachment.name]
-        else:
-            attachments = None
         form = odk_client.publish_mdm.create_or_update_form(
-            xml_form_id="newform_10000", definition=definition, attachments=attachments
+            xml_form_id="newform_10000", definition=definition
         )
-        # One request to the ODK Central API if no attachment, 2 otherwise
-        assert requests_mock.call_count == 1 + with_attachments
+        assert requests_mock.call_count == 1
         assert form.xmlFormId == "newform_10000"
         assert form.name == "New Form"
 
-    @pytest.mark.parametrize("with_attachments", [False, True])
-    def test_update_form(
-        self, mocker, requests_mock, forms, odk_client: PublishMDMClient, with_attachments: bool
-    ):
+    def test_update_form(self, mocker, requests_mock, forms, odk_client: PublishMDMClient):
         definition = Path(__file__).parent / "../transform/ODK XLSForm Template.xlsx"
         # Mock the get_forms method to return the existing forms
         mocker.patch.object(odk_client.publish_mdm, "get_forms", return_value=forms)
@@ -284,26 +265,14 @@ class TestPublishServiceForms:
                 "sha": "sha",
                 "sha256": "sha256",
                 "draftToken": None,
-                "publishedAt": "2023-01-30T23:00:35.380Z",
+                "publishedAt": "2023-01-30T23:00:35.880Z",
                 "name": "My Form",
             },
         )
-        if with_attachments:
-            attachment = NamedTemporaryFile()
-            basename = Path(attachment.name).name
-            # Fourth request is to upload the attachment
-            requests_mock.post(
-                f"https://central/v1/projects/1/forms/myform_10000/draft/attachments/{basename}",
-                json={"success": True},
-            )
-            attachments = [attachment.name]
-        else:
-            attachments = None
         form = odk_client.publish_mdm.create_or_update_form(
-            xml_form_id="myform_10000", definition=definition, attachments=attachments
+            xml_form_id="myform_10000", definition=definition
         )
-        # Two total requests to the ODK Central API if no attachment, 3 otherwise
-        assert requests_mock.call_count == 2 + with_attachments
+        assert requests_mock.call_count == 2
         assert form.version == "newversion"
 
     def test_publish_form_draft(self, requests_mock, odk_client: PublishMDMClient):
@@ -406,6 +375,102 @@ class TestPublishServiceDraftAttachments:
             attachment_names=[],
         )
         assert requests_mock.call_count == 2  # 1 list + 1 delete (hospitals.csv only)
+
+
+class TestPublishServiceSyncFormAttachments:
+    @pytest.fixture
+    def draft_attachments(self) -> list[FormDraftAttachment]:
+        return [
+            FormDraftAttachment(
+                name="hospitals.csv",
+                type="file",
+                exists=True,
+                blobExists=True,
+                datasetExists=False,
+                hash="abc123",
+                updatedAt="2024-01-01T00:00:00.000Z",
+            ),
+            FormDraftAttachment(
+                name="regions.csv",
+                type="file",
+                exists=False,
+                blobExists=False,
+                datasetExists=False,
+                hash=None,
+                updatedAt=None,
+            ),
+            FormDraftAttachment(
+                name="patients",
+                type="file",
+                exists=True,
+                blobExists=True,
+                datasetExists=True,
+                hash="def456",
+                updatedAt="2024-01-01T00:00:00.000Z",
+            ),
+        ]
+
+    def test_sync_uploads_matching_attachment(
+        self, requests_mock, odk_client: PublishMDMClient, draft_attachments, tmp_path
+    ):
+        """Attachments in the map are uploaded; stale/dataset ones are handled correctly."""
+        hospitals_path = tmp_path / "hospitals.csv"
+        hospitals_path.write_bytes(b"id,name\n1,General")
+        mock_upload = requests_mock.post(
+            "https://central/v1/projects/1/forms/myform_10000/draft/attachments/hospitals.csv",
+            json={"success": True},
+        )
+        odk_client.publish_mdm.sync_form_attachments(
+            xml_form_id="myform_10000",
+            attachment_map={"hospitals.csv": hospitals_path},
+            draft_attachments=draft_attachments,
+        )
+        # 1 upload (hospitals.csv); regions.csv not cleared (exists=False);
+        # patients skipped (datasetExists=True)
+        assert requests_mock.call_count == 1
+        assert mock_upload.call_count == 1
+
+    def test_sync_clears_stale_attachment(
+        self, requests_mock, odk_client: PublishMDMClient, draft_attachments
+    ):
+        """Attachments that exist on the server but are not in the map are cleared."""
+        mock_delete = requests_mock.delete(
+            "https://central/v1/projects/1/forms/myform_10000/draft/attachments/hospitals.csv",
+            json={"success": True},
+        )
+        odk_client.publish_mdm.sync_form_attachments(
+            xml_form_id="myform_10000",
+            attachment_map={},
+            draft_attachments=draft_attachments,
+        )
+        # 1 delete (hospitals.csv only; regions.csv has exists=False;
+        # patients has datasetExists=True)
+        assert requests_mock.call_count == 1
+        assert mock_delete.call_count == 1
+
+    def test_sync_skips_dataset_attachments(
+        self, requests_mock, odk_client: PublishMDMClient, draft_attachments, tmp_path
+    ):
+        """Dataset-backed attachments are never uploaded or cleared."""
+        patients_path = tmp_path / "patients"
+        patients_path.write_bytes(b"data")
+        odk_client.publish_mdm.sync_form_attachments(
+            xml_form_id="myform_10000",
+            attachment_map={"patients": patients_path},
+            draft_attachments=[
+                FormDraftAttachment(
+                    name="patients",
+                    type="file",
+                    exists=True,
+                    blobExists=True,
+                    datasetExists=True,
+                    hash="def456",
+                    updatedAt="2024-01-01T00:00:00.000Z",
+                )
+            ],
+        )
+        # No upload or delete for the dataset-backed attachment; no API calls at all
+        assert requests_mock.call_count == 0
 
 
 class TestPublishServiceFormVersions:
