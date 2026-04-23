@@ -42,6 +42,13 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "dev")
 
 ALLOWED_HOSTS = []
 
+# SENTRY
+# ------------------------------------------------------------------------------
+# URL of the Sentry Loader Script for the browser JS SDK (enables User Feedback widget).
+# Format: https://js.sentry-cdn.com/<public-key>.min.js
+# Find yours in Sentry → Project Settings → SDK Setup → Loader Script.
+SENTRY_JS_LOADER_SCRIPT = os.getenv("SENTRY_JS_LOADER_SCRIPT", "")
+
 # Application definition
 
 AUTH_USER_MODEL = "users.User"
@@ -114,6 +121,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "config.context_processors.sentry",
             ],
         },
     },
