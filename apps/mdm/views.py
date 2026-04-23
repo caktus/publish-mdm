@@ -5,12 +5,13 @@ import structlog
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.db.models import F, Max, Q
+from django.db.models import Count, F, Max, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.crypto import get_random_string
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
+from django_tables2.config import RequestConfig
 
 from apps.publish_mdm.models import AndroidEnterpriseAccount
 from apps.publish_mdm.nav import Breadcrumbs
@@ -32,6 +33,7 @@ from .models import (
     PolicyVariable,
     PolicyVariableScope,
 )
+from .tables import PolicyTable
 
 logger = structlog.get_logger()
 
@@ -214,10 +216,14 @@ def _push_policy_to_mdm(policy, request):
 @login_required
 def policy_list(request, organization_slug):
     """List all policies for the current organization."""
-    policies = Policy.objects.filter(organization=request.organization)
+    policies = Policy.objects.filter(organization=request.organization).annotate(
+        fleet_count=Count("fleets")
+    )
+    exclude = ("policy_id",) if request.organization.mdm == "Android Enterprise" else ()
+    table = PolicyTable(data=policies, exclude=exclude)
+    RequestConfig(request, paginate=False).configure(table)
     context = {
-        "policies": policies,
-        "show_policy_id": request.organization.mdm != "Android Enterprise",
+        "table": table,
         "breadcrumbs": Breadcrumbs.from_items(
             request=request,
             items=[("Policies", "mdm:policy-list")],
