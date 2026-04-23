@@ -286,6 +286,48 @@ class Policy(models.Model):
         blank=True,
     )
 
+    # Status Reporting Settings
+    status_report_application_reports_enabled = models.BooleanField(
+        default=True,
+        help_text="Whether app reports are enabled.",
+    )
+    status_report_device_settings_enabled = models.BooleanField(
+        default=False,
+        help_text="Whether device settings reporting is enabled.",
+    )
+    status_report_software_info_enabled = models.BooleanField(
+        default=True,
+        help_text="Whether software info reporting is enabled.",
+    )
+    status_report_memory_info_enabled = models.BooleanField(
+        default=False,
+        help_text="Whether memory event reporting is enabled.",
+    )
+    status_report_network_info_enabled = models.BooleanField(
+        default=False,
+        help_text="Whether network info reporting is enabled.",
+    )
+    status_report_display_info_enabled = models.BooleanField(
+        default=False,
+        help_text="Whether displays reporting is enabled. Report data is not available for personally owned devices with work profiles.",
+    )
+    status_report_power_management_events_enabled = models.BooleanField(
+        default=True,
+        help_text="Whether power management event reporting is enabled. Report data is not available for personally owned devices with work profiles.",
+    )
+    status_report_hardware_status_enabled = models.BooleanField(
+        default=False,
+        help_text="Whether hardware status reporting is enabled. Report data is not available for personally owned devices with work profiles.",
+    )
+    status_report_system_properties_enabled = models.BooleanField(
+        default=False,
+        help_text="Whether system properties reporting is enabled.",
+    )
+    status_report_common_criteria_mode_enabled = models.BooleanField(
+        default=False,
+        help_text="Whether Common Criteria Mode reporting is enabled. This is supported only on company-owned devices.",
+    )
+
     class Meta:
         verbose_name_plural = "policies"
         ordering = ("name",)
