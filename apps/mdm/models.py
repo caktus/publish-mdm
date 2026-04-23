@@ -725,6 +725,15 @@ class Device(SoftDeleteModel):
         self.soft_delete()
         return True
 
+    @property
+    def fallback_firmware_version(self):
+        if (
+            isinstance(self.raw_mdm_device, dict)
+            and (software_info := self.raw_mdm_device.get("softwareInfo"))
+            and isinstance(software_info, dict)
+        ):
+            return software_info.get("androidBuildNumber")
+
 
 class DeviceSnapshot(models.Model):
     """

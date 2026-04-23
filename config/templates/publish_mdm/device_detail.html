@@ -119,7 +119,7 @@
                     <div>
                         <dt class="font-medium text-gray-700 dark:text-gray-400">Firmware Version</dt>
                         <dd class="text-gray-900 dark:text-white mt-0.5">
-                            {{ device.firmware_version|default:"—" }}
+                            {{ device.firmware_version|default:device.fallback_firmware_version|default:"—" }}
                         </dd>
                     </div>
                     <div>
