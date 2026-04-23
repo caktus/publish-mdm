@@ -257,20 +257,44 @@ class AndroidEnterprise(MDM):
             device["hardwareInfo"]["serialNumber"]: device for device in mdm_devices
         }
 
-        our_devices = Device.objects.filter(
-            Q(device_id__in=devices_by_id.keys()) | Q(serial_number__in=devices_by_serial.keys())
+        # Soft-delete any devices whose names appear in previousDeviceNames —
+        # they are old incarnations of devices that have since re-enrolled.
+        previous_names = {
+            name for device in mdm_devices for name in device.get("previousDeviceNames", [])
+        }
+        if previous_names and (
+            count := Device.objects.filter(name__in=previous_names).soft_delete()
+        ):
+            logger.info(
+                "Soft-deleted re-enrolled devices",
+                count=count,
+                previous_names=previous_names,
+            )
+
+        our_devices = Device.all_objects.filter(
+            Q(device_id__in=devices_by_id.keys())
+            | Q(serial_number__in=devices_by_serial.keys())
+            | Q(fleet=fleet)
         )
+        to_update = []
 
         for our_device in our_devices:
+            if our_device.is_deleted or our_device.fleet != fleet:
+                logger.debug(
+                    "Skipping device",
+                    device=our_device,
+                    is_deleted=our_device.is_deleted,
+                    device_fleet=our_device.fleet,
+                )
+                continue
+            to_update.append(our_device)
             if our_device.device_id:
                 mdm_device = devices_by_id.get(our_device.device_id)
             else:
                 mdm_device = devices_by_serial.get(our_device.serial_number)
             if not mdm_device:
-                # TODO: Remove the device from our database?
-                logger.debug(
-                    "Skipping device in our DB but not in the API response", device=our_device
-                )
+                logger.info("Soft-deleting device not found in API response", device=our_device)
+                our_device.soft_delete(commit=False)
                 continue
             logger.debug(
                 "Updating device",
@@ -279,9 +303,10 @@ class AndroidEnterprise(MDM):
             )
             self._update_device(our_device, mdm_device)
 
-        logger.debug("Updating existing devices", our_devices=our_devices, count=len(our_devices))
+        logger.debug("Updating existing devices", to_update=to_update, count=len(to_update))
         Device.objects.bulk_update(
-            our_devices, fields=["serial_number", "device_id", "raw_mdm_device", "name"]
+            to_update,
+            fields=["serial_number", "device_id", "raw_mdm_device", "name", "deleted_at"],
         )
         return our_devices
 
@@ -386,7 +411,7 @@ class AndroidEnterprise(MDM):
         # Get the ID for each snapshot's device_id
         qs = qs.annotate(
             existing_device_id=Subquery(
-                Device.objects.filter(device_id=OuterRef("device_id")).values("id")[:1]
+                Device.all_objects.filter(device_id=OuterRef("device_id")).values("id")[:1]
             )
         )
         # Update the device_id field with the existing device ID
@@ -521,6 +546,25 @@ class AndroidEnterprise(MDM):
             )
             return False
         return True
+
+    def delete_device(self, device: Device) -> None:
+        """Deletes a device from Android Enterprise. For fully managed (DEVICE_OWNER)
+        devices this triggers a factory reset; for work-profile devices it removes the
+        work profile.
+
+        https://developers.google.com/android/management/reference/rest/v1/enterprises.devices/delete
+        """
+        logger.info("Deleting device from Android Enterprise", device_name=device.name)
+        try:
+            self.execute(self.api.enterprises().devices().delete(name=device.name))
+        except HttpError as e:
+            if e.status_code == 404:
+                logger.warning(
+                    "Device not found in Android Enterprise; it may already be wiped",
+                    device_name=device.name,
+                )
+                return
+            raise
 
     def create_or_update_policy(self, policy: Policy):
         """Creates or updates a policy in the MDM based on the normalized
@@ -858,6 +902,14 @@ class AndroidEnterprise(MDM):
             )
             device = self._create_device(fleet, mdm_device)
             device.save(push_to_mdm=False)
+
+        if previous_names := mdm_device.get("previousDeviceNames"):
+            count = Device.objects.filter(name__in=previous_names).soft_delete()
+            logger.info(
+                "Soft-deleted re-enrolled devices from ENROLLMENT notification",
+                count=count,
+                previous_names=previous_names,
+            )
 
     def _handle_status_report_notification(self, mdm_device: MDMDevice) -> None:
         """Update device metadata and create a snapshot from a STATUS_REPORT notification."""

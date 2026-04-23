@@ -21,6 +21,7 @@ for publishing form versions.
    :maxdepth: 2
    :caption: Contents:
 
+   src/getting-started/index
    src/topics/index
    src/running/index
    src/local-development/index

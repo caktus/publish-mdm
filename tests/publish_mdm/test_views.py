@@ -1,5 +1,6 @@
 import json
 import uuid
+from datetime import timedelta
 from urllib.parse import urlencode
 
 import faker
@@ -61,9 +62,10 @@ from apps.publish_mdm.models import (
     OrganizationInvitation,
     Project,
 )
-from tests.mdm import TestAllMDMsNoAutouse, TestAndroidEnterpriseOnly, TestTinyMDMOnly
+from tests.mdm import TestAllMDMs, TestAllMDMsNoAutouse, TestAndroidEnterpriseOnly, TestTinyMDMOnly
 from tests.mdm.factories import (
     DeviceFactory,
+    DeviceSnapshotAppFactory,
     DeviceSnapshotFactory,
     FirmwareSnapshotFactory,
     FleetFactory,
@@ -2827,14 +2829,25 @@ class TestFleetQRCode(ViewTestBase, TestAllMDMsNoAutouse):
     def url(self, organization):
         return reverse("publish_mdm:fleet-qr-code", args=[organization.slug])
 
-    def test_saved_qr_code(self, client, url, user, organization):
+    def test_saved_qr_code(self, client, url, user, organization, all_mdms):
         """Ensure an img tag with the saved QR code is included in the response."""
-        fleet = FleetFactory(organization=organization)
+        enroll_token_expires_at = now() + timedelta(1) if self.mdm == "Android Enterprise" else None
+        fleet = FleetFactory(
+            organization=organization, enroll_token_expires_at=enroll_token_expires_at
+        )
         data = {
             "fleet": fleet.id,
         }
         response = client.post(url, data=data)
         assertContains(response, f'<img src="{fleet.enroll_qr_code.url}"')
+        how_to_use = "How to use this QR code"
+        expiry = """The QR code <span x-show="device === 'byod'">and enrollment link</span> will expire in"""
+        if self.mdm == "Android Enterprise":
+            assertContains(response, how_to_use)
+            assertContains(response, expiry)
+        else:
+            assertNotContains(response, how_to_use)
+            assertNotContains(response, expiry)
 
     def test_no_saved_qr_code(
         self,
@@ -3210,6 +3223,150 @@ class TestDeviceUpdateAppUser(ViewTestBase, TestAllMDMsNoAutouse):
         assert response.status_code == 200
         device.refresh_from_db()
         assert device.app_user_name == "some_user"
+
+
+@pytest.mark.django_db
+class TestDeviceDetail(ViewTestBase, TestAllMDMs):
+    """Tests for the device detail page."""
+
+    @pytest.fixture
+    def device(self, organization):
+        return DeviceFactory(fleet__organization=organization)
+
+    @pytest.fixture
+    def url(self, device):
+        return reverse(
+            "publish_mdm:device-detail", args=[device.fleet.organization.slug, device.pk]
+        )
+
+    def test_get(self, client, url, user, device):
+        """GET renders device info, snapshot fields, firmware version, installed apps, and app user form."""
+        snapshot = DeviceSnapshotFactory(mdm_device=device)
+        device.latest_snapshot = snapshot
+        device.save()
+        FirmwareSnapshotFactory(device=device, version="1.2.3")
+        apps = DeviceSnapshotAppFactory.create_batch(3, device_snapshot=snapshot)
+
+        response = client.get(url)
+
+        assert response.status_code == 200
+        assertContains(response, device.device_id)
+        assertContains(response, device.name)
+        assertContains(response, device.fleet.name)
+        assertContains(response, snapshot.os_version)
+        assertContains(response, snapshot.enrollment_type)
+        assertContains(response, "1.2.3")
+        assert isinstance(response.context.get("app_user_form"), DeviceAppUserForm)
+        for app in apps:
+            assertContains(response, app.app_name)
+            assertContains(response, app.package_name)
+            assertContains(response, app.version_name)
+
+    def test_login_required(self, client, url):
+        client.logout()
+        response = client.get(url)
+        assert response.status_code == 302
+
+    def test_org_isolation(self, client, user):
+        """A device belonging to another organisation returns 404."""
+        other_device = DeviceFactory()
+        url = reverse(
+            "publish_mdm:device-detail",
+            args=[other_device.fleet.organization.slug, other_device.pk],
+        )
+        response = client.get(url)
+        assert response.status_code == 404
+
+    def test_get_soft_deleted_device_returns_404(self, client, url, user, device):
+        """GETting a soft-deleted device's URL returns 404."""
+        device.soft_delete()
+        response = client.get(url)
+        assert response.status_code == 404
+
+    @pytest.mark.parametrize("is_fully_managed", [True, False])
+    def test_reset_and_delete(
+        self, client, url, user, device, organization, mocker, is_fully_managed
+    ):
+        """POSTing reset_and_delete calls MDM.delete_device with the correct device, soft-deletes
+        the device, and shows the expected success message.
+        """
+        snapshot = DeviceSnapshotFactory(
+            mdm_device=device,
+            enrollment_type="fully_managed" if is_fully_managed else "work_profile",
+        )
+        device.latest_snapshot = snapshot
+        device.save()
+        MDM = get_active_mdm_class(organization)
+        mock_delete = mocker.patch.object(MDM, "delete_device")
+        response = client.post(url, {"action": "reset_and_delete"}, follow=True)
+        mock_delete.assert_called_once_with(device)
+        assertRedirects(
+            response,
+            reverse("publish_mdm:devices-list", args=[organization.slug]),
+        )
+        if is_fully_managed:
+            assertContains(
+                response,
+                f"Device “{device.device_id}” has been factory reset and deleted from our database.",
+            )
+        else:
+            assertContains(
+                response,
+                f"The work profile has been deleted from device “{device.device_id}” and it has been deleted from our database.",
+            )
+        device.refresh_from_db()
+        assert device.is_deleted is True
+
+    @pytest.mark.parametrize("is_fully_managed", [True, False])
+    def test_reset_and_delete_mdm_error_does_not_soft_delete(
+        self, client, url, user, device, organization, mocker, mdm_api_error, is_fully_managed
+    ):
+        """If the MDM raises an error, an error message is shown and the device
+        is not soft-deleted.
+        """
+        snapshot = DeviceSnapshotFactory(
+            mdm_device=device,
+            enrollment_type="fully_managed" if is_fully_managed else "work_profile",
+        )
+        device.latest_snapshot = snapshot
+        device.save()
+        MDM = get_active_mdm_class(organization)
+        mocker.patch.object(MDM, "delete_device", side_effect=mdm_api_error)
+        response = client.post(url, {"action": "reset_and_delete"}, follow=True)
+        assertRedirects(
+            response,
+            reverse("publish_mdm:devices-list", args=[organization.slug]),
+        )
+        if is_fully_managed:
+            assertContains(
+                response,
+                f"Unable to factory reset device “{device.device_id}”. Please try again later.",
+            )
+        else:
+            assertContains(
+                response,
+                f"Unable to delete the work profile from device “{device.device_id}”. Please try again later.",
+            )
+        device.refresh_from_db()
+        assert device.is_deleted is False
+
+    def test_reset_and_delete_no_active_mdm_does_not_soft_delete(
+        self, client, url, user, device, organization, mocker, unconfigure_mdm
+    ):
+        """If the MDM is not configured, an error message is shown and the device
+        is not soft-deleted.
+        """
+        MDM = get_active_mdm_class(organization)
+        mock_delete = mocker.patch.object(MDM, "delete_device")
+        response = client.post(url, {"action": "reset_and_delete"}, follow=True)
+        assertRedirects(
+            response,
+            reverse("publish_mdm:devices-list", args=[organization.slug]),
+        )
+        mock_delete.assert_not_called()
+        assertContains(response, "Unable to")
+        device.refresh_from_db()
+        assert device.is_deleted is False
 
 
 @pytest.mark.django_db

@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 import structlog
 from django.contrib import admin, messages
 from django.contrib.admin import helpers
@@ -377,7 +379,15 @@ class FleetAdmin(admin.ModelAdmin):
 
 @admin.register(Device)
 class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
-    list_display = ("name", "serial_number", "manufacturer", "model", "app_user_name", "fleet")
+    list_display = (
+        "name",
+        "serial_number",
+        "manufacturer",
+        "model",
+        "app_user_name",
+        "fleet",
+        "deleted_at",
+    )
     search_fields = (
         "id",
         "name",
@@ -394,11 +404,12 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
         "raw_mdm_device",
         "latest_snapshot",
     )
-    list_filter = ("fleet", "manufacturer", "model", "app_user_name")
+    list_filter = ("fleet", "manufacturer", "model", "app_user_name", "deleted_at")
     import_form_class = DeviceImportForm
     confirm_form_class = DeviceConfirmImportForm
     export_form_class = ExportForm
     resource_classes = (DeviceResource,)
+    actions: ClassVar = ["wipe_and_soft_delete_devices", "restore_devices"]
 
     def save_model(self, request, obj, form, change):
         """Always push to MDM when saving a Device in the admin."""
@@ -415,11 +426,36 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
 
     def get_queryset(self, request: HttpRequest) -> models.QuerySet[Device]:
         return (
-            super()
-            .get_queryset(request)
+            Device.all_objects.all()
             # Create admin-searchable field for app_user_name that is deterministic
             .annotate(app_user_deterministic=Collate("app_user_name", "und-x-icu"))
         )
+
+    @admin.action(description="Wipe and soft-delete selected devices")
+    def wipe_and_soft_delete_devices(self, request, queryset):
+        succeeded = 0
+        failed = 0
+        active_devices = queryset.filter(deleted_at__isnull=True).select_related(
+            "fleet__organization"
+        )
+        for device in active_devices:
+            if device.wipe_and_soft_delete():
+                succeeded += 1
+            else:
+                failed += 1
+        if succeeded:
+            self.message_user(request, f"{succeeded} device(s) wiped and deleted.")
+        if failed:
+            self.message_user(
+                request,
+                f"{failed} device(s) could not be wiped and deleted.",
+                level=messages.ERROR,
+            )
+
+    @admin.action(description="Restore selected devices")
+    def restore_devices(self, request, queryset):
+        count = queryset.filter(deleted_at__isnull=False).restore()
+        self.message_user(request, f"{count} device(s) restored.")
 
     def get_import_data_kwargs(self, request, *args, **kwargs):
         """Prepare kwargs for import_data."""

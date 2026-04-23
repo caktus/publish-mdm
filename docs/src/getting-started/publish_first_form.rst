@@ -121,7 +121,7 @@ An **app user** is a data collector who will fill out forms using `ODK Collect`_
    Create one app user per data collector, or create multiple app users to segment data (e.g., by region or team).
 .. important::
 
-   A powerful feature in Publish MDM is its ability to publish customized versions of a form to different app users using template variables. Refer to :doc:`Dynamic Forms with Template Variables <form_templates>` to learn how this works.
+   A powerful feature in Publish MDM is its ability to publish customized versions of a form to different app users using template variables. Refer to :doc:`Dynamic Forms with Template Variables <../topics/form_templates>` to learn how this works.
 
 Step 6: Assign Forms to App Users
 ---------------------------------
@@ -200,11 +200,11 @@ To make changes to your form:
 What's Next?
 ------------
 
-**Want to customize forms for different users or data sources?** Check out :doc:`Dynamic Forms with Template Variables <form_templates>` to learn how to use template variables to personalize forms without creating multiple versions.
+**Want to customize forms for different users or data sources?** Check out :doc:`Dynamic Forms with Template Variables <../topics/form_templates>` to learn how to use template variables to personalize forms without creating multiple versions.
 
 **Want to automate device management?** See :doc:`Getting Started with Device Management <device_management_quickstart>` to set up Android device management, automatic form deployment, and policy enforcement.
 
-**Need to manage large datasets efficiently?** Explore the :doc:`Managing Large Entity Lists <large_entity_lists>` guide.
+**Need to manage large datasets efficiently?** Explore the :doc:`Managing Large Entity Lists <../topics/large_entity_lists>` guide.
 
 **Have questions?** Refer to the :doc:`Troubleshooting Guide <troubleshooting>` or contact support.
 

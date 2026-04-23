@@ -19,18 +19,28 @@ from tests.publish_mdm.factories import OrganizationFactory
 class TestMdmDeviceSnapshot(TestAllMDMs):
     """Tests for mdm_device_snapshot."""
 
-    def test_sync_fleets_called(self, mocker, organization):
+    @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
+    def test_sync_fleets_called(self, mocker, organization, mdm_api_error, capsys):
         """sync_fleets is called for each configured organization with push_config=False."""
         MDM = get_active_mdm_class(organization)
+        configured_orgs = [organization]
         # Create 2 more configured organizations
         for org in OrganizationFactory.create_batch(2):
             _configure_mdm(self.mdm, org)
+            configured_orgs.append(org)
         # Create an organization that is not configured
-        OrganizationFactory()
-        mock_sync = mocker.patch.object(MDM, "sync_fleets")
-        mdm_device_snapshot()
+        not_configured_org = OrganizationFactory()
+        mock_sync = mocker.patch.object(MDM, "sync_fleets", side_effect=mdm_api_error)
+        mdm_device_snapshot(context=dg.build_asset_context())
         # Expect 3 calls: one for each configured organization
         mock_sync.assert_has_calls([call(push_config=False)] * 3)
+        captured = capsys.readouterr()
+        for org in configured_orgs:
+            if mdm_api_error:
+                assert f"Failed to sync devices for {org}" in captured.err
+            else:
+                assert f"Synced all fleets in {org}" in captured.err
+        assert f"MDM not configured for organization {not_configured_org}" in captured.err
 
     def test_deleted_org_not_synced(self, mocker, organization):
         """A soft-deleted organization is not included in the Android Enterprise per-org sync.
@@ -44,7 +54,7 @@ class TestMdmDeviceSnapshot(TestAllMDMs):
         other_org.soft_delete()
 
         mock_sync = mocker.patch.object(get_active_mdm_class(organization), "sync_fleets")
-        mdm_device_snapshot()
+        mdm_device_snapshot(context=dg.build_asset_context())
 
         # Only the autouse active org should be synced; deleted org is excluded
         assert mock_sync.call_count == 1
