@@ -83,13 +83,33 @@ class TestPolicyList(PolicyViewBase, TestAllMDMs):
         policy_row = dict(zip(rows[0], rows[1], strict=True))
         assert policy_row["Fleets"] == 2
 
-    def test_policy_id_column_visibility(self, client, url):
+
+# ---------------------------------------------------------------------------
+# policy_list — MDM-specific column visibility
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestPolicyListAndroidEnterprise(PolicyViewBase, TestAndroidEnterpriseOnly):
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("mdm:policy-list", args=[organization.slug])
+
+    def test_policy_id_column_hidden(self, client, url):
         response = client.get(url)
         assert response.status_code == 200
-        if self.mdm == "Android Enterprise":
-            assert "Policy ID" not in response.content.decode()
-        else:
-            assertContains(response, "Policy ID")
+        assert "Policy ID" not in response.content.decode()
+
+
+@pytest.mark.django_db
+class TestPolicyListTinyMDM(PolicyViewBase, TestTinyMDMOnly):
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("mdm:policy-list", args=[organization.slug])
+
+    def test_policy_id_column_shown(self, client, url):
+        response = client.get(url)
+        assertContains(response, "Policy ID")
 
 
 # ---------------------------------------------------------------------------
