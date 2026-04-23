@@ -141,6 +141,11 @@ class TestPolicyEditForm:
             "kiosk_status_bar": "STATUS_BAR_UNSPECIFIED",
             "kiosk_device_settings": "DEVICE_SETTINGS_UNSPECIFIED",
             "developer_settings": "DEVELOPER_SETTINGS_DISABLED",
+            # Status reporting — checked boxes are submitted as "on"; unchecked are absent.
+            # Defaults: application_reports, software_info, power_management_events are True.
+            "status_report_application_reports_enabled": "on",
+            "status_report_software_info_enabled": "on",
+            "status_report_power_management_events_enabled": "on",
         }
 
     def test_valid_data_is_valid(self):
@@ -174,6 +179,62 @@ class TestPolicyEditForm:
         data = {**self._base_data(), "kiosk_custom_launcher_enabled": True}
         form = PolicyEditForm(data, instance=new_policy)
         assert form.is_valid(), form.errors
+
+    def test_status_report_defaults_saved_correctly(self):
+        """Submitting base data preserves the three default-True status report fields."""
+        policy = PolicyFactory()
+        form = PolicyEditForm(self._base_data(), instance=policy)
+        assert form.is_valid(), form.errors
+        saved = form.save()
+        assert saved.status_report_application_reports_enabled is True
+        assert saved.status_report_software_info_enabled is True
+        assert saved.status_report_power_management_events_enabled is True
+        # Fields absent from POST data are unchecked → False
+        assert saved.status_report_device_settings_enabled is False
+        assert saved.status_report_memory_info_enabled is False
+        assert saved.status_report_network_info_enabled is False
+        assert saved.status_report_display_info_enabled is False
+        assert saved.status_report_hardware_status_enabled is False
+        assert saved.status_report_system_properties_enabled is False
+        assert saved.status_report_common_criteria_mode_enabled is False
+
+    def test_status_report_all_enabled(self):
+        """All ten status report fields can be enabled simultaneously."""
+        policy = PolicyFactory()
+        data = {
+            **self._base_data(),
+            "status_report_device_settings_enabled": "on",
+            "status_report_memory_info_enabled": "on",
+            "status_report_network_info_enabled": "on",
+            "status_report_display_info_enabled": "on",
+            "status_report_hardware_status_enabled": "on",
+            "status_report_system_properties_enabled": "on",
+            "status_report_common_criteria_mode_enabled": "on",
+        }
+        form = PolicyEditForm(data, instance=policy)
+        assert form.is_valid(), form.errors
+        saved = form.save()
+        assert saved.status_report_application_reports_enabled is True
+        assert saved.status_report_device_settings_enabled is True
+        assert saved.status_report_software_info_enabled is True
+        assert saved.status_report_memory_info_enabled is True
+        assert saved.status_report_network_info_enabled is True
+        assert saved.status_report_display_info_enabled is True
+        assert saved.status_report_power_management_events_enabled is True
+        assert saved.status_report_hardware_status_enabled is True
+        assert saved.status_report_system_properties_enabled is True
+        assert saved.status_report_common_criteria_mode_enabled is True
+
+    def test_status_report_all_disabled(self):
+        """All ten status report fields can be disabled (none submitted in POST)."""
+        policy = PolicyFactory()
+        data = {k: v for k, v in self._base_data().items() if not k.startswith("status_report_")}
+        form = PolicyEditForm(data, instance=policy)
+        assert form.is_valid(), form.errors
+        saved = form.save()
+        assert saved.status_report_application_reports_enabled is False
+        assert saved.status_report_software_info_enabled is False
+        assert saved.status_report_power_management_events_enabled is False
 
 
 @pytest.mark.django_db

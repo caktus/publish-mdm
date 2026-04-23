@@ -67,6 +67,8 @@ class PolicySerializer:
         if connectivity:
             result["deviceConnectivityManagement"] = connectivity
 
+        result["statusReportingSettings"] = self._build_status_reporting_settings()
+
         # Resolve variable placeholders in all string values
         merged_vars = self._merge_variables()
         self._resolve_variables(result, merged_vars)
@@ -175,6 +177,21 @@ class PolicySerializer:
         if not ds:
             return None
         return {"developerSettings": ds}
+
+    def _build_status_reporting_settings(self) -> dict:
+        p = self.policy
+        return {
+            "applicationReportsEnabled": p.status_report_application_reports_enabled,
+            "deviceSettingsEnabled": p.status_report_device_settings_enabled,
+            "softwareInfoEnabled": p.status_report_software_info_enabled,
+            "memoryInfoEnabled": p.status_report_memory_info_enabled,
+            "networkInfoEnabled": p.status_report_network_info_enabled,
+            "displayInfoEnabled": p.status_report_display_info_enabled,
+            "powerManagementEventsEnabled": p.status_report_power_management_events_enabled,
+            "hardwareStatusEnabled": p.status_report_hardware_status_enabled,
+            "systemPropertiesEnabled": p.status_report_system_properties_enabled,
+            "commonCriteriaModeEnabled": p.status_report_common_criteria_mode_enabled,
+        }
 
     def _build_device_connectivity_management(self) -> dict | None:
         p = self.policy

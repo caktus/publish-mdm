@@ -3262,6 +3262,32 @@ class TestDeviceDetail(ViewTestBase, TestAllMDMs):
             assertContains(response, app.package_name)
             assertContains(response, app.version_name)
 
+    @pytest.mark.parametrize(
+        "raw_mdm_device",
+        (
+            # raw_mdm_device contains a fallback firmware version
+            {"softwareInfo": {"androidBuildNumber": "ABCD1234-build"}},
+            # All these do not contain a fallback firmware version
+            {"softwareInfo": {"notBuildNumber": "ABCD1234"}},
+            {},
+            None,
+            {"id": "someId"},
+        ),
+    )
+    def test_firmware_version_fallback(self, client, url, user, device, raw_mdm_device):
+        """If the firmware version cannot be determined from a FirmwareSnapshot,
+        use the value from `softwareInfo.androidBuildNumber` in the raw_mdm_device JSON.
+        """
+        snapshot = DeviceSnapshotFactory(mdm_device=device)
+        device.latest_snapshot = snapshot
+        device.raw_mdm_device = raw_mdm_device
+        device.save()
+        response = client.get(url)
+        if isinstance(raw_mdm_device, dict) and (
+            build_no := raw_mdm_device.get("softwareInfo", {}).get("androidBuildNumber")
+        ):
+            assertContains(response, build_no)
+
     def test_login_required(self, client, url):
         client.logout()
         response = client.get(url)

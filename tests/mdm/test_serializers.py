@@ -490,3 +490,52 @@ class TestPolicySerializer(TestAllMDMs):
         assert result["deviceConnectivityManagement"] == {
             "wifiDirectSettings": "DISALLOW_WIFI_DIRECT"
         }
+
+    def test_status_reporting_settings_defaults(self):
+        """statusReportingSettings is always included in the output with the expected defaults."""
+        policy = PolicyFactory()
+        result = PolicySerializer(policy=policy).to_dict()
+        assert "statusReportingSettings" in result
+        srs = result["statusReportingSettings"]
+        assert srs.get("applicationReportsEnabled") is True
+        assert srs.get("softwareInfoEnabled") is True
+        assert srs.get("powerManagementEventsEnabled") is True
+        assert srs.get("deviceSettingsEnabled") is False
+        assert srs.get("memoryInfoEnabled") is False
+        assert srs.get("networkInfoEnabled") is False
+        assert srs.get("displayInfoEnabled") is False
+        assert srs.get("hardwareStatusEnabled") is False
+        assert srs.get("systemPropertiesEnabled") is False
+        assert srs.get("commonCriteriaModeEnabled") is False
+
+    def test_status_reporting_settings_default_true_fields_can_be_disabled(self):
+        """Fields that default to True are correctly emitted as False when disabled."""
+        policy = PolicyFactory(
+            status_report_application_reports_enabled=False,
+            status_report_software_info_enabled=False,
+            status_report_power_management_events_enabled=False,
+        )
+        srs = PolicySerializer(policy=policy).to_dict()["statusReportingSettings"]
+        assert srs["applicationReportsEnabled"] is False
+        assert srs["softwareInfoEnabled"] is False
+        assert srs["powerManagementEventsEnabled"] is False
+
+    def test_status_reporting_settings_default_false_fields_can_be_enabled(self):
+        """Fields that default to False are correctly emitted as True when enabled."""
+        policy = PolicyFactory(
+            status_report_device_settings_enabled=True,
+            status_report_memory_info_enabled=True,
+            status_report_network_info_enabled=True,
+            status_report_display_info_enabled=True,
+            status_report_hardware_status_enabled=True,
+            status_report_system_properties_enabled=True,
+            status_report_common_criteria_mode_enabled=True,
+        )
+        srs = PolicySerializer(policy=policy).to_dict()["statusReportingSettings"]
+        assert srs["deviceSettingsEnabled"] is True
+        assert srs["memoryInfoEnabled"] is True
+        assert srs["networkInfoEnabled"] is True
+        assert srs["displayInfoEnabled"] is True
+        assert srs["hardwareStatusEnabled"] is True
+        assert srs["systemPropertiesEnabled"] is True
+        assert srs["commonCriteriaModeEnabled"] is True

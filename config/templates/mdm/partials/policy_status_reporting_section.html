@@ -1,0 +1,91 @@
+{% load mdm_tags %}
+<div class="policy-section">
+    <h3 class="mb-1 text-lg font-semibold text-gray-900 dark:text-white">Status Reporting</h3>
+    <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
+        Control which device status information is reported to Publish MDM.
+    </p>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div>
+            {% toggle_field form.status_report_application_reports_enabled tooltip_id="tooltip-status-app-reports" %}
+            <div id="tooltip-status-app-reports"
+                 role="tooltip"
+                 class="tooltip-container">
+                Whether app reports are enabled.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+        </div>
+        <div>
+            {% toggle_field form.status_report_software_info_enabled tooltip_id="tooltip-status-software-info" %}
+            <div id="tooltip-status-software-info"
+                 role="tooltip"
+                 class="tooltip-container">
+                Whether software info reporting is enabled.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+        </div>
+        <div>
+            {% toggle_field form.status_report_power_management_events_enabled tooltip_id="tooltip-status-power" %}
+            <div id="tooltip-status-power" role="tooltip" class="tooltip-container">
+                Whether power management event reporting is enabled. Report data is not available
+                for personally owned devices with work profiles.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+        </div>
+        <div>
+            {% toggle_field form.status_report_device_settings_enabled tooltip_id="tooltip-status-device-settings" %}
+            <div id="tooltip-status-device-settings"
+                 role="tooltip"
+                 class="tooltip-container">
+                Whether device settings reporting is enabled.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+        </div>
+        <div>
+            {% toggle_field form.status_report_memory_info_enabled tooltip_id="tooltip-status-memory" %}
+            <div id="tooltip-status-memory" role="tooltip" class="tooltip-container">
+                Whether memory event reporting is enabled.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+        </div>
+        <div>
+            {% toggle_field form.status_report_network_info_enabled tooltip_id="tooltip-status-network" %}
+            <div id="tooltip-status-network" role="tooltip" class="tooltip-container">
+                Whether network info reporting is enabled.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+        </div>
+        <div>
+            {% toggle_field form.status_report_display_info_enabled tooltip_id="tooltip-status-display" %}
+            <div id="tooltip-status-display" role="tooltip" class="tooltip-container">
+                Whether displays reporting is enabled. Report data is not available for personally
+                owned devices with work profiles.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+        </div>
+        <div>
+            {% toggle_field form.status_report_hardware_status_enabled tooltip_id="tooltip-status-hardware" %}
+            <div id="tooltip-status-hardware" role="tooltip" class="tooltip-container">
+                Whether hardware status reporting is enabled. Report data is not available for
+                personally owned devices with work profiles.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+        </div>
+        <div>
+            {% toggle_field form.status_report_system_properties_enabled tooltip_id="tooltip-status-system-props" %}
+            <div id="tooltip-status-system-props"
+                 role="tooltip"
+                 class="tooltip-container">
+                Whether system properties reporting is enabled.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+        </div>
+        <div>
+            {% toggle_field form.status_report_common_criteria_mode_enabled tooltip_id="tooltip-status-cc-mode" %}
+            <div id="tooltip-status-cc-mode" role="tooltip" class="tooltip-container">
+                Whether Common Criteria Mode reporting is enabled. This is supported only on
+                company-owned devices.
+                <div class="tooltip-arrow" data-popper-arrow></div>
+            </div>
+        </div>
+    </div>
+</div>

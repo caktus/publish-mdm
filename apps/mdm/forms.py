@@ -196,6 +196,16 @@ class PolicyEditForm(PlatformFormMixin, forms.ModelForm):
             "connectivity_configure_wifi",
             "connectivity_tethering_settings",
             "connectivity_wifi_direct_settings",
+            "status_report_application_reports_enabled",
+            "status_report_device_settings_enabled",
+            "status_report_software_info_enabled",
+            "status_report_memory_info_enabled",
+            "status_report_network_info_enabled",
+            "status_report_display_info_enabled",
+            "status_report_power_management_events_enabled",
+            "status_report_hardware_status_enabled",
+            "status_report_system_properties_enabled",
+            "status_report_common_criteria_mode_enabled",
         ]
         widgets: ClassVar = {
             "name": TextInput(attrs={"placeholder": "Policy name"}),
@@ -227,6 +237,16 @@ class PolicyEditForm(PlatformFormMixin, forms.ModelForm):
             "connectivity_configure_wifi": Select,
             "connectivity_tethering_settings": Select,
             "connectivity_wifi_direct_settings": Select,
+            "status_report_application_reports_enabled": CheckboxInput,
+            "status_report_device_settings_enabled": CheckboxInput,
+            "status_report_software_info_enabled": CheckboxInput,
+            "status_report_memory_info_enabled": CheckboxInput,
+            "status_report_network_info_enabled": CheckboxInput,
+            "status_report_display_info_enabled": CheckboxInput,
+            "status_report_power_management_events_enabled": CheckboxInput,
+            "status_report_hardware_status_enabled": CheckboxInput,
+            "status_report_system_properties_enabled": CheckboxInput,
+            "status_report_common_criteria_mode_enabled": CheckboxInput,
         }
         labels: ClassVar = {
             "odk_collect_package": "Package name override",
@@ -251,6 +271,16 @@ class PolicyEditForm(PlatformFormMixin, forms.ModelForm):
             "connectivity_configure_wifi": "Wi-Fi configuration",
             "connectivity_tethering_settings": "Tethering",
             "connectivity_wifi_direct_settings": "Wi-Fi Direct",
+            "status_report_application_reports_enabled": "Application reports",
+            "status_report_device_settings_enabled": "Device settings",
+            "status_report_software_info_enabled": "Software info",
+            "status_report_memory_info_enabled": "Memory info",
+            "status_report_network_info_enabled": "Network info",
+            "status_report_display_info_enabled": "Display info",
+            "status_report_power_management_events_enabled": "Power management events",
+            "status_report_hardware_status_enabled": "Hardware status",
+            "status_report_system_properties_enabled": "System properties",
+            "status_report_common_criteria_mode_enabled": "Common Criteria Mode",
         }
 
     def clean(self):
