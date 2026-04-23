@@ -341,41 +341,6 @@ class TestPublishServiceDraftAttachments:
         )
         assert requests_mock.call_count == 1
 
-    def test_clear_missing_attachments(
-        self, requests_mock, odk_client: PublishMDMClient, attachment_response
-    ):
-        requests_mock.get(
-            "https://central/v1/projects/1/forms/myform_10000/draft/attachments",
-            json=attachment_response,
-        )
-        # hospitals.csv is kept; regions.csv has no blob (exists=False); patients is
-        # dataset-backed — nothing to delete
-        odk_client.publish_mdm.clear_missing_attachments(
-            xml_form_id="myform_10000",
-            attachment_names=["hospitals.csv"],
-        )
-        assert requests_mock.call_count == 1  # 1 list, 0 deletes
-
-    def test_clear_missing_attachments_skips_datasets(
-        self, requests_mock, odk_client: PublishMDMClient, attachment_response
-    ):
-        requests_mock.get(
-            "https://central/v1/projects/1/forms/myform_10000/draft/attachments",
-            json=attachment_response,
-        )
-        # Empty keep list: hospitals.csv (blobExists=True) cleared; regions.csv skipped
-        # (blobExists=False — nothing to clear); patients skipped (datasetExists=True
-        # protects it even though blobExists=True)
-        requests_mock.delete(
-            "https://central/v1/projects/1/forms/myform_10000/draft/attachments/hospitals.csv",
-            json={"success": True},
-        )
-        odk_client.publish_mdm.clear_missing_attachments(
-            xml_form_id="myform_10000",
-            attachment_names=[],
-        )
-        assert requests_mock.call_count == 2  # 1 list + 1 delete (hospitals.csv only)
-
 
 class TestPublishServiceSyncFormAttachments:
     @pytest.fixture

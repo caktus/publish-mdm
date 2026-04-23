@@ -1,6 +1,5 @@
 import datetime as dt
 from collections import defaultdict
-from collections.abc import Iterable
 from os import PathLike
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -367,39 +366,6 @@ class PublishService(bases.Service):
             attachment_name=attachment_name,
             project_id=project_id,
         )
-
-    def clear_missing_attachments(
-        self,
-        xml_form_id: str,
-        attachment_names: Iterable[str],
-        project_id: int | None = None,
-    ) -> None:
-        """Clear draft attachments that are not in *attachment_names* and are not
-        backed by a dataset (datasetExists=False).
-
-        Call this after uploading attachments to the draft and before publishing.
-        """
-        project_id = project_id or self.client.project_id
-        keep_names = set(attachment_names)
-        for attachment in self.list_form_attachments(
-            xml_form_id=xml_form_id, project_id=project_id
-        ):
-            if (
-                attachment.name not in keep_names
-                and attachment.exists
-                and not attachment.datasetExists
-            ):
-                logger.info(
-                    "Clearing stale form attachment",
-                    xml_form_id=xml_form_id,
-                    attachment_name=attachment.name,
-                    project_id=project_id,
-                )
-                self.clear_form_attachment(
-                    xml_form_id=xml_form_id,
-                    attachment_name=attachment.name,
-                    project_id=project_id,
-                )
 
     def get_app_users_assigned_to_form(self, project_id, form_id):
         """Get a set with the IDs of all app users that have been assigned to a form.
