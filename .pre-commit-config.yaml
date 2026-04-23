@@ -3,7 +3,7 @@
 repos:
   - repo: https://github.com/astral-sh/uv-pre-commit
     # uv version.
-    rev: 0.8.12
+    rev: 0.11.7
     hooks:
       - id: uv-lock
   - repo: local
@@ -16,7 +16,7 @@ repos:
         types: ["file", "python"]
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.15.7
+    rev: v0.15.11
     hooks:
       # Run the linter.
       - id: ruff-check
@@ -29,13 +29,13 @@ repos:
       - id: prettier
         types_or: [css, javascript, yaml, markdown]
         exclude: "^(\\.claude/|config/static/js/vendor)"
-  - repo: https://github.com/Riverside-Healthcare/djLint
+  - repo: https://github.com/djlint/djLint
     rev: v1.36.4
     hooks:
       - id: djlint-reformat-django
       - id: djlint-django
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -51,11 +51,11 @@ repos:
         # Exclude test service account file downloaded from https://github.com/googleapis/google-api-python-client/blob/main/tests/data/service_account.json
         exclude: tests/mdm/android_enterprise_service_account.json
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.19.1
+    rev: v3.21.2
     hooks:
       - id: pyupgrade
   - repo: https://github.com/adamchainz/django-upgrade
-    rev: 1.25.0
+    rev: 1.30.0
     hooks:
       - id: django-upgrade
         args: [--target-version, "5.2"]
