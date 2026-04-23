@@ -198,7 +198,7 @@ to prevent cross-org access.
 ### MDM selection per organization
 
 Each `Organization` has an `mdm` field (choices driven by `settings.MDM_REGISTRY`,
-default `"TinyMDM"`). The MDM type and TinyMDM API credentials are configured in the
+default `"Android Enterprise"`). The MDM type and TinyMDM API credentials are configured in the
 Django admin (`/admin/publish_mdm/organization/`) or the Create Organization form.
 
 - **Android Enterprise (AMAPI)**: credentials (`ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE`,

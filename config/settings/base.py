@@ -446,8 +446,8 @@ else:
 # Developers can override this setting to add custom MDM implementations or
 # replace existing ones. The keys drive the choices for Organization.mdm.
 MDM_REGISTRY = {
-    "TinyMDM": "apps.mdm.mdms.TinyMDM",
     "Android Enterprise": "apps.mdm.mdms.AndroidEnterprise",
+    "TinyMDM": "apps.mdm.mdms.TinyMDM",
 }
 
 # Shared secret token for the AMAPI Pub/Sub push endpoint.  When set, all push
