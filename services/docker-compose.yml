@@ -1,6 +1,6 @@
 services:
   service:
-    image: ghcr.io/caktus/central-service:latest
+    image: ghcr.io/caktus/central-service:v2026.1.1
     env_file:
       - .env
     depends_on:
@@ -14,13 +14,19 @@ services:
       - SYSADMIN_EMAIL=${SYSADMIN_EMAIL}
       - HTTPS_PORT=${HTTPS_PORT:-443}
       - NODE_OPTIONS=${SERVICE_NODE_OPTIONS:-}
-      - DB_HOST=${DB_HOST:-postgres14}
-      - DB_USER=${DB_USER:-odk}
-      - DB_PASSWORD=${DB_PASSWORD}
+      # Prepare libpq connection env vars, while handling legacy DB_* vars.
+      # Resolution order:
+      # 1. PGVAR specified in .env. This includes declarations with empty values, for instance, to use an empty password (PGPASSWORD=).
+      # 2. Corresponding legacy DB_VAR in .env. These are legacy overrides for custom database connections.
+      # 3. ODK default value.
+      - PGHOST=${PGHOST-${DB_HOST:-postgres14}}
+      - PGPORT=${PGPORT-${DB_PORT:-5432}}
+      - PGDATABASE=${PGDATABASE-${DB_NAME:-central}}
+      - PGUSER=${PGUSER-${DB_USER:-odk}}
+      - PGPASSWORD=${PGPASSWORD-${DB_PASSWORD}}
+      - PGAPPNAME=${PGAPPNAME-odkcentral}
+      # End of libpq connection env var preparation.
       - DB_POOL_SIZE=${DB_POOL_SIZE:-10}
-      - DB_PORT=${DB_PORT:-5432}
-      - DB_NAME=${DB_NAME:-central}
-      - DB_SSL=${DB_SSL:-null}
       - EMAIL_FROM=${EMAIL_FROM:-no-reply@$DOMAIN}
       - EMAIL_HOST=${EMAIL_HOST:-mail}
       - EMAIL_PORT=${EMAIL_PORT:-25}
@@ -43,15 +49,9 @@ services:
       - S3_SECRET_KEY=${S3_SECRET_KEY:-}
       - S3_BUCKET_NAME=${S3_BUCKET_NAME:-}
       - SESSION_LIFETIME=${SESSION_LIFETIME:-86400}
-    command:
-      [
-        "wait-for-it",
-        "${DB_HOST:-postgres14}:${DB_PORT:-5432}",
-        "--",
-        "./start-odk.sh",
-      ]
+    command: ["./start-odk.sh"]
   nginx:
-    image: ghcr.io/caktus/central-nginx:latest
+    image: ghcr.io/caktus/central-nginx:v2026.1.1
     depends_on:
       - service
       - enketo
@@ -71,7 +71,7 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "nc -z localhost 80 || exit 1"]
   enketo:
-    image: ghcr.io/caktus/central-enketo:latest
+    image: ghcr.io/caktus/central-enketo:v2026.1.1
     volumes:
       - dev_secrets:/etc/secrets
     depends_on:
@@ -89,20 +89,20 @@ services:
       - SENTRY_PROJECT=${SENTRY_PROJECT:-1298632}
       - ENKETO_SECRETS=danger-insecure
   enketo-redis-main:
-    image: redis:7.4.7
+    image: redis:8.6.2
     volumes:
       - enketo-redis-main:/data
   enketo-redis-cache:
-    image: redis:7.4.7
+    image: redis:8.6.2
     volumes:
       - enketo-redis-cache:/data
   secrets:
-    image: ghcr.io/caktus/central-secrets:latest
+    image: ghcr.io/caktus/central-secrets:v2026.1.1
     volumes:
       - dev_secrets:/etc/secrets
     command: "./generate-secrets.sh"
   pyxform:
-    image: "ghcr.io/getodk/pyxform-http:v4.2.0"
+    image: "ghcr.io/getodk/pyxform-http:v4.4.1"
 volumes:
   dev_secrets:
   enketo-redis-main:
