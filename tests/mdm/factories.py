@@ -2,11 +2,14 @@ import datetime as dt
 
 import factory
 import faker
+from django.utils.timezone import now
 
 from apps.mdm.models import (
+    AllowPersonalUsage,
     Device,
     DeviceSnapshot,
     DeviceSnapshotApp,
+    EnrollmentToken,
     FirmwareSnapshot,
     Fleet,
     Policy,
@@ -14,6 +17,7 @@ from apps.mdm.models import (
     PolicyVariable,
 )
 from tests.publish_mdm.factories import OrganizationFactory, ProjectFactory
+from tests.users.factories import UserFactory
 
 fake = faker.Faker()
 
@@ -120,3 +124,20 @@ class PolicyVariableFactory(factory.django.DjangoModelFactory):
     key = factory.Sequence(lambda n: f"var_key_{n}")
     value = factory.Faker("word")
     scope = "policy"
+
+
+class EnrollmentTokenFactory(factory.django.DjangoModelFactory):
+    class Meta:
+        model = EnrollmentToken
+
+    fleet = factory.SubFactory(FleetFactory)
+    organization = factory.LazyAttribute(lambda obj: obj.fleet.organization)
+    label = factory.Faker("sentence", nb_words=3)
+    token_value = factory.Faker("pystr", max_chars=50)
+    token_resource_name = factory.LazyAttribute(
+        lambda obj: f"enterprises/test/enrollmentTokens/{fake.unique.pystr(max_chars=10)}"
+    )
+    expires_at = factory.LazyFunction(lambda: now() + dt.timedelta(days=30))
+    created_by = factory.SubFactory(UserFactory)
+    mdm = "Android Enterprise"
+    allow_personal_usage = AllowPersonalUsage.ALLOW_PERSONAL_USAGE_UNSPECIFIED
