@@ -1,6 +1,6 @@
 {% if request.user.is_authenticated %}
     <aside id="sidebar-team-switch"
-           class="fixed top-0 left-0 z-40 w-64 pt-[62px] h-screen transition-transform -translate-x-full lg:translate-x-0 flex flex-col"
+           class="fixed top-0 left-0 z-40 w-64 pt-[62px] h-dvh transition-transform -translate-x-full lg:translate-x-0 flex flex-col"
            aria-label="Sidebar">
         <div class="h-full bg-gray-50 border-r border-gray-200 dark:bg-gray-800 dark:border-gray-700 flex flex-col">
             <div class="overflow-y-auto py-5 px-3 flex-1">
@@ -251,7 +251,7 @@
                 {# end request.organization #}
             </div>
             {% comment %} User Menu Section {% endcomment %}
-            <div class="border-t border-gray-200 dark:border-gray-700 px-3 py-4">
+            <div class="border-t border-gray-200 dark:border-gray-700 px-3 pt-4 sidebar-bottom-safe">
                 <div x-data="{ userMenuOpen: false }"
                      class="relative"
                      @click.away="userMenuOpen = false">
