@@ -1,4 +1,6 @@
 import base64
+import contextlib
+import datetime as dt
 import json
 
 import structlog
@@ -9,15 +11,18 @@ from django.db.models import Count, F, Max, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.crypto import get_random_string
+from django.utils.timezone import now
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django_tables2.config import RequestConfig
 
 from apps.publish_mdm.models import AndroidEnterpriseAccount
 from apps.publish_mdm.nav import Breadcrumbs
+from apps.publish_mdm.utils import create_qr_code
 from config.dagster import trigger_dagster_job
 
 from .forms import (
+    EnrollmentTokenCreateForm,
     FirmwareSnapshotForm,
     PolicyApplicationFormSet,
     PolicyEditForm,
@@ -28,12 +33,13 @@ from .forms import (
 from .mdms import get_active_mdm_instance
 from .models import (
     Device,
+    EnrollmentToken,
     Policy,
     PolicyApplication,
     PolicyVariable,
     PolicyVariableScope,
 )
-from .tables import PolicyTable
+from .tables import EnrollmentTokenTable, PolicyTable
 
 logger = structlog.get_logger()
 
@@ -427,3 +433,165 @@ def policy_save_managed_config(request, organization_slug, policy_id, app_id):
         "mdm/partials/policy_managed_config_form.html",
         {"policy": policy, "app": app, "saved": saved, "error": error},
     )
+
+
+@login_required
+def enrollment_token_list(request, organization_slug):
+    """List all enrollment tokens for the current organization."""
+    tokens = EnrollmentToken.objects.filter(organization=request.organization).select_related(
+        "fleet", "created_by"
+    )
+    table = EnrollmentTokenTable(data=tokens)
+    RequestConfig(request, paginate=False).configure(table)
+    context = {
+        "table": table,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[
+                ("Devices", "publish_mdm:devices-list"),
+                ("Enrollment Tokens", "mdm:enrollment-token-list"),
+            ],
+        ),
+    }
+    return render(request, "mdm/enrollment_token_list.html", context)
+
+
+@login_required
+def enrollment_token_create(request, organization_slug):
+    """Create a new long-lived enrollment token via the MDM API."""
+    if request.method == "POST":
+        form = EnrollmentTokenCreateForm(request.POST, organization=request.organization)
+        if form.is_valid():
+            fleet = form.cleaned_data["fleet"]
+            duration_seconds = int(form.cleaned_data["expiration"])
+            allow_personal_usage = form.cleaned_data["allow_personal_usage"]
+            label = form.cleaned_data.get("label", "")
+            active_mdm = get_active_mdm_instance(organization=request.organization)
+            if not active_mdm:
+                messages.error(request, "MDM is not configured for this organization.")
+                return redirect("mdm:enrollment-token-list", organization_slug)
+            try:
+                token_data = active_mdm.create_long_lived_enrollment_token(
+                    fleet=fleet,
+                    duration_seconds=duration_seconds,
+                    allow_personal_usage=allow_personal_usage,
+                )
+            except Exception:
+                logger.exception("Failed to create enrollment token via MDM API")
+                messages.error(
+                    request,
+                    "Failed to create enrollment token. Please try again or contact support.",
+                )
+                context = {
+                    "form": form,
+                    "breadcrumbs": Breadcrumbs.from_items(
+                        request=request,
+                        items=[
+                            ("Devices", "publish_mdm:devices-list"),
+                            ("Enrollment Tokens", "mdm:enrollment-token-list"),
+                            ("Create Token", "mdm:enrollment-token-create"),
+                        ],
+                    ),
+                }
+                return render(request, "mdm/enrollment_token_create.html", context)
+
+            # Parse expiry timestamp from AMAPI response
+            expires_at = None
+            if expiry_str := token_data.get("expirationTimestamp"):
+                with contextlib.suppress(ValueError):
+                    expires_at = dt.datetime.fromisoformat(expiry_str)
+
+            from django.core.files.base import ContentFile  # noqa: PLC0415
+
+            token = EnrollmentToken(
+                fleet=fleet,
+                organization=request.organization,
+                label=label,
+                token_value=token_data.get("value", ""),
+                token_resource_name=token_data.get("name", ""),
+                expires_at=expires_at,
+                created_by=request.user,
+                mdm=request.organization.mdm,
+                allow_personal_usage=allow_personal_usage,
+            )
+            if qr_code_str := token_data.get("qrCode"):
+                qr_image = create_qr_code(qr_code_str)
+                token.qr_code.save(
+                    f"token_{fleet.pk}_{token.token_value[:10]}.png",
+                    ContentFile(qr_image.getvalue()),
+                    save=False,
+                )
+            token.save()
+            messages.success(request, f"Enrollment token '{token}' created successfully.")
+            return redirect("mdm:enrollment-token-detail", organization_slug, token.pk)
+    else:
+        form = EnrollmentTokenCreateForm(organization=request.organization)
+
+    context = {
+        "form": form,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[
+                ("Devices", "publish_mdm:devices-list"),
+                ("Enrollment Tokens", "mdm:enrollment-token-list"),
+                ("Create Token", "mdm:enrollment-token-create"),
+            ],
+        ),
+    }
+    return render(request, "mdm/enrollment_token_create.html", context)
+
+
+@login_required
+def enrollment_token_detail(request, organization_slug, token_pk):
+    """Show the detail page for an enrollment token."""
+    token = get_object_or_404(EnrollmentToken, pk=token_pk, organization=request.organization)
+    context = {
+        "token": token,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[
+                ("Devices", "publish_mdm:devices-list"),
+                ("Enrollment Tokens", "mdm:enrollment-token-list"),
+                (str(token), "mdm:enrollment-token-detail", [token.pk]),
+            ],
+        ),
+    }
+    return render(request, "mdm/enrollment_token_detail.html", context)
+
+
+@login_required
+def enrollment_token_revoke(request, organization_slug, token_pk):
+    """Confirm and revoke an enrollment token."""
+    token = get_object_or_404(EnrollmentToken, pk=token_pk, organization=request.organization)
+    if request.method == "POST":
+        active_mdm = get_active_mdm_instance(organization=request.organization)
+        if active_mdm and token.token_resource_name:
+            try:
+                active_mdm.revoke_enrollment_token(token.token_resource_name)
+            except Exception:
+                logger.exception(
+                    "Failed to revoke enrollment token via MDM API",
+                    resource_name=token.token_resource_name,
+                )
+                messages.error(
+                    request,
+                    "Failed to revoke the token from the MDM. Please try again.",
+                )
+                return redirect("mdm:enrollment-token-detail", organization_slug, token.pk)
+        token.revoked_at = now()
+        token.save(update_fields=["revoked_at"])
+        messages.success(request, f"Enrollment token '{token}' has been revoked.")
+        return redirect("mdm:enrollment-token-list", organization_slug)
+    context = {
+        "token": token,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[
+                ("Devices", "publish_mdm:devices-list"),
+                ("Enrollment Tokens", "mdm:enrollment-token-list"),
+                (str(token), "mdm:enrollment-token-detail", [token.pk]),
+                ("Revoke", "mdm:enrollment-token-revoke", [token.pk]),
+            ],
+        ),
+    }
+    return render(request, "mdm/enrollment_token_revoke.html", context)

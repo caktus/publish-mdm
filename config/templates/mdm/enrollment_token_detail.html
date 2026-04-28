@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block content %}
+    <div class="grid gap-6 md:grid-cols-2">
+        <div class="space-y-4">
+            <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Token Details</h2>
+                <dl class="space-y-3 text-sm">
+                    <div class="flex justify-between">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Label</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ token.label|default:"—" }}</dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Fleet</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ token.fleet }}</dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Status</dt>
+                        <dd>
+                            {% if token.revoked_at %}
+                                <span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-300">Revoked {{ token.revoked_at|date:"Y-m-d" }}</span>
+                            {% elif token.is_expired %}
+                                <span class="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900 dark:text-red-300">Expired</span>
+                            {% else %}
+                                <span class="rounded bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-900 dark:text-green-300">Active</span>
+                            {% endif %}
+                        </dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Expires</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ token.expires_at|default:"—" }}</dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Created</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ token.created_at }}</dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Created by</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ token.created_by|default:"—" }}</dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Personal usage</dt>
+                        <dd class="text-gray-900 dark:text-white">{{ token.get_allow_personal_usage_display }}</dd>
+                    </div>
+                </dl>
+            </div>
+            {% if token.is_active %}
+                <a href="{% url 'mdm:enrollment-token-revoke' request.organization.slug token.pk %}"
+                   class="btn btn-outline text-red-600 border-red-300 hover:bg-red-50">Revoke Token</a>
+            {% endif %}
+        </div>
+        <div class="space-y-4">
+            {% if token.qr_code %}
+                <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Enrollment QR Code</h2>
+                    <div class="flex justify-center">
+                        <img src="{{ token.qr_code.url }}"
+                             alt="Enrollment QR code"
+                             class="max-w-[280px]">
+                    </div>
+                </div>
+            {% endif %}
+            {% if token.enrollment_url %}
+                <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    <h2 class="mb-2 text-base font-semibold text-gray-900 dark:text-white">Enrollment URL</h2>
+                    <div class="relative mt-2">
+                        <input id="enrollment-url"
+                               type="text"
+                               value="{{ token.enrollment_url }}"
+                               readonly
+                               class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2 pe-24 text-xs text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                        <button type="button"
+                                onclick="copyText('enrollment-url', this)"
+                                class="absolute end-1 top-1/2 inline-flex -translate-y-1/2 items-center rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-900 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+            {% endif %}
+            {% if token.dpc_extras_json %}
+                <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    <h2 class="mb-2 text-base font-semibold text-gray-900 dark:text-white">Zero-Touch Enrollment</h2>
+                    <p class="mb-2 text-sm text-gray-500 dark:text-gray-400">EMM DPC Package name:</p>
+                    <div class="relative mb-4">
+                        <input id="emm-dpc"
+                               type="text"
+                               value="com.google.android.apps.work.clouddpc"
+                               readonly
+                               class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2 pe-24 text-xs text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                        <button type="button"
+                                onclick="copyText('emm-dpc', this)"
+                                class="absolute end-1 top-1/2 inline-flex -translate-y-1/2 items-center rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-900 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700">
+                            Copy
+                        </button>
+                    </div>
+                    <p class="mb-2 text-sm text-gray-500 dark:text-gray-400">DPC Extras (paste into zero-touch portal):</p>
+                    <div class="relative">
+                        <textarea id="dpc-extras"
+                                  readonly
+                                  rows="6"
+                                  class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2 text-xs text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400">{{ token.dpc_extras_json }}</textarea>
+                        <button type="button"
+                                onclick="copyText('dpc-extras', this)"
+                                class="absolute end-1 top-2 inline-flex items-center rounded border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-900 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700">
+                            Copy
+                        </button>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    <script>
+    function copyText(elementId, btn) {
+        var el = document.getElementById(elementId);
+        var text = el.tagName === 'TEXTAREA' ? el.value : el.value;
+        navigator.clipboard.writeText(text).then(function() {
+            var orig = btn.textContent;
+            btn.textContent = 'Copied!';
+            btn.classList.add('text-green-600');
+            setTimeout(function() {
+                btn.textContent = orig;
+                btn.classList.remove('text-green-600');
+            }, 2000);
+        });
+    }
+    </script>
+{% endblock content %}

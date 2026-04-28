@@ -224,14 +224,16 @@ class AndroidEnterprise(MDM):
                 fleet_devices.append(device)
         return fleet_devices
 
-    def create_enrollment_token(self, fleet: Fleet):
+    def create_enrollment_token(
+        self,
+        fleet: Fleet,
+        duration_seconds: int = 24 * 60 * 60,
+        allow_personal_usage: str = "ALLOW_PERSONAL_USAGE_UNSPECIFIED",
+    ):
         """Creates an enrollment token. A device that enrolls using this token
         will be added to the specified Fleet when we save it for the first time.
         """
         if not fleet.pk:
-            # We need a Fleet ID to set in the enrollment token's additional data.
-            # It will be used to determine which Fleet a Device should be added
-            # to when we first save it in our database.
             fleet.save()
         return self.execute(
             self.api.enterprises()
@@ -241,11 +243,42 @@ class AndroidEnterprise(MDM):
                 body={
                     "policyName": f"{self.enterprise_name}/policies/{fleet.policy.policy_id}",
                     "additionalData": json.dumps({"fleet": fleet.pk}),
-                    # Valid for one day
-                    "duration": f"{24 * 60 * 60}s",
+                    "duration": f"{duration_seconds}s",
+                    "allowPersonalUsage": allow_personal_usage,
                 },
             )
         )
+
+    def create_long_lived_enrollment_token(
+        self,
+        fleet: Fleet,
+        duration_seconds: int,
+        allow_personal_usage: str = "ALLOW_PERSONAL_USAGE_UNSPECIFIED",
+    ):
+        """Create a long-lived enrollment token and return the AMAPI response dict."""
+        return self.create_enrollment_token(
+            fleet=fleet,
+            duration_seconds=duration_seconds,
+            allow_personal_usage=allow_personal_usage,
+        )
+
+    def revoke_enrollment_token(self, resource_name: str) -> None:
+        """Revoke (delete) an enrollment token by its AMAPI resource name.
+
+        Handles 404 gracefully — the token may already be expired or deleted.
+        https://developers.google.com/android/management/reference/rest/v1/enterprises.enrollmentTokens/delete
+        """
+        logger.info("Revoking enrollment token", resource_name=resource_name)
+        try:
+            self.execute(self.api.enterprises().enrollmentTokens().delete(name=resource_name))
+        except HttpError as e:
+            if e.status_code == 404:
+                logger.warning(
+                    "Enrollment token not found in AMAPI; it may already be revoked or expired",
+                    resource_name=resource_name,
+                )
+                return
+            raise
 
     def update_existing_devices(self, fleet: Fleet, mdm_devices: list[dict]):
         """

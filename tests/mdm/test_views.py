@@ -8,10 +8,17 @@ from django.utils.timezone import now
 from pytest_django.asserts import assertContains, assertMessages, assertRedirects
 
 from apps.mdm.mdms import AndroidEnterprise
-from apps.mdm.models import Device, DeviceSnapshot, Policy, PolicyApplication, PolicyVariable
+from apps.mdm.models import (
+    Device,
+    DeviceSnapshot,
+    Policy,
+    PolicyApplication,
+    PolicyVariable,
+)
 from tests.mdm import TestAllMDMs, TestAndroidEnterpriseOnly, TestTinyMDMOnly
 from tests.mdm.factories import (
     DeviceFactory,
+    EnrollmentTokenFactory,
     FleetFactory,
     PolicyApplicationFactory,
     PolicyFactory,
@@ -1081,3 +1088,69 @@ class TestPushPolicyToMdmDagster(PolicyViewBase, TestAndroidEnterpriseOnly):
                 ),
             ],
         )
+
+
+@pytest.mark.django_db
+class TestEnrollmentTokenViews(PolicyViewBase, TestAndroidEnterpriseOnly):
+    """Tests for enrollment token CRUD views (Android Enterprise only)."""
+
+    @pytest.fixture
+    def url_list(self, organization):
+        return reverse("mdm:enrollment-token-list", args=[organization.slug])
+
+    @pytest.fixture
+    def url_create(self, organization):
+        return reverse("mdm:enrollment-token-create", args=[organization.slug])
+
+    @pytest.fixture
+    def token(self, organization):
+        fleet = FleetFactory(organization=organization)
+        return EnrollmentTokenFactory(fleet=fleet, organization=organization)
+
+    def test_list_login_required(self, client, url_list, user):
+        client.logout()
+        response = client.get(url_list)
+        assert response.status_code == 302
+
+    def test_list_shows_org_tokens_only(self, client, url_list, organization, user):
+        fleet = FleetFactory(organization=organization)
+        own_token = EnrollmentTokenFactory(fleet=fleet, organization=organization)
+        other_org = OrganizationFactory()
+        other_fleet = FleetFactory(organization=other_org)
+        other_token = EnrollmentTokenFactory(fleet=other_fleet, organization=other_org)
+        response = client.get(url_list)
+        assert response.status_code == 200
+        table_data = list(response.context["table"].data)
+        assert own_token in table_data
+        assert other_token not in table_data
+
+    def test_detail_login_required(self, client, token, user, organization):
+        client.logout()
+        url = reverse("mdm:enrollment-token-detail", args=[organization.slug, token.pk])
+        response = client.get(url)
+        assert response.status_code == 302
+
+    def test_detail_cross_org_returns_404(self, client, user, organization):
+        other_org = OrganizationFactory()
+        other_fleet = FleetFactory(organization=other_org)
+        other_token = EnrollmentTokenFactory(fleet=other_fleet, organization=other_org)
+        url = reverse("mdm:enrollment-token-detail", args=[organization.slug, other_token.pk])
+        response = client.get(url)
+        assert response.status_code == 404
+
+    def test_revoke_sets_revoked_at(self, client, token, organization, mocker):
+        assert token.revoked_at is None
+        mocker.patch(
+            "apps.mdm.views.get_active_mdm_instance",
+            return_value=mocker.MagicMock(revoke_enrollment_token=mocker.MagicMock()),
+        )
+        url = reverse("mdm:enrollment-token-revoke", args=[organization.slug, token.pk])
+        response = client.post(url)
+        assert response.status_code == 302
+        token.refresh_from_db()
+        assert token.revoked_at is not None
+
+    def test_create_get(self, client, url_create):
+        response = client.get(url_create)
+        assert response.status_code == 200
+        assert "form" in response.context

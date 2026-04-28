@@ -408,6 +408,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
                 "policyName": f"{active_mdm.enterprise_name}/policies/{fleet.policy.policy_id}",
                 "additionalData": json.dumps({"fleet": fleet.pk}),
                 "duration": f"{24 * 60 * 60}s",
+                "allowPersonalUsage": "ALLOW_PERSONAL_USAGE_UNSPECIFIED",
             }
         value = fake.pystr()
         expiry = fake.date_time(tzinfo=dt.UTC).replace(microsecond=0)
@@ -513,6 +514,57 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         active_mdm.create_or_update_policy(policy)
         mock_get_policy_data.assert_called_once()
         mock_execute.assert_called_once()
+
+    def test_create_enrollment_token_with_duration(self, monkeypatch, fleet):
+        """create_enrollment_token() passes duration_seconds to the API."""
+        active_mdm = AndroidEnterprise(organization=fleet.organization)
+        token_response = {
+            "name": "enterprises/test/enrollmentTokens/token1",
+            "value": "tok123",
+            "expirationTimestamp": "2026-01-01T00:00:00Z",
+            "qrCode": '{"key": "value"}',
+        }
+        expected_body = {
+            "policyName": f"{active_mdm.enterprise_name}/policies/{fleet.policy.policy_id}",
+            "additionalData": json.dumps({"fleet": fleet.pk}),
+            "duration": "2592000s",
+            "allowPersonalUsage": "PERSONAL_USAGE_DISALLOWED",
+        }
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse("enrollmentTokens.create", token_response, None, expected_body)
+            ),
+        )
+        result = active_mdm.create_enrollment_token(
+            fleet, duration_seconds=2592000, allow_personal_usage="PERSONAL_USAGE_DISALLOWED"
+        )
+        assert result["value"] == "tok123"
+
+    def test_revoke_enrollment_token(self, monkeypatch, organization):
+        """revoke_enrollment_token() calls enrollmentTokens.delete."""
+        active_mdm = AndroidEnterprise(organization=organization)
+        resource_name = "enterprises/test/enrollmentTokens/abc123"
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(MockAPIResponse("enrollmentTokens.delete", None, None)),
+        )
+        # Should not raise
+        active_mdm.revoke_enrollment_token(resource_name)
+
+    def test_revoke_enrollment_token_404_is_silent(self, monkeypatch, organization):
+        """revoke_enrollment_token() handles 404 gracefully."""
+        active_mdm = AndroidEnterprise(organization=organization)
+        resource_name = "enterprises/test/enrollmentTokens/gone"
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(MockAPIResponse("enrollmentTokens.delete", None, 404)),
+        )
+        # Should not raise
+        active_mdm.revoke_enrollment_token(resource_name)
 
     @pytest.mark.parametrize("current_device_policy", ["own", "base", "other_fleet"])
     def test_push_device_config(
