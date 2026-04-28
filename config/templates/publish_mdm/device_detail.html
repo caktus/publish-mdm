@@ -21,6 +21,12 @@
                  class="z-50 hidden w-72 divide-y divide-gray-100 rounded-lg bg-white shadow dark:bg-gray-700 dark:divide-gray-600">
                 <ul class="p-2 text-sm" aria-labelledby="deleteDeviceDropdownButton">
                     <li>
+                        <a href="{% url 'publish_mdm:device-screen-view' request.organization.slug device.pk %}"
+                           class="block w-full rounded-md px-3 py-2 text-sm font-normal text-left text-gray-900 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-600">
+                            View live device screen
+                        </a>
+                    </li>
+                    <li>
                         <button type="button"
                                 data-modal-target="reset-device-modal"
                                 data-modal-toggle="reset-device-modal"

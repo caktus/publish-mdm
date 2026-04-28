@@ -130,6 +130,13 @@ TEMPLATES = [
 ASGI_APPLICATION = "config.asgi.application"
 WSGI_APPLICATION = "config.wsgi.application"
 
+# Channels channel layer. The in-memory layer is fine for single-process Daphne
+# in local development. Production deployments running multiple ASGI workers
+# should override this with a Redis-backed layer (channels_redis).
+CHANNEL_LAYERS = {
+    "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"},
+}
+
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
