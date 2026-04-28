@@ -58,6 +58,11 @@ rather use Docker, see :doc:`../running/docker-compose`.
     # host is "localhost" and Google's API rejects it.
     export ANDROID_ENTERPRISE_CALLBACK_DOMAIN=
 
+    # Firebase project ID for FCM (screen-share push notifications to the firmware app).
+    # Required when using a Firebase project whose ID differs from the GCP project that
+    # hosts the Android Enterprise service account.
+    export FIREBASE_PROJECT_ID=
+
 Update the environment variables as needed for your local setup. You may need to
 add a ``PGPASSWORD`` variable if your database expects a password. If the database
 does not exist yet, create it with the ``createdb`` `command <https://www.postgresql.org/docs/current/app-createdb.html>`_.
@@ -117,3 +122,30 @@ set the ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` environment variable or pass it e
 .. code-block:: bash
 
     python manage.py configure_amapi_pubsub --push-endpoint-domain <domain>
+
+8. (Optional) Set up Firebase Cloud Messaging (FCM) for remote screen-share.
+
+The firmware app supports a live screen-share feature that is triggered by an FCM push
+notification sent from Publish MDM. The server uses the same service account file as Android
+Enterprise (``ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE``) to send messages, but FCM lives in a
+**separate Firebase project** from the GCP project that hosts the service account. You must:
+
+a. Grant the service account access to the Firebase project.
+
+   In the `Google Cloud Console`_ for the Firebase project, go to **IAM & Admin → IAM**,
+   click **Grant access**, and add the service account email with the
+   ``Firebase Cloud Messaging Admin`` role
+   (``roles/firebase.cloudmessaging.admin``).
+
+   .. note::
+      The Firebase Cloud Messaging API (v1) must also be enabled for the Firebase
+      project. Visit **APIs & Services → Enable APIs** in the Google Cloud Console and
+      search for "Firebase Cloud Messaging API".
+
+b. Set ``FIREBASE_PROJECT_ID`` to the Firebase project ID (the string ID, e.g.
+   ``android-firmware-app``, visible at the top of the Firebase Console).
+
+   This is required because the service account's home GCP project differs from
+   the Firebase project, so the Admin SDK needs an explicit project override.
+
+.. _Google Cloud Console: https://console.cloud.google.com/
