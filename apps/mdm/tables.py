@@ -1,6 +1,8 @@
+import datetime as dt
 from typing import ClassVar
 
 import django_tables2 as tables
+from django.urls import reverse
 from django.utils.html import mark_safe
 from django.utils.timezone import now
 
@@ -55,14 +57,14 @@ class EnrollmentTokenTable(tables.Table):
             return mark_safe('<span class="badge-gray">Revoked</span>')
         if record.is_expired:
             return mark_safe('<span class="badge-red">Expired</span>')
-        if record.expires_at and (record.expires_at - now()).days < 7:
+        if record.expires_at and record.expires_at < now() + dt.timedelta(days=7):
             return mark_safe('<span class="badge-yellow">Expiring Soon</span>')
         return mark_safe('<span class="badge-green">Active</span>')
 
     def render_actions(self, record):
         org_slug = record.organization.slug
-        detail_url = f"/o/{org_slug}/enrollment-tokens/{record.pk}/"
-        revoke_url = f"/o/{org_slug}/enrollment-tokens/{record.pk}/revoke/"
+        detail_url = reverse("mdm:enrollment-token-detail", args=[org_slug, record.pk])
+        revoke_url = reverse("mdm:enrollment-token-revoke", args=[org_slug, record.pk])
         links = [f'<a href="{detail_url}" class="text-primary-600 hover:underline mr-2">View</a>']
         if record.is_active:
             links.append(f'<a href="{revoke_url}" class="text-red-600 hover:underline">Revoke</a>')

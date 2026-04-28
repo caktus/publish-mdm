@@ -7,11 +7,15 @@
                 <dl class="space-y-3 text-sm">
                     <div class="flex justify-between">
                         <dt class="font-medium text-gray-500 dark:text-gray-400">Label</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ token.label|default:"—" }}</dd>
+                        <dd class="text-gray-900 dark:text-white">
+                            {{ token.label|default:"—" }}
+                        </dd>
                     </div>
                     <div class="flex justify-between">
                         <dt class="font-medium text-gray-500 dark:text-gray-400">Fleet</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ token.fleet }}</dd>
+                        <dd class="text-gray-900 dark:text-white">
+                            {{ token.fleet }}
+                        </dd>
                     </div>
                     <div class="flex justify-between">
                         <dt class="font-medium text-gray-500 dark:text-gray-400">Status</dt>
@@ -27,19 +31,27 @@
                     </div>
                     <div class="flex justify-between">
                         <dt class="font-medium text-gray-500 dark:text-gray-400">Expires</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ token.expires_at|default:"—" }}</dd>
+                        <dd class="text-gray-900 dark:text-white">
+                            {{ token.expires_at|default:"—" }}
+                        </dd>
                     </div>
                     <div class="flex justify-between">
                         <dt class="font-medium text-gray-500 dark:text-gray-400">Created</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ token.created_at }}</dd>
+                        <dd class="text-gray-900 dark:text-white">
+                            {{ token.created_at }}
+                        </dd>
                     </div>
                     <div class="flex justify-between">
                         <dt class="font-medium text-gray-500 dark:text-gray-400">Created by</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ token.created_by|default:"—" }}</dd>
+                        <dd class="text-gray-900 dark:text-white">
+                            {{ token.created_by|default:"—" }}
+                        </dd>
                     </div>
                     <div class="flex justify-between">
                         <dt class="font-medium text-gray-500 dark:text-gray-400">Personal usage</dt>
-                        <dd class="text-gray-900 dark:text-white">{{ token.get_allow_personal_usage_display }}</dd>
+                        <dd class="text-gray-900 dark:text-white">
+                            {{ token.get_allow_personal_usage_display }}
+                        </dd>
                     </div>
                 </dl>
             </div>
@@ -55,6 +67,8 @@
                     <div class="flex justify-center">
                         <img src="{{ token.qr_code.url }}"
                              alt="Enrollment QR code"
+                             width="280"
+                             height="280"
                              class="max-w-[280px]">
                     </div>
                 </div>

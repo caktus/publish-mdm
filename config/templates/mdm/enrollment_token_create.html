@@ -11,9 +11,7 @@
                     <div id="id_{{ field.name }}_container">
                         {{ field.label_tag }}
                         {{ field }}
-                        {% if field.help_text %}
-                            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ field.help_text }}</p>
-                        {% endif %}
+                        {% if field.help_text %}<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ field.help_text }}</p>{% endif %}
                         {{ field.errors }}
                     </div>
                 {% endfor %}

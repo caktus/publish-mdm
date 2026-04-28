@@ -7,6 +7,7 @@ import structlog
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.files.base import ContentFile
 from django.db.models import Count, F, Max, Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -500,8 +501,6 @@ def enrollment_token_create(request, organization_slug):
             if expiry_str := token_data.get("expirationTimestamp"):
                 with contextlib.suppress(ValueError):
                     expires_at = dt.datetime.fromisoformat(expiry_str)
-
-            from django.core.files.base import ContentFile  # noqa: PLC0415
 
             token = EnrollmentToken(
                 fleet=fleet,
