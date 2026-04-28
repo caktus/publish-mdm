@@ -125,7 +125,7 @@
     <script>
     function copyText(elementId, btn) {
         var el = document.getElementById(elementId);
-        var text = el.tagName === 'TEXTAREA' ? el.value : el.value;
+        var text = el.value;
         navigator.clipboard.writeText(text).then(function() {
             var orig = btn.textContent;
             btn.textContent = 'Copied!';

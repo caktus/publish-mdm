@@ -500,6 +500,7 @@ def enrollment_token_create(request, organization_slug):
             expires_at = None
             if expiry_str := token_data.get("expirationTimestamp"):
                 with contextlib.suppress(ValueError):
+                    # Parse errors safely ignored — token will still work without an expiry date
                     expires_at = dt.datetime.fromisoformat(expiry_str)
 
             token = EnrollmentToken(

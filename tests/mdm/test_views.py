@@ -11,6 +11,7 @@ from apps.mdm.mdms import AndroidEnterprise
 from apps.mdm.models import (
     Device,
     DeviceSnapshot,
+    EnrollmentToken,
     Policy,
     PolicyApplication,
     PolicyVariable,
@@ -1154,3 +1155,11 @@ class TestEnrollmentTokenViews(PolicyViewBase, TestAndroidEnterpriseOnly):
         response = client.get(url_create)
         assert response.status_code == 200
         assert "form" in response.context
+
+    def test_create_post_invalid_form_renders_errors(self, client, url_create, organization):
+        """Submitting an invalid create form renders the form with errors and creates no token."""
+        response = client.post(url_create, {"fleet": "", "expiration": "", "label": ""})
+        assert response.status_code == 200
+        assert "form" in response.context
+        assert response.context["form"].errors
+        assert not EnrollmentToken.objects.filter(organization=organization).exists()
