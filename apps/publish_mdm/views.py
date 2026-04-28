@@ -1568,7 +1568,9 @@ def device_screen_view(request: HttpRequest, organization_slug, device_pk):
             cb_domain = (request.get_host() or "").strip()
 
         if cb_domain.startswith(("http://", "https://", "ws://", "wss://")):
-            cb_domain = cb_domain.split("://", 1)[1]
+            from urllib.parse import urlparse  # noqa: PLC0415
+
+            cb_domain = urlparse(cb_domain).netloc or cb_domain
 
         if cb_domain:
             scheme = "wss" if request.is_secure() else "ws"
