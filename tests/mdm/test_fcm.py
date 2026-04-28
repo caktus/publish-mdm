@@ -1,18 +1,18 @@
 from unittest.mock import patch
 
+from firebase_admin import messaging
+
+from apps.mdm.fcm import send_start_screen_share
+
 
 class TestSendStartScreenShare:
     """Tests for the send_start_screen_share FCM helper."""
 
     @patch("apps.mdm.fcm._get_app")
     def test_sends_message_with_correct_payload(self, mock_get_app):
-        from firebase_admin import messaging
-
         with patch.object(
             messaging, "send", return_value="projects/test/messages/123"
         ) as mock_send:
-            from apps.mdm.fcm import send_start_screen_share
-
             result = send_start_screen_share(
                 "device-fcm-token",
                 screen_stream_url="wss://example.com/ws/screen/tok/",
@@ -28,10 +28,6 @@ class TestSendStartScreenShare:
 
     @patch("apps.mdm.fcm._get_app")
     def test_returns_false_on_failure(self, mock_get_app):
-        from firebase_admin import messaging
-
         with patch.object(messaging, "send", side_effect=Exception("FCM unavailable")):
-            from apps.mdm.fcm import send_start_screen_share
-
             result = send_start_screen_share("device-fcm-token")
         assert result is False

@@ -1,12 +1,13 @@
 import pytest
 from channels.db import database_sync_to_async
 from channels.testing import WebsocketCommunicator
+from django.contrib.auth.models import AnonymousUser
 
 from apps.publish_mdm.screen_consumers import (
     DeviceScreenPublisherConsumer,
     DeviceScreenViewerConsumer,
 )
-from tests.mdm.factories import DeviceFactory
+from tests.mdm.factories import DeviceFactory, FleetFactory
 from tests.publish_mdm.factories import OrganizationFactory
 from tests.users.factories import UserFactory
 
@@ -15,8 +16,6 @@ from tests.users.factories import UserFactory
 def _create_device_with_token(token, org=None):
     if org is None:
         org = OrganizationFactory()
-    from tests.mdm.factories import FleetFactory
-
     fleet = FleetFactory(organization=org)
     return DeviceFactory(fleet=fleet, screen_stream_token=token)
 
@@ -35,7 +34,7 @@ class TestDeviceScreenPublisherConsumer:
 
     @pytest.mark.asyncio
     async def test_valid_token_connects(self):
-        device = await _create_device_with_token("pub-tok-1")
+        await _create_device_with_token("pub-tok-1")
         communicator = WebsocketCommunicator(
             DeviceScreenPublisherConsumer.as_asgi(),
             "/ws/devices/screen-publish/pub-tok-1/",
@@ -91,8 +90,6 @@ class TestDeviceScreenViewerConsumer:
 
     @pytest.mark.asyncio
     async def test_unauthenticated_rejected(self):
-        from django.contrib.auth.models import AnonymousUser
-
         communicator = WebsocketCommunicator(
             DeviceScreenViewerConsumer.as_asgi(),
             "/ws/devices/1/screen-view/",
