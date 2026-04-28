@@ -48,7 +48,7 @@ def _get_app():
 def send_start_screen_share(
     fcm_token: str, screen_stream_url: str = "", screen_stream_token: str = ""
 ) -> bool:
-    """Send a data-only FCM message that triggers the screen-share consent UI.
+    """Send an FCM message (notification + data payload) that triggers the screen-share consent UI.
 
     Includes screen_stream_url and screen_stream_token in the payload so the
     device can start the WebSocket immediately without waiting for the AMAPI
@@ -80,7 +80,9 @@ def send_start_screen_share(
     try:
         msg_id = messaging.send(message, app=_get_app())
         logger.info(
-            "FCM screen-share trigger sent: message_id=%s token_prefix=%s", msg_id, fcm_token[:8]
+            "FCM screen-share trigger sent",
+            message_id=msg_id,
+            token_prefix=fcm_token[:8],
         )
         return True
     except Exception:

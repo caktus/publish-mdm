@@ -1532,9 +1532,9 @@ def enterprise_callback(request: HttpRequest, callback_token):
 def device_screen_view(request: HttpRequest, organization_slug, device_pk):
     """Render the live screen viewer page for a device.
 
-    Generates the per-device screen-stream token if one isn't set yet, then
-    syncs the device's policy so the firmware app receives the new managed
-    configuration (token + WebSocket URL) on its next pull.
+    Ensures the per-device screen-stream token exists, then attempts to
+    trigger screen sharing via FCM so the firmware app can start the
+    MediaProjection consent flow.
     """
     from apps.mdm.models import Device  # noqa: PLC0415
 
@@ -1556,24 +1556,36 @@ def device_screen_view(request: HttpRequest, organization_slug, device_pk):
 
         from apps.mdm.fcm import send_start_screen_share  # noqa: PLC0415
 
-        cb_domain = getattr(settings, "ANDROID_ENTERPRISE_CALLBACK_DOMAIN", "") or ""
+        cb_domain = (getattr(settings, "ANDROID_ENTERPRISE_CALLBACK_DOMAIN", "") or "").strip()
         if not cb_domain:
             from django.contrib.sites.models import Site  # noqa: PLC0415
 
             try:
-                cb_domain = Site.objects.get_current().domain
+                cb_domain = (Site.objects.get_current().domain or "").strip()
             except Exception:
                 cb_domain = ""
-        scheme = "ws" if cb_domain.startswith("localhost") or ":" in cb_domain else "wss"
-        stream_url = (
-            f"{scheme}://{cb_domain}/ws/devices/screen-publish/{device.screen_stream_token}/"
-        )
-        sent = send_start_screen_share(
-            device.fcm_token,
-            screen_stream_url=stream_url,
-            screen_stream_token=device.screen_stream_token,
-        )
-        logger.info("device_screen_view: FCM send result", device_pk=device.pk, sent=sent)
+        if not cb_domain:
+            cb_domain = (request.get_host() or "").strip()
+
+        if cb_domain.startswith(("http://", "https://", "ws://", "wss://")):
+            cb_domain = cb_domain.split("://", 1)[1]
+
+        if cb_domain:
+            scheme = "wss" if request.is_secure() else "ws"
+            stream_url = (
+                f"{scheme}://{cb_domain}/ws/devices/screen-publish/{device.screen_stream_token}/"
+            )
+            sent = send_start_screen_share(
+                device.fcm_token,
+                screen_stream_url=stream_url,
+                screen_stream_token=device.screen_stream_token,
+            )
+            logger.info("device_screen_view: FCM send result", device_pk=device.pk, sent=sent)
+        else:
+            logger.warning(
+                "device_screen_view: no callback host available — cannot trigger screen share",
+                device_pk=device.pk,
+            )
     else:
         logger.warning(
             "device_screen_view: no FCM token on device — cannot trigger screen share",

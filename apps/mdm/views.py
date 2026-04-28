@@ -56,8 +56,10 @@ def device_fcm_token_view(request):
     screen_stream_token = body.get("screen_stream_token", "").strip()
     if not fcm_token or not screen_stream_token:
         return HttpResponse(status=400)
+    if len(fcm_token) > 256 or len(screen_stream_token) > 64:
+        return HttpResponse(status=400)
 
-    updated = Device.all_objects.filter(screen_stream_token=screen_stream_token).update(
+    updated = Device.objects.filter(screen_stream_token=screen_stream_token).update(
         fcm_token=fcm_token
     )
     if not updated:

@@ -654,6 +654,15 @@ class Device(SoftDeleteModel):
         help_text="Firebase Cloud Messaging registration token for the firmware app.",
     )
 
+    class Meta:
+        constraints = (
+            models.UniqueConstraint(
+                fields=["screen_stream_token"],
+                condition=~Q(screen_stream_token=""),
+                name="unique_device_screen_stream_token",
+            ),
+        )
+
     def __str__(self):
         return f"{self.name} ({self.device_id})"
 

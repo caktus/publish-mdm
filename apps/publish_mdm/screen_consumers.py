@@ -10,6 +10,8 @@ joined to that same group, receiving each frame and rendering it.
 
 from __future__ import annotations
 
+import asyncio
+
 import structlog
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -21,6 +23,7 @@ logger = structlog.getLogger(__name__)
 # Tracks how many browser viewers are watching each device (keyed by device_pk).
 # Scoped to the process — sufficient with InMemoryChannelLayer.
 _viewer_counts: dict[int, int] = {}
+_viewer_counts_lock = asyncio.Lock()
 
 
 def _group_name(device_pk: int) -> str:
@@ -77,11 +80,10 @@ class DeviceScreenPublisherConsumer(AsyncWebsocketConsumer):
     def _lookup_device_pk(token: str) -> int | None:
         if not token:
             return None
-        return (
-            Device.all_objects.filter(screen_stream_token=token)
-            .values_list("pk", flat=True)
-            .first()
-        )
+        try:
+            return Device.objects.get(screen_stream_token=token).pk
+        except (Device.DoesNotExist, Device.MultipleObjectsReturned):
+            return None
 
 
 class DeviceScreenViewerConsumer(AsyncWebsocketConsumer):
@@ -133,19 +135,19 @@ class DeviceScreenViewerConsumer(AsyncWebsocketConsumer):
             return False
         return Device.objects.filter(pk=device_pk, fleet__organization_id__in=org_ids).exists()
 
-    @database_sync_to_async
-    def _increment_viewer_count(self, device_pk: int, delta: int) -> int:
-        """Atomically increment/decrement the in-memory viewer count.
+    async def _increment_viewer_count(self, device_pk: int, delta: int) -> int:
+        """Increment/decrement the in-memory viewer count under an asyncio lock.
 
         Returns the new count.  Uses a module-level dict so the count is shared
         across all consumer instances in the same process (sufficient for
         InMemoryChannelLayer; with Redis channel layers a Redis counter would be
         needed for multi-process deployments).
         """
-        count = _viewer_counts.get(device_pk, 0) + delta
-        count = max(count, 0)
-        if count == 0:
-            _viewer_counts.pop(device_pk, None)
-        else:
-            _viewer_counts[device_pk] = count
-        return count
+        async with _viewer_counts_lock:
+            count = _viewer_counts.get(device_pk, 0) + delta
+            count = max(count, 0)
+            if count == 0:
+                _viewer_counts.pop(device_pk, None)
+            else:
+                _viewer_counts[device_pk] = count
+            return count

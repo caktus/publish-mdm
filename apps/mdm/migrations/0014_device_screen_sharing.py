@@ -29,4 +29,12 @@ class Migration(migrations.Migration):
                 max_length=64,
             ),
         ),
+        migrations.AddConstraint(
+            model_name="device",
+            constraint=models.UniqueConstraint(
+                condition=~models.Q(screen_stream_token=""),
+                fields=["screen_stream_token"],
+                name="unique_device_screen_stream_token",
+            ),
+        ),
     ]
