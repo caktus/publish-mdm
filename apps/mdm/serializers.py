@@ -11,11 +11,6 @@ from dataclasses import dataclass, field
 from string import Template
 from typing import TYPE_CHECKING
 
-from django.conf import settings
-from django.contrib.sites.models import Site
-
-FIRMWARE_APP_PACKAGE = "com.publishmdm.firmwareapp"
-
 if TYPE_CHECKING:
     from apps.mdm.models import Device, Policy, PolicyApplication, PolicyVariable
 
@@ -123,32 +118,9 @@ class PolicySerializer:
                 entry["disabled"] = True
             if app.managed_configuration is not None:
                 entry["managedConfiguration"] = app.managed_configuration
-            if app.package_name == FIRMWARE_APP_PACKAGE and self.device:
-                screen_config = self._build_firmware_screen_config()
-                if screen_config:
-                    merged = dict(entry.get("managedConfiguration") or {})
-                    merged.update(screen_config)
-                    entry["managedConfiguration"] = merged
             apps.append(entry)
 
         return apps
-
-    def _build_firmware_screen_config(self) -> dict:
-        """Return the screen-stream managed config keys for the firmware app."""
-        if not self.device or not self.device.screen_stream_token:
-            return {}
-        domain = getattr(settings, "ANDROID_ENTERPRISE_CALLBACK_DOMAIN", "") or ""
-        if not domain:
-            try:
-                domain = Site.objects.get_current().domain
-            except Exception:
-                return {}
-        scheme = "ws" if domain.startswith("localhost") or ":" in domain else "wss"
-        url = f"{scheme}://{domain}/ws/devices/screen-publish/{self.device.screen_stream_token}/"
-        return {
-            "screen_stream_url": url,
-            "screen_stream_token": self.device.screen_stream_token,
-        }
 
     def _build_password_policies(self) -> list[dict]:
         policies = []

@@ -20,8 +20,8 @@ def _get_app():
     if _app is not None:
         return _app
 
-    import firebase_admin
-    from firebase_admin import credentials
+    import firebase_admin  # noqa: PLC0415
+    from firebase_admin import credentials  # noqa: PLC0415
 
     service_account_file = os.getenv("ANDROID_ENTERPRISE_SERVICE_ACCOUNT_FILE")
     if not service_account_file:
@@ -54,7 +54,7 @@ def send_start_screen_share(
 
     Returns True on success, False (with a logged warning) on failure.
     """
-    from firebase_admin import messaging
+    from firebase_admin import messaging  # noqa: PLC0415
 
     message = messaging.Message(
         notification=messaging.Notification(

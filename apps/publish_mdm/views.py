@@ -1544,16 +1544,6 @@ def device_screen_view(request: HttpRequest, organization_slug, device_pk):
         fleet__organization=request.organization,
     )
     device.ensure_screen_stream_token()
-    # Always re-push policy so the device picks up any change to the WS URL
-    # (e.g. a rotated ngrok hostname in local dev).
-    from apps.mdm.mdms import get_active_mdm_instance  # noqa: PLC0415
-
-    active_mdm = get_active_mdm_instance(organization=request.organization)
-    if active_mdm is not None:
-        try:
-            active_mdm.push_device_config(device)
-        except Exception:
-            logger.exception("Failed to push screen-stream config to device")
 
     # Send FCM trigger so the app shows the MediaProjection consent dialog.
     logger.info(
