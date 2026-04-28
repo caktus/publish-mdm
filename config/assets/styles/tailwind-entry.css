@@ -45,6 +45,10 @@
   display: none !important;
 }
 
+.sidebar-bottom-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+}
+
 .htmx-request .loading,
 .htmx-request.loading,
 .htmx-request .spinner,
