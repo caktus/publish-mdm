@@ -134,7 +134,7 @@ a. Grant the service account access to the Firebase project.
 
    In the `Google Cloud Console`_ for the Firebase project, go to **IAM & Admin → IAM**,
    click **Grant access**, and add the service account email with the
-   ``Firebase Cloud Messaging Admin`` role
+   `Firebase Cloud Messaging API Admin`_ role
    (``roles/firebase.cloudmessaging.admin``).
 
    .. note::
@@ -149,3 +149,4 @@ b. Set ``FIREBASE_PROJECT_ID`` to the Firebase project ID (the string ID, e.g.
    the Firebase project, so the Admin SDK needs an explicit project override.
 
 .. _Google Cloud Console: https://console.cloud.google.com/
+.. _Firebase Cloud Messaging API Admin: https://cloud.google.com/iam/docs/roles-permissions/firebasecloudmessaging#firebasecloudmessaging.admin
