@@ -2,7 +2,6 @@ import json
 
 import pytest
 
-from apps.mdm.models import Device
 from tests.mdm.factories import DeviceFactory
 
 
@@ -16,9 +15,7 @@ class TestDeviceFcmTokenView:
         device = DeviceFactory(screen_stream_token="tok-abc")
         resp = client.post(
             self.url,
-            data=json.dumps(
-                {"fcm_token": "new-fcm-token", "screen_stream_token": "tok-abc"}
-            ),
+            data=json.dumps({"fcm_token": "new-fcm-token", "screen_stream_token": "tok-abc"}),
             content_type="application/json",
         )
         assert resp.status_code == 204
@@ -29,9 +26,7 @@ class TestDeviceFcmTokenView:
         device = DeviceFactory(screen_stream_token="tok-abc", fcm_token="old-token")
         resp = client.post(
             self.url,
-            data=json.dumps(
-                {"fcm_token": "updated-token", "screen_stream_token": "tok-abc"}
-            ),
+            data=json.dumps({"fcm_token": "updated-token", "screen_stream_token": "tok-abc"}),
             content_type="application/json",
         )
         assert resp.status_code == 204
@@ -41,9 +36,7 @@ class TestDeviceFcmTokenView:
     def test_unknown_token_returns_404(self, client):
         resp = client.post(
             self.url,
-            data=json.dumps(
-                {"fcm_token": "tok", "screen_stream_token": "nonexistent"}
-            ),
+            data=json.dumps({"fcm_token": "tok", "screen_stream_token": "nonexistent"}),
             content_type="application/json",
         )
         assert resp.status_code == 404

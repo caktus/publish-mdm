@@ -5,7 +5,6 @@ from channels.testing import WebsocketCommunicator
 from apps.publish_mdm.screen_consumers import (
     DeviceScreenPublisherConsumer,
     DeviceScreenViewerConsumer,
-    _viewer_counts,
 )
 from tests.mdm.factories import DeviceFactory
 from tests.publish_mdm.factories import OrganizationFactory
@@ -39,7 +38,7 @@ class TestDeviceScreenPublisherConsumer:
         device = await _create_device_with_token("pub-tok-1")
         communicator = WebsocketCommunicator(
             DeviceScreenPublisherConsumer.as_asgi(),
-            f"/ws/devices/screen-publish/pub-tok-1/",
+            "/ws/devices/screen-publish/pub-tok-1/",
         )
         communicator.scope["url_route"] = {"kwargs": {"token": "pub-tok-1"}}
         connected, _ = await communicator.connect()

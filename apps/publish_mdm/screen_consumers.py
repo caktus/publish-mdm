@@ -112,9 +112,7 @@ class DeviceScreenViewerConsumer(AsyncWebsocketConsumer):
             )
             if remaining <= 0:
                 logger.info("Last viewer left, sending stop to device", device_pk=self.device_pk)
-                await self.channel_layer.group_send(
-                    self.group_name, {"type": "device.stop"}
-                )
+                await self.channel_layer.group_send(self.group_name, {"type": "device.stop"})
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
     async def device_frame(self, event):
@@ -133,9 +131,7 @@ class DeviceScreenViewerConsumer(AsyncWebsocketConsumer):
         org_ids = list(user.get_organizations().values_list("pk", flat=True))
         if not org_ids:
             return False
-        return Device.objects.filter(
-            pk=device_pk, fleet__organization_id__in=org_ids
-        ).exists()
+        return Device.objects.filter(pk=device_pk, fleet__organization_id__in=org_ids).exists()
 
     @database_sync_to_async
     def _increment_viewer_count(self, device_pk: int, delta: int) -> int:

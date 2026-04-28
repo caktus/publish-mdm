@@ -1,6 +1,4 @@
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 
 class TestSendStartScreenShare:
@@ -10,7 +8,9 @@ class TestSendStartScreenShare:
     def test_sends_message_with_correct_payload(self, mock_get_app):
         from firebase_admin import messaging
 
-        with patch.object(messaging, "send", return_value="projects/test/messages/123") as mock_send:
+        with patch.object(
+            messaging, "send", return_value="projects/test/messages/123"
+        ) as mock_send:
             from apps.mdm.fcm import send_start_screen_share
 
             result = send_start_screen_share(
