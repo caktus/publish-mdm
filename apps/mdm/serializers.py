@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from apps.mdm.models import Device, Policy, PolicyApplication, PolicyVariable
 
+FIRMWARE_APP_PACKAGE = "com.publishmdm.firmwareapp"
+
 
 @dataclass
 class PolicySerializer:
@@ -118,6 +120,8 @@ class PolicySerializer:
                 entry["disabled"] = True
             if app.managed_configuration is not None:
                 entry["managedConfiguration"] = app.managed_configuration
+            if app.package_name == FIRMWARE_APP_PACKAGE:
+                entry["roles"] = [{"roleType": "COMPANION_APP"}]
             apps.append(entry)
 
         return apps
