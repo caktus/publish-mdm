@@ -31,7 +31,9 @@ def _get_app():
     # The service account lives in the Android Enterprise GCP project, but FCM
     # is in a separate Firebase project.  Override the project ID so the Admin
     # SDK sends messages to the correct project.
-    firebase_project_id = os.getenv("FIREBASE_PROJECT_ID", "983889980424")
+    firebase_project_id = os.getenv("FIREBASE_PROJECT_ID")
+    if not firebase_project_id:
+        raise RuntimeError("FIREBASE_PROJECT_ID is not set")
     try:
         _app = firebase_admin.get_app("publishmdm")
     except ValueError:
