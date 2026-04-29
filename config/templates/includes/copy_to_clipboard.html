@@ -1,0 +1,16 @@
+<script>
+function copyText(inputId, buttonEl) {
+    const el = document.getElementById(inputId);
+    const text = el.value;
+    const defaultMsg = buttonEl.querySelector('.copy-default');
+    const successMsg = buttonEl.querySelector('.copy-success');
+    navigator.clipboard.writeText(text).then(function() {
+        defaultMsg.classList.replace('inline-flex', 'hidden');
+        successMsg.classList.replace('hidden', 'inline-flex');
+        setTimeout(function() {
+            defaultMsg.classList.replace('hidden', 'inline-flex');
+            successMsg.classList.replace('inline-flex', 'hidden');
+        }, 2000);
+    }).catch(function() {});
+}
+</script>

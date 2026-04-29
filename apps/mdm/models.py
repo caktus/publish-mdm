@@ -1,4 +1,5 @@
 import json
+from datetime import timedelta
 
 import structlog
 from django.core.exceptions import ValidationError
@@ -869,3 +870,148 @@ class FirmwareSnapshot(models.Model):
 
     def __str__(self):
         return f"{self.device_identifier} ({self.version}) firmware snapshot"
+
+
+# ---------------------------------------------------------------------------
+# EnrollmentToken
+# ---------------------------------------------------------------------------
+
+EMM_DPC_PACKAGE = "com.google.android.apps.work.clouddpc"
+
+
+class AllowPersonalUsage(models.TextChoices):
+    ALLOW_PERSONAL_USAGE_UNSPECIFIED = (
+        "ALLOW_PERSONAL_USAGE_UNSPECIFIED",
+        "Personal usage restriction is not specified",
+    )
+    PERSONAL_USAGE_ALLOWED = "PERSONAL_USAGE_ALLOWED", "Personal usage is allowed"
+    PERSONAL_USAGE_DISALLOWED = "PERSONAL_USAGE_DISALLOWED", "Personal usage is disallowed"
+    PERSONAL_USAGE_DISALLOWED_USERLESS = (
+        "PERSONAL_USAGE_DISALLOWED_USERLESS",
+        "Device is not associated with a single user, and thus both personal usage "
+        "and corporate identity authentication are not expected.",
+    )
+
+
+def enrollment_token_qr_code_path(token, filename):
+    return f"mdm-enrollment-token-qr-codes/{token.organization.slug}/{filename}"
+
+
+class EnrollmentTokenManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(organization__deleted_at__isnull=True)
+
+
+class EnrollmentToken(models.Model):
+    """A persistent, user-managed AMAPI enrollment token for a Fleet."""
+
+    fleet = models.ForeignKey(
+        Fleet,
+        on_delete=models.CASCADE,
+        related_name="enrollment_tokens",
+        help_text="The fleet that devices enrolling with this token will be assigned to.",
+    )
+    organization = models.ForeignKey(
+        "publish_mdm.Organization",
+        on_delete=models.CASCADE,
+        related_name="enrollment_tokens",
+        help_text="Denormalized organization FK for easy tenant scoping.",
+    )
+    label = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="A human-readable label for this token.",
+    )
+    token_value = models.CharField(
+        max_length=500,
+        blank=True,
+        help_text="The enrollment token value returned by the MDM API.",
+    )
+    token_resource_name = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="The AMAPI resource name for this token (used for deletion).",
+    )
+    qr_code = models.ImageField(
+        upload_to=enrollment_token_qr_code_path,
+        null=True,
+        blank=True,
+        verbose_name="enrollment QR code",
+    )
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this enrollment token expires.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_enrollment_tokens",
+        help_text="The user who created this token.",
+    )
+    revoked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this enrollment token was revoked. Null means not revoked.",
+    )
+    allow_personal_usage = models.CharField(
+        max_length=60,
+        choices=AllowPersonalUsage,
+        default=AllowPersonalUsage.ALLOW_PERSONAL_USAGE_UNSPECIFIED,
+        help_text="Whether personal usage is allowed on enrolled devices.",
+    )
+
+    objects = EnrollmentTokenManager()
+    all_orgs = models.Manager()  # noqa: DJ012
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def __str__(self):
+        return self.label or self.name or f"Enrollment token {self.pk}"
+
+    @property
+    def name(self):
+        """Return the last path segment of token_resource_name."""
+        if self.token_resource_name:
+            return self.token_resource_name.split("/")[-1]
+        return ""
+
+    @property
+    def is_expired(self):
+        """Return True if the token expiry date has passed."""
+        if self.expires_at is None:
+            return False
+        return now() >= self.expires_at
+
+    @property
+    def is_active(self):
+        """Return True if the token has not been revoked and has not expired."""
+        return self.revoked_at is None and not self.is_expired
+
+    @property
+    def is_expiring_soon(self):
+        return self.expires_at is not None and self.expires_at < now() + timedelta(7)
+
+    @property
+    def enrollment_url(self):
+        """Return the enrollment URL for Android Enterprise."""
+        if self.token_value:
+            return f"https://enterprise.google.com/android/enroll?et={self.token_value}"
+        return None
+
+    @property
+    def dpc_extras_json(self):
+        """Return the DPC extras JSON blob used for Zero-Touch Enrollment (ZTE)."""
+        if not self.token_value:
+            return None
+        return json.dumps(
+            {
+                "android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE": {
+                    f"{EMM_DPC_PACKAGE}.EXTRA_ENROLLMENT_TOKEN": self.token_value,
+                }
+            }
+        )

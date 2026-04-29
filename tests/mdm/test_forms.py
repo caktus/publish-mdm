@@ -1,7 +1,9 @@
 import pytest
+from dateutil.relativedelta import relativedelta
 from pytest_django.asserts import assertFormError
 
 from apps.mdm.forms import (
+    EnrollmentTokenCreateForm,
     FirmwareSnapshotForm,
     PolicyApplicationAddForm,
     PolicyEditForm,
@@ -9,7 +11,7 @@ from apps.mdm.forms import (
     PolicyVariableForm,
 )
 from apps.mdm.models import Policy, PolicyVariable
-from tests.mdm.factories import DeviceFactory, PolicyApplicationFactory, PolicyFactory
+from tests.mdm.factories import DeviceFactory, FleetFactory, PolicyApplicationFactory, PolicyFactory
 
 
 @pytest.mark.django_db
@@ -255,3 +257,50 @@ class TestPolicyVariableForm:
         )
         assert not form.is_valid()
         assert any("my_key" in str(e) for e in form.non_field_errors())
+
+
+@pytest.mark.django_db
+class TestEnrollmentTokenCreateForm:
+    """Tests for EnrollmentTokenCreateForm."""
+
+    @pytest.mark.parametrize(
+        "expiration, expected_delta",
+        [
+            ("1 weeks", relativedelta(weeks=1)),
+            ("1 months", relativedelta(months=1)),
+            ("3 months", relativedelta(months=3)),
+            ("6 months", relativedelta(months=6)),
+            ("12 months", relativedelta(months=12)),
+        ],
+    )
+    def test_clean_expiration_returns_relativedelta_for_valid_choice(
+        self, expiration, expected_delta
+    ):
+        """clean_expiration returns the correct relativedelta for each valid choice."""
+        fleet = FleetFactory()
+        form = EnrollmentTokenCreateForm(
+            data={
+                "fleet": fleet.pk,
+                "label": "",
+                "expiration": expiration,
+                "allow_personal_usage": "ALLOW_PERSONAL_USAGE_UNSPECIFIED",
+            },
+            organization=fleet.organization,
+        )
+        assert form.is_valid()
+        assert form.cleaned_data["expiration"] == expected_delta
+
+    def test_clean_expiration_raises_for_invalid_choice(self):
+        """clean_expiration raises ValidationError for an unrecognised choice."""
+        fleet = FleetFactory()
+        form = EnrollmentTokenCreateForm(
+            data={
+                "fleet": fleet.pk,
+                "label": "",
+                "expiration": "invalid_value",
+                "allow_personal_usage": "ALLOW_PERSONAL_USAGE_UNSPECIFIED",
+            },
+            organization=fleet.organization,
+        )
+        assert not form.is_valid()
+        assert "expiration" in form.errors

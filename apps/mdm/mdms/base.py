@@ -61,6 +61,9 @@ class MDM(ABC):
     def delete_device(self, device: Device) -> None:  # noqa: B027
         """Delete a device from the MDM. No-op by default."""
 
+    def revoke_enrollment_token(self, resource_name: str) -> None:  # noqa: B027
+        """Revoke an enrollment token. No-op by default (not supported by all MDMs)."""
+
 
 class MDMAPIError(BaseModel):
     method: str | None = None

@@ -38,24 +38,57 @@
             </div>
         {% endif %}
         {% fragment as table_header_buttons %}
-        <button type="button"
-                class="btn btn-outline btn-primary flex items-center justify-center text-sm px-4 py-2"
-                data-modal-target="qr-codes-modal"
-                data-modal-toggle="qr-codes-modal"
-                hx-get="{% url 'publish_mdm:check-mdm-license-limit' request.organization.slug %}"
-                hx-target="#license-limit-messages">
-            <svg class="w-[20px] h-[20px] mr-2"
-                 aria-hidden="true"
-                 xmlns="http://www.w3.org/2000/svg"
-                 width="24"
-                 height="24"
-                 fill="currentColor"
-                 viewBox="0 0 24 24">
-                <path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M4 4h6v6H4V4Zm10 10h6v6h-6v-6Zm0-10h6v6h-6V4Zm-4 10h.01v.01H10V14Zm0 4h.01v.01H10V18Zm-3 2h.01v.01H7V20Zm0-4h.01v.01H7V16Zm-3 2h.01v.01H4V18Zm0-4h.01v.01H4V14Z" />
-                <path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M7 7h.01v.01H7V7Zm10 10h.01v.01H17V17Z" />
-            </svg>
-            Enroll
-        </button>
+        <div class="relative">
+            <button id="enrollDropdownButton"
+                    data-dropdown-toggle="enrollDropdown"
+                    type="button"
+                    class="btn btn-outline btn-primary flex items-center justify-center text-sm px-4 py-2">
+                <svg class="w-[20px] h-[20px] mr-2"
+                     aria-hidden="true"
+                     xmlns="http://www.w3.org/2000/svg"
+                     width="24"
+                     height="24"
+                     fill="currentColor"
+                     viewBox="0 0 24 24">
+                    <path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M4 4h6v6H4V4Zm10 10h6v6h-6v-6Zm0-10h6v6h-6V4Zm-4 10h.01v.01H10V14Zm0 4h.01v.01H10V18Zm-3 2h.01v.01H7V20Zm0-4h.01v.01H7V16Zm-3 2h.01v.01H4V18Zm0-4h.01v.01H4V14Z" />
+                    <path stroke="currentColor" stroke-linejoin="round" stroke-width="2" d="M7 7h.01v.01H7V7Zm10 10h.01v.01H17V17Z" />
+                </svg>
+                Enroll
+                <svg class="-mr-1 ml-1.5 w-5 h-5"
+                     fill="currentColor"
+                     viewbox="0 0 20 20"
+                     xmlns="http://www.w3.org/2000/svg"
+                     aria-hidden="true">
+                    <path clip-rule="evenodd" fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
+                </svg>
+            </button>
+            <div id="enrollDropdown"
+                 class="z-50 hidden w-48 divide-y divide-gray-100 rounded-lg bg-white shadow dark:bg-gray-700"
+                 data-popper-placement="bottom">
+                <ul class="p-2 text-left text-sm font-medium text-gray-500 dark:text-gray-400"
+                    aria-labelledby="enrollDropdownButton">
+                    <li>
+                        <button type="button"
+                                data-modal-target="qr-codes-modal"
+                                data-modal-toggle="qr-codes-modal"
+                                hx-get="{% url 'publish_mdm:check-mdm-license-limit' request.organization.slug %}"
+                                hx-target="#license-limit-messages"
+                                onclick="FlowbiteInstances.getInstance('Dropdown', 'enrollDropdown').hide()"
+                                class="group inline-flex w-full items-center rounded-md px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-600 dark:hover:text-white">
+                            Enroll Now
+                        </button>
+                    </li>
+                    {% if request.organization.mdm == "Android Enterprise" %}
+                        <li>
+                            <a href="{% url 'mdm:enrollment-token-list' request.organization.slug %}"
+                               class="group inline-flex w-full items-center rounded-md px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-600 dark:hover:text-white">
+                                Enrollment Tokens
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
         <div class="relative">
             <button id="actionsDropdownButton1"
                     data-dropdown-toggle="dropdownactions1"
