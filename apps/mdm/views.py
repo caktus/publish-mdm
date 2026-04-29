@@ -40,6 +40,36 @@ logger = structlog.get_logger()
 
 @csrf_exempt
 @require_POST
+def device_fcm_token_view(request):
+    """Register an FCM token for a device, authenticated by its screen_stream_token.
+
+    The firmware app calls this endpoint after Firebase assigns/refreshes a token.
+    Auth: the ``screen_stream_token`` stored in the device record (bearer-style,
+    sent in the JSON body rather than an Authorization header to keep the app simple).
+    """
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return HttpResponse(status=400)
+
+    fcm_token = body.get("fcm_token", "").strip()
+    screen_stream_token = body.get("screen_stream_token", "").strip()
+    if not fcm_token or not screen_stream_token:
+        return HttpResponse(status=400)
+    if len(fcm_token) > 256 or len(screen_stream_token) > 64:
+        return HttpResponse(status=400)
+
+    updated = Device.objects.filter(screen_stream_token=screen_stream_token).update(
+        fcm_token=fcm_token
+    )
+    if not updated:
+        return HttpResponse(status=404)
+
+    return HttpResponse(status=204)
+
+
+@csrf_exempt
+@require_POST
 def firmware_snapshot_view(request):
     if not request.body:
         return HttpResponse(status=400)

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block page_header %}
+    <span class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between w-full">
+        <span>{{ breadcrumbs.crumbs|last }}</span>
+        <div class="flex items-center gap-2">
+            <span id="screen-status"
+                  class="text-sm px-2.5 py-0.5 rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300">
+                Connecting…
+            </span>
+            <a href="{% url 'publish_mdm:device-detail' request.organization.slug device.pk %}"
+               class="btn btn-outline">Back to device</a>
+        </div>
+    </span>
+{% endblock page_header %}
+{% block content %}
+    <div class="p-4 bg-white rounded-lg border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+        <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">
+            The device must have the firmware app installed and a screen-share
+            session must be started on the device. The session uses a
+            per-device token delivered via Android Enterprise managed
+            configuration.
+        </p>
+        <div class="bg-black rounded-md flex items-center justify-center min-h-[40vh]">
+            <img id="screen-frame"
+                 alt="Device screen"
+                 width=""
+                 height=""
+                 class="max-h-[80vh] max-w-full object-contain" />
+        </div>
+    </div>
+    <script>
+    (function () {
+        const proto = location.protocol === "https:" ? "wss:" : "ws:";
+        const url = `${proto}//${location.host}/ws/devices/{{ device.pk }}/screen-view/`;
+        const img = document.getElementById("screen-frame");
+        const status = document.getElementById("screen-status");
+        let lastUrl = null;
+
+        function setStatus(text, ok) {
+            status.textContent = text;
+            status.className = "text-sm px-2.5 py-0.5 rounded-full " + (
+                ok
+                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                    : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
+            );
+        }
+
+        function connect() {
+            const ws = new WebSocket(url);
+            ws.binaryType = "arraybuffer";
+            ws.onopen = () => setStatus("Waiting for device…", false);
+            ws.onmessage = (event) => {
+                if (typeof event.data === "string") {
+                    try {
+                        const msg = JSON.parse(event.data);
+                        if (msg.status === "connected") setStatus("Streaming", true);
+                        if (msg.status === "disconnected") setStatus("Device disconnected", false);
+                    } catch (e) { /* ignore */ }
+                    return;
+                }
+                if (lastUrl) URL.revokeObjectURL(lastUrl);
+                const blob = new Blob([event.data], { type: "image/jpeg" });
+                lastUrl = URL.createObjectURL(blob);
+                img.src = lastUrl;
+                setStatus("Streaming", true);
+            };
+            ws.onclose = () => {
+                setStatus("Disconnected — retrying…", false);
+                setTimeout(connect, 2000);
+            };
+            ws.onerror = () => ws.close();
+        }
+        connect();
+    })();
+    </script>
+{% endblock content %}

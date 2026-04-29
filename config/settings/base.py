@@ -130,6 +130,24 @@ TEMPLATES = [
 ASGI_APPLICATION = "config.asgi.application"
 WSGI_APPLICATION = "config.wsgi.application"
 
+# Channels channel layer. Default to the in-memory layer for local development,
+# but allow deployments to opt into a shared Redis-backed layer so group sends
+# and fanout work correctly across multiple ASGI workers or pods.
+_channel_layers_redis_url = os.getenv("CHANNEL_LAYERS_REDIS_URL")
+if _channel_layers_redis_url:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [_channel_layers_redis_url],
+            },
+        },
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"},
+    }
+
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 

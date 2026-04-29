@@ -6,6 +6,7 @@ app_name = "mdm"
 
 urlpatterns = [
     path("mdm/api/firmware/", views.firmware_snapshot_view, name="firmware_snapshot"),
+    path("mdm/api/devices/fcm-token/", views.device_fcm_token_view, name="device-fcm-token"),
     path(
         "mdm/api/amapi/notifications/", views.amapi_notifications_view, name="amapi_notifications"
     ),

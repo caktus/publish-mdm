@@ -118,6 +118,7 @@ dependencies = [
     "django-tables2~=2.7",
     "django-template-partials~=25.1",
     "django-widget-tweaks~=1.5",
+    "firebase-admin>=7.4.0",
     "google-api-python-client~=2.0",
     "google-auth~=2.0",
     "google-auth-httplib2~=0.2",
