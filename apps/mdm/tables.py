@@ -1,10 +1,9 @@
-import datetime as dt
 from typing import ClassVar
 
 import django_tables2 as tables
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.html import mark_safe
-from django.utils.timezone import now
 
 from .models import EnrollmentToken, Policy
 
@@ -53,21 +52,7 @@ class EnrollmentTokenTable(tables.Table):
         empty_text = 'No enrollment tokens found. Click "Create Token" to create one.'
 
     def render_status(self, record):
-        if record.revoked_at:
-            return mark_safe(
-                '<span class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-300">Revoked</span>'
-            )
-        if record.is_expired:
-            return mark_safe(
-                '<span class="inline-flex items-center rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900 dark:text-red-300">Expired</span>'
-            )
-        if record.expires_at and record.expires_at < now() + dt.timedelta(days=7):
-            return mark_safe(
-                '<span class="inline-flex items-center rounded bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300">Expiring Soon</span>'
-            )
-        return mark_safe(
-            '<span class="inline-flex items-center rounded bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-900 dark:text-green-300">Active</span>'
-        )
+        return render_to_string("includes/enrollment_token_status_badge.html", {"token": record})
 
     def render_actions(self, record):
         org_slug = record.organization.slug
@@ -77,13 +62,12 @@ class EnrollmentTokenTable(tables.Table):
         ]
         if record.is_active:
             revoke_url = reverse("mdm:enrollment-token-revoke", args=[org_slug, record.pk])
-            token_name = str(record)
             links.append(
                 f'<button type="button" '
                 f'data-modal-target="revoke-token-modal" '
                 f'data-modal-toggle="revoke-token-modal" '
                 f'data-revoke-url="{revoke_url}" '
-                f'data-token-name="{token_name}" '
+                f'data-token-name="{record}" '
                 f'onclick="setRevokeTarget(this)" '
                 f'class="text-red-600 hover:underline text-sm">Revoke</button>'
             )

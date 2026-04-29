@@ -16,7 +16,7 @@ from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import CheckboxInput, Select, TextInput
 
 from .models import (
-    AllowPersonalUsage,
+    EnrollmentToken,
     FirmwareSnapshot,
     Fleet,
     InstallType,
@@ -417,44 +417,32 @@ PolicyVariableFormSet = modelformset_factory(
 
 
 ENROLLMENT_TOKEN_DURATION_CHOICES = [
-    ("1_week", "1 week"),
-    ("1_month", "1 month"),
-    ("3_months", "3 months"),
-    ("6_months", "6 months"),
-    ("12_months", "12 months"),
+    ("1 weeks", "1 week"),
+    ("1 months", "1 month"),
+    ("3 months", "3 months"),
+    ("6 months", "6 months"),
+    ("12 months", "12 months"),
 ]
 
-ENROLLMENT_TOKEN_DURATION_MAP = {
-    "1_week": relativedelta(weeks=1),
-    "1_month": relativedelta(months=1),
-    "3_months": relativedelta(months=3),
-    "6_months": relativedelta(months=6),
-    "12_months": relativedelta(months=12),
-}
 
-
-class EnrollmentTokenCreateForm(PlatformFormMixin, forms.Form):
+class EnrollmentTokenCreateForm(PlatformFormMixin, forms.ModelForm):
     """Form for creating a new long-lived enrollment token."""
 
-    fleet = forms.ModelChoiceField(
-        queryset=Fleet.objects.none(),
-        widget=Select,
-    )
-    label = forms.CharField(
-        required=False,
-        max_length=255,
-        widget=TextInput(attrs={"placeholder": "e.g. Field team batch 2025-Q1"}),
-    )
     expiration = forms.ChoiceField(
         choices=ENROLLMENT_TOKEN_DURATION_CHOICES,
-        initial="1_month",
+        initial="1 months",
         widget=Select,
+        help_text="How long this token will be valid.",
     )
-    allow_personal_usage = forms.ChoiceField(
-        choices=AllowPersonalUsage.choices,
-        initial=AllowPersonalUsage.ALLOW_PERSONAL_USAGE_UNSPECIFIED,
-        widget=Select,
-    )
+
+    class Meta:
+        model = EnrollmentToken
+        fields = ("fleet", "label", "allow_personal_usage")
+        widgets: ClassVar = {
+            "fleet": Select,
+            "label": TextInput,
+            "allow_personal_usage": Select,
+        }
 
     def __init__(self, *args, organization=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -463,9 +451,7 @@ class EnrollmentTokenCreateForm(PlatformFormMixin, forms.Form):
 
     def clean_expiration(self):
         value = self.cleaned_data.get("expiration")
-        delta = ENROLLMENT_TOKEN_DURATION_MAP.get(value)
-        if not delta:
-            # Defensive: ChoiceField already validates accepted values, but this
-            # guards against tampered submissions with an unknown key.
-            raise forms.ValidationError("Invalid expiration choice.")
-        return delta
+        if value:
+            arg_value, arg = value.split()
+            return relativedelta(**{arg: int(arg_value)})
+        return None

@@ -463,14 +463,13 @@ def enrollment_token_create(request, organization_slug):
     if request.method == "POST":
         form = EnrollmentTokenCreateForm(request.POST, organization=request.organization)
         if form.is_valid():
-            fleet = form.cleaned_data["fleet"]
-            expiration_delta = form.cleaned_data["expiration"]
-            allow_personal_usage = form.cleaned_data["allow_personal_usage"]
-            label = form.cleaned_data.get("label", "")
             active_mdm = get_active_mdm_instance(organization=request.organization)
             if not active_mdm:
                 messages.error(request, "MDM is not configured for this organization.")
                 return redirect("mdm:enrollment-token-list", organization_slug)
+            token = form.save(commit=False)
+            token.organization = request.organization
+            expiration_delta = form.cleaned_data["expiration"]
             base_time = now()
             expires_at_approx = base_time + expiration_delta
             # relativedelta has no total_seconds(); subtracting datetimes yields a timedelta
@@ -478,9 +477,9 @@ def enrollment_token_create(request, organization_slug):
             duration_seconds = int((expires_at_approx - base_time).total_seconds())
             try:
                 token_data = active_mdm.create_enrollment_token(
-                    fleet=fleet,
+                    fleet=token.fleet,
                     duration_seconds=duration_seconds,
-                    allow_personal_usage=allow_personal_usage,
+                    allow_personal_usage=token.allow_personal_usage,
                 )
             except Exception:
                 logger.exception("Failed to create enrollment token via MDM API")
@@ -502,25 +501,17 @@ def enrollment_token_create(request, organization_slug):
                 return render(request, "mdm/enrollment_token_create.html", context)
 
             # Parse expiry timestamp from AMAPI response; fall back to approx local calculation
-            expires_at = expires_at_approx
+            token.expires_at = expires_at_approx
             if expiry_str := token_data.get("expirationTimestamp"):
                 with contextlib.suppress(ValueError):
-                    expires_at = dt.datetime.fromisoformat(expiry_str)
-
-            token = EnrollmentToken(
-                fleet=fleet,
-                organization=request.organization,
-                label=label,
-                token_value=token_data.get("value", ""),
-                token_resource_name=token_data.get("name", ""),
-                expires_at=expires_at,
-                created_by=request.user,
-                allow_personal_usage=allow_personal_usage,
-            )
+                    token.expires_at = dt.datetime.fromisoformat(expiry_str)
+            token.token_value = token_data.get("value", "")
+            token.token_resource_name = token_data.get("name", "")
+            token.created_by = request.user
             if qr_code_str := token_data.get("qrCode"):
                 qr_image = create_qr_code(qr_code_str)
                 token.qr_code.save(
-                    f"token_{fleet.pk}_{token.token_value[:10]}.png",
+                    f"token_{token.fleet.pk}_{token.token_value[:10]}.png",
                     ContentFile(qr_image.getvalue()),
                     save=False,
                 )

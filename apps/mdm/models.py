@@ -1,4 +1,5 @@
 import json
+from datetime import timedelta
 
 import structlog
 from django.core.exceptions import ValidationError
@@ -990,6 +991,10 @@ class EnrollmentToken(models.Model):
     def is_active(self):
         """Return True if the token has not been revoked and has not expired."""
         return self.revoked_at is None and not self.is_expired
+
+    @property
+    def is_expiring_soon(self):
+        return self.expires_at is not None and self.expires_at < now() + timedelta(7)
 
     @property
     def enrollment_url(self):

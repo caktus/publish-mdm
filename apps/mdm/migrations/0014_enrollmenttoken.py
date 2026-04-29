@@ -73,14 +73,6 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    "mdm",
-                    models.CharField(
-                        blank=True,
-                        help_text="The MDM type for this token (e.g. 'Android Enterprise').",
-                        max_length=50,
-                    ),
-                ),
-                (
                     "allow_personal_usage",
                     models.CharField(
                         choices=[
