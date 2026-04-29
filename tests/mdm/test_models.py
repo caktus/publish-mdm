@@ -557,6 +557,16 @@ class TestEnrollmentTokenModel:
         )
         assert str(token) == "abc"
 
+    def test_name_property_extracts_last_segment(self):
+        """name property returns the last path segment of token_resource_name."""
+        token = EnrollmentTokenFactory(token_resource_name="enterprises/test/enrollmentTokens/abc")
+        assert token.name == "abc"
+
+    def test_name_property_empty_when_no_resource_name(self):
+        """name property returns empty string when token_resource_name is empty."""
+        token = EnrollmentTokenFactory(token_resource_name="")
+        assert token.name == ""
+
     def test_str_uses_pk_when_no_label_or_resource_name(self):
         """__str__ returns 'Enrollment token <pk>' when both label and resource_name are empty."""
         token = EnrollmentTokenFactory(label="", token_resource_name="")

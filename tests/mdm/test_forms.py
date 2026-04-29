@@ -1,7 +1,10 @@
 import pytest
+from dateutil.relativedelta import relativedelta  # noqa: F401
 from pytest_django.asserts import assertFormError
 
 from apps.mdm.forms import (
+    ENROLLMENT_TOKEN_DURATION_MAP,
+    EnrollmentTokenCreateForm,
     FirmwareSnapshotForm,
     PolicyApplicationAddForm,
     PolicyEditForm,
@@ -9,7 +12,7 @@ from apps.mdm.forms import (
     PolicyVariableForm,
 )
 from apps.mdm.models import Policy, PolicyVariable
-from tests.mdm.factories import DeviceFactory, PolicyApplicationFactory, PolicyFactory
+from tests.mdm.factories import DeviceFactory, FleetFactory, PolicyApplicationFactory, PolicyFactory
 
 
 @pytest.mark.django_db
@@ -255,3 +258,39 @@ class TestPolicyVariableForm:
         )
         assert not form.is_valid()
         assert any("my_key" in str(e) for e in form.non_field_errors())
+
+
+@pytest.mark.django_db
+class TestEnrollmentTokenCreateForm:
+    """Tests for EnrollmentTokenCreateForm."""
+
+    def test_clean_expiration_returns_relativedelta_for_valid_choice(self):
+        """clean_expiration returns the correct relativedelta for each valid choice."""
+        fleet = FleetFactory()
+        for key, expected_delta in ENROLLMENT_TOKEN_DURATION_MAP.items():
+            form = EnrollmentTokenCreateForm(
+                data={
+                    "fleet": fleet.pk,
+                    "label": "",
+                    "expiration": key,
+                    "allow_personal_usage": "ALLOW_PERSONAL_USAGE_UNSPECIFIED",
+                },
+                organization=fleet.organization,
+            )
+            assert form.is_valid(), f"Form invalid for key {key!r}: {form.errors}"
+            assert form.cleaned_data["expiration"] == expected_delta
+
+    def test_clean_expiration_raises_for_invalid_choice(self):
+        """clean_expiration raises ValidationError for an unrecognised choice."""
+        fleet = FleetFactory()
+        form = EnrollmentTokenCreateForm(
+            data={
+                "fleet": fleet.pk,
+                "label": "",
+                "expiration": "invalid_value",
+                "allow_personal_usage": "ALLOW_PERSONAL_USAGE_UNSPECIFIED",
+            },
+            organization=fleet.organization,
+        )
+        assert not form.is_valid()
+        assert "expiration" in form.errors
