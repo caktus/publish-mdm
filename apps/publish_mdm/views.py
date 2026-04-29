@@ -37,6 +37,7 @@ from pygments.lexers.data import JsonLexer
 from pyodk.errors import PyODKError
 from requests.exceptions import RequestException
 
+from apps.mdm.fcm import send_start_screen_share
 from apps.mdm.mdms import AndroidEnterprise, get_active_mdm_instance
 from apps.mdm.models import Device, FirmwareSnapshot, Fleet, Policy
 from apps.tailscale.models import Device as TailscaleDevice
@@ -1552,30 +1553,10 @@ def device_screen_view(request: HttpRequest, organization_slug, device_pk):
         has_fcm_token=bool(device.fcm_token),
     )
     if device.fcm_token:
-        from django.conf import settings  # noqa: PLC0415
-
-        from apps.mdm.fcm import send_start_screen_share  # noqa: PLC0415
-
-        cb_domain = (getattr(settings, "ANDROID_ENTERPRISE_CALLBACK_DOMAIN", "") or "").strip()
-        if not cb_domain:
-            from django.contrib.sites.models import Site  # noqa: PLC0415
-
-            try:
-                cb_domain = (Site.objects.get_current().domain or "").strip()
-            except Exception:
-                cb_domain = ""
-        if not cb_domain:
-            cb_domain = (request.get_host() or "").strip()
-
-        if cb_domain.startswith(("http://", "https://", "ws://", "wss://")):
-            from urllib.parse import urlparse  # noqa: PLC0415
-
-            cb_domain = urlparse(cb_domain).netloc or cb_domain
-
+        cb_domain = settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN
         if cb_domain:
-            scheme = "wss" if request.is_secure() else "ws"
             stream_url = (
-                f"{scheme}://{cb_domain}/ws/devices/screen-publish/{device.screen_stream_token}/"
+                f"wss://{cb_domain}/ws/devices/screen-publish/{device.screen_stream_token}/"
             )
             sent = send_start_screen_share(
                 device.fcm_token,
@@ -1585,7 +1566,7 @@ def device_screen_view(request: HttpRequest, organization_slug, device_pk):
             logger.info("device_screen_view: FCM send result", device_pk=device.pk, sent=sent)
         else:
             logger.warning(
-                "device_screen_view: no callback host available — cannot trigger screen share",
+                "device_screen_view: ANDROID_ENTERPRISE_CALLBACK_DOMAIN not set — cannot trigger screen share",
                 device_pk=device.pk,
             )
     else:
