@@ -6,9 +6,6 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.utils.timezone import now
 
-from apps.mdm.forms import (
-    ENROLLMENT_TOKEN_DURATION_CHOICES,
-)
 from apps.mdm.mdms import get_active_mdm_class
 from apps.mdm.models import (
     EMM_DPC_PACKAGE,
@@ -513,6 +510,19 @@ class TestEnrollmentTokenModel:
         token = EnrollmentTokenFactory(revoked_at=None, expires_at=now() - dt.timedelta(seconds=1))
         assert token.is_active is False
 
+    @pytest.mark.parametrize(
+        "expires_at, expected_result",
+        [
+            (now() + dt.timedelta(1), True),
+            (None, False),
+            (now() + dt.timedelta(8), False),
+        ],
+    )
+    def test_is_expiring_soon(self, expires_at, expected_result):
+        """is_expiring_soon returns True if expires_at is set and is less than 7 days from now."""
+        token = EnrollmentTokenFactory(expires_at=expires_at)
+        assert token.is_expiring_soon is expected_result
+
     def test_is_active_false_when_both_revoked_and_expired(self):
         """is_active returns False when the token is both revoked and expired."""
         token = EnrollmentTokenFactory(
@@ -596,16 +606,6 @@ class TestEnrollmentTokenModel:
         tokens = list(EnrollmentToken.objects.filter(fleet=fleet))
         assert tokens[0].pk == newer.pk
         assert tokens[1].pk == older.pk
-
-    def test_duration_choices_values(self):
-        """ENROLLMENT_TOKEN_DURATION_CHOICES contains all five expected entries."""
-        assert len(ENROLLMENT_TOKEN_DURATION_CHOICES) == 5
-        keys = [k for k, _ in ENROLLMENT_TOKEN_DURATION_CHOICES]
-        assert "1_week" in keys
-        assert "1_month" in keys
-        assert "3_months" in keys
-        assert "6_months" in keys
-        assert "12_months" in keys
 
     def test_allow_personal_usage_choices(self):
         """AllowPersonalUsage has the four expected choices."""

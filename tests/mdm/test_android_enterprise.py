@@ -566,6 +566,18 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         # Should not raise
         active_mdm.revoke_enrollment_token(resource_name)
 
+    def test_revoke_enrollment_token_other_errors_reraised(self, monkeypatch, organization):
+        """revoke_enrollment_token() re-raises non-404 HttpErrors."""
+        active_mdm = AndroidEnterprise(organization=organization)
+        resource_name = "enterprises/test/enrollmentTokens/abc123"
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(MockAPIResponse("enrollmentTokens.delete", None, 500)),
+        )
+        with pytest.raises(HttpError):
+            active_mdm.revoke_enrollment_token(resource_name)
+
     @pytest.mark.parametrize("current_device_policy", ["own", "base", "other_fleet"])
     def test_push_device_config(
         self,

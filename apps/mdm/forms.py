@@ -454,4 +454,3 @@ class EnrollmentTokenCreateForm(PlatformFormMixin, forms.ModelForm):
         if value:
             arg_value, arg = value.split()
             return relativedelta(**{arg: int(arg_value)})
-        return None

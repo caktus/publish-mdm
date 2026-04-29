@@ -2,11 +2,12 @@ import base64
 import json
 
 import pytest
-from django.contrib.messages import SUCCESS, WARNING, Message
+from django.contrib.messages import ERROR, SUCCESS, WARNING, Message
 from django.urls import reverse, reverse_lazy
 from django.utils.timezone import now
 from pytest_django.asserts import assertContains, assertMessages, assertRedirects
 
+from apps.mdm.forms import EnrollmentTokenCreateForm
 from apps.mdm.mdms import AndroidEnterprise
 from apps.mdm.models import (
     Device,
@@ -1108,6 +1109,14 @@ class TestEnrollmentTokenViews(PolicyViewBase, TestAndroidEnterpriseOnly):
         fleet = FleetFactory(organization=organization)
         return EnrollmentTokenFactory(fleet=fleet, organization=organization)
 
+    @pytest.fixture
+    def url_detail(self, token, organization):
+        return reverse("mdm:enrollment-token-detail", args=[organization.slug, token.pk])
+
+    @pytest.fixture
+    def url_revoke(self, token):
+        return reverse("mdm:enrollment-token-revoke", args=[token.organization.slug, token.pk])
+
     def test_list_login_required(self, client, url_list, user):
         client.logout()
         response = client.get(url_list)
@@ -1125,6 +1134,11 @@ class TestEnrollmentTokenViews(PolicyViewBase, TestAndroidEnterpriseOnly):
         assert own_token in table_data
         assert other_token not in table_data
 
+    def test_detail_shows_token(self, client, url_detail, token):
+        response = client.get(url_detail)
+        assert response.status_code == 200
+        assert response.context["token"] == token
+
     def test_detail_login_required(self, client, token, user, organization):
         client.logout()
         url = reverse("mdm:enrollment-token-detail", args=[organization.slug, token.pk])
@@ -1139,22 +1153,29 @@ class TestEnrollmentTokenViews(PolicyViewBase, TestAndroidEnterpriseOnly):
         response = client.get(url)
         assert response.status_code == 404
 
-    def test_revoke_sets_revoked_at(self, client, token, organization, mocker):
+    def test_revoke_sets_revoked_at(self, client, url_revoke, token, mocker):
         assert token.revoked_at is None
-        mocker.patch(
-            "apps.mdm.views.get_active_mdm_instance",
-            return_value=mocker.MagicMock(revoke_enrollment_token=mocker.MagicMock()),
-        )
-        url = reverse("mdm:enrollment-token-revoke", args=[organization.slug, token.pk])
-        response = client.post(url)
+        mock_revoke = mocker.patch.object(AndroidEnterprise, "revoke_enrollment_token")
+        response = client.post(url_revoke)
+        mock_revoke.assert_called_once_with(token.token_resource_name)
         assert response.status_code == 302
         token.refresh_from_db()
         assert token.revoked_at is not None
 
+    def test_revoke_login_required(self, client, url_revoke, token, mocker):
+        client.logout()
+        mock_revoke = mocker.patch.object(AndroidEnterprise, "revoke_enrollment_token")
+        response = client.post(url_revoke)
+        mock_revoke.assert_not_called()
+        token.refresh_from_db()
+        assert token.revoked_at is None
+        assert response.status_code == 302
+
     def test_create_get(self, client, url_create):
         response = client.get(url_create)
         assert response.status_code == 200
-        assert "form" in response.context
+        form = response.context.get("form")
+        assert isinstance(form, EnrollmentTokenCreateForm)
 
     def test_create_post_invalid_form_renders_errors(self, client, url_create, organization):
         """Submitting an invalid create form renders the form with errors and creates no token."""
@@ -1163,3 +1184,140 @@ class TestEnrollmentTokenViews(PolicyViewBase, TestAndroidEnterpriseOnly):
         assert "form" in response.context
         assert response.context["form"].errors
         assert not EnrollmentToken.objects.filter(organization=organization).exists()
+
+    def test_create_post_valid_creates_token_and_redirects(
+        self, client, url_create, organization, mocker
+    ):
+        """A valid POST creates an EnrollmentToken record and redirects to its detail page."""
+        fleet = FleetFactory(organization=organization)
+        mock_create = mocker.patch.object(
+            AndroidEnterprise,
+            "create_enrollment_token",
+            return_value={
+                "value": "test-token-value",
+                "name": "enterprises/test/enrollmentTokens/abc123",
+                "expirationTimestamp": "2025-12-31T00:00:00Z",
+            },
+        )
+        response = client.post(
+            url_create,
+            {
+                "fleet": fleet.pk,
+                "label": "Test Token",
+                "allow_personal_usage": "ALLOW_PERSONAL_USAGE_UNSPECIFIED",
+                "expiration": "1 months",
+            },
+        )
+        mock_create.assert_called_once()
+        token = EnrollmentToken.objects.get(organization=organization, fleet=fleet)
+        assert token.token_value == "test-token-value"
+        assert token.token_resource_name == "enterprises/test/enrollmentTokens/abc123"
+        assertMessages(
+            response,
+            [Message(SUCCESS, f"Enrollment token '{token}' created successfully.")],
+        )
+        assertRedirects(
+            response,
+            reverse("mdm:enrollment-token-detail", args=[organization.slug, token.pk]),
+        )
+
+    def test_create_post_mdm_api_error_shows_error(self, client, url_create, organization, mocker):
+        """When the MDM API raises an exception the form is re-rendered with an error message."""
+        fleet = FleetFactory(organization=organization)
+        mocker.patch.object(
+            AndroidEnterprise,
+            "create_enrollment_token",
+            side_effect=Exception("API error"),
+        )
+        response = client.post(
+            url_create,
+            {
+                "fleet": fleet.pk,
+                "label": "Test Token",
+                "allow_personal_usage": "ALLOW_PERSONAL_USAGE_UNSPECIFIED",
+                "expiration": "1 months",
+            },
+        )
+        assert response.status_code == 200
+        assert "form" in response.context
+        assertMessages(
+            response,
+            [
+                Message(
+                    ERROR,
+                    "Failed to create enrollment token. Please try again or contact support.",
+                )
+            ],
+        )
+        assert not EnrollmentToken.objects.filter(organization=organization, fleet=fleet).exists()
+
+    def test_create_post_unconfigured_mdm_redirects_with_error(
+        self, client, url_create, organization, unconfigure_mdm
+    ):
+        """A valid POST when MDM is unconfigured redirects to the list with an error message."""
+        fleet = FleetFactory(organization=organization)
+        response = client.post(
+            url_create,
+            {
+                "fleet": fleet.pk,
+                "label": "Test Token",
+                "allow_personal_usage": "ALLOW_PERSONAL_USAGE_UNSPECIFIED",
+                "expiration": "1 months",
+            },
+        )
+        assertMessages(
+            response,
+            [Message(ERROR, "MDM is not configured for this organization.")],
+        )
+        assertRedirects(response, reverse("mdm:enrollment-token-list", args=[organization.slug]))
+        assert not EnrollmentToken.objects.filter(organization=organization, fleet=fleet).exists()
+
+    def test_revoke_api_error_shows_error_and_redirects_to_detail(
+        self, client, url_revoke, token, mocker
+    ):
+        """When the MDM API raises an exception during revoke an error message is shown
+        and the user is redirected back to the token detail page."""
+        mocker.patch.object(
+            AndroidEnterprise,
+            "revoke_enrollment_token",
+            side_effect=Exception("API error"),
+        )
+        response = client.post(url_revoke)
+        token.refresh_from_db()
+        assert token.revoked_at is None
+        assertMessages(
+            response,
+            [Message(ERROR, "Failed to revoke the token from the MDM. Please try again.")],
+        )
+        assertRedirects(
+            response,
+            reverse("mdm:enrollment-token-detail", args=[token.organization.slug, token.pk]),
+        )
+
+
+@pytest.mark.django_db
+class TestEnrollmentTokenViewsTinyMDM(PolicyViewBase, TestTinyMDMOnly):
+    """All enrollment token views must return 404 when the org's MDM is TinyMDM."""
+
+    @pytest.fixture
+    def token(self, organization):
+        fleet = FleetFactory(organization=organization)
+        return EnrollmentTokenFactory(fleet=fleet, organization=organization)
+
+    @pytest.mark.parametrize(
+        "method,url_name",
+        [
+            ("get", "mdm:enrollment-token-list"),
+            ("get", "mdm:enrollment-token-create"),
+            ("post", "mdm:enrollment-token-create"),
+            ("get", "mdm:enrollment-token-detail"),
+            ("post", "mdm:enrollment-token-revoke"),
+        ],
+    )
+    def test_returns_404(self, client, organization, token, method, url_name):
+        args = [organization.slug]
+        if url_name.endswith(("detail", "revoke")):
+            args.append(token.pk)
+        url = reverse(url_name, args=args)
+        response = getattr(client, method)(url)
+        assert response.status_code == 404

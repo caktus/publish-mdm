@@ -1,9 +1,8 @@
 import pytest
-from dateutil.relativedelta import relativedelta  # noqa: F401
+from dateutil.relativedelta import relativedelta
 from pytest_django.asserts import assertFormError
 
 from apps.mdm.forms import (
-    ENROLLMENT_TOKEN_DURATION_MAP,
     EnrollmentTokenCreateForm,
     FirmwareSnapshotForm,
     PolicyApplicationAddForm,
@@ -264,21 +263,32 @@ class TestPolicyVariableForm:
 class TestEnrollmentTokenCreateForm:
     """Tests for EnrollmentTokenCreateForm."""
 
-    def test_clean_expiration_returns_relativedelta_for_valid_choice(self):
+    @pytest.mark.parametrize(
+        "expiration, expected_delta",
+        [
+            ("1 weeks", relativedelta(weeks=1)),
+            ("1 months", relativedelta(months=1)),
+            ("3 months", relativedelta(months=3)),
+            ("6 months", relativedelta(months=6)),
+            ("12 months", relativedelta(months=12)),
+        ],
+    )
+    def test_clean_expiration_returns_relativedelta_for_valid_choice(
+        self, expiration, expected_delta
+    ):
         """clean_expiration returns the correct relativedelta for each valid choice."""
         fleet = FleetFactory()
-        for key, expected_delta in ENROLLMENT_TOKEN_DURATION_MAP.items():
-            form = EnrollmentTokenCreateForm(
-                data={
-                    "fleet": fleet.pk,
-                    "label": "",
-                    "expiration": key,
-                    "allow_personal_usage": "ALLOW_PERSONAL_USAGE_UNSPECIFIED",
-                },
-                organization=fleet.organization,
-            )
-            assert form.is_valid(), f"Form invalid for key {key!r}: {form.errors}"
-            assert form.cleaned_data["expiration"] == expected_delta
+        form = EnrollmentTokenCreateForm(
+            data={
+                "fleet": fleet.pk,
+                "label": "",
+                "expiration": expiration,
+                "allow_personal_usage": "ALLOW_PERSONAL_USAGE_UNSPECIFIED",
+            },
+            organization=fleet.organization,
+        )
+        assert form.is_valid()
+        assert form.cleaned_data["expiration"] == expected_delta
 
     def test_clean_expiration_raises_for_invalid_choice(self):
         """clean_expiration raises ValidationError for an unrecognised choice."""

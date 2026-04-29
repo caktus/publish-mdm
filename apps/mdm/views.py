@@ -9,7 +9,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.files.base import ContentFile
 from django.db.models import Count, F, Max, Q
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.crypto import get_random_string
 from django.utils.timezone import now
@@ -439,6 +439,8 @@ def policy_save_managed_config(request, organization_slug, policy_id, app_id):
 @login_required
 def enrollment_token_list(request, organization_slug):
     """List all enrollment tokens for the current organization."""
+    if request.organization.mdm != "Android Enterprise":
+        raise Http404
     tokens = EnrollmentToken.objects.filter(organization=request.organization).select_related(
         "fleet", "created_by"
     )
@@ -460,6 +462,8 @@ def enrollment_token_list(request, organization_slug):
 @login_required
 def enrollment_token_create(request, organization_slug):
     """Create a new long-lived enrollment token via the MDM API."""
+    if request.organization.mdm != "Android Enterprise":
+        raise Http404
     if request.method == "POST":
         form = EnrollmentTokenCreateForm(request.POST, organization=request.organization)
         if form.is_valid():
@@ -470,10 +474,9 @@ def enrollment_token_create(request, organization_slug):
             token = form.save(commit=False)
             token.organization = request.organization
             expiration_delta = form.cleaned_data["expiration"]
+            # Compute the duration seconds based on the expiration relativedelta object
             base_time = now()
             expires_at_approx = base_time + expiration_delta
-            # relativedelta has no total_seconds(); subtracting datetimes yields a timedelta
-            # that correctly accounts for variable-length months (e.g. February vs. March).
             duration_seconds = int((expires_at_approx - base_time).total_seconds())
             try:
                 token_data = active_mdm.create_enrollment_token(
@@ -538,6 +541,8 @@ def enrollment_token_create(request, organization_slug):
 @login_required
 def enrollment_token_detail(request, organization_slug, token_pk):
     """Show the detail page for an enrollment token."""
+    if request.organization.mdm != "Android Enterprise":
+        raise Http404
     token = get_object_or_404(EnrollmentToken, pk=token_pk, organization=request.organization)
     context = {
         "token": token,
@@ -557,6 +562,8 @@ def enrollment_token_detail(request, organization_slug, token_pk):
 @require_POST
 def enrollment_token_revoke(request, organization_slug, token_pk):
     """Revoke an enrollment token (POST only — confirmation shown via modal)."""
+    if request.organization.mdm != "Android Enterprise":
+        raise Http404
     token = get_object_or_404(EnrollmentToken, pk=token_pk, organization=request.organization)
     active_mdm = get_active_mdm_instance(organization=request.organization)
     if active_mdm and token.token_resource_name:
