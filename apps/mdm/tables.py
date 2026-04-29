@@ -3,7 +3,7 @@ from typing import ClassVar
 import django_tables2 as tables
 from django.template.loader import render_to_string
 from django.urls import reverse
-from django.utils.html import mark_safe
+from django.utils.html import format_html, format_html_join
 
 from .models import EnrollmentToken, Policy
 
@@ -57,18 +57,22 @@ class EnrollmentTokenTable(tables.Table):
     def render_actions(self, record):
         org_slug = record.organization.slug
         detail_url = reverse("mdm:enrollment-token-detail", args=[org_slug, record.pk])
-        links = [
-            f'<a href="{detail_url}" class="text-primary-600 hover:underline mr-2 text-sm">View</a>'
-        ]
+        view_link = format_html(
+            '<a href="{}" class="text-primary-600 hover:underline mr-2 text-sm">View</a>',
+            detail_url,
+        )
         if record.is_active:
             revoke_url = reverse("mdm:enrollment-token-revoke", args=[org_slug, record.pk])
-            links.append(
-                f'<button type="button" '
-                f'data-modal-target="revoke-token-modal" '
-                f'data-modal-toggle="revoke-token-modal" '
-                f'data-revoke-url="{revoke_url}" '
-                f'data-token-name="{record}" '
-                f'onclick="setRevokeTarget(this)" '
-                f'class="text-red-600 hover:underline text-sm">Revoke</button>'
+            revoke_button = format_html(
+                '<button type="button"'
+                ' data-modal-target="revoke-token-modal"'
+                ' data-modal-toggle="revoke-token-modal"'
+                ' data-revoke-url="{}"'
+                ' data-token-name="{}"'
+                ' onclick="setRevokeTarget(this)"'
+                ' class="text-red-600 hover:underline text-sm">Revoke</button>',
+                revoke_url,
+                str(record),
             )
-        return mark_safe("".join(links))
+            return format_html_join("", "{}", [(view_link,), (revoke_button,)])
+        return view_link
