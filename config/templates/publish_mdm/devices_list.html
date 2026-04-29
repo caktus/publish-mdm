@@ -73,6 +73,7 @@
                                 data-modal-toggle="qr-codes-modal"
                                 hx-get="{% url 'publish_mdm:check-mdm-license-limit' request.organization.slug %}"
                                 hx-target="#license-limit-messages"
+                                onclick="FlowbiteInstances.getInstance('Dropdown', 'enrollDropdownButton').hide()"
                                 class="group inline-flex w-full items-center rounded-md px-3 py-2 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-600 dark:hover:text-white">
                             Enroll Now
                         </button>

@@ -139,5 +139,4 @@ class EnrollmentTokenFactory(factory.django.DjangoModelFactory):
     )
     expires_at = factory.LazyFunction(lambda: now() + dt.timedelta(days=30))
     created_by = factory.SubFactory(UserFactory)
-    mdm = "Android Enterprise"
     allow_personal_usage = AllowPersonalUsage.ALLOW_PERSONAL_USAGE_UNSPECIFIED

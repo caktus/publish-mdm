@@ -54,18 +54,37 @@ class EnrollmentTokenTable(tables.Table):
 
     def render_status(self, record):
         if record.revoked_at:
-            return mark_safe('<span class="badge-gray">Revoked</span>')
+            return mark_safe(
+                '<span class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-300">Revoked</span>'
+            )
         if record.is_expired:
-            return mark_safe('<span class="badge-red">Expired</span>')
+            return mark_safe(
+                '<span class="inline-flex items-center rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900 dark:text-red-300">Expired</span>'
+            )
         if record.expires_at and record.expires_at < now() + dt.timedelta(days=7):
-            return mark_safe('<span class="badge-yellow">Expiring Soon</span>')
-        return mark_safe('<span class="badge-green">Active</span>')
+            return mark_safe(
+                '<span class="inline-flex items-center rounded bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300">Expiring Soon</span>'
+            )
+        return mark_safe(
+            '<span class="inline-flex items-center rounded bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-900 dark:text-green-300">Active</span>'
+        )
 
     def render_actions(self, record):
         org_slug = record.organization.slug
         detail_url = reverse("mdm:enrollment-token-detail", args=[org_slug, record.pk])
-        revoke_url = reverse("mdm:enrollment-token-revoke", args=[org_slug, record.pk])
-        links = [f'<a href="{detail_url}" class="text-primary-600 hover:underline mr-2">View</a>']
+        links = [
+            f'<a href="{detail_url}" class="text-primary-600 hover:underline mr-2 text-sm">View</a>'
+        ]
         if record.is_active:
-            links.append(f'<a href="{revoke_url}" class="text-red-600 hover:underline">Revoke</a>')
+            revoke_url = reverse("mdm:enrollment-token-revoke", args=[org_slug, record.pk])
+            token_name = str(record)
+            links.append(
+                f'<button type="button" '
+                f'data-modal-target="revoke-token-modal" '
+                f'data-modal-toggle="revoke-token-modal" '
+                f'data-revoke-url="{revoke_url}" '
+                f'data-token-name="{token_name}" '
+                f'onclick="setRevokeTarget(this)" '
+                f'class="text-red-600 hover:underline text-sm">Revoke</button>'
+            )
         return mark_safe("".join(links))

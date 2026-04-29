@@ -877,24 +877,6 @@ class FirmwareSnapshot(models.Model):
 
 EMM_DPC_PACKAGE = "com.google.android.apps.work.clouddpc"
 
-# Expiration duration choices (in seconds) — used at the form level.
-# Month-based durations use a fixed 30-day approximation, matching the AMAPI
-# `duration` field format (seconds). These are display-friendly choices rather
-# than exact calendar calculations.
-ENROLLMENT_TOKEN_DURATION_1_WEEK = 7 * 24 * 60 * 60  # 604 800 s
-ENROLLMENT_TOKEN_DURATION_1_MONTH = 30 * 24 * 60 * 60  # 2 592 000 s (~30 days)
-ENROLLMENT_TOKEN_DURATION_3_MONTHS = 3 * 30 * 24 * 60 * 60  # 7 776 000 s (~90 days)
-ENROLLMENT_TOKEN_DURATION_6_MONTHS = 6 * 30 * 24 * 60 * 60  # 15 552 000 s (~180 days)
-ENROLLMENT_TOKEN_DURATION_12_MONTHS = 12 * 30 * 24 * 60 * 60  # 31 104 000 s (~360 days)
-
-ENROLLMENT_TOKEN_DURATION_CHOICES = [
-    (ENROLLMENT_TOKEN_DURATION_1_WEEK, "1 week"),
-    (ENROLLMENT_TOKEN_DURATION_1_MONTH, "1 month"),
-    (ENROLLMENT_TOKEN_DURATION_3_MONTHS, "3 months"),
-    (ENROLLMENT_TOKEN_DURATION_6_MONTHS, "6 months"),
-    (ENROLLMENT_TOKEN_DURATION_12_MONTHS, "12 months"),
-]
-
 
 class AllowPersonalUsage(models.TextChoices):
     ALLOW_PERSONAL_USAGE_UNSPECIFIED = (
@@ -974,11 +956,6 @@ class EnrollmentToken(models.Model):
         blank=True,
         help_text="When this enrollment token was revoked. Null means not revoked.",
     )
-    mdm = models.CharField(
-        max_length=50,
-        blank=True,
-        help_text="The MDM type for this token (e.g. 'Android Enterprise').",
-    )
     allow_personal_usage = models.CharField(
         max_length=60,
         choices=AllowPersonalUsage,
@@ -993,7 +970,14 @@ class EnrollmentToken(models.Model):
         ordering = ("-created_at",)
 
     def __str__(self):
-        return self.label or self.token_resource_name or f"Enrollment token {self.pk}"
+        return self.label or self.name or f"Enrollment token {self.pk}"
+
+    @property
+    def name(self):
+        """Return the last path segment of token_resource_name."""
+        if self.token_resource_name:
+            return self.token_resource_name.split("/")[-1]
+        return ""
 
     @property
     def is_expired(self):

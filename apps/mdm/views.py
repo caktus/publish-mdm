@@ -464,15 +464,18 @@ def enrollment_token_create(request, organization_slug):
         form = EnrollmentTokenCreateForm(request.POST, organization=request.organization)
         if form.is_valid():
             fleet = form.cleaned_data["fleet"]
-            duration_seconds = int(form.cleaned_data["expiration"])
+            expiration_delta = form.cleaned_data["expiration"]
             allow_personal_usage = form.cleaned_data["allow_personal_usage"]
             label = form.cleaned_data.get("label", "")
             active_mdm = get_active_mdm_instance(organization=request.organization)
             if not active_mdm:
                 messages.error(request, "MDM is not configured for this organization.")
                 return redirect("mdm:enrollment-token-list", organization_slug)
+            base_time = now()
+            expires_at_approx = base_time + expiration_delta
+            duration_seconds = int((expires_at_approx - base_time).total_seconds())
             try:
-                token_data = active_mdm.create_long_lived_enrollment_token(
+                token_data = active_mdm.create_enrollment_token(
                     fleet=fleet,
                     duration_seconds=duration_seconds,
                     allow_personal_usage=allow_personal_usage,
@@ -496,11 +499,10 @@ def enrollment_token_create(request, organization_slug):
                 }
                 return render(request, "mdm/enrollment_token_create.html", context)
 
-            # Parse expiry timestamp from AMAPI response
-            expires_at = None
+            # Parse expiry timestamp from AMAPI response; fall back to approx local calculation
+            expires_at = expires_at_approx
             if expiry_str := token_data.get("expirationTimestamp"):
                 with contextlib.suppress(ValueError):
-                    # Parse errors safely ignored — token will still work without an expiry date
                     expires_at = dt.datetime.fromisoformat(expiry_str)
 
             token = EnrollmentToken(
@@ -511,7 +513,6 @@ def enrollment_token_create(request, organization_slug):
                 token_resource_name=token_data.get("name", ""),
                 expires_at=expires_at,
                 created_by=request.user,
-                mdm=request.organization.mdm,
                 allow_personal_usage=allow_personal_usage,
             )
             if qr_code_str := token_data.get("qrCode"):
@@ -560,38 +561,25 @@ def enrollment_token_detail(request, organization_slug, token_pk):
 
 
 @login_required
+@require_POST
 def enrollment_token_revoke(request, organization_slug, token_pk):
-    """Confirm and revoke an enrollment token."""
+    """Revoke an enrollment token (POST only — confirmation shown via modal)."""
     token = get_object_or_404(EnrollmentToken, pk=token_pk, organization=request.organization)
-    if request.method == "POST":
-        active_mdm = get_active_mdm_instance(organization=request.organization)
-        if active_mdm and token.token_resource_name:
-            try:
-                active_mdm.revoke_enrollment_token(token.token_resource_name)
-            except Exception:
-                logger.exception(
-                    "Failed to revoke enrollment token via MDM API",
-                    resource_name=token.token_resource_name,
-                )
-                messages.error(
-                    request,
-                    "Failed to revoke the token from the MDM. Please try again.",
-                )
-                return redirect("mdm:enrollment-token-detail", organization_slug, token.pk)
-        token.revoked_at = now()
-        token.save(update_fields=["revoked_at"])
-        messages.success(request, f"Enrollment token '{token}' has been revoked.")
-        return redirect("mdm:enrollment-token-list", organization_slug)
-    context = {
-        "token": token,
-        "breadcrumbs": Breadcrumbs.from_items(
-            request=request,
-            items=[
-                ("Devices", "publish_mdm:devices-list"),
-                ("Enrollment Tokens", "mdm:enrollment-token-list"),
-                (str(token), "mdm:enrollment-token-detail", [token.pk]),
-                ("Revoke", "mdm:enrollment-token-revoke", [token.pk]),
-            ],
-        ),
-    }
-    return render(request, "mdm/enrollment_token_revoke.html", context)
+    active_mdm = get_active_mdm_instance(organization=request.organization)
+    if active_mdm and token.token_resource_name:
+        try:
+            active_mdm.revoke_enrollment_token(token.token_resource_name)
+        except Exception:
+            logger.exception(
+                "Failed to revoke enrollment token via MDM API",
+                resource_name=token.token_resource_name,
+            )
+            messages.error(
+                request,
+                "Failed to revoke the token from the MDM. Please try again.",
+            )
+            return redirect("mdm:enrollment-token-detail", organization_slug, token.pk)
+    token.revoked_at = now()
+    token.save(update_fields=["revoked_at"])
+    messages.success(request, f"Enrollment token '{token}' has been revoked.")
+    return redirect("mdm:enrollment-token-list", organization_slug)

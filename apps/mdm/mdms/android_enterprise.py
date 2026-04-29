@@ -249,19 +249,6 @@ class AndroidEnterprise(MDM):
             )
         )
 
-    def create_long_lived_enrollment_token(
-        self,
-        fleet: Fleet,
-        duration_seconds: int,
-        allow_personal_usage: str = "ALLOW_PERSONAL_USAGE_UNSPECIFIED",
-    ):
-        """Create a long-lived enrollment token and return the AMAPI response dict."""
-        return self.create_enrollment_token(
-            fleet=fleet,
-            duration_seconds=duration_seconds,
-            allow_personal_usage=allow_personal_usage,
-        )
-
     def revoke_enrollment_token(self, resource_name: str) -> None:
         """Revoke (delete) an enrollment token by its AMAPI resource name.
 

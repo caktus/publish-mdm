@@ -1,18 +1,4 @@
-<script>
-function copyEnrollmentLink() {
-    var input = document.getElementById('enrollment-link');
-    var defaultMsg = document.getElementById('enroll-copy-default');
-    var successMsg = document.getElementById('enroll-copy-success');
-    navigator.clipboard.writeText(input.value).then(function() {
-        defaultMsg.classList.replace('inline-flex', 'hidden');
-        successMsg.classList.replace('hidden', 'inline-flex');
-        setTimeout(function() {
-            defaultMsg.classList.replace('hidden', 'inline-flex');
-            successMsg.classList.replace('inline-flex', 'hidden');
-        }, 2000);
-    }).catch(function() {});
-}
-</script>
+{% include "includes/copy_to_clipboard.html" %}
 <div class="loading hidden absolute text-center w-full top-[-11px]">
     <span class="px-3 py-1 text-xs font-medium leading-none text-center text-primary-700 bg-primary-200 rounded-full animate-pulse dark:bg-blue-900 dark:text-blue-200">loading...</span>
 </div>
@@ -88,7 +74,7 @@ function copyEnrollmentLink() {
                                readonly
                                class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2 pe-18 text-xs text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400">
                         <button type="button"
-                                onclick="copyEnrollmentLink()"
+                                onclick="copyLink('enrollment-link', 'enroll-copy-default', 'enroll-copy-success')"
                                 class="absolute end-1 top-1/2 inline-flex -translate-y-1/2 items-center rounded border border-gray-300 bg-white px-1.5 py-1 text-xs font-medium text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700 dark:focus:ring-gray-700">
                             <span id="enroll-copy-default" class="inline-flex items-center">
                                 <svg class="me-1 h-4 w-4"

@@ -6,15 +6,12 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.utils.timezone import now
 
+from apps.mdm.forms import (
+    ENROLLMENT_TOKEN_DURATION_CHOICES,
+)
 from apps.mdm.mdms import get_active_mdm_class
 from apps.mdm.models import (
     EMM_DPC_PACKAGE,
-    ENROLLMENT_TOKEN_DURATION_1_MONTH,
-    ENROLLMENT_TOKEN_DURATION_1_WEEK,
-    ENROLLMENT_TOKEN_DURATION_3_MONTHS,
-    ENROLLMENT_TOKEN_DURATION_6_MONTHS,
-    ENROLLMENT_TOKEN_DURATION_12_MONTHS,
-    ENROLLMENT_TOKEN_DURATION_CHOICES,
     AllowPersonalUsage,
     DeviceSnapshotApp,
     EnrollmentToken,
@@ -554,11 +551,11 @@ class TestEnrollmentTokenModel:
         assert str(token) == "My Token"
 
     def test_str_uses_token_resource_name_when_no_label(self):
-        """__str__ returns token_resource_name when label is empty."""
+        """__str__ returns the last segment of token_resource_name (name property) when label is empty."""
         token = EnrollmentTokenFactory(
             label="", token_resource_name="enterprises/test/enrollmentTokens/abc"
         )
-        assert str(token) == "enterprises/test/enrollmentTokens/abc"
+        assert str(token) == "abc"
 
     def test_str_uses_pk_when_no_label_or_resource_name(self):
         """__str__ returns 'Enrollment token <pk>' when both label and resource_name are empty."""
@@ -593,12 +590,12 @@ class TestEnrollmentTokenModel:
     def test_duration_choices_values(self):
         """ENROLLMENT_TOKEN_DURATION_CHOICES contains all five expected entries."""
         assert len(ENROLLMENT_TOKEN_DURATION_CHOICES) == 5
-        durations = [d for d, _ in ENROLLMENT_TOKEN_DURATION_CHOICES]
-        assert ENROLLMENT_TOKEN_DURATION_1_WEEK in durations
-        assert ENROLLMENT_TOKEN_DURATION_1_MONTH in durations
-        assert ENROLLMENT_TOKEN_DURATION_3_MONTHS in durations
-        assert ENROLLMENT_TOKEN_DURATION_6_MONTHS in durations
-        assert ENROLLMENT_TOKEN_DURATION_12_MONTHS in durations
+        keys = [k for k, _ in ENROLLMENT_TOKEN_DURATION_CHOICES]
+        assert "1_week" in keys
+        assert "1_month" in keys
+        assert "3_months" in keys
+        assert "6_months" in keys
+        assert "12_months" in keys
 
     def test_allow_personal_usage_choices(self):
         """AllowPersonalUsage has the four expected choices."""

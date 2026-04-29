@@ -1,6 +1,7 @@
 from typing import ClassVar
 
 import structlog
+from dateutil.relativedelta import relativedelta
 from django import forms
 from django.forms import (
     BaseInlineFormSet,
@@ -15,8 +16,6 @@ from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import CheckboxInput, Select, TextInput
 
 from .models import (
-    ENROLLMENT_TOKEN_DURATION_1_MONTH,
-    ENROLLMENT_TOKEN_DURATION_CHOICES,
     AllowPersonalUsage,
     FirmwareSnapshot,
     Fleet,
@@ -417,25 +416,39 @@ PolicyVariableFormSet = modelformset_factory(
 )
 
 
+ENROLLMENT_TOKEN_DURATION_CHOICES = [
+    ("1_week", "1 week"),
+    ("1_month", "1 month"),
+    ("3_months", "3 months"),
+    ("6_months", "6 months"),
+    ("12_months", "12 months"),
+]
+
+ENROLLMENT_TOKEN_DURATION_MAP = {
+    "1_week": relativedelta(weeks=1),
+    "1_month": relativedelta(months=1),
+    "3_months": relativedelta(months=3),
+    "6_months": relativedelta(months=6),
+    "12_months": relativedelta(months=12),
+}
+
+
 class EnrollmentTokenCreateForm(PlatformFormMixin, forms.Form):
     """Form for creating a new long-lived enrollment token."""
 
     fleet = forms.ModelChoiceField(
         queryset=Fleet.objects.none(),
         widget=Select,
-        help_text="The fleet that devices enrolling with this token will be assigned to.",
     )
     label = forms.CharField(
         required=False,
         max_length=255,
         widget=TextInput(attrs={"placeholder": "e.g. Field team batch 2025-Q1"}),
-        help_text="Optional label to identify this token.",
     )
     expiration = forms.ChoiceField(
         choices=ENROLLMENT_TOKEN_DURATION_CHOICES,
-        initial=ENROLLMENT_TOKEN_DURATION_1_MONTH,
+        initial="1_month",
         widget=Select,
-        help_text="How long this token will be valid.",
     )
     allow_personal_usage = forms.ChoiceField(
         choices=AllowPersonalUsage.choices,
@@ -447,3 +460,10 @@ class EnrollmentTokenCreateForm(PlatformFormMixin, forms.Form):
         super().__init__(*args, **kwargs)
         if organization:
             self.fields["fleet"].queryset = Fleet.objects.filter(organization=organization)
+
+    def clean_expiration(self):
+        value = self.cleaned_data.get("expiration")
+        delta = ENROLLMENT_TOKEN_DURATION_MAP.get(value)
+        if not delta:
+            raise forms.ValidationError("Invalid expiration choice.")
+        return delta

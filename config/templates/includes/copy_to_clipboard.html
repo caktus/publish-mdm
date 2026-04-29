@@ -1,0 +1,16 @@
+<script>
+function copyLink(inputId, defaultMsgId, successMsgId) {
+    var el = document.getElementById(inputId);
+    var text = el.value;
+    var defaultMsg = document.getElementById(defaultMsgId);
+    var successMsg = document.getElementById(successMsgId);
+    navigator.clipboard.writeText(text).then(function() {
+        defaultMsg.classList.replace('inline-flex', 'hidden');
+        successMsg.classList.replace('hidden', 'inline-flex');
+        setTimeout(function() {
+            defaultMsg.classList.replace('hidden', 'inline-flex');
+            successMsg.classList.replace('inline-flex', 'hidden');
+        }, 2000);
+    }).catch(function() {});
+}
+</script>
