@@ -409,7 +409,7 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
     confirm_form_class = DeviceConfirmImportForm
     export_form_class = ExportForm
     resource_classes = (DeviceResource,)
-    actions: ClassVar = ["wipe_and_soft_delete_devices", "restore_devices"]
+    actions: ClassVar = ["wipe_and_soft_delete_devices"]
 
     def save_model(self, request, obj, form, change):
         """Always push to MDM when saving a Device in the admin."""
@@ -451,11 +451,6 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
                 f"{failed} device(s) could not be wiped and deleted.",
                 level=messages.ERROR,
             )
-
-    @admin.action(description="Restore selected devices")
-    def restore_devices(self, request, queryset):
-        count = queryset.filter(deleted_at__isnull=False).restore()
-        self.message_user(request, f"{count} device(s) restored.")
 
     def get_import_data_kwargs(self, request, *args, **kwargs):
         """Prepare kwargs for import_data."""

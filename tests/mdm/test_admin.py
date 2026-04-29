@@ -892,25 +892,3 @@ class TestDeviceAdminWipeAndSoftDelete(TestAdmin):
         device.refresh_from_db()
         assert device.is_deleted is False
         assertContains(response, "1 device(s) could not be wiped and deleted.")
-
-    def test_restore_action(self, client, user, device):
-        """The restore_devices action clears deleted_at."""
-        device.soft_delete()
-        data = {
-            "action": "restore_devices",
-            "_selected_action": [device.pk],
-        }
-        response = client.post(reverse("admin:mdm_device_changelist"), data, follow=True)
-        assert response.status_code == 200
-        device.refresh_from_db()
-        assert device.is_deleted is False
-
-    def test_restore_action_skips_active_devices(self, client, user, device):
-        """Restore on an active (non-deleted) device reports 0 affected."""
-        data = {
-            "action": "restore_devices",
-            "_selected_action": [device.pk],
-        }
-        response = client.post(reverse("admin:mdm_device_changelist"), data, follow=True)
-        assert response.status_code == 200
-        assertContains(response, "0 device(s) restored")
