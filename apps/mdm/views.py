@@ -569,8 +569,17 @@ def enrollment_token_revoke(request, organization_slug, token_pk):
     if request.organization.mdm != "Android Enterprise":
         raise Http404
     token = get_object_or_404(EnrollmentToken, pk=token_pk, organization=request.organization)
+    error = None
     active_mdm = get_active_mdm_instance(organization=request.organization)
-    if active_mdm and token.token_resource_name:
+    if not active_mdm:
+        error = "The MDM is not configured, so the token could not be revoked in the MDM."
+    elif not token.token_resource_name:
+        logger.error(
+            "Enrollment token is missing resource name; cannot revoke via MDM API",
+            token_pk=token.pk,
+        )
+        error = "This token cannot be revoked in the MDM because it has no resource name."
+    else:
         try:
             active_mdm.revoke_enrollment_token(token.token_resource_name)
         except Exception:
@@ -578,11 +587,10 @@ def enrollment_token_revoke(request, organization_slug, token_pk):
                 "Failed to revoke enrollment token via MDM API",
                 resource_name=token.token_resource_name,
             )
-            messages.error(
-                request,
-                "Failed to revoke the token from the MDM. Please try again.",
-            )
-            return redirect("mdm:enrollment-token-detail", organization_slug, token.pk)
+            error = "Failed to revoke the token from the MDM. Please try again."
+    if error:
+        messages.error(request, error)
+        return redirect("mdm:enrollment-token-detail", organization_slug, token.pk)
     token.revoked_at = now()
     token.save(update_fields=["revoked_at"])
     messages.success(request, f"Enrollment token '{token}' has been revoked.")

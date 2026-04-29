@@ -1197,6 +1197,7 @@ class TestEnrollmentTokenViews(PolicyViewBase, TestAndroidEnterpriseOnly):
                 "value": "test-token-value",
                 "name": "enterprises/test/enrollmentTokens/abc123",
                 "expirationTimestamp": "2025-12-31T00:00:00Z",
+                "qrCode": '{"key": "value"}',
             },
         )
         response = client.post(
@@ -1212,6 +1213,7 @@ class TestEnrollmentTokenViews(PolicyViewBase, TestAndroidEnterpriseOnly):
         token = EnrollmentToken.objects.get(organization=organization, fleet=fleet)
         assert token.token_value == "test-token-value"
         assert token.token_resource_name == "enterprises/test/enrollmentTokens/abc123"
+        assert token.qr_code
         assertMessages(
             response,
             [Message(SUCCESS, f"Enrollment token '{token}' created successfully.")],
@@ -1288,6 +1290,54 @@ class TestEnrollmentTokenViews(PolicyViewBase, TestAndroidEnterpriseOnly):
         assertMessages(
             response,
             [Message(ERROR, "Failed to revoke the token from the MDM. Please try again.")],
+        )
+        assertRedirects(
+            response,
+            reverse("mdm:enrollment-token-detail", args=[token.organization.slug, token.pk]),
+        )
+
+    def test_revoke_unconfigured_mdm_redirects_with_error(
+        self, client, url_revoke, token, mocker, unconfigure_mdm
+    ):
+        """When the MDM is not configured during revoke an error message is shown
+        and the user is redirected back to the token detail page."""
+        mock_revoke = mocker.patch.object(AndroidEnterprise, "revoke_enrollment_token")
+        response = client.post(url_revoke)
+        mock_revoke.assert_not_called()
+        token.refresh_from_db()
+        assert token.revoked_at is None
+        assertMessages(
+            response,
+            [
+                Message(
+                    ERROR,
+                    "The MDM is not configured, so the token could not be revoked in the MDM.",
+                )
+            ],
+        )
+        assertRedirects(
+            response,
+            reverse("mdm:enrollment-token-detail", args=[token.organization.slug, token.pk]),
+        )
+
+    def test_revoke_no_resource_name_redirects_with_error(self, client, url_revoke, token, mocker):
+        """When a token's token_resource_name is not set during revoke an error message is shown
+        and the user is redirected back to the token detail page."""
+        token.token_resource_name = ""
+        token.save()
+        mock_revoke = mocker.patch.object(AndroidEnterprise, "revoke_enrollment_token")
+        response = client.post(url_revoke)
+        mock_revoke.assert_not_called()
+        token.refresh_from_db()
+        assert token.revoked_at is None
+        assertMessages(
+            response,
+            [
+                Message(
+                    ERROR,
+                    "This token cannot be revoked in the MDM because it has no resource name.",
+                )
+            ],
         )
         assertRedirects(
             response,
