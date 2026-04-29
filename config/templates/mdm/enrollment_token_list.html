@@ -69,9 +69,9 @@
     </div>
 </div>
 <script>
-    function setRevokeTarget(btn) {
-        document.getElementById('revoke-token-form').action = btn.dataset.revokeUrl;
-        document.getElementById('revoke-token-name').textContent = btn.dataset.tokenName;
+    function setRevokeTarget(button) {
+        document.getElementById('revoke-token-form').action = button.dataset.revokeUrl;
+        document.getElementById('revoke-token-name').textContent = button.dataset.tokenName;
     }
 </script>
 {% endfragment table_footer %}

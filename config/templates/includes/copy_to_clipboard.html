@@ -1,9 +1,9 @@
 <script>
 function copyLink(inputId, defaultMsgId, successMsgId) {
-    var el = document.getElementById(inputId);
-    var text = el.value;
-    var defaultMsg = document.getElementById(defaultMsgId);
-    var successMsg = document.getElementById(successMsgId);
+    const el = document.getElementById(inputId);
+    const text = el.value;
+    const defaultMsg = document.getElementById(defaultMsgId);
+    const successMsg = document.getElementById(successMsgId);
     navigator.clipboard.writeText(text).then(function() {
         defaultMsg.classList.replace('inline-flex', 'hidden');
         successMsg.classList.replace('hidden', 'inline-flex');

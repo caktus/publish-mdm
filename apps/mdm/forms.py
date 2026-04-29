@@ -465,5 +465,7 @@ class EnrollmentTokenCreateForm(PlatformFormMixin, forms.Form):
         value = self.cleaned_data.get("expiration")
         delta = ENROLLMENT_TOKEN_DURATION_MAP.get(value)
         if not delta:
+            # Defensive: ChoiceField already validates accepted values, but this
+            # guards against tampered submissions with an unknown key.
             raise forms.ValidationError("Invalid expiration choice.")
         return delta

@@ -473,6 +473,8 @@ def enrollment_token_create(request, organization_slug):
                 return redirect("mdm:enrollment-token-list", organization_slug)
             base_time = now()
             expires_at_approx = base_time + expiration_delta
+            # relativedelta has no total_seconds(); subtracting datetimes yields a timedelta
+            # that correctly accounts for variable-length months (e.g. February vs. March).
             duration_seconds = int((expires_at_approx - base_time).total_seconds())
             try:
                 token_data = active_mdm.create_enrollment_token(
