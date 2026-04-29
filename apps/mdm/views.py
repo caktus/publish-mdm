@@ -442,7 +442,7 @@ def enrollment_token_list(request, organization_slug):
     if request.organization.mdm != "Android Enterprise":
         raise Http404
     tokens = EnrollmentToken.objects.filter(organization=request.organization).select_related(
-        "fleet", "created_by"
+        "fleet", "created_by", "organization"
     )
     table = EnrollmentTokenTable(data=tokens)
     RequestConfig(request, paginate=False).configure(table)
@@ -543,7 +543,11 @@ def enrollment_token_detail(request, organization_slug, token_pk):
     """Show the detail page for an enrollment token."""
     if request.organization.mdm != "Android Enterprise":
         raise Http404
-    token = get_object_or_404(EnrollmentToken, pk=token_pk, organization=request.organization)
+    token = get_object_or_404(
+        EnrollmentToken.objects.select_related("fleet", "created_by"),
+        pk=token_pk,
+        organization=request.organization,
+    )
     context = {
         "token": token,
         "breadcrumbs": Breadcrumbs.from_items(
