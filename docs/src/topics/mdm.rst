@@ -139,3 +139,21 @@ Android EMM Enterprise Enrollment
 You can enroll an enterprise for your organization in the frontend (``/o/<organization-slug>/enterprise/setup/``)
 or in Admin (``/admin/publish_mdm/androidenterpriseaccount/``). In case an existing enrollment needs to be disposed,
 it's better to delete the whole organization and start over, rather than enrolling a new enterprise for the organization.
+
+Deleting Devices
+----------------
+
+Devices can be deleted from within the frontend (on the device detail page) or in Admin
+(``/admin/mdm/device/``) using the **"Wipe and soft-delete selected devices"** bulk action.
+
+When a device is deleted, Publish MDM sends a wipe command to the MDM service provider:
+
+- **Fully managed (company-owned) devices**: the MDM issues a **factory reset**
+  command, which wipes all data from the device and restores it to factory defaults.
+- **Work-profile (personally-owned) devices**: the MDM removes only the **work profile** from the device,
+  leaving the rest of the device's personal data intact.
+
+In both cases the device record is soft-deleted from the Publish MDM database. The actual
+factory reset or work-profile removal is applied by the MDM service provider and may not
+happen immediately — the time it takes for the device to carry out the command can vary
+depending on the device and network connectivity.
