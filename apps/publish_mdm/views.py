@@ -3,6 +3,7 @@ import json
 from urllib.parse import urlencode
 
 import structlog
+from allauth.socialaccount.views import ConnectionsView
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import logout
@@ -1526,3 +1527,16 @@ def enterprise_callback(request: HttpRequest, callback_token):
         )
 
     return redirect(redirect_to)
+
+
+class SocialAccountConnectionsView(ConnectionsView):
+    """Extend allauth ConnectionsView to add Android Enterprise organizations to context."""
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["android_enterprise_organizations"] = (
+            self.request.user.get_organizations()
+            .filter(mdm="Android Enterprise")
+            .select_related("android_enterprise")
+        )
+        return context
