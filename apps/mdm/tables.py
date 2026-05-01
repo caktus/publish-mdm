@@ -52,7 +52,7 @@ class EnrollmentTokenTable(tables.Table):
         empty_text = 'No enrollment tokens found. Click "Create Token" to create one.'
 
     def render_label(self, value, record):
-        """Return the label, falling back to str(record) when the label is blank."""
+        """Return the label, falling back to str(record) (token name or pk) when blank."""
         return value if value else str(record)
 
     def render_status(self, record):

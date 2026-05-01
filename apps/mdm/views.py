@@ -503,7 +503,7 @@ def enrollment_token_create(request, organization_slug):
                 return render(request, "mdm/enrollment_token_create.html", context)
 
             # Parse expiry timestamp from AMAPI response; fall back to approx local calculation.
-            # AMAPI returns ISO 8601 with a trailing "Z" (UTC); normalise to "+00:00" so
+            # AMAPI returns ISO 8601 with a trailing "Z" (UTC); normalize to "+00:00" so
             # fromisoformat() parses it correctly on Python < 3.11.
             token.expires_at = expires_at_approx
             if expiry_str := token_data.get("expirationTimestamp"):
