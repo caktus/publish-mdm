@@ -880,6 +880,12 @@ EMM_DPC_PACKAGE = "com.google.android.apps.work.clouddpc"
 
 
 class AllowPersonalUsage(models.TextChoices):
+    """
+    Controls whether personal usage is allowed on a device provisioned with this token.
+
+    Source: https://developers.google.com/android/management/reference/rest/v1/AllowPersonalUsage
+    """
+
     ALLOW_PERSONAL_USAGE_UNSPECIFIED = (
         "ALLOW_PERSONAL_USAGE_UNSPECIFIED",
         "Personal usage restriction is not specified",
