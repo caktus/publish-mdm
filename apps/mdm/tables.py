@@ -3,7 +3,7 @@ from typing import ClassVar
 import django_tables2 as tables
 from django.template.loader import render_to_string
 from django.urls import reverse
-from django.utils.html import format_html, format_html_join
+from django.utils.html import format_html
 
 from .models import EnrollmentToken, Policy
 
@@ -31,11 +31,11 @@ class PolicyTable(tables.Table):
 class EnrollmentTokenTable(tables.Table):
     """A table for listing EnrollmentTokens."""
 
-    label = tables.LinkColumn(
+    name = tables.LinkColumn(
         "mdm:enrollment-token-detail",
         args=[tables.A("organization__slug"), tables.A("pk")],
         attrs={"a": {"class": "text-primary-600 hover:underline"}},
-        verbose_name="Label",
+        verbose_name="Name",
     )
     fleet = tables.Column(verbose_name="Fleet", orderable=False)
     status = tables.Column(verbose_name="Status", orderable=False, empty_values=())
@@ -45,29 +45,25 @@ class EnrollmentTokenTable(tables.Table):
 
     class Meta:
         model = EnrollmentToken
-        fields = ("label", "fleet", "status", "expires_at", "created_at", "actions")
+        fields = ("name", "fleet", "status", "expires_at", "created_at", "actions")
         template_name = "patterns/tables/table.html"
         attrs: ClassVar = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
         orderable = False
         empty_text = 'No enrollment tokens found. Click "Create Token" to create one.'
 
-    def render_label(self, value, record):
-        """Return the label, falling back to str(record) (token name or pk) when blank."""
-        return value if value else str(record)
+    def render_name(self, record):
+        """Return the string representation of the EnrollmentToken object."""
+        return str(record)
 
     def render_status(self, record):
         return render_to_string("includes/enrollment_token_status_badge.html", {"token": record})
 
     def render_actions(self, record):
-        org_slug = record.organization.slug
-        detail_url = reverse("mdm:enrollment-token-detail", args=[org_slug, record.pk])
-        view_link = format_html(
-            '<a href="{}" class="text-primary-600 hover:underline mr-2 text-sm">View</a>',
-            detail_url,
-        )
         if record.is_active:
-            revoke_url = reverse("mdm:enrollment-token-revoke", args=[org_slug, record.pk])
-            revoke_button = format_html(
+            revoke_url = reverse(
+                "mdm:enrollment-token-revoke", args=[record.organization.slug, record.pk]
+            )
+            return format_html(
                 '<button type="button"'
                 ' data-modal-target="revoke-token-modal"'
                 ' data-modal-toggle="revoke-token-modal"'
@@ -78,5 +74,4 @@ class EnrollmentTokenTable(tables.Table):
                 revoke_url,
                 str(record),
             )
-            return format_html_join("", "{}", [(view_link,), (revoke_button,)])
-        return view_link
+        return ""
