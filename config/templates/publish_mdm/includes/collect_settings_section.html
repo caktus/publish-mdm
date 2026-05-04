@@ -143,6 +143,59 @@
             </div>
         </div>
         {# ------------------------------------------------------------------ #}
+        {# Server settings #}
+        {# ------------------------------------------------------------------ #}
+        <h2 id="collect-heading-server">
+            <button type="button"
+                    class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                    data-accordion-target="#collect-body-server"
+                    aria-expanded="false"
+                    aria-controls="collect-body-server">
+                <span>Server Settings</span>
+                <svg data-accordion-icon
+                     class="w-4 h-4 shrink-0"
+                     aria-hidden="true"
+                     xmlns="http://www.w3.org/2000/svg"
+                     fill="none"
+                     viewBox="0 0 24 24">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
+                </svg>
+            </button>
+        </h2>
+        <div id="collect-body-server"
+             class="hidden"
+             aria-labelledby="collect-heading-server">
+            <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        {{ form.collect_general_protocol.label_tag }}
+                        {{ form.collect_general_protocol }}
+                        {{ form.collect_general_protocol.errors }}
+                    </div>
+                    <div>
+                        {{ form.collect_general_password.label_tag }}
+                        {{ form.collect_general_password }}
+                        {{ form.collect_general_password.errors }}
+                    </div>
+                    <div>
+                        {{ form.collect_general_formlist_url.label_tag }}
+                        {{ form.collect_general_formlist_url }}
+                        {{ form.collect_general_formlist_url.errors }}
+                    </div>
+                    <div>
+                        {{ form.collect_general_submission_url.label_tag }}
+                        {{ form.collect_general_submission_url }}
+                        {{ form.collect_general_submission_url.errors }}
+                    </div>
+                    <div>
+                        {{ form.collect_general_google_sheets_url.label_tag }}
+                        {{ form.collect_general_google_sheets_url }}
+                        {{ form.collect_general_google_sheets_url.errors }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {# ------------------------------------------------------------------ #}
         {# Form metadata #}
         {# ------------------------------------------------------------------ #}
         <h2 id="collect-heading-metadata">
@@ -182,6 +235,64 @@
                         {{ form.collect_general_metadata_email.label_tag }}
                         {{ form.collect_general_metadata_email }}
                         {{ form.collect_general_metadata_email.errors }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {# ------------------------------------------------------------------ #}
+        {# Maps settings #}
+        {# ------------------------------------------------------------------ #}
+        <h2 id="collect-heading-maps">
+            <button type="button"
+                    class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                    data-accordion-target="#collect-body-maps"
+                    aria-expanded="false"
+                    aria-controls="collect-body-maps">
+                <span>Maps</span>
+                <svg data-accordion-icon
+                     class="w-4 h-4 shrink-0"
+                     aria-hidden="true"
+                     xmlns="http://www.w3.org/2000/svg"
+                     fill="none"
+                     viewBox="0 0 24 24">
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
+                </svg>
+            </button>
+        </h2>
+        <div id="collect-body-maps"
+             class="hidden"
+             aria-labelledby="collect-heading-maps">
+            <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        {{ form.collect_general_basemap_source.label_tag }}
+                        {{ form.collect_general_basemap_source }}
+                        {{ form.collect_general_basemap_source.errors }}
+                    </div>
+                    <div>
+                        {{ form.collect_general_google_map_style.label_tag }}
+                        {{ form.collect_general_google_map_style }}
+                        {{ form.collect_general_google_map_style.errors }}
+                    </div>
+                    <div>
+                        {{ form.collect_general_mapbox_map_style.label_tag }}
+                        {{ form.collect_general_mapbox_map_style }}
+                        {{ form.collect_general_mapbox_map_style.errors }}
+                    </div>
+                    <div>
+                        {{ form.collect_general_usgs_map_style.label_tag }}
+                        {{ form.collect_general_usgs_map_style }}
+                        {{ form.collect_general_usgs_map_style.errors }}
+                    </div>
+                    <div>
+                        {{ form.collect_general_carto_map_style.label_tag }}
+                        {{ form.collect_general_carto_map_style }}
+                        {{ form.collect_general_carto_map_style.errors }}
+                    </div>
+                    <div>
+                        {{ form.collect_general_reference_layer.label_tag }}
+                        {{ form.collect_general_reference_layer }}
+                        {{ form.collect_general_reference_layer.errors }}
                     </div>
                 </div>
             </div>
