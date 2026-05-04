@@ -9,6 +9,7 @@ from django import forms
 from django.conf import settings
 from django.http import QueryDict
 from django.urls import reverse_lazy
+from django.utils.html import format_html
 from import_export import forms as import_export_forms
 from import_export.tmp_storages import MediaStorage
 from invitations.adapters import get_invitations_adapter
@@ -460,6 +461,19 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
             "template_variables"
         ].queryset = self.instance.organization.template_variables.all()
         self.fields["central_server"].queryset = self.instance.organization.central_servers.all()
+        # Append "Sets <code>section.key</code>" to help_text for every collect_* field.
+        # The field name pattern collect_{section}_{key} maps directly to the settings key
+        # section.key used by CollectSettingsSerializer (e.g. collect_project_color → project.color).
+        for field_name, field in self.fields.items():
+            if not field_name.startswith("collect_"):
+                continue
+            section, key = field_name.removeprefix("collect_").split("_", 1)
+            settings_key = f"{section}.{key}"
+            sets_text = format_html("Sets <code>{}</code>", settings_key)
+            if field.help_text:
+                field.help_text = format_html("{} {}", field.help_text, sets_text)
+            else:
+                field.help_text = sets_text
 
 
 class ProjectTemplateVariableForm(PlatformFormMixin, forms.ModelForm):

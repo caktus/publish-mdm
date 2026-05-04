@@ -52,10 +52,29 @@ def toggle_field(field, tooltip_id=""):
         {% toggle_field form.vpn_lockdown %}
         {% toggle_field form.kiosk_custom_launcher_enabled tooltip_id="tooltip-kiosk-launcher" %}
 
+    When ``tooltip_id`` is omitted and the field has ``help_text``, a tooltip is
+    automatically generated using the field name as the id and the help_text as
+    the content.  When ``tooltip_id`` is explicitly provided the caller is
+    responsible for supplying the matching tooltip ``<div>`` in the template.
+
     Using a tag (not {% include %}) avoids template_rendered signal overhead
     and the associated context-copy recursion in Django's test client.
     """
     checked = "checked" if field.value() else ""
+
+    # Auto-generate a tooltip from help_text when no explicit tooltip_id is given.
+    auto_tooltip_html = ""
+    if not tooltip_id and field.help_text:
+        tooltip_id = "tooltip-" + field.html_name.replace("_", "-")
+        auto_tooltip_html = format_html(
+            '<div id="{}" role="tooltip" class="tooltip-container">'
+            "{}"
+            '<div class="tooltip-arrow" data-popper-arrow></div>'
+            "</div>",
+            tooltip_id,
+            field.help_text,
+        )
+
     icon_html = (
         format_html(
             '<span data-tooltip-target="{}" data-tooltip-style="light" class="tooltip-icon">'
@@ -74,6 +93,7 @@ def toggle_field(field, tooltip_id=""):
         '<span class="text-sm font-medium text-gray-900 dark:text-white">{}</span>'
         "{}"
         "</label>"
+        "{}"
         "{}",
         field.id_for_label,
         field.html_name,
@@ -83,4 +103,5 @@ def toggle_field(field, tooltip_id=""):
         field.label,
         icon_html,
         errors_html,
+        auto_tooltip_html,
     )
