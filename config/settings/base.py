@@ -422,10 +422,6 @@ ODK_CENTRAL_PASSWORD = os.getenv("ODK_CENTRAL_PASSWORD")
 # django-import-export
 IMPORT_EXPORT_FORMATS = [base_formats.CSV, XLSX]
 
-# The default language for generating App User QR codes. Can be overriden for
-# a Project using the app_language field.
-DEFAULT_APP_LANGUAGE = "en"
-
 # To address Django deprecation warning for URLField
 FORMS_URLFIELD_ASSUME_HTTPS = True
 

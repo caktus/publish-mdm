@@ -218,8 +218,9 @@ class TemplateVariable(AbstractBaseModel):
 class Project(AbstractBaseModel):
     """A project in ODK Central."""
 
-    # APP_LANGUAGE_CHOICES: supported values for the collect_general_app_language
-    # field. See https://docs.getodk.org/collect-import-export/
+    # Choices for various ODK Collect settings.
+    # https://docs.getodk.org/collect-import-export/#list-of-keys-for-all-settings
+    # https://github.com/getodk/collect/blob/master/settings/src/main/resources/client-settings.schema.json
     APP_LANGUAGE_CHOICES: ClassVar = list(
         zip(
             *[
@@ -388,13 +389,6 @@ class Project(AbstractBaseModel):
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name="projects"
     )
-    collect_general_app_language = models.CharField(
-        max_length=10,
-        choices=APP_LANGUAGE_CHOICES,
-        default="en",
-        verbose_name="App language",
-        help_text="Language used in the ODK Collect UI.",
-    )
 
     # ---------------------------------------------------------------------------
     # ODK Collect settings — individual fields so each can have its own default,
@@ -462,6 +456,13 @@ class Project(AbstractBaseModel):
     )
 
     # General — user interface
+    collect_general_app_language = models.CharField(
+        max_length=10,
+        choices=APP_LANGUAGE_CHOICES,
+        default="en",
+        verbose_name="App language",
+        help_text="Language used in the ODK Collect UI.",
+    )
     collect_general_app_theme = models.CharField(
         max_length=20,
         choices=APP_THEME_CHOICES,

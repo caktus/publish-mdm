@@ -2,6 +2,17 @@
 {# ODK Collect Settings — top-level heading with Flowbite accordion sub-sections #}
 <div class="mb-6">
     <h3 class="font-semibold text-gray-900 dark:text-white mb-3">ODK Collect Settings</h3>
+    <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+        See the
+        <a class="underline"
+           href="https://docs.getodk.org/collect-import-export/#list-of-keys-for-all-settings"
+           target="_blank"
+           rel="noopener noreferrer">ODK Collect docs</a>
+        for a full list of available settings.
+        <br>
+        The following fields are set automatically and cannot be set here:
+        <code>general.server_url</code>, <code>general.username</code>, <code>project.name</code>, <code>admin.admin_pw</code>.
+    </p>
     <div id="collect-settings-accordion"
          data-accordion="collapse"
          data-active-classes="bg-gray-50 dark:bg-gray-800"
@@ -12,7 +23,7 @@
         {# ------------------------------------------------------------------ #}
         <h2 id="collect-heading-project-display">
             <button type="button"
-                    class="flex items-center justify-between w-full p-5 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                    class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
                     data-accordion-target="#collect-body-project-display"
                     aria-expanded="true"
                     aria-controls="collect-body-project-display">
@@ -29,9 +40,9 @@
         </h2>
         <div id="collect-body-project-display"
              aria-labelledby="collect-heading-project-display">
-            <div class="p-5 border-b border-gray-200 dark:border-gray-700">
+            <div class="p-3 border-b border-gray-200 dark:border-gray-700">
                 <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">Appearance of this project in ODK Collect's project list.</p>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         {{ form.collect_project_color.label_tag }}
                         {{ form.collect_project_color }}
@@ -50,7 +61,7 @@
         {# ------------------------------------------------------------------ #}
         <h2 id="collect-heading-general">
             <button type="button"
-                    class="flex items-center justify-between w-full p-5 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                    class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
                     data-accordion-target="#collect-body-general"
                     aria-expanded="false"
                     aria-controls="collect-body-general">
@@ -68,8 +79,8 @@
         <div id="collect-body-general"
              class="hidden"
              aria-labelledby="collect-heading-general">
-            <div class="p-5 border-b border-gray-200 dark:border-gray-700">
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         {{ form.collect_general_app_language.label_tag }}
                         {{ form.collect_general_app_language }}
@@ -136,7 +147,7 @@
         {# ------------------------------------------------------------------ #}
         <h2 id="collect-heading-metadata">
             <button type="button"
-                    class="flex items-center justify-between w-full p-5 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                    class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
                     data-accordion-target="#collect-body-metadata"
                     aria-expanded="false"
                     aria-controls="collect-body-metadata">
@@ -154,9 +165,9 @@
         <div id="collect-body-metadata"
              class="hidden"
              aria-labelledby="collect-heading-metadata">
-            <div class="p-5 border-b border-gray-200 dark:border-gray-700">
+            <div class="p-3 border-b border-gray-200 dark:border-gray-700">
                 <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">Automatically filled into form metadata fields.</p>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                         {{ form.collect_general_metadata_username.label_tag }}
                         {{ form.collect_general_metadata_username }}
@@ -180,7 +191,7 @@
         {# ------------------------------------------------------------------ #}
         <h2 id="collect-heading-admin-main-menu">
             <button type="button"
-                    class="flex items-center justify-between w-full p-5 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                    class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
                     data-accordion-target="#collect-body-admin-main-menu"
                     aria-expanded="false"
                     aria-controls="collect-body-admin-main-menu">
@@ -198,9 +209,9 @@
         <div id="collect-body-admin-main-menu"
              class="hidden"
              aria-labelledby="collect-heading-admin-main-menu">
-            <div class="p-5 border-b border-gray-200 dark:border-gray-700">
+            <div class="p-3 border-b border-gray-200 dark:border-gray-700">
                 <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">Controls which main-menu items are visible to app users.</p>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>{% toggle_field form.collect_admin_edit_saved %}</div>
                     <div>{% toggle_field form.collect_admin_send_finalized %}</div>
                     <div>{% toggle_field form.collect_admin_view_sent %}</div>
@@ -215,7 +226,7 @@
         {# ------------------------------------------------------------------ #}
         <h2 id="collect-heading-admin-project-settings">
             <button type="button"
-                    class="flex items-center justify-between w-full p-5 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                    class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
                     data-accordion-target="#collect-body-admin-project-settings"
                     aria-expanded="false"
                     aria-controls="collect-body-admin-project-settings">
@@ -233,11 +244,11 @@
         <div id="collect-body-admin-project-settings"
              class="hidden"
              aria-labelledby="collect-heading-admin-project-settings">
-            <div class="p-5 border-b border-gray-200 dark:border-gray-700">
+            <div class="p-3 border-b border-gray-200 dark:border-gray-700">
                 <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
                     Controls which Project Settings options are accessible to app users.
                 </p>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>{% toggle_field form.collect_admin_change_server %}</div>
                     <div>{% toggle_field form.collect_admin_change_project_display %}</div>
                     <div>{% toggle_field form.collect_admin_change_app_theme %}</div>
@@ -251,7 +262,7 @@
         {# ------------------------------------------------------------------ #}
         <h2 id="collect-heading-admin-form-management">
             <button type="button"
-                    class="flex items-center justify-between w-full p-5 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                    class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
                     data-accordion-target="#collect-body-admin-form-management"
                     aria-expanded="false"
                     aria-controls="collect-body-admin-form-management">
@@ -269,11 +280,11 @@
         <div id="collect-body-admin-form-management"
              class="hidden"
              aria-labelledby="collect-heading-admin-form-management">
-            <div class="p-5 border-b border-gray-200 dark:border-gray-700">
+            <div class="p-3 border-b border-gray-200 dark:border-gray-700">
                 <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
                     Controls which form management options are accessible to app users.
                 </p>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>{% toggle_field form.collect_admin_form_update_mode %}</div>
                     <div>{% toggle_field form.collect_admin_periodic_form_updates_check %}</div>
                     <div>{% toggle_field form.collect_admin_automatic_update %}</div>
@@ -299,7 +310,7 @@
         {# ------------------------------------------------------------------ #}
         <h2 id="collect-heading-admin-form-entry">
             <button type="button"
-                    class="flex items-center justify-between w-full p-5 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                    class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
                     data-accordion-target="#collect-body-admin-form-entry"
                     aria-expanded="false"
                     aria-controls="collect-body-admin-form-entry">
@@ -317,9 +328,9 @@
         <div id="collect-body-admin-form-entry"
              class="hidden"
              aria-labelledby="collect-heading-admin-form-entry">
-            <div class="p-5 border-b border-gray-200 dark:border-gray-700">
+            <div class="p-3 border-b border-gray-200 dark:border-gray-700">
                 <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">Controls app-user capabilities while filling in a form.</p>
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>{% toggle_field form.collect_admin_moving_backwards %}</div>
                     <div>{% toggle_field form.collect_admin_access_settings %}</div>
                     <div>{% toggle_field form.collect_admin_change_language %}</div>
@@ -331,14 +342,4 @@
             </div>
         </div>
     </div>
-    <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
-        See the
-        <a class="underline"
-           href="https://docs.getodk.org/collect-import-export/#list-of-keys-for-all-settings"
-           target="_blank"
-           rel="noopener noreferrer">ODK Collect import/export docs</a>
-        for a full list of available settings.
-        The following fields are managed automatically and cannot be set here:
-        <code>server_url</code>, <code>username</code>, <code>project.name</code>.
-    </p>
 </div>
