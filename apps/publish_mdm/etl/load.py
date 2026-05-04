@@ -77,9 +77,8 @@ def publish_form_template(event: PublishTemplateEvent, user: User, send_message:
         )
         # Create a version for each app user locally
         app_users = form_template.get_app_users(names=event.app_users)
-        attachments = {i.name: i.file for i in form_template.project.attachments.all()}
         app_user_versions = template_version.create_app_user_versions(
-            app_users=app_users, send_message=send_message, attachments=attachments
+            app_users=app_users, send_message=send_message
         )
         # Get or create app users in ODK Central
         central_app_user_assignments = client.publish_mdm.get_or_create_app_users(
@@ -91,17 +90,37 @@ def publish_form_template(event: PublishTemplateEvent, user: User, send_message:
             central_app_user_assignments[app_user_version.app_user.name].xml_form_ids.append(
                 app_user_version.xml_form_id
             )
-        # At this point `attachments` will contain only the attachments detected
-        # in the form. Get local absolute paths for them
-        with attachment_paths_for_upload(attachments) as attachment_paths:
-            # Publish each app user form version to ODK Central
+        # Create draft forms for all app user versions and determine the form's expected
+        # attachments
+        draft_attachments_by_form: dict[str, list] = {}
+        needed_attachment_names: set[str] = set()
+        for app_user_version in app_user_versions:
+            xml_form_id = app_user_version.app_user_form_template.xml_form_id
+            client.publish_mdm.create_or_update_form(
+                xml_form_id=xml_form_id,
+                definition=app_user_version.file.read(),
+            )
+            draft_attachments = client.publish_mdm.list_form_attachments(xml_form_id=xml_form_id)
+            draft_attachments_by_form[xml_form_id] = draft_attachments
+            needed_attachment_names |= {
+                att.name for att in draft_attachments if not att.datasetExists
+            }
+        attachments = {
+            i.name: i.file
+            for i in form_template.project.attachments.filter(name__in=needed_attachment_names)
+        }
+        # Sync attachments for each draft so that attachments in Central match the
+        # project's attachments, then publish the draft
+        with attachment_paths_for_upload(attachments) as attachment_map:
             for app_user_version in app_user_versions:
-                form = client.publish_mdm.create_or_update_form(
-                    xml_form_id=app_user_version.app_user_form_template.xml_form_id,
-                    definition=app_user_version.file.read(),
-                    attachments=attachment_paths,
+                xml_form_id = app_user_version.app_user_form_template.xml_form_id
+                client.publish_mdm.sync_form_attachments(
+                    xml_form_id=xml_form_id,
+                    attachment_map=attachment_map,
+                    draft_attachments=draft_attachments_by_form[xml_form_id],
                 )
-                send_message(f"Published form: {form.xmlFormId}")
+                client.publish_mdm.publish_form_draft(xml_form_id=xml_form_id)
+                send_message(f"Published form: {xml_form_id}")
         # Create or update the form assignments on the server
         for assignment in central_app_user_assignments.values():
             client.publish_mdm.assign_app_users_forms(app_users=[assignment])
@@ -240,19 +259,23 @@ def attachment_paths_for_upload(attachments: dict[str, SimpleUploadedFile]):
     should be the values from the `ProjectAttachment.file` field. If an external
     storage is being used (like S3), the attachments will be downloaded and saved
     in temp files.
+
+    Yields a dict mapping each attachment's canonical name to its local file path.
+    Using the canonical name separately from the path ensures the correct filename
+    is used when uploading (e.g. when local storage uses a different filename on disk).
     """
     if not isinstance(storages["default"], BaseStorage):
         # Just return the paths if the default storage is a local filesystem
-        yield [file.path for file in attachments.values()]
+        yield {name: Path(file.path) for name, file in attachments.items()}
     else:
         with tempfile.TemporaryDirectory() as tmpdirname:
             temp_dir = Path(tmpdirname)
-            paths = []
+            paths = {}
             for name, file in attachments.items():
                 path = temp_dir / name
                 logger.debug("Temporarily saving attachment for upload", path=path)
                 path.write_bytes(file.read())
-                paths.append(path)
+                paths[name] = path
             yield paths
 
 

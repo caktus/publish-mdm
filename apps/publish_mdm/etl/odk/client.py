@@ -6,7 +6,7 @@ from pyodk._utils import config
 from pyodk.client import Client, Session
 from pyodk.errors import PyODKError
 
-from .publish import PublishService
+from .publish import PublishMDMFormService, PublishService
 
 logger = structlog.getLogger(__name__)
 
@@ -91,6 +91,12 @@ class PublishMDMClient(Client):
                     allowed_methods=adapter.max_retries.allowed_methods,
                 )
         super().__init__(config_path=str(config_path), session=session, project_id=project_id)
+        # Replace the default FormService with PublishMDMFormService so drafts are created
+        # without auto-publishing, allowing callers to clean up stale attachments first.
+        self.forms = PublishMDMFormService(
+            session=self.session,
+            default_project_id=self.project_id,
+        )
         # Update the stub config with the provided authentication details
         self.config: config.Config = config.objectify_config(
             {
