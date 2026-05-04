@@ -1,45 +1,49 @@
 <header class="flex flex-col antialiased fixed top-0 z-50 w-full">
     <nav class="bg-gray-50 px-4 lg:px-6 py-2.5 dark:bg-gray-900 order-1 border-b border-gray-200">
         <div class="flex justify-between items-center">
-            <div class="flex justify-start items-center">
-                <a href="{% if request.organization %}{{ request.organization.get_absolute_url }}{% else %}{% url 'home' %}{% endif %}"
-                   class="flex mr-6">
-                    <div title="Publish MDM"
-                         class="mr-3 shadow-md flex items-center p-2 rounded-full ring-2 ring-primary-300 stroke-primary-700 fill-primary-400 stroke-[1.5] border-primary-400 bg-gradient-to-r from-primary-100 via-primary-200 to-primary-200">
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                             class="w-6 h-6"
-                             viewBox="0 0 24 24"
-                             stroke-linecap="round"
-                             stroke-linejoin="round">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                        </svg>
-                    </div>
-                    <span class="self-center text-2xl font-semibold whitespace-nowrap dark:text-white text-primary">
+            <a href="{% if request.organization %}{{ request.organization.get_absolute_url }}{% else %}{% url 'home' %}{% endif %}"
+               class="flex items-center min-w-0 mr-4">
+                <div title="Publish MDM"
+                     class="flex-shrink-0 mr-3 shadow-md flex items-center p-2 rounded-full ring-2 ring-primary-300 stroke-primary-700 fill-primary-400 stroke-[1.5] border-primary-400 bg-gradient-to-r from-primary-100 via-primary-200 to-primary-200">
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                         class="w-6 h-6"
+                         viewBox="0 0 24 24"
+                         stroke-linecap="round"
+                         stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    </svg>
+                </div>
+                <div class="min-w-0">
+                    <span class="text-2xl font-semibold whitespace-nowrap dark:text-white text-primary">
                         Publish MDM
-                        <small class="ms-2 font-semibold text-gray-500 dark:text-gray-400">
-                            {% if request.organization %}{{ request.organization.name }}{% endif %}
-                        </small>
+                        {% if request.organization %}
+                            <small class="hidden lg:inline ms-2 font-semibold text-gray-500 dark:text-gray-400">{{ request.organization.name }}</small>
+                        {% endif %}
                     </span>
-                </a>
-                {% if request.user.is_authenticated %}
-                    <button data-drawer-target="sidebar-team-switch"
-                            data-drawer-toggle="sidebar-team-switch"
-                            aria-controls="sidebar-team-switch"
-                            type="button"
-                            class="inline-flex items-center p-2 text-sm text-gray-500 rounded-lg lg:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600">
-                        <span class="sr-only">Open sidebar</span>
-                        <svg class="w-6 h-6"
-                             aria-hidden="true"
-                             fill="currentColor"
-                             viewBox="0 0 20 20"
-                             xmlns="http://www.w3.org/2000/svg">
-                            <path clip-rule="evenodd" fill-rule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z">
-                            </path>
-                        </svg>
-                    </button>
-                {% endif %}
-            </div>
-            {% if not request.user.is_authenticated %}
+                    {% if request.organization %}
+                        <div class="lg:hidden text-sm font-semibold text-gray-500 dark:text-gray-400 truncate">
+                            {{ request.organization.name }}
+                        </div>
+                    {% endif %}
+                </div>
+            </a>
+            {% if request.user.is_authenticated %}
+                <button data-drawer-target="sidebar-team-switch"
+                        data-drawer-toggle="sidebar-team-switch"
+                        aria-controls="sidebar-team-switch"
+                        type="button"
+                        class="flex-shrink-0 inline-flex items-center p-2 text-sm text-gray-500 rounded-lg lg:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600">
+                    <span class="sr-only">Open sidebar</span>
+                    <svg class="w-6 h-6"
+                         aria-hidden="true"
+                         fill="currentColor"
+                         viewBox="0 0 20 20"
+                         xmlns="http://www.w3.org/2000/svg">
+                        <path clip-rule="evenodd" fill-rule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z">
+                        </path>
+                    </svg>
+                </button>
+            {% else %}
                 <div class="flex items-center">
                     <a href="{% url 'account_login' %}"
                        class="py-2 px-4 text-sm font-medium text-gray-900 hover:text-primary-600 dark:text-white dark:hover:text-primary-500">Log in</a>
