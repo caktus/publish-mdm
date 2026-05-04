@@ -8,7 +8,6 @@ from requests.sessions import Session
 
 from apps.mdm.mdms import MDMAPIError, TinyMDM
 from apps.mdm.models import Device
-from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from tests.mdm import TestTinyMDMOnly
 from tests.publish_mdm.factories import AppUserFactory
 
@@ -98,7 +97,7 @@ class TestTinyMDM(TestTinyMDMOnly):
             AppUserFactory(
                 name=device.app_user_name,
                 project=fleet.project,
-                qr_code_data=DEFAULT_COLLECT_SETTINGS,
+                qr_code_data={},
             )
         else:
             device.app_user_name = ""

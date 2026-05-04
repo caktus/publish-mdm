@@ -72,17 +72,168 @@ class ProjectTemplateVariableInline(admin.TabularInline):
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ("name", "central_id", "central_server", "organization", "app_language")
+    list_display = (
+        "name",
+        "central_id",
+        "central_server",
+        "organization",
+        "collect_general_app_language",
+    )
     search_fields = ("name", "central_id")
     list_filter = ("central_server",)
     filter_horizontal = ("template_variables",)
     inlines = (ProjectAttachmentInline, ProjectTemplateVariableInline)
+    fieldsets = (
+        (
+            None,
+            {
+                "fields": (
+                    "name",
+                    "central_id",
+                    "central_server",
+                    "organization",
+                    "template_variables",
+                )
+            },
+        ),
+        (
+            "ODK Collect: Project Display",
+            {
+                "fields": ("collect_project_color", "collect_project_icon"),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "ODK Collect: General Settings",
+            {
+                "fields": (
+                    "collect_general_app_language",
+                    "collect_general_font_size",
+                    "collect_general_app_theme",
+                    "collect_general_navigation",
+                    "collect_general_form_update_mode",
+                    "collect_general_periodic_form_updates_check",
+                    "collect_general_automatic_update",
+                    "collect_general_hide_old_form_versions",
+                    "collect_general_autosend",
+                    "collect_general_delete_send",
+                    "collect_general_default_completed",
+                    "collect_general_constraint_behavior",
+                    "collect_general_high_resolution",
+                    "collect_general_image_size",
+                    "collect_general_external_app_recording",
+                    "collect_general_guidance_hint",
+                    "collect_general_instance_sync",
+                    "collect_general_analytics",
+                    "collect_general_metadata_username",
+                    "collect_general_metadata_phonenumber",
+                    "collect_general_metadata_email",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "ODK Collect: General — Server",
+            {
+                "fields": (
+                    "collect_general_protocol",
+                    "collect_general_password",
+                    "collect_general_formlist_url",
+                    "collect_general_submission_url",
+                    "collect_general_google_sheets_url",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "ODK Collect: General — Maps",
+            {
+                "fields": (
+                    "collect_general_basemap_source",
+                    "collect_general_google_map_style",
+                    "collect_general_mapbox_map_style",
+                    "collect_general_usgs_map_style",
+                    "collect_general_carto_map_style",
+                    "collect_general_reference_layer",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "ODK Collect: Admin — Main Menu",
+            {
+                "fields": (
+                    "collect_admin_edit_saved",
+                    "collect_admin_send_finalized",
+                    "collect_admin_view_sent",
+                    "collect_admin_get_blank",
+                    "collect_admin_delete_saved",
+                    "collect_admin_qr_code_scanner",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "ODK Collect: Admin — Project Settings",
+            {
+                "fields": (
+                    "collect_admin_change_server",
+                    "collect_admin_change_project_display",
+                    "collect_admin_change_app_theme",
+                    "collect_admin_change_navigation",
+                    "collect_admin_maps",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "ODK Collect: Admin — Form Management",
+            {
+                "fields": (
+                    "collect_admin_form_update_mode",
+                    "collect_admin_periodic_form_updates_check",
+                    "collect_admin_automatic_update",
+                    "collect_admin_hide_old_form_versions",
+                    "collect_admin_change_autosend",
+                    "collect_admin_delete_after_send",
+                    "collect_admin_default_to_finalized",
+                    "collect_admin_change_constraint_behavior",
+                    "collect_admin_high_resolution",
+                    "collect_admin_image_size",
+                    "collect_admin_guidance_hint",
+                    "collect_admin_external_app_recording",
+                    "collect_admin_instance_form_sync",
+                    "collect_admin_change_form_metadata",
+                    "collect_admin_analytics",
+                    "collect_admin_change_app_language",
+                    "collect_admin_change_font_size",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "ODK Collect: Admin — Form Entry",
+            {
+                "fields": (
+                    "collect_admin_moving_backwards",
+                    "collect_admin_access_settings",
+                    "collect_admin_change_language",
+                    "collect_admin_jump_to",
+                    "collect_admin_save_mid",
+                    "collect_admin_save_as",
+                    "collect_admin_mark_as_finalized",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
-        # Regenerate app user QR codes if any field that impacts them has changed
-        qr_code_fields = ("app_language", "central_id", "name")
-        if change and any(field in form.changed_data for field in qr_code_fields):
+        # Regenerate app user QR codes if any field that impacts them has changed.
+        if change and any(
+            f == "name" or f == "central_id" or f.startswith("collect_") for f in form.changed_data
+        ):
             generate_and_save_app_user_collect_qrcodes(obj)
 
     def save_formset(self, request, form, formset, change):

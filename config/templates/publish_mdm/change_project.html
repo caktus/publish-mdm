@@ -15,14 +15,17 @@
         <div class="grid gap-4 sm:grid-cols-2 md:mb-4">
             <div class="grid gap-4 sm:grid-cols-1 sm:gap-6">
                 {% for field in form.visible_fields %}
-                    <div id="id_{{ field.name }}_container">
-                        {{ field.label_tag }}
-                        {{ field }}
-                        {{ field.errors }}
-                    </div>
+                    {% if not field.name|slice:":8" == "collect_" %}
+                        <div id="id_{{ field.name }}_container">
+                            {{ field.label_tag }}
+                            {{ field }}
+                            {{ field.errors }}
+                        </div>
+                    {% endif %}
                 {% endfor %}
             </div>
         </div>
+        {% include "publish_mdm/includes/collect_settings_section.html" %}
         <h3 class="font-semibold text-gray-900 dark:text-white mb-2">Project-level Template Variables</h3>
         {% include "publish_mdm/includes/formset_table.html" with formset=variables_formset add_link_id="add-template-variable" add_link_text="Add another template variable" %}
         <h3 class="font-semibold text-gray-900 dark:text-white mb-2">Project Attachments</h3>

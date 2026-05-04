@@ -9,6 +9,7 @@ from django import forms
 from django.conf import settings
 from django.http import QueryDict
 from django.urls import reverse_lazy
+from django.utils.html import format_html
 from import_export import forms as import_export_forms
 from import_export.tmp_storages import MediaStorage
 from invitations.adapters import get_invitations_adapter
@@ -347,13 +348,110 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
             "name",
             "central_server",
             "template_variables",
-            "app_language",
+            # ODK Collect settings
+            "collect_general_app_language",
+            "collect_project_color",
+            "collect_project_icon",
+            "collect_general_font_size",
+            "collect_general_form_update_mode",
+            "collect_general_periodic_form_updates_check",
+            "collect_general_autosend",
+            "collect_general_delete_send",
+            "collect_general_default_completed",
+            "collect_general_analytics",
+            "collect_general_app_theme",
+            "collect_general_navigation",
+            "collect_general_constraint_behavior",
+            "collect_general_high_resolution",
+            "collect_general_image_size",
+            "collect_general_external_app_recording",
+            "collect_general_guidance_hint",
+            "collect_general_instance_sync",
+            "collect_general_metadata_username",
+            "collect_general_metadata_phonenumber",
+            "collect_general_metadata_email",
+            "collect_admin_edit_saved",
+            "collect_admin_send_finalized",
+            "collect_admin_view_sent",
+            "collect_admin_get_blank",
+            "collect_admin_delete_saved",
+            "collect_admin_qr_code_scanner",
+            "collect_admin_change_server",
+            "collect_admin_change_project_display",
+            "collect_admin_change_app_theme",
+            "collect_admin_change_navigation",
+            "collect_admin_maps",
+            "collect_admin_form_update_mode",
+            "collect_admin_periodic_form_updates_check",
+            "collect_admin_automatic_update",
+            "collect_admin_hide_old_form_versions",
+            "collect_admin_change_autosend",
+            "collect_admin_delete_after_send",
+            "collect_admin_default_to_finalized",
+            "collect_admin_change_constraint_behavior",
+            "collect_admin_high_resolution",
+            "collect_admin_image_size",
+            "collect_admin_guidance_hint",
+            "collect_admin_external_app_recording",
+            "collect_admin_instance_form_sync",
+            "collect_admin_change_form_metadata",
+            "collect_admin_analytics",
+            "collect_admin_change_app_language",
+            "collect_admin_change_font_size",
+            "collect_admin_moving_backwards",
+            "collect_admin_access_settings",
+            "collect_admin_change_language",
+            "collect_admin_jump_to",
+            "collect_admin_save_mid",
+            "collect_admin_save_as",
+            "collect_admin_mark_as_finalized",
+            # Additional general fields
+            "collect_general_protocol",
+            "collect_general_password",
+            "collect_general_formlist_url",
+            "collect_general_submission_url",
+            "collect_general_google_sheets_url",
+            "collect_general_automatic_update",
+            "collect_general_hide_old_form_versions",
+            "collect_general_basemap_source",
+            "collect_general_google_map_style",
+            "collect_general_mapbox_map_style",
+            "collect_general_usgs_map_style",
+            "collect_general_carto_map_style",
+            "collect_general_reference_layer",
         )
         widgets: ClassVar = {
             "name": TextInput,
             "central_server": Select,
             "template_variables": CheckboxSelectMultiple,
-            "app_language": Select(attrs={"class": "!w-30"}),
+            "collect_general_app_language": Select(attrs={"class": "!w-30"}),
+            "collect_project_color": TextInput,
+            "collect_project_icon": TextInput,
+            "collect_general_font_size": Select,
+            "collect_general_form_update_mode": Select,
+            "collect_general_periodic_form_updates_check": Select,
+            "collect_general_autosend": Select,
+            "collect_general_app_theme": Select,
+            "collect_general_navigation": Select,
+            "collect_general_constraint_behavior": Select,
+            "collect_general_image_size": Select,
+            "collect_general_guidance_hint": Select,
+            "collect_general_metadata_username": TextInput,
+            "collect_general_metadata_phonenumber": TextInput,
+            "collect_general_metadata_email": TextInput,
+            "collect_general_protocol": Select,
+            "collect_general_password": TextInput(
+                attrs={"type": "password", "autocomplete": "off"}
+            ),
+            "collect_general_formlist_url": TextInput,
+            "collect_general_submission_url": TextInput,
+            "collect_general_google_sheets_url": TextInput,
+            "collect_general_basemap_source": Select,
+            "collect_general_google_map_style": Select,
+            "collect_general_mapbox_map_style": Select,
+            "collect_general_usgs_map_style": Select,
+            "collect_general_carto_map_style": Select,
+            "collect_general_reference_layer": TextInput,
         }
 
     def __init__(self, *args, **kwargs):
@@ -363,6 +461,19 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
             "template_variables"
         ].queryset = self.instance.organization.template_variables.all()
         self.fields["central_server"].queryset = self.instance.organization.central_servers.all()
+        # Append "Sets <code>section.key</code>" to help_text for every collect_* field.
+        # The field name pattern collect_{section}_{key} maps directly to the settings key
+        # section.key used by CollectSettingsSerializer (e.g. collect_project_color → project.color).
+        for field_name, field in self.fields.items():
+            if not field_name.startswith("collect_"):
+                continue
+            section, key = field_name.removeprefix("collect_").split("_", 1)
+            settings_key = f"{section}.{key}"
+            sets_text = format_html("Sets <code>{}</code>", settings_key)
+            if field.help_text:
+                field.help_text = format_html("{} {}", field.help_text, sets_text)
+            else:
+                field.help_text = sets_text
 
 
 class ProjectTemplateVariableForm(PlatformFormMixin, forms.ModelForm):

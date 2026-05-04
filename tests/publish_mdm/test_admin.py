@@ -116,7 +116,7 @@ class TestProjectAdmin(BaseTestAdmin):
             "central_id",
             "central_server",
             "organization",
-            "app_language",
+            "collect_general_app_language",
             "template_variables",
             "admin_pw",
         ),
@@ -126,7 +126,7 @@ class TestProjectAdmin(BaseTestAdmin):
         them are changed.
         """
         project = project = ProjectFactory(
-            app_language="en", central_server__base_url="https://central"
+            collect_general_app_language="en", central_server__base_url="https://central"
         )
         url = reverse("admin:publish_mdm_project_change", args=[project.pk])
         mock_generate_qr_codes = mocker.patch(
@@ -137,8 +137,21 @@ class TestProjectAdmin(BaseTestAdmin):
             "central_id": project.central_id,
             "central_server": project.central_server_id,
             "organization": project.organization_id,
-            "app_language": project.app_language,
             "template_variables": [],
+            # Collect settings — all non-blank fields with non-False defaults must be
+            # submitted so the admin form is valid and has_changed() is accurate.
+            "collect_project_color": project.collect_project_color,
+            "collect_project_icon": project.collect_project_icon,
+            "collect_general_app_language": project.collect_general_app_language,
+            "collect_general_font_size": project.collect_general_font_size,
+            "collect_general_form_update_mode": project.collect_general_form_update_mode,
+            "collect_general_periodic_form_updates_check": project.collect_general_periodic_form_updates_check,
+            "collect_general_autosend": project.collect_general_autosend,
+            "collect_admin_moving_backwards": True,
+            "collect_admin_change_language": True,
+            "collect_general_default_completed": True,
+            "collect_general_analytics": True,
+            "collect_general_external_app_recording": True,
         }
         for inline_prefix in ("attachments", "project_template_variables"):
             data.update(
@@ -151,7 +164,7 @@ class TestProjectAdmin(BaseTestAdmin):
             )
 
         new_values = {
-            "app_language": "ar",
+            "collect_general_app_language": "ar",
             "central_id": project.central_id + 1,
             "name": project.name + " edited",
             "central_server": CentralServerFactory(organization=project.organization).id,
@@ -162,7 +175,7 @@ class TestProjectAdmin(BaseTestAdmin):
             ],
         }
         # QR codes should be regenerated if any of these fields are changed
-        should_regenerate = ("app_language", "central_id", "name", "admin_pw")
+        should_regenerate = ("collect_general_app_language", "central_id", "name", "admin_pw")
 
         if changed_field == "admin_pw":
             admin_pw_var = TemplateVariableFactory.create(

@@ -218,8 +218,9 @@ class TemplateVariable(AbstractBaseModel):
 class Project(AbstractBaseModel):
     """A project in ODK Central."""
 
-    # APP_LANGUAGE_CHOICES should be updated only based on the supported
-    # values for the "app_language " setting: https://docs.getodk.org/collect-import-export/
+    # Choices for various ODK Collect settings.
+    # https://docs.getodk.org/collect-import-export/#list-of-keys-for-all-settings
+    # https://github.com/getodk/collect/blob/master/settings/src/main/resources/client-settings.schema.json
     APP_LANGUAGE_CHOICES: ClassVar = list(
         zip(
             *[
@@ -287,6 +288,89 @@ class Project(AbstractBaseModel):
             strict=False,
         )
     )
+    FONT_SIZE_CHOICES: ClassVar = [
+        ("13", "13"),
+        ("17", "17"),
+        ("21", "21"),
+        ("25", "25"),
+        ("29", "29"),
+    ]
+    FORM_UPDATE_MODE_CHOICES: ClassVar = [
+        ("manual", "Manual"),
+        ("previously_downloaded", "Previously downloaded"),
+        ("match_exactly", "Match exactly"),
+    ]
+    PERIODIC_FORM_UPDATES_CHECK_CHOICES: ClassVar = [
+        ("every_fifteen_minutes", "Every 15 minutes"),
+        ("every_one_hour", "Every hour"),
+        ("every_six_hours", "Every 6 hours"),
+        ("every_24_hours", "Every 24 hours"),
+    ]
+    AUTOSEND_CHOICES: ClassVar = [
+        ("off", "Off"),
+        ("wifi_only", "Wi-Fi only"),
+        ("cellular_only", "Cellular only"),
+        ("wifi_and_cellular", "Wi-Fi and cellular"),
+    ]
+    APP_THEME_CHOICES: ClassVar = [
+        ("light_theme", "Light"),
+        ("dark_theme", "Dark"),
+    ]
+    NAVIGATION_CHOICES: ClassVar = [
+        ("swipe", "Swipe"),
+        ("buttons", "Buttons"),
+        ("swipe_buttons", "Swipe and buttons"),
+    ]
+    CONSTRAINT_BEHAVIOR_CHOICES: ClassVar = [
+        ("on_swipe", "On swipe"),
+        ("on_finalize", "On finalize"),
+    ]
+    IMAGE_SIZE_CHOICES: ClassVar = [
+        ("original", "Original"),
+        ("large", "Large"),
+        ("medium", "Medium"),
+        ("small", "Small"),
+        ("very_small", "Very small"),
+    ]
+    GUIDANCE_HINT_CHOICES: ClassVar = [
+        ("no", "Never"),
+        ("yes", "Always"),
+        ("yes_collapsed", "Collapsed"),
+    ]
+    PROTOCOL_CHOICES: ClassVar = [
+        ("odk_default", "ODK default"),
+        ("google_sheets", "Google Sheets"),
+    ]
+    BASEMAP_SOURCE_CHOICES: ClassVar = [
+        ("google", "Google"),
+        ("mapbox", "Mapbox"),
+        ("osm", "OpenStreetMap"),
+        ("usgs", "USGS"),
+        ("stamen", "Stamen"),
+        ("carto", "Carto"),
+    ]
+    GOOGLE_MAP_STYLE_CHOICES: ClassVar = [
+        ("1", "Normal"),
+        ("2", "Satellite"),
+        ("3", "Terrain"),
+        ("4", "Hybrid"),
+    ]
+    MAPBOX_MAP_STYLE_CHOICES: ClassVar = [
+        ("mapbox://styles/mapbox/light-v10", "Light"),
+        ("mapbox://styles/mapbox/dark-v10", "Dark"),
+        ("mapbox://styles/mapbox/satellite-v9", "Satellite"),
+        ("mapbox://styles/mapbox/satellite-streets-v11", "Satellite streets"),
+        ("mapbox://styles/mapbox/outdoors-v11", "Outdoors"),
+    ]
+    USGS_MAP_STYLE_CHOICES: ClassVar = [
+        ("topographic", "Topographic"),
+        ("hybrid", "Hybrid"),
+        ("satellite", "Satellite"),
+    ]
+    CARTO_MAP_STYLE_CHOICES: ClassVar = [
+        ("positron", "Positron"),
+        ("dark_matter", "Dark matter"),
+    ]
 
     name = models.CharField(max_length=255)
     central_id = models.PositiveIntegerField(
@@ -305,7 +389,384 @@ class Project(AbstractBaseModel):
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name="projects"
     )
-    app_language = models.CharField(max_length=6, choices=APP_LANGUAGE_CHOICES, blank=True)
+
+    # ---------------------------------------------------------------------------
+    # ODK Collect settings — individual fields so each can have its own default,
+    # validation, and form widget.  A CollectSettingsSerializer assembles these
+    # into the nested dict expected by build_collect_settings().
+    #
+    # Dynamic fields (server_url, username) depend on the app user assignment
+    # and are set in build_collect_settings().
+    # All other settings (app_language, admin_pw, project name) come
+    # from model fields and are assembled by CollectSettingsSerializer.
+    # ---------------------------------------------------------------------------
+
+    # Project display
+    collect_project_color = models.CharField(
+        max_length=50,
+        default="#6ec1e4",
+        blank=True,
+        verbose_name="Project colour",
+        help_text="Hex colour shown for this project in ODK Collect.",
+    )
+    collect_project_icon = models.CharField(
+        max_length=10,
+        default="🇱🇾",
+        blank=True,
+        verbose_name="Project icon",
+        help_text="Emoji icon shown for this project in ODK Collect.",
+    )
+
+    # General — font / form management / autosend
+    collect_general_font_size = models.CharField(
+        max_length=5,
+        choices=FONT_SIZE_CHOICES,
+        default="25",
+        verbose_name="Font size",
+    )
+    collect_general_form_update_mode = models.CharField(
+        max_length=30,
+        choices=FORM_UPDATE_MODE_CHOICES,
+        default="match_exactly",
+        verbose_name="Form update mode",
+    )
+    collect_general_periodic_form_updates_check = models.CharField(
+        max_length=30,
+        choices=PERIODIC_FORM_UPDATES_CHECK_CHOICES,
+        default="every_one_hour",
+        verbose_name="Form update check frequency",
+    )
+    collect_general_autosend = models.CharField(
+        max_length=30,
+        choices=AUTOSEND_CHOICES,
+        default="wifi_and_cellular",
+        verbose_name="Auto-send",
+    )
+    collect_general_delete_send = models.BooleanField(
+        default=False,
+        verbose_name="Delete after send",
+    )
+    collect_general_default_completed = models.BooleanField(
+        default=True,
+        verbose_name="Default to finalized",
+    )
+    collect_general_analytics = models.BooleanField(
+        default=True,
+        verbose_name="Analytics",
+    )
+
+    # General — user interface
+    collect_general_app_language = models.CharField(
+        max_length=10,
+        choices=APP_LANGUAGE_CHOICES,
+        default="en",
+        verbose_name="App language",
+        help_text="Language used in the ODK Collect UI.",
+    )
+    collect_general_app_theme = models.CharField(
+        max_length=20,
+        choices=APP_THEME_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="App theme",
+    )
+    collect_general_navigation = models.CharField(
+        max_length=20,
+        choices=NAVIGATION_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Navigation",
+    )
+
+    # General — form entry
+    collect_general_constraint_behavior = models.CharField(
+        max_length=20,
+        choices=CONSTRAINT_BEHAVIOR_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Constraint behaviour",
+    )
+    collect_general_high_resolution = models.BooleanField(
+        default=False,
+        verbose_name="High-resolution video",
+    )
+    collect_general_image_size = models.CharField(
+        max_length=20,
+        choices=IMAGE_SIZE_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Image size",
+    )
+    collect_general_external_app_recording = models.BooleanField(
+        default=True,
+        verbose_name="Allow external app to record audio",
+    )
+    collect_general_guidance_hint = models.CharField(
+        max_length=20,
+        choices=GUIDANCE_HINT_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Guidance for questions",
+    )
+    collect_general_instance_sync = models.BooleanField(
+        default=False,
+        verbose_name="Finalize forms on import",
+    )
+
+    # General — user and device identity
+    collect_general_metadata_username = models.CharField(
+        max_length=255,
+        default="",
+        blank=True,
+        verbose_name="Username (metadata)",
+    )
+    collect_general_metadata_phonenumber = models.CharField(
+        max_length=50,
+        default="",
+        blank=True,
+        verbose_name="Phone number (metadata)",
+    )
+    collect_general_metadata_email = models.CharField(
+        max_length=255,
+        default="",
+        blank=True,
+        verbose_name="Email address (metadata)",
+    )
+
+    # General — server
+    collect_general_protocol = models.CharField(
+        max_length=20,
+        choices=PROTOCOL_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Protocol",
+    )
+    collect_general_password = models.CharField(
+        max_length=255,
+        default="",
+        blank=True,
+        verbose_name="Password",
+    )
+    collect_general_formlist_url = models.CharField(
+        max_length=2048,
+        default="",
+        blank=True,
+        verbose_name="Form list URL",
+    )
+    collect_general_submission_url = models.CharField(
+        max_length=2048,
+        default="",
+        blank=True,
+        verbose_name="Submission URL",
+    )
+    collect_general_google_sheets_url = models.CharField(
+        max_length=2048,
+        default="",
+        blank=True,
+        verbose_name="Google Sheets URL",
+    )
+
+    # General — form management (additional booleans)
+    collect_general_automatic_update = models.BooleanField(
+        default=False,
+        verbose_name="Automatic update",
+    )
+    collect_general_hide_old_form_versions = models.BooleanField(
+        default=False,
+        verbose_name="Hide old form versions",
+    )
+
+    # General — maps
+    collect_general_basemap_source = models.CharField(
+        max_length=20,
+        choices=BASEMAP_SOURCE_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Basemap source",
+    )
+    collect_general_google_map_style = models.CharField(
+        max_length=5,
+        choices=GOOGLE_MAP_STYLE_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Google map style",
+    )
+    collect_general_mapbox_map_style = models.CharField(
+        max_length=100,
+        choices=MAPBOX_MAP_STYLE_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Mapbox map style",
+    )
+    collect_general_usgs_map_style = models.CharField(
+        max_length=20,
+        choices=USGS_MAP_STYLE_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="USGS map style",
+    )
+    collect_general_carto_map_style = models.CharField(
+        max_length=20,
+        choices=CARTO_MAP_STYLE_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Carto map style",
+    )
+    collect_general_reference_layer = models.CharField(
+        max_length=2048,
+        default="",
+        blank=True,
+        verbose_name="Reference layer",
+        help_text="Absolute path to an MBTiles file.",
+    )
+
+    # Admin — main menu access controls
+    collect_admin_edit_saved = models.BooleanField(
+        default=False,
+        verbose_name="Edit saved forms",
+    )
+    collect_admin_send_finalized = models.BooleanField(
+        default=False,
+        verbose_name="Send finalized forms",
+    )
+    collect_admin_view_sent = models.BooleanField(
+        default=False,
+        verbose_name="View sent forms",
+    )
+    collect_admin_get_blank = models.BooleanField(
+        default=False,
+        verbose_name="Get blank forms",
+    )
+    collect_admin_delete_saved = models.BooleanField(
+        default=False,
+        verbose_name="Delete saved forms",
+    )
+    collect_admin_qr_code_scanner = models.BooleanField(
+        default=False,
+        verbose_name="QR code scanner",
+    )
+
+    # Admin — project settings access controls
+    collect_admin_change_server = models.BooleanField(
+        default=False,
+        verbose_name="Change server",
+    )
+    collect_admin_change_project_display = models.BooleanField(
+        default=False,
+        verbose_name="Change project display",
+    )
+    collect_admin_change_app_theme = models.BooleanField(
+        default=False,
+        verbose_name="Change app theme",
+    )
+    collect_admin_change_navigation = models.BooleanField(
+        default=False,
+        verbose_name="Change navigation",
+    )
+    collect_admin_maps = models.BooleanField(
+        default=False,
+        verbose_name="Maps",
+    )
+
+    # Admin — form management access controls
+    collect_admin_form_update_mode = models.BooleanField(
+        default=False,
+        verbose_name="Show form update mode setting",
+    )
+    collect_admin_periodic_form_updates_check = models.BooleanField(
+        default=False,
+        verbose_name="Show check frequency setting",
+    )
+    collect_admin_automatic_update = models.BooleanField(
+        default=False,
+        verbose_name="Auto-update",
+    )
+    collect_admin_hide_old_form_versions = models.BooleanField(
+        default=False,
+        verbose_name="Hide old form versions",
+    )
+    collect_admin_change_autosend = models.BooleanField(
+        default=False,
+        verbose_name="Change auto-send",
+    )
+    collect_admin_delete_after_send = models.BooleanField(
+        default=False,
+        verbose_name="Delete after send",
+    )
+    collect_admin_default_to_finalized = models.BooleanField(
+        default=False,
+        verbose_name="Show default-to-finalized setting",
+    )
+    collect_admin_change_constraint_behavior = models.BooleanField(
+        default=False,
+        verbose_name="Change constraint behaviour",
+    )
+    collect_admin_high_resolution = models.BooleanField(
+        default=False,
+        verbose_name="High resolution",
+    )
+    collect_admin_image_size = models.BooleanField(
+        default=False,
+        verbose_name="Image size",
+    )
+    collect_admin_guidance_hint = models.BooleanField(
+        default=False,
+        verbose_name="Guidance hint",
+    )
+    collect_admin_external_app_recording = models.BooleanField(
+        default=False,
+        verbose_name="External app recording",
+    )
+    collect_admin_instance_form_sync = models.BooleanField(
+        default=False,
+        verbose_name="Finalize forms on import",
+    )
+    collect_admin_change_form_metadata = models.BooleanField(
+        default=False,
+        verbose_name="Change form metadata",
+    )
+    collect_admin_analytics = models.BooleanField(
+        default=False,
+        verbose_name="Show analytics setting",
+    )
+    collect_admin_change_app_language = models.BooleanField(
+        default=False,
+        verbose_name="Change app language",
+    )
+    collect_admin_change_font_size = models.BooleanField(
+        default=False,
+        verbose_name="Change font size",
+    )
+
+    # Admin — form entry access controls
+    collect_admin_moving_backwards = models.BooleanField(
+        default=True,
+        verbose_name="Allow backward navigation",
+    )
+    collect_admin_access_settings = models.BooleanField(
+        default=False,
+        verbose_name="Access settings from within form",
+    )
+    collect_admin_change_language = models.BooleanField(
+        default=True,
+        verbose_name="Allow language change",
+    )
+    collect_admin_jump_to = models.BooleanField(
+        default=False,
+        verbose_name="Jump to",
+    )
+    collect_admin_save_mid = models.BooleanField(
+        default=False,
+        verbose_name="Save form",
+    )
+    collect_admin_save_as = models.BooleanField(
+        default=False,
+        verbose_name="Name this form",
+    )
+    collect_admin_mark_as_finalized = models.BooleanField(
+        default=False,
+        verbose_name="Mark as finalized",
+    )
 
     def __str__(self):
         return f"{self.name} ({self.central_id})"
