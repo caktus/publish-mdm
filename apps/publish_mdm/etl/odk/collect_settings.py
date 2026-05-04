@@ -18,9 +18,10 @@ if TYPE_CHECKING:
 class CollectSettingsSerializer:
     """Assembles the nested ODK Collect settings dict from a Project's individual fields.
 
-    The returned dict is passed to ``build_collect_settings()`` which then applies
-    the remaining dynamic fields (``server_url``, ``username``, ``project.name``)
-    that depend on the individual app user assignment.
+    All settings are sourced from ``collect_*`` model fields.  The only fields not
+    stored on the model — because they depend on the individual app user assignment —
+    are ``general.server_url``, ``general.username``, and ``project.name``.  Those
+    three are applied by ``build_collect_settings()`` after calling this serializer.
     """
 
     project: Project
@@ -42,8 +43,10 @@ class CollectSettingsSerializer:
             "high_resolution": p.collect_general_high_resolution,
             "external_app_recording": p.collect_general_external_app_recording,
             "instance_sync": p.collect_general_instance_sync,
+            "automatic_update": p.collect_general_automatic_update,
+            "hide_old_form_versions": p.collect_general_hide_old_form_versions,
         }
-        # Optional string fields — omit when blank so ODK Collect uses its own default.
+        # Optional string/choice fields — omit when blank so ODK Collect uses its own default.
         for key, value in [
             ("app_theme", p.collect_general_app_theme),
             ("navigation", p.collect_general_navigation),
@@ -53,6 +56,19 @@ class CollectSettingsSerializer:
             ("metadata_username", p.collect_general_metadata_username),
             ("metadata_phonenumber", p.collect_general_metadata_phonenumber),
             ("metadata_email", p.collect_general_metadata_email),
+            # Server
+            ("protocol", p.collect_general_protocol),
+            ("password", p.collect_general_password),
+            ("formlist_url", p.collect_general_formlist_url),
+            ("submission_url", p.collect_general_submission_url),
+            ("google_sheets_url", p.collect_general_google_sheets_url),
+            # Maps
+            ("basemap_source", p.collect_general_basemap_source),
+            ("google_map_style", p.collect_general_google_map_style),
+            ("mapbox_map_style", p.collect_general_mapbox_map_style),
+            ("usgs_map_style", p.collect_general_usgs_map_style),
+            ("carto_map_style", p.collect_general_carto_map_style),
+            ("reference_layer", p.collect_general_reference_layer),
         ]:
             if value:
                 general[key] = value

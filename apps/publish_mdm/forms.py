@@ -404,6 +404,20 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
             "collect_admin_save_mid",
             "collect_admin_save_as",
             "collect_admin_mark_as_finalized",
+            # Additional general fields
+            "collect_general_protocol",
+            "collect_general_password",
+            "collect_general_formlist_url",
+            "collect_general_submission_url",
+            "collect_general_google_sheets_url",
+            "collect_general_automatic_update",
+            "collect_general_hide_old_form_versions",
+            "collect_general_basemap_source",
+            "collect_general_google_map_style",
+            "collect_general_mapbox_map_style",
+            "collect_general_usgs_map_style",
+            "collect_general_carto_map_style",
+            "collect_general_reference_layer",
         )
         widgets: ClassVar = {
             "name": TextInput,
@@ -421,6 +435,22 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
             "collect_general_constraint_behavior": Select,
             "collect_general_image_size": Select,
             "collect_general_guidance_hint": Select,
+            "collect_general_metadata_username": TextInput,
+            "collect_general_metadata_phonenumber": TextInput,
+            "collect_general_metadata_email": TextInput,
+            "collect_general_protocol": Select,
+            "collect_general_password": TextInput(
+                attrs={"type": "password", "autocomplete": "off"}
+            ),
+            "collect_general_formlist_url": TextInput,
+            "collect_general_submission_url": TextInput,
+            "collect_general_google_sheets_url": TextInput,
+            "collect_general_basemap_source": Select,
+            "collect_general_google_map_style": Select,
+            "collect_general_mapbox_map_style": Select,
+            "collect_general_usgs_map_style": Select,
+            "collect_general_carto_map_style": Select,
+            "collect_general_reference_layer": TextInput,
         }
 
     def __init__(self, *args, **kwargs):

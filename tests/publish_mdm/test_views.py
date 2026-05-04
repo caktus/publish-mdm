@@ -32,7 +32,6 @@ from pytest_django.asserts import (
 from requests.exceptions import HTTPError
 
 from apps.mdm.mdms import TinyMDM, get_active_mdm_class
-from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
 from apps.publish_mdm.etl.template import VariableTransform
 from apps.publish_mdm.filters import DeviceFilter
@@ -176,7 +175,9 @@ class TestPublishTemplate(ViewTestBase):
 class TestAppUserDetail(ViewTestBase):
     @pytest.fixture
     def app_user(self, project):
-        return AppUserFactory(project=project, qr_code_data=DEFAULT_COLLECT_SETTINGS)
+        return AppUserFactory(
+            project=project, qr_code_data={"project": {}, "general": {}, "admin": {}}
+        )
 
     @pytest.fixture
     def url(self, app_user):

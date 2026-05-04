@@ -336,6 +336,40 @@ class Project(AbstractBaseModel):
         ("yes", "Always"),
         ("yes_collapsed", "Collapsed"),
     ]
+    PROTOCOL_CHOICES: ClassVar = [
+        ("odk_default", "ODK default"),
+        ("google_sheets", "Google Sheets"),
+    ]
+    BASEMAP_SOURCE_CHOICES: ClassVar = [
+        ("google", "Google"),
+        ("mapbox", "Mapbox"),
+        ("osm", "OpenStreetMap"),
+        ("usgs", "USGS"),
+        ("stamen", "Stamen"),
+        ("carto", "Carto"),
+    ]
+    GOOGLE_MAP_STYLE_CHOICES: ClassVar = [
+        ("1", "Normal"),
+        ("2", "Satellite"),
+        ("3", "Terrain"),
+        ("4", "Hybrid"),
+    ]
+    MAPBOX_MAP_STYLE_CHOICES: ClassVar = [
+        ("mapbox://styles/mapbox/light-v10", "Light"),
+        ("mapbox://styles/mapbox/dark-v10", "Dark"),
+        ("mapbox://styles/mapbox/satellite-v9", "Satellite"),
+        ("mapbox://styles/mapbox/satellite-streets-v11", "Satellite streets"),
+        ("mapbox://styles/mapbox/outdoors-v11", "Outdoors"),
+    ]
+    USGS_MAP_STYLE_CHOICES: ClassVar = [
+        ("topographic", "Topographic"),
+        ("hybrid", "Hybrid"),
+        ("satellite", "Satellite"),
+    ]
+    CARTO_MAP_STYLE_CHOICES: ClassVar = [
+        ("positron", "Positron"),
+        ("dark_matter", "Dark matter"),
+    ]
 
     name = models.CharField(max_length=255)
     central_id = models.PositiveIntegerField(
@@ -496,6 +530,93 @@ class Project(AbstractBaseModel):
         default="",
         blank=True,
         verbose_name="Email address (metadata)",
+    )
+
+    # General — server
+    collect_general_protocol = models.CharField(
+        max_length=20,
+        choices=PROTOCOL_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Protocol",
+    )
+    collect_general_password = models.CharField(
+        max_length=255,
+        default="",
+        blank=True,
+        verbose_name="Password",
+    )
+    collect_general_formlist_url = models.CharField(
+        max_length=2048,
+        default="",
+        blank=True,
+        verbose_name="Form list URL",
+    )
+    collect_general_submission_url = models.CharField(
+        max_length=2048,
+        default="",
+        blank=True,
+        verbose_name="Submission URL",
+    )
+    collect_general_google_sheets_url = models.CharField(
+        max_length=2048,
+        default="",
+        blank=True,
+        verbose_name="Google Sheets URL",
+    )
+
+    # General — form management (additional booleans)
+    collect_general_automatic_update = models.BooleanField(
+        default=False,
+        verbose_name="Automatic update",
+    )
+    collect_general_hide_old_form_versions = models.BooleanField(
+        default=False,
+        verbose_name="Hide old form versions",
+    )
+
+    # General — maps
+    collect_general_basemap_source = models.CharField(
+        max_length=20,
+        choices=BASEMAP_SOURCE_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Basemap source",
+    )
+    collect_general_google_map_style = models.CharField(
+        max_length=5,
+        choices=GOOGLE_MAP_STYLE_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Google map style",
+    )
+    collect_general_mapbox_map_style = models.CharField(
+        max_length=100,
+        choices=MAPBOX_MAP_STYLE_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Mapbox map style",
+    )
+    collect_general_usgs_map_style = models.CharField(
+        max_length=20,
+        choices=USGS_MAP_STYLE_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="USGS map style",
+    )
+    collect_general_carto_map_style = models.CharField(
+        max_length=20,
+        choices=CARTO_MAP_STYLE_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Carto map style",
+    )
+    collect_general_reference_layer = models.CharField(
+        max_length=2048,
+        default="",
+        blank=True,
+        verbose_name="Reference layer",
+        help_text="Absolute path to an MBTiles file.",
     )
 
     # Admin — main menu access controls
