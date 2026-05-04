@@ -48,12 +48,15 @@ from .etl.load import (
     generate_and_save_app_user_collect_qrcodes,
     sync_central_project,
 )
+from .etl.odk.constants import DEFAULT_COLLECT_SETTINGS
+from .etl.odk.qrcode import deep_merge
 from .filters import DeviceFilter
 from .forms import (
     AppUserForm,
     AppUserTemplateVariableFormSet,
     BYODDeviceEnrollmentForm,
     CentralServerFrontendForm,
+    CollectSettingsForm,
     ConfirmImportForm,
     DeviceAppUserForm,
     DeviceEnrollmentQRCodeForm,
@@ -551,6 +554,10 @@ def change_project(request, organization_slug, odk_project_pk=None):
         action = "add"
         project = Project(organization=request.organization)
     form = ProjectForm(request.POST or None, instance=project)
+    collect_settings_form = CollectSettingsForm(
+        request.POST or None,
+        collect_settings=project.collect_settings,
+    )
     variables_formset = ProjectTemplateVariableFormSet(
         request.POST or None,
         instance=project,
@@ -562,22 +569,45 @@ def change_project(request, organization_slug, odk_project_pk=None):
         instance=project,
     )
     if request.method == "POST" and all(
-        [form.is_valid(), variables_formset.is_valid(), attachments_formset.is_valid()]
+        [
+            form.is_valid(),
+            collect_settings_form.is_valid(),
+            variables_formset.is_valid(),
+            attachments_formset.is_valid(),
+        ]
     ):
         save_error = None
         if request.odk_project:
             admin_pw = request.odk_project.get_admin_pw()
+            # Capture old collect settings before saving to detect changes.
+            old_collect_settings = project.collect_settings
             form.save()
+            new_collect_settings = collect_settings_form.get_collect_settings()
+            # Save collect settings from the dedicated form onto the project.
+            project.collect_settings = new_collect_settings
+            project.save(update_fields=["collect_settings"])
             variables_formset.save()
-            # Regenerate app user QR codes if any field that impacts them has changed
+            # Regenerate app user QR codes if any field that impacts them has changed.
+            # Compare effective settings (merged with defaults) so that saving defaults
+            # when project.collect_settings was None does not trigger regeneration.
+            collect_settings_changed = deep_merge(
+                DEFAULT_COLLECT_SETTINGS, old_collect_settings or {}
+            ) != deep_merge(DEFAULT_COLLECT_SETTINGS, new_collect_settings or {})
             qr_code_fields = ("app_language", "name")
-            if any(field in form.changed_data for field in qr_code_fields) or (
-                variables_formset.has_changed() and admin_pw != request.odk_project.get_admin_pw()
+            if (
+                any(field in form.changed_data for field in qr_code_fields)
+                or collect_settings_changed
+                or (
+                    variables_formset.has_changed()
+                    and admin_pw != request.odk_project.get_admin_pw()
+                )
             ):
                 generate_and_save_app_user_collect_qrcodes(request.odk_project)
             attachments_formset.save()
         else:
             form.save(commit=False)
+            # Store collect settings on the unsaved project instance.
+            project.collect_settings = collect_settings_form.get_collect_settings()
             # Create the project in ODK Central then save it in the database
             try:
                 project.central_server.decrypt()
@@ -600,6 +630,7 @@ def change_project(request, organization_slug, odk_project_pk=None):
             return redirect("publish_mdm:form-template-list", organization_slug, project.pk)
     context = {
         "form": form,
+        "collect_settings_form": collect_settings_form,
         "variables_formset": variables_formset,
         "attachments_formset": attachments_formset,
         "breadcrumbs": Breadcrumbs.from_items(

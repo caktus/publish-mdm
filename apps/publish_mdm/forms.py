@@ -30,6 +30,7 @@ from apps.patterns.widgets import (
 )
 
 from .etl.odk.client import PublishMDMClient
+from .etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from .http import HttpRequest
 from .models import (
     AppUser,
@@ -363,6 +364,190 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
             "template_variables"
         ].queryset = self.instance.organization.template_variables.all()
         self.fields["central_server"].queryset = self.instance.organization.central_servers.all()
+
+
+class CollectSettingsForm(PlatformFormMixin, forms.Form):
+    """Form for editing ODK Collect settings stored in Project.collect_settings.
+
+    Each field name follows the convention ``{section}_{key}`` so that it maps
+    directly to the nested collect-settings dict structure:
+    ``collect_settings[section][key]``.
+
+    Dynamic fields (server_url, username, app_language, project name, admin_pw)
+    are managed automatically and are NOT included here.
+    """
+
+    # -----------------------------------------------------------------------
+    # Project display
+    # -----------------------------------------------------------------------
+    project_color = forms.CharField(
+        label="Project colour",
+        required=False,
+        widget=TextInput(attrs={"placeholder": "#6ec1e4"}),
+    )
+    project_icon = forms.CharField(
+        label="Project icon",
+        required=False,
+        widget=TextInput(attrs={"placeholder": "🇱🇾"}),
+    )
+
+    # -----------------------------------------------------------------------
+    # General settings
+    # -----------------------------------------------------------------------
+    general_font_size = forms.ChoiceField(
+        label="Font size",
+        choices=[("13", "13"), ("17", "17"), ("21", "21"), ("25", "25"), ("29", "29")],
+        required=False,
+        widget=Select,
+    )
+    general_form_update_mode = forms.ChoiceField(
+        label="Form update mode",
+        choices=[
+            ("manual", "Manual"),
+            ("previously_downloaded", "Previously downloaded"),
+            ("match_exactly", "Match exactly"),
+        ],
+        required=False,
+        widget=Select,
+    )
+    general_periodic_form_updates_check = forms.ChoiceField(
+        label="Form update check frequency",
+        choices=[
+            ("every_fifteen_minutes", "Every 15 minutes"),
+            ("every_one_hour", "Every hour"),
+            ("every_six_hours", "Every 6 hours"),
+            ("every_24_hours", "Every 24 hours"),
+        ],
+        required=False,
+        widget=Select,
+    )
+    general_autosend = forms.ChoiceField(
+        label="Auto-send",
+        choices=[
+            ("off", "Off"),
+            ("wifi_only", "Wi-Fi only"),
+            ("cellular_only", "Cellular only"),
+            ("wifi_and_cellular", "Wi-Fi and cellular"),
+        ],
+        required=False,
+        widget=Select,
+    )
+    general_delete_send = forms.BooleanField(label="Delete after send", required=False)
+    general_default_completed = forms.BooleanField(label="Default to finalized", required=False)
+    general_analytics = forms.BooleanField(label="Analytics", required=False)
+
+    # -----------------------------------------------------------------------
+    # Admin: Main menu access controls
+    # -----------------------------------------------------------------------
+    admin_edit_saved = forms.BooleanField(label="Edit saved forms", required=False)
+    admin_send_finalized = forms.BooleanField(label="Send finalized forms", required=False)
+    admin_view_sent = forms.BooleanField(label="View sent forms", required=False)
+    admin_get_blank = forms.BooleanField(label="Get blank forms", required=False)
+    admin_delete_saved = forms.BooleanField(label="Delete saved forms", required=False)
+    admin_qr_code_scanner = forms.BooleanField(label="QR code scanner", required=False)
+
+    # -----------------------------------------------------------------------
+    # Admin: Project settings access controls
+    # -----------------------------------------------------------------------
+    admin_change_server = forms.BooleanField(label="Change server", required=False)
+    admin_change_project_display = forms.BooleanField(
+        label="Change project display", required=False
+    )
+    admin_change_app_theme = forms.BooleanField(label="Change app theme", required=False)
+    admin_change_navigation = forms.BooleanField(label="Change navigation", required=False)
+    admin_maps = forms.BooleanField(label="Maps", required=False)
+
+    # -----------------------------------------------------------------------
+    # Admin: Form management access controls
+    # -----------------------------------------------------------------------
+    admin_form_update_mode = forms.BooleanField(
+        label="Show form update mode setting", required=False
+    )
+    admin_periodic_form_updates_check = forms.BooleanField(
+        label="Show check frequency setting", required=False
+    )
+    admin_automatic_update = forms.BooleanField(label="Auto-update", required=False)
+    admin_hide_old_form_versions = forms.BooleanField(
+        label="Hide old form versions", required=False
+    )
+    admin_change_autosend = forms.BooleanField(label="Change auto-send", required=False)
+    admin_delete_after_send = forms.BooleanField(label="Delete after send", required=False)
+    admin_default_to_finalized = forms.BooleanField(
+        label="Show default-to-finalized setting", required=False
+    )
+    admin_change_constraint_behavior = forms.BooleanField(
+        label="Change constraint behaviour", required=False
+    )
+    admin_high_resolution = forms.BooleanField(label="High resolution", required=False)
+    admin_image_size = forms.BooleanField(label="Image size", required=False)
+    admin_guidance_hint = forms.BooleanField(label="Guidance hint", required=False)
+    admin_external_app_recording = forms.BooleanField(
+        label="External app recording", required=False
+    )
+    admin_instance_form_sync = forms.BooleanField(label="Finalize forms on import", required=False)
+    admin_change_form_metadata = forms.BooleanField(label="Change form metadata", required=False)
+    admin_analytics = forms.BooleanField(label="Show analytics setting", required=False)
+
+    # -----------------------------------------------------------------------
+    # Admin: Form entry access controls
+    # -----------------------------------------------------------------------
+    admin_moving_backwards = forms.BooleanField(label="Allow backward navigation", required=False)
+    admin_access_settings = forms.BooleanField(
+        label="Access settings from within form", required=False
+    )
+    admin_change_language = forms.BooleanField(label="Allow language change", required=False)
+    admin_jump_to = forms.BooleanField(label="Jump to", required=False)
+    admin_save_mid = forms.BooleanField(label="Save form", required=False)
+    admin_save_as = forms.BooleanField(label="Name this form", required=False)
+    admin_mark_as_finalized = forms.BooleanField(label="Mark as finalized", required=False)
+
+    def __init__(self, *args, collect_settings=None, **kwargs):
+        """Populate initial values from the stored collect_settings dict.
+
+        Args:
+            collect_settings: The dict stored in ``Project.collect_settings``,
+                or ``None`` if no custom settings have been saved yet.  Missing
+                keys fall back to ``DEFAULT_COLLECT_SETTINGS``.
+        """
+        initial = kwargs.pop("initial", {})
+        stored = collect_settings or {}
+        for field_name in self.base_fields:
+            if field_name in initial:
+                continue
+            section, key = field_name.split("_", 1)
+            section_stored = stored.get(section, {})
+            section_defaults = DEFAULT_COLLECT_SETTINGS.get(section, {})
+            if key in section_stored:
+                initial[field_name] = section_stored[key]
+            elif key in section_defaults:
+                initial[field_name] = section_defaults[key]
+        kwargs["initial"] = initial
+        super().__init__(*args, **kwargs)
+
+    def get_collect_settings(self) -> dict:
+        """Return cleaned form data as a nested ``collect_settings`` dict.
+
+        Only settings that differ from ``DEFAULT_COLLECT_SETTINGS`` are
+        included so that the stored value stays minimal.  For ChoiceFields
+        and CharFields submitted without a value the corresponding default is
+        used before comparison.
+        """
+        result: dict = {"admin": {}, "general": {}, "project": {}}
+        for field_name, value in self.cleaned_data.items():
+            section, key = field_name.split("_", 1)
+            default_value = DEFAULT_COLLECT_SETTINGS.get(section, {}).get(key)
+            if value == "" and isinstance(
+                self.fields[field_name], (forms.ChoiceField, forms.CharField)
+            ):
+                # Treat an empty submission as "use the default" so that
+                # submitting the form without touching a field is a no-op.
+                value = default_value
+            # Only store settings that differ from the hardcoded defaults so
+            # that the JSONField stays minimal and defaults can evolve.
+            if value != default_value:
+                result[section][key] = value
+        # Drop empty sections so we don't store meaningless empty dicts.
+        return {section: data for section, data in result.items() if data}
 
 
 class ProjectTemplateVariableForm(PlatformFormMixin, forms.ModelForm):

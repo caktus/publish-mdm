@@ -40,6 +40,7 @@ from apps.publish_mdm.forms import (
     AppUserTemplateVariableFormSet,
     BYODDeviceEnrollmentForm,
     CentralServerFrontendForm,
+    CollectSettingsForm,
     DeviceAppUserForm,
     DeviceEnrollmentQRCodeForm,
     FleetAddForm,
@@ -1041,6 +1042,12 @@ class TestEditProject(ViewTestBase):
             "attachments-INITIAL_FORMS": 0,
             "attachments-MIN_NUM_FORMS": 0,
             "attachments-MAX_NUM_FORMS": 1000,
+            # Collect settings — booleans that default to True must be submitted
+            # as checked so that the form sees "no change" for unchanged settings.
+            "admin_moving_backwards": True,
+            "admin_change_language": True,
+            "general_default_completed": True,
+            "general_analytics": True,
         }
 
     def test_valid_form_and_valid_formset(
@@ -1078,7 +1085,9 @@ class TestEditProject(ViewTestBase):
         # Ensure there is a success message
         assert f"Successfully edited {project}." in response.content.decode()
 
-    @pytest.mark.parametrize("changed_field", [None, "admin_pw", *ProjectForm._meta.fields])
+    @pytest.mark.parametrize(
+        "changed_field", [None, "admin_pw", "collect_settings", *ProjectForm._meta.fields]
+    )
     def test_regenerating_qr_codes(
         self,
         client,
@@ -1109,6 +1118,12 @@ class TestEditProject(ViewTestBase):
             "attachments-INITIAL_FORMS": 0,
             "attachments-MIN_NUM_FORMS": 0,
             "attachments-MAX_NUM_FORMS": 1000,
+            # Collect settings — booleans that default to True must be submitted
+            # as checked so that the form sees "no change" for unchanged settings.
+            "admin_moving_backwards": True,
+            "admin_change_language": True,
+            "general_default_completed": True,
+            "general_analytics": True,
         }
         new_values = {
             "app_language": "ar",
@@ -1117,9 +1132,13 @@ class TestEditProject(ViewTestBase):
             "template_variables": [i.id for i in template_variables],
         }
         # QR codes should be regenerated if any of these fields are changed
-        should_regenerate = ("app_language", "name", "admin_pw")
+        should_regenerate = ("app_language", "name", "admin_pw", "collect_settings")
 
-        if changed_field == "admin_pw":
+        if changed_field == "collect_settings":
+            # Change collect_settings by removing the moving_backwards True default
+            # (uncheck the toggle so it sends False instead of True).
+            data.pop("admin_moving_backwards")
+        elif changed_field == "admin_pw":
             admin_pw_var = TemplateVariableFactory.create(
                 name="admin_pw", organization=project.organization
             )
@@ -1143,6 +1162,10 @@ class TestEditProject(ViewTestBase):
         # Ensure the change was actually made in the database
         if changed_field == "admin_pw":
             assert project.get_admin_pw() == "password"
+        elif changed_field == "collect_settings":
+            project.refresh_from_db()
+            # moving_backwards was unchecked (False) — differs from default True, so it's stored.
+            assert project.collect_settings == {"admin": {"moving_backwards": False}}
         elif changed_field:
             new_db_value = Project.objects.values_list(changed_field, flat=True).filter(
                 pk=project.pk
@@ -1320,6 +1343,78 @@ class TestEditProject(ViewTestBase):
         expected_error = "An attachment with this name already exists in this project."
         assert response.context["attachments_formset"].errors[0]["name"][0] == expected_error
         assert expected_error in response.content.decode()
+
+
+class TestCollectSettingsForm:
+    """Tests for CollectSettingsForm validation and data handling."""
+
+    def test_valid_with_empty_data(self):
+        """An empty submission is valid — all fields have defaults."""
+        form = CollectSettingsForm({})
+        assert form.is_valid(), form.errors
+
+    def test_get_collect_settings_empty_returns_empty_dict(self):
+        """Submitting all defaults produces an empty overrides dict."""
+        data = {
+            "admin_moving_backwards": True,
+            "admin_change_language": True,
+            "general_default_completed": True,
+            "general_analytics": True,
+        }
+        form = CollectSettingsForm(data)
+        assert form.is_valid(), form.errors
+        result = form.get_collect_settings()
+        assert result == {}, f"Expected empty dict, got {result}"
+
+    def test_get_collect_settings_stores_non_default_values(self):
+        """Non-default values are included in the returned dict."""
+        data = {
+            "admin_moving_backwards": True,
+            "admin_change_language": True,
+            "general_default_completed": True,
+            "general_analytics": True,
+            "general_font_size": "13",  # default is "25"
+            "admin_edit_saved": True,  # default is False
+        }
+        form = CollectSettingsForm(data)
+        assert form.is_valid(), form.errors
+        result = form.get_collect_settings()
+        assert result == {
+            "admin": {"edit_saved": True},
+            "general": {"font_size": "13"},
+        }
+
+    def test_initial_values_from_collect_settings(self):
+        """Form initial values come from the stored collect_settings dict."""
+        stored = {"admin": {"edit_saved": True}, "general": {"font_size": "13"}}
+        form = CollectSettingsForm(collect_settings=stored)
+        assert form.initial["admin_edit_saved"] is True
+        assert form.initial["general_font_size"] == "13"
+        # Fields not in stored dict still get their DEFAULT values as initial
+        assert form.initial["admin_moving_backwards"] is True
+
+    def test_initial_values_from_defaults_when_no_collect_settings(self):
+        """When collect_settings is None, all initial values come from defaults."""
+        form = CollectSettingsForm(collect_settings=None)
+        assert form.initial["admin_moving_backwards"] is True
+        assert form.initial["general_font_size"] == "25"
+        assert form.initial["general_autosend"] == "wifi_and_cellular"
+
+    def test_project_color_empty_string_treated_as_default(self):
+        """Empty project_color/icon are treated as 'use default' (no override)."""
+        form = CollectSettingsForm(
+            {
+                "admin_moving_backwards": True,
+                "admin_change_language": True,
+                "general_default_completed": True,
+                "general_analytics": True,
+                "project_color": "",
+                "project_icon": "",
+            }
+        )
+        assert form.is_valid(), form.errors
+        result = form.get_collect_settings()
+        assert "project" not in result
 
 
 class TestOrganizationHome(ViewTestBase):

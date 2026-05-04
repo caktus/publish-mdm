@@ -15,6 +15,23 @@ from .publish import ProjectAppUserAssignment
 logger = structlog.getLogger(__name__)
 
 
+def deep_merge(base: dict, overrides: dict) -> dict:
+    """Return a new dict that is ``base`` deep-merged with ``overrides``.
+
+    For each key in ``overrides``:
+    - If the value is a dict and the corresponding value in ``base`` is also a
+      dict, recurse.
+    - Otherwise, the value from ``overrides`` wins.
+    """
+    result = base.copy()
+    for key, value in overrides.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 def build_collect_settings(
     app_user: ProjectAppUserAssignment,
     base_url: str,
@@ -22,14 +39,23 @@ def build_collect_settings(
     project_name_prefix: str,
     language: str = "en",
     admin_pw: str = "",
+    project_settings: dict | None = None,
 ):
-    """Build Collect settings for the given app user."""
-    collect_settings = DEFAULT_COLLECT_SETTINGS.copy()
+    """Build Collect settings for the given app user.
 
+    Args:
+        project_settings: Optional project-level collect settings (from
+            ``Project.collect_settings``).  These are deep-merged on top of
+            ``DEFAULT_COLLECT_SETTINGS`` before the dynamic fields are applied,
+            so dynamic fields (server_url, username, app_language, project name,
+            admin_pw) always take precedence.
+    """
+    collect_settings = deep_merge(DEFAULT_COLLECT_SETTINGS, project_settings or {})
+
+    # Dynamic fields always override project-provided values.
     if admin_pw:
         collect_settings["admin"]["admin_pw"] = admin_pw
 
-    # Customize settings
     url = f"{base_url.rstrip('/')}/key/{app_user.token}/projects/{project_id}"
     collect_settings["general"]["server_url"] = url
     collect_settings["general"]["username"] = app_user.displayName
@@ -47,6 +73,7 @@ def create_app_user_qrcode(
     project_id: int,
     project_name_prefix: str,
     language: str = "en",
+    project_settings: dict | None = None,
 ) -> tuple[io.BytesIO, dict]:
     """Generate a QR code as a PNG for the given app user."""
 
@@ -58,6 +85,7 @@ def create_app_user_qrcode(
         project_id=project_id,
         project_name_prefix=project_name_prefix,
         language=language,
+        project_settings=project_settings,
     )
 
     # Generate QR code with segno

@@ -306,6 +306,17 @@ class Project(AbstractBaseModel):
         Organization, on_delete=models.CASCADE, related_name="projects"
     )
     app_language = models.CharField(max_length=6, choices=APP_LANGUAGE_CHOICES, blank=True)
+    collect_settings = models.JSONField(
+        verbose_name="ODK Collect settings",
+        help_text=(
+            "ODK Collect settings configured per-project. Dynamic fields "
+            "(server_url, username, app_language, project name, admin_pw) "
+            "are always set automatically and cannot be overridden here."
+        ),
+        blank=True,
+        null=True,
+        default=None,
+    )
 
     def __str__(self):
         return f"{self.name} ({self.central_id})"

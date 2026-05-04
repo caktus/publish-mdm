@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load mdm_tags %}
 {% block extra-css %}
     <style>
     #{{ variables_formset.empty_form.prefix }},
@@ -23,6 +24,7 @@
                 {% endfor %}
             </div>
         </div>
+        {% include "publish_mdm/includes/collect_settings_section.html" with csform=collect_settings_form %}
         <h3 class="font-semibold text-gray-900 dark:text-white mb-2">Project-level Template Variables</h3>
         {% include "publish_mdm/includes/formset_table.html" with formset=variables_formset add_link_id="add-template-variable" add_link_text="Add another template variable" %}
         <h3 class="font-semibold text-gray-900 dark:text-white mb-2">Project Attachments</h3>

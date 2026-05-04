@@ -160,6 +160,7 @@ def generate_and_save_app_user_collect_qrcodes(
                 project_id=project.central_id,
                 project_name_prefix=project.name,
                 language=project.app_language or settings.DEFAULT_APP_LANGUAGE,
+                project_settings=project.collect_settings,
             )
             app_user.qr_code.save(
                 f"{app_user.name}.png",
