@@ -20,9 +20,18 @@ from django.contrib import admin
 from django.urls import include, path, re_path
 from django.views.generic import TemplateView
 
-from apps.publish_mdm.views import AcceptOrganizationInvite, websockets_server_health
+from apps.publish_mdm.views import (
+    AcceptOrganizationInvite,
+    SocialAccountConnectionsView,
+    websockets_server_health,
+)
 
 urlpatterns = [
+    path(
+        "accounts/3rdparty/",
+        SocialAccountConnectionsView.as_view(),
+        name="socialaccount_connections",
+    ),
     path("accounts/", include("allauth.urls")),
     path("admin/", admin.site.urls),
     path("", include("apps.publish_mdm.urls", namespace="publish_mdm")),
