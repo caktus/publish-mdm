@@ -306,16 +306,232 @@ class Project(AbstractBaseModel):
         Organization, on_delete=models.CASCADE, related_name="projects"
     )
     app_language = models.CharField(max_length=6, choices=APP_LANGUAGE_CHOICES, blank=True)
-    collect_settings = models.JSONField(
-        verbose_name="ODK Collect settings",
-        help_text=(
-            "ODK Collect settings configured per-project. Dynamic fields "
-            "(server_url, username, app_language, project name, admin_pw) "
-            "are always set automatically and cannot be overridden here."
-        ),
+
+    # ---------------------------------------------------------------------------
+    # ODK Collect settings — individual fields so each can have its own default,
+    # validation, and form widget.  A CollectSettingsSerializer assembles these
+    # into the nested dict expected by build_collect_settings().
+    #
+    # Dynamic fields (server_url, username, app_language, project.name, admin_pw)
+    # are always set programmatically and are NOT stored here.
+    # ---------------------------------------------------------------------------
+
+    # Project display
+    collect_project_color = models.CharField(
+        max_length=50,
+        default="#6ec1e4",
         blank=True,
-        null=True,
-        default=None,
+        verbose_name="Project colour",
+        help_text="Hex colour shown for this project in ODK Collect.",
+    )
+    collect_project_icon = models.CharField(
+        max_length=10,
+        default="🇱🇾",
+        blank=True,
+        verbose_name="Project icon",
+        help_text="Emoji icon shown for this project in ODK Collect.",
+    )
+
+    # General — font / form management / autosend
+    FONT_SIZE_CHOICES: ClassVar = [
+        ("13", "13"),
+        ("17", "17"),
+        ("21", "21"),
+        ("25", "25"),
+        ("29", "29"),
+    ]
+    collect_general_font_size = models.CharField(
+        max_length=5,
+        choices=FONT_SIZE_CHOICES,
+        default="25",
+        verbose_name="Font size",
+    )
+    FORM_UPDATE_MODE_CHOICES: ClassVar = [
+        ("manual", "Manual"),
+        ("previously_downloaded", "Previously downloaded"),
+        ("match_exactly", "Match exactly"),
+    ]
+    collect_general_form_update_mode = models.CharField(
+        max_length=30,
+        choices=FORM_UPDATE_MODE_CHOICES,
+        default="match_exactly",
+        verbose_name="Form update mode",
+    )
+    PERIODIC_FORM_UPDATES_CHECK_CHOICES: ClassVar = [
+        ("every_fifteen_minutes", "Every 15 minutes"),
+        ("every_one_hour", "Every hour"),
+        ("every_six_hours", "Every 6 hours"),
+        ("every_24_hours", "Every 24 hours"),
+    ]
+    collect_general_periodic_form_updates_check = models.CharField(
+        max_length=30,
+        choices=PERIODIC_FORM_UPDATES_CHECK_CHOICES,
+        default="every_one_hour",
+        verbose_name="Form update check frequency",
+    )
+    AUTOSEND_CHOICES: ClassVar = [
+        ("off", "Off"),
+        ("wifi_only", "Wi-Fi only"),
+        ("cellular_only", "Cellular only"),
+        ("wifi_and_cellular", "Wi-Fi and cellular"),
+    ]
+    collect_general_autosend = models.CharField(
+        max_length=30,
+        choices=AUTOSEND_CHOICES,
+        default="wifi_and_cellular",
+        verbose_name="Auto-send",
+    )
+    collect_general_delete_send = models.BooleanField(
+        default=False,
+        verbose_name="Delete after send",
+    )
+    collect_general_default_completed = models.BooleanField(
+        default=True,
+        verbose_name="Default to finalized",
+    )
+    collect_general_analytics = models.BooleanField(
+        default=True,
+        verbose_name="Analytics",
+    )
+
+    # Admin — main menu access controls
+    collect_admin_edit_saved = models.BooleanField(
+        default=False,
+        verbose_name="Edit saved forms",
+    )
+    collect_admin_send_finalized = models.BooleanField(
+        default=False,
+        verbose_name="Send finalized forms",
+    )
+    collect_admin_view_sent = models.BooleanField(
+        default=False,
+        verbose_name="View sent forms",
+    )
+    collect_admin_get_blank = models.BooleanField(
+        default=False,
+        verbose_name="Get blank forms",
+    )
+    collect_admin_delete_saved = models.BooleanField(
+        default=False,
+        verbose_name="Delete saved forms",
+    )
+    collect_admin_qr_code_scanner = models.BooleanField(
+        default=False,
+        verbose_name="QR code scanner",
+    )
+
+    # Admin — project settings access controls
+    collect_admin_change_server = models.BooleanField(
+        default=False,
+        verbose_name="Change server",
+    )
+    collect_admin_change_project_display = models.BooleanField(
+        default=False,
+        verbose_name="Change project display",
+    )
+    collect_admin_change_app_theme = models.BooleanField(
+        default=False,
+        verbose_name="Change app theme",
+    )
+    collect_admin_change_navigation = models.BooleanField(
+        default=False,
+        verbose_name="Change navigation",
+    )
+    collect_admin_maps = models.BooleanField(
+        default=False,
+        verbose_name="Maps",
+    )
+
+    # Admin — form management access controls
+    collect_admin_form_update_mode = models.BooleanField(
+        default=False,
+        verbose_name="Show form update mode setting",
+    )
+    collect_admin_periodic_form_updates_check = models.BooleanField(
+        default=False,
+        verbose_name="Show check frequency setting",
+    )
+    collect_admin_automatic_update = models.BooleanField(
+        default=False,
+        verbose_name="Auto-update",
+    )
+    collect_admin_hide_old_form_versions = models.BooleanField(
+        default=False,
+        verbose_name="Hide old form versions",
+    )
+    collect_admin_change_autosend = models.BooleanField(
+        default=False,
+        verbose_name="Change auto-send",
+    )
+    collect_admin_delete_after_send = models.BooleanField(
+        default=False,
+        verbose_name="Delete after send",
+    )
+    collect_admin_default_to_finalized = models.BooleanField(
+        default=False,
+        verbose_name="Show default-to-finalized setting",
+    )
+    collect_admin_change_constraint_behavior = models.BooleanField(
+        default=False,
+        verbose_name="Change constraint behaviour",
+    )
+    collect_admin_high_resolution = models.BooleanField(
+        default=False,
+        verbose_name="High resolution",
+    )
+    collect_admin_image_size = models.BooleanField(
+        default=False,
+        verbose_name="Image size",
+    )
+    collect_admin_guidance_hint = models.BooleanField(
+        default=False,
+        verbose_name="Guidance hint",
+    )
+    collect_admin_external_app_recording = models.BooleanField(
+        default=False,
+        verbose_name="External app recording",
+    )
+    collect_admin_instance_form_sync = models.BooleanField(
+        default=False,
+        verbose_name="Finalize forms on import",
+    )
+    collect_admin_change_form_metadata = models.BooleanField(
+        default=False,
+        verbose_name="Change form metadata",
+    )
+    collect_admin_analytics = models.BooleanField(
+        default=False,
+        verbose_name="Show analytics setting",
+    )
+
+    # Admin — form entry access controls
+    collect_admin_moving_backwards = models.BooleanField(
+        default=True,
+        verbose_name="Allow backward navigation",
+    )
+    collect_admin_access_settings = models.BooleanField(
+        default=False,
+        verbose_name="Access settings from within form",
+    )
+    collect_admin_change_language = models.BooleanField(
+        default=True,
+        verbose_name="Allow language change",
+    )
+    collect_admin_jump_to = models.BooleanField(
+        default=False,
+        verbose_name="Jump to",
+    )
+    collect_admin_save_mid = models.BooleanField(
+        default=False,
+        verbose_name="Save form",
+    )
+    collect_admin_save_as = models.BooleanField(
+        default=False,
+        verbose_name="Name this form",
+    )
+    collect_admin_mark_as_finalized = models.BooleanField(
+        default=False,
+        verbose_name="Mark as finalized",
     )
 
     def __str__(self):

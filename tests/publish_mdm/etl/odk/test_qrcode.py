@@ -4,6 +4,7 @@ from django.conf import settings
 from apps.publish_mdm.etl.load import generate_and_save_app_user_collect_qrcodes
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
+from apps.publish_mdm.etl.odk.collect_settings import CollectSettingsSerializer
 from apps.publish_mdm.etl.odk.qrcode import (
     build_collect_settings,
     create_app_user_qrcode,
@@ -173,12 +174,12 @@ class TestCollectSettings:
 
     @pytest.mark.django_db
     def test_generate_and_save_passes_collect_settings(self, app_user, mocker):
-        """generate_and_save_app_user_collect_qrcodes() should pass project.collect_settings
-        to create_app_user_qrcode as project_settings.
+        """generate_and_save_app_user_collect_qrcodes() should pass the
+        CollectSettingsSerializer output to create_app_user_qrcode as project_settings.
         """
-        project_settings = {"general": {"font_size": "13"}}
         project = ProjectFactory(
-            collect_settings=project_settings, central_server__base_url="https://central"
+            collect_general_font_size="13",  # non-default value
+            central_server__base_url="https://central",
         )
         AppUserFactory(name=app_user.displayName, project=project)
         mocker.patch(
@@ -192,9 +193,13 @@ class TestCollectSettings:
         generate_and_save_app_user_collect_qrcodes(project)
 
         mock_create_app_user_qrcode.assert_called_once()
+        expected_project_settings = CollectSettingsSerializer(project=project).to_dict()
         assert (
-            mock_create_app_user_qrcode.mock_calls[0].kwargs["project_settings"] == project_settings
+            mock_create_app_user_qrcode.mock_calls[0].kwargs["project_settings"]
+            == expected_project_settings
         )
+        # Verify the non-default font_size is reflected
+        assert expected_project_settings["general"]["font_size"] == "13"
 
     @pytest.mark.django_db
     def test_generate_qrcodes_for_specific_app_users(self, app_user, mocker):

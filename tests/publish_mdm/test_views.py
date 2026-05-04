@@ -1042,12 +1042,18 @@ class TestEditProject(ViewTestBase):
             "attachments-INITIAL_FORMS": 0,
             "attachments-MIN_NUM_FORMS": 0,
             "attachments-MAX_NUM_FORMS": 1000,
-            # Collect settings — booleans that default to True must be submitted
-            # as checked so that the form sees "no change" for unchanged settings.
-            "admin_moving_backwards": True,
-            "admin_change_language": True,
-            "general_default_completed": True,
-            "general_analytics": True,
+            # Collect settings — all fields with non-empty defaults must be submitted
+            # so that the form's has_changed() correctly reports no change.
+            "collect_project_color": "#6ec1e4",
+            "collect_project_icon": "🇱🇾",
+            "collect_general_font_size": "25",
+            "collect_general_form_update_mode": "match_exactly",
+            "collect_general_periodic_form_updates_check": "every_one_hour",
+            "collect_general_autosend": "wifi_and_cellular",
+            "collect_admin_moving_backwards": True,
+            "collect_admin_change_language": True,
+            "collect_general_default_completed": True,
+            "collect_general_analytics": True,
         }
 
     def test_valid_form_and_valid_formset(
@@ -1118,12 +1124,18 @@ class TestEditProject(ViewTestBase):
             "attachments-INITIAL_FORMS": 0,
             "attachments-MIN_NUM_FORMS": 0,
             "attachments-MAX_NUM_FORMS": 1000,
-            # Collect settings — booleans that default to True must be submitted
-            # as checked so that the form sees "no change" for unchanged settings.
-            "admin_moving_backwards": True,
-            "admin_change_language": True,
-            "general_default_completed": True,
-            "general_analytics": True,
+            # Collect settings — all fields with non-empty defaults must be submitted
+            # so that the form's has_changed() correctly reports no change.
+            "collect_project_color": "#6ec1e4",
+            "collect_project_icon": "🇱🇾",
+            "collect_general_font_size": "25",
+            "collect_general_form_update_mode": "match_exactly",
+            "collect_general_periodic_form_updates_check": "every_one_hour",
+            "collect_general_autosend": "wifi_and_cellular",
+            "collect_admin_moving_backwards": True,
+            "collect_admin_change_language": True,
+            "collect_general_default_completed": True,
+            "collect_general_analytics": True,
         }
         new_values = {
             "app_language": "ar",
@@ -1135,9 +1147,9 @@ class TestEditProject(ViewTestBase):
         should_regenerate = ("app_language", "name", "admin_pw", "collect_settings")
 
         if changed_field == "collect_settings":
-            # Change collect_settings by removing the moving_backwards True default
+            # Change collect settings by removing the moving_backwards True default
             # (uncheck the toggle so it sends False instead of True).
-            data.pop("admin_moving_backwards")
+            data.pop("collect_admin_moving_backwards")
         elif changed_field == "admin_pw":
             admin_pw_var = TemplateVariableFactory.create(
                 name="admin_pw", organization=project.organization
@@ -1164,8 +1176,9 @@ class TestEditProject(ViewTestBase):
             assert project.get_admin_pw() == "password"
         elif changed_field == "collect_settings":
             project.refresh_from_db()
-            # moving_backwards was unchecked (False) — differs from default True, so it's stored.
-            assert project.collect_settings == {"admin": {"moving_backwards": False}}
+            # collect_admin_moving_backwards was unchecked (sent as False);
+            # the model field should now store False (different from its True default).
+            assert project.collect_admin_moving_backwards is False
         elif changed_field:
             new_db_value = Project.objects.values_list(changed_field, flat=True).filter(
                 pk=project.pk
@@ -1345,76 +1358,87 @@ class TestEditProject(ViewTestBase):
         assert expected_error in response.content.decode()
 
 
+@pytest.mark.django_db
 class TestCollectSettingsForm:
-    """Tests for CollectSettingsForm validation and data handling."""
+    """Tests for CollectSettingsForm (ModelForm) validation and model integration."""
 
-    def test_valid_with_empty_data(self):
-        """An empty submission is valid — all fields have defaults."""
-        form = CollectSettingsForm({})
-        assert form.is_valid(), form.errors
+    @pytest.fixture
+    def project(self):
+        from tests.publish_mdm.factories import ProjectFactory
 
-    def test_get_collect_settings_empty_returns_empty_dict(self):
-        """Submitting all defaults produces an empty overrides dict."""
-        data = {
-            "admin_moving_backwards": True,
-            "admin_change_language": True,
-            "general_default_completed": True,
-            "general_analytics": True,
-        }
-        form = CollectSettingsForm(data)
-        assert form.is_valid(), form.errors
-        result = form.get_collect_settings()
-        assert result == {}, f"Expected empty dict, got {result}"
+        return ProjectFactory()
 
-    def test_get_collect_settings_stores_non_default_values(self):
-        """Non-default values are included in the returned dict."""
-        data = {
-            "admin_moving_backwards": True,
-            "admin_change_language": True,
-            "general_default_completed": True,
-            "general_analytics": True,
-            "general_font_size": "13",  # default is "25"
-            "admin_edit_saved": True,  # default is False
-        }
-        form = CollectSettingsForm(data)
-        assert form.is_valid(), form.errors
-        result = form.get_collect_settings()
-        assert result == {
-            "admin": {"edit_saved": True},
-            "general": {"font_size": "13"},
-        }
-
-    def test_initial_values_from_collect_settings(self):
-        """Form initial values come from the stored collect_settings dict."""
-        stored = {"admin": {"edit_saved": True}, "general": {"font_size": "13"}}
-        form = CollectSettingsForm(collect_settings=stored)
-        assert form.initial["admin_edit_saved"] is True
-        assert form.initial["general_font_size"] == "13"
-        # Fields not in stored dict still get their DEFAULT values as initial
-        assert form.initial["admin_moving_backwards"] is True
-
-    def test_initial_values_from_defaults_when_no_collect_settings(self):
-        """When collect_settings is None, all initial values come from defaults."""
-        form = CollectSettingsForm(collect_settings=None)
-        assert form.initial["admin_moving_backwards"] is True
-        assert form.initial["general_font_size"] == "25"
-        assert form.initial["general_autosend"] == "wifi_and_cellular"
-
-    def test_project_color_empty_string_treated_as_default(self):
-        """Empty project_color/icon are treated as 'use default' (no override)."""
+    def test_valid_with_default_data(self, project):
+        """Submitting all default values is valid and produces no changes."""
         form = CollectSettingsForm(
             {
-                "admin_moving_backwards": True,
-                "admin_change_language": True,
-                "general_default_completed": True,
-                "general_analytics": True,
-                "project_color": "",
-                "project_icon": "",
-            }
+                # All fields with non-empty / non-False defaults must be submitted
+                # for has_changed() to correctly report no change.
+                "collect_project_color": "#6ec1e4",
+                "collect_project_icon": "🇱🇾",
+                "collect_general_font_size": "25",
+                "collect_general_form_update_mode": "match_exactly",
+                "collect_general_periodic_form_updates_check": "every_one_hour",
+                "collect_general_autosend": "wifi_and_cellular",
+                "collect_admin_moving_backwards": True,
+                "collect_admin_change_language": True,
+                "collect_general_default_completed": True,
+                "collect_general_analytics": True,
+            },
+            instance=project,
         )
         assert form.is_valid(), form.errors
-        result = form.get_collect_settings()
-        assert "project" not in result
+        assert not form.has_changed()
+
+    def test_non_default_font_size_marks_changed(self, project):
+        """A non-default font_size is detected as a changed field."""
+        form = CollectSettingsForm(
+            {
+                "collect_project_color": "#6ec1e4",
+                "collect_project_icon": "🇱🇾",
+                "collect_general_font_size": "13",  # differs from default "25"
+                "collect_general_form_update_mode": "match_exactly",
+                "collect_general_periodic_form_updates_check": "every_one_hour",
+                "collect_general_autosend": "wifi_and_cellular",
+                "collect_admin_moving_backwards": True,
+                "collect_admin_change_language": True,
+                "collect_general_default_completed": True,
+                "collect_general_analytics": True,
+            },
+            instance=project,
+        )
+        assert form.is_valid(), form.errors
+        assert "collect_general_font_size" in form.changed_data
+
+    def test_save_updates_model_fields(self, project):
+        """Saving the form writes collect_* fields to the Project instance."""
+        form = CollectSettingsForm(
+            {
+                "collect_project_color": "#6ec1e4",
+                "collect_project_icon": "🇱🇾",
+                "collect_admin_moving_backwards": True,
+                "collect_admin_change_language": True,
+                "collect_general_default_completed": True,
+                "collect_general_analytics": True,
+                "collect_general_font_size": "13",
+                "collect_admin_edit_saved": True,
+                "collect_general_autosend": "wifi_and_cellular",
+                "collect_general_form_update_mode": "match_exactly",
+                "collect_general_periodic_form_updates_check": "every_one_hour",
+            },
+            instance=project,
+        )
+        assert form.is_valid(), form.errors
+        saved_project = form.save()
+        assert saved_project.collect_general_font_size == "13"
+        assert saved_project.collect_admin_edit_saved is True
+
+    def test_initial_values_from_model_defaults(self, project):
+        """Form initial values reflect the model instance defaults."""
+        form = CollectSettingsForm(instance=project)
+        assert form.initial.get("collect_admin_moving_backwards") is True
+        assert form.initial.get("collect_general_font_size") == "25"
+        assert form.initial.get("collect_general_autosend") == "wifi_and_cellular"
 
 
 class TestOrganizationHome(ViewTestBase):
