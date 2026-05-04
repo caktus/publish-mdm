@@ -1,5 +1,4 @@
 import base64
-import contextlib
 import datetime as dt
 import json
 
@@ -503,18 +502,25 @@ def enrollment_token_create(request, organization_slug):
                 }
                 return render(request, "mdm/enrollment_token_create.html", context)
 
-            # Parse expiry timestamp from AMAPI response; fall back to approx local calculation
+            # Parse expiry timestamp from AMAPI response; fall back to approx local calculation.
+            # AMAPI returns ISO 8601 with a trailing "Z" (UTC); normalize to "+00:00" so
+            # fromisoformat() parses it correctly on Python < 3.11.
             token.expires_at = expires_at_approx
             if expiry_str := token_data.get("expirationTimestamp"):
-                with contextlib.suppress(ValueError):
-                    token.expires_at = dt.datetime.fromisoformat(expiry_str)
+                try:
+                    token.expires_at = dt.datetime.fromisoformat(expiry_str.replace("Z", "+00:00"))
+                except ValueError:
+                    logger.warning(
+                        "Failed to parse expiration timestamp from AMAPI response",
+                        expiry_str=expiry_str,
+                    )
             token.token_value = token_data.get("value", "")
             token.token_resource_name = token_data.get("name", "")
             token.created_by = request.user
             if qr_code_str := token_data.get("qrCode"):
                 qr_image = create_qr_code(qr_code_str)
                 token.qr_code.save(
-                    f"token_{token.fleet.pk}_{token.token_value[:10]}.png",
+                    f"token_{token.fleet.pk}_{get_random_string(12)}.png",
                     ContentFile(qr_image.getvalue()),
                     save=False,
                 )
