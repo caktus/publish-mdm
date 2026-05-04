@@ -24,14 +24,14 @@
             <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">Appearance of this project in ODK Collect's project list.</p>
             <div class="max-w-md space-y-3">
                 <div>
-                    {{ csform.collect_project_color.label_tag }}
-                    {{ csform.collect_project_color }}
-                    {{ csform.collect_project_color.errors }}
+                    {{ form.collect_project_color.label_tag }}
+                    {{ form.collect_project_color }}
+                    {{ form.collect_project_color.errors }}
                 </div>
                 <div>
-                    {{ csform.collect_project_icon.label_tag }}
-                    {{ csform.collect_project_icon }}
-                    {{ csform.collect_project_icon.errors }}
+                    {{ form.collect_project_icon.label_tag }}
+                    {{ form.collect_project_icon }}
+                    {{ form.collect_project_icon.errors }}
                 </div>
             </div>
         </div>
@@ -42,28 +42,85 @@
             <h4 class="mb-3 text-base font-semibold text-gray-900 dark:text-white">General Settings</h4>
             <div class="max-w-md space-y-3">
                 <div>
-                    {{ csform.collect_general_font_size.label_tag }}
-                    {{ csform.collect_general_font_size }}
-                    {{ csform.collect_general_font_size.errors }}
+                    {{ form.collect_general_app_language.label_tag }}
+                    {{ form.collect_general_app_language }}
+                    {{ form.collect_general_app_language.errors }}
                 </div>
                 <div>
-                    {{ csform.collect_general_form_update_mode.label_tag }}
-                    {{ csform.collect_general_form_update_mode }}
-                    {{ csform.collect_general_form_update_mode.errors }}
+                    {{ form.collect_general_font_size.label_tag }}
+                    {{ form.collect_general_font_size }}
+                    {{ form.collect_general_font_size.errors }}
                 </div>
                 <div>
-                    {{ csform.collect_general_periodic_form_updates_check.label_tag }}
-                    {{ csform.collect_general_periodic_form_updates_check }}
-                    {{ csform.collect_general_periodic_form_updates_check.errors }}
+                    {{ form.collect_general_app_theme.label_tag }}
+                    {{ form.collect_general_app_theme }}
+                    {{ form.collect_general_app_theme.errors }}
                 </div>
                 <div>
-                    {{ csform.collect_general_autosend.label_tag }}
-                    {{ csform.collect_general_autosend }}
-                    {{ csform.collect_general_autosend.errors }}
+                    {{ form.collect_general_navigation.label_tag }}
+                    {{ form.collect_general_navigation }}
+                    {{ form.collect_general_navigation.errors }}
                 </div>
-                <div>{% toggle_field csform.collect_general_delete_send %}</div>
-                <div>{% toggle_field csform.collect_general_default_completed %}</div>
-                <div>{% toggle_field csform.collect_general_analytics %}</div>
+                <div>
+                    {{ form.collect_general_form_update_mode.label_tag }}
+                    {{ form.collect_general_form_update_mode }}
+                    {{ form.collect_general_form_update_mode.errors }}
+                </div>
+                <div>
+                    {{ form.collect_general_periodic_form_updates_check.label_tag }}
+                    {{ form.collect_general_periodic_form_updates_check }}
+                    {{ form.collect_general_periodic_form_updates_check.errors }}
+                </div>
+                <div>
+                    {{ form.collect_general_autosend.label_tag }}
+                    {{ form.collect_general_autosend }}
+                    {{ form.collect_general_autosend.errors }}
+                </div>
+                <div>
+                    {{ form.collect_general_constraint_behavior.label_tag }}
+                    {{ form.collect_general_constraint_behavior }}
+                    {{ form.collect_general_constraint_behavior.errors }}
+                </div>
+                <div>
+                    {{ form.collect_general_image_size.label_tag }}
+                    {{ form.collect_general_image_size }}
+                    {{ form.collect_general_image_size.errors }}
+                </div>
+                <div>
+                    {{ form.collect_general_guidance_hint.label_tag }}
+                    {{ form.collect_general_guidance_hint }}
+                    {{ form.collect_general_guidance_hint.errors }}
+                </div>
+                <div>{% toggle_field form.collect_general_delete_send %}</div>
+                <div>{% toggle_field form.collect_general_default_completed %}</div>
+                <div>{% toggle_field form.collect_general_high_resolution %}</div>
+                <div>{% toggle_field form.collect_general_external_app_recording %}</div>
+                <div>{% toggle_field form.collect_general_instance_sync %}</div>
+                <div>{% toggle_field form.collect_general_analytics %}</div>
+            </div>
+        </div>
+        {# ------------------------------------------------------------------ #}
+        {# General: user and device identity #}
+        {# ------------------------------------------------------------------ #}
+        <div>
+            <h4 class="mb-3 text-base font-semibold text-gray-900 dark:text-white">Form Metadata</h4>
+            <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">Automatically filled into form metadata fields.</p>
+            <div class="max-w-md space-y-3">
+                <div>
+                    {{ form.collect_general_metadata_username.label_tag }}
+                    {{ form.collect_general_metadata_username }}
+                    {{ form.collect_general_metadata_username.errors }}
+                </div>
+                <div>
+                    {{ form.collect_general_metadata_phonenumber.label_tag }}
+                    {{ form.collect_general_metadata_phonenumber }}
+                    {{ form.collect_general_metadata_phonenumber.errors }}
+                </div>
+                <div>
+                    {{ form.collect_general_metadata_email.label_tag }}
+                    {{ form.collect_general_metadata_email }}
+                    {{ form.collect_general_metadata_email.errors }}
+                </div>
             </div>
         </div>
         {# ------------------------------------------------------------------ #}
@@ -73,12 +130,12 @@
             <h4 class="mb-1 text-base font-semibold text-gray-900 dark:text-white">Admin: Main Menu</h4>
             <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">Controls which main-menu items are visible to app users.</p>
             <div class="max-w-md space-y-3">
-                <div>{% toggle_field csform.collect_admin_edit_saved %}</div>
-                <div>{% toggle_field csform.collect_admin_send_finalized %}</div>
-                <div>{% toggle_field csform.collect_admin_view_sent %}</div>
-                <div>{% toggle_field csform.collect_admin_get_blank %}</div>
-                <div>{% toggle_field csform.collect_admin_delete_saved %}</div>
-                <div>{% toggle_field csform.collect_admin_qr_code_scanner %}</div>
+                <div>{% toggle_field form.collect_admin_edit_saved %}</div>
+                <div>{% toggle_field form.collect_admin_send_finalized %}</div>
+                <div>{% toggle_field form.collect_admin_view_sent %}</div>
+                <div>{% toggle_field form.collect_admin_get_blank %}</div>
+                <div>{% toggle_field form.collect_admin_delete_saved %}</div>
+                <div>{% toggle_field form.collect_admin_qr_code_scanner %}</div>
             </div>
         </div>
         {# ------------------------------------------------------------------ #}
@@ -90,11 +147,11 @@
                 Controls which Project Settings options are accessible to app users.
             </p>
             <div class="max-w-md space-y-3">
-                <div>{% toggle_field csform.collect_admin_change_server %}</div>
-                <div>{% toggle_field csform.collect_admin_change_project_display %}</div>
-                <div>{% toggle_field csform.collect_admin_change_app_theme %}</div>
-                <div>{% toggle_field csform.collect_admin_change_navigation %}</div>
-                <div>{% toggle_field csform.collect_admin_maps %}</div>
+                <div>{% toggle_field form.collect_admin_change_server %}</div>
+                <div>{% toggle_field form.collect_admin_change_project_display %}</div>
+                <div>{% toggle_field form.collect_admin_change_app_theme %}</div>
+                <div>{% toggle_field form.collect_admin_change_navigation %}</div>
+                <div>{% toggle_field form.collect_admin_maps %}</div>
             </div>
         </div>
         {# ------------------------------------------------------------------ #}
@@ -106,21 +163,23 @@
                 Controls which form management options are accessible to app users.
             </p>
             <div class="max-w-md space-y-3">
-                <div>{% toggle_field csform.collect_admin_form_update_mode %}</div>
-                <div>{% toggle_field csform.collect_admin_periodic_form_updates_check %}</div>
-                <div>{% toggle_field csform.collect_admin_automatic_update %}</div>
-                <div>{% toggle_field csform.collect_admin_hide_old_form_versions %}</div>
-                <div>{% toggle_field csform.collect_admin_change_autosend %}</div>
-                <div>{% toggle_field csform.collect_admin_delete_after_send %}</div>
-                <div>{% toggle_field csform.collect_admin_default_to_finalized %}</div>
-                <div>{% toggle_field csform.collect_admin_change_constraint_behavior %}</div>
-                <div>{% toggle_field csform.collect_admin_high_resolution %}</div>
-                <div>{% toggle_field csform.collect_admin_image_size %}</div>
-                <div>{% toggle_field csform.collect_admin_guidance_hint %}</div>
-                <div>{% toggle_field csform.collect_admin_external_app_recording %}</div>
-                <div>{% toggle_field csform.collect_admin_instance_form_sync %}</div>
-                <div>{% toggle_field csform.collect_admin_change_form_metadata %}</div>
-                <div>{% toggle_field csform.collect_admin_analytics %}</div>
+                <div>{% toggle_field form.collect_admin_form_update_mode %}</div>
+                <div>{% toggle_field form.collect_admin_periodic_form_updates_check %}</div>
+                <div>{% toggle_field form.collect_admin_automatic_update %}</div>
+                <div>{% toggle_field form.collect_admin_hide_old_form_versions %}</div>
+                <div>{% toggle_field form.collect_admin_change_autosend %}</div>
+                <div>{% toggle_field form.collect_admin_delete_after_send %}</div>
+                <div>{% toggle_field form.collect_admin_default_to_finalized %}</div>
+                <div>{% toggle_field form.collect_admin_change_constraint_behavior %}</div>
+                <div>{% toggle_field form.collect_admin_high_resolution %}</div>
+                <div>{% toggle_field form.collect_admin_image_size %}</div>
+                <div>{% toggle_field form.collect_admin_guidance_hint %}</div>
+                <div>{% toggle_field form.collect_admin_external_app_recording %}</div>
+                <div>{% toggle_field form.collect_admin_instance_form_sync %}</div>
+                <div>{% toggle_field form.collect_admin_change_form_metadata %}</div>
+                <div>{% toggle_field form.collect_admin_analytics %}</div>
+                <div>{% toggle_field form.collect_admin_change_app_language %}</div>
+                <div>{% toggle_field form.collect_admin_change_font_size %}</div>
             </div>
         </div>
         {# ------------------------------------------------------------------ #}
@@ -130,13 +189,13 @@
             <h4 class="mb-1 text-base font-semibold text-gray-900 dark:text-white">Admin: Form Entry</h4>
             <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">Controls app-user capabilities while filling in a form.</p>
             <div class="max-w-md space-y-3">
-                <div>{% toggle_field csform.collect_admin_moving_backwards %}</div>
-                <div>{% toggle_field csform.collect_admin_access_settings %}</div>
-                <div>{% toggle_field csform.collect_admin_change_language %}</div>
-                <div>{% toggle_field csform.collect_admin_jump_to %}</div>
-                <div>{% toggle_field csform.collect_admin_save_mid %}</div>
-                <div>{% toggle_field csform.collect_admin_save_as %}</div>
-                <div>{% toggle_field csform.collect_admin_mark_as_finalized %}</div>
+                <div>{% toggle_field form.collect_admin_moving_backwards %}</div>
+                <div>{% toggle_field form.collect_admin_access_settings %}</div>
+                <div>{% toggle_field form.collect_admin_change_language %}</div>
+                <div>{% toggle_field form.collect_admin_jump_to %}</div>
+                <div>{% toggle_field form.collect_admin_save_mid %}</div>
+                <div>{% toggle_field form.collect_admin_save_as %}</div>
+                <div>{% toggle_field form.collect_admin_mark_as_finalized %}</div>
             </div>
         </div>
         <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -147,8 +206,7 @@
                rel="noopener noreferrer">ODK Collect import/export docs</a>
             for a full list of available settings.
             The following fields are managed automatically and cannot be set here:
-            <code>server_url</code>, <code>username</code>, <code>app_language</code>,
-            <code>project.name</code>, <code>admin_pw</code>.
+            <code>server_url</code>, <code>username</code>, <code>project.name</code>.
         </p>
     </div>
 </div>

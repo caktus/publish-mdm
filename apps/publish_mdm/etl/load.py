@@ -4,7 +4,6 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 
 import structlog
-from django.conf import settings
 from django.core.files.storage import storages
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import transaction
@@ -21,7 +20,6 @@ from ..models import (
     Project,
 )
 from .odk.client import PublishMDMClient
-from .odk.collect_settings import CollectSettingsSerializer
 from .odk.qrcode import create_app_user_qrcode
 
 logger = structlog.getLogger(__name__)
@@ -155,13 +153,9 @@ def generate_and_save_app_user_collect_qrcodes(
         for app_user in app_users:
             logger.info("Generating QR code", app_user=app_user.name)
             image, app_user.qr_code_data = create_app_user_qrcode(
+                project=project,
                 app_user=central_app_users[app_user.name],
-                admin_pw=project.get_admin_pw(),
                 base_url=client.session.base_url,
-                project_id=project.central_id,
-                project_name_prefix=project.name,
-                language=project.app_language or settings.DEFAULT_APP_LANGUAGE,
-                project_settings=CollectSettingsSerializer(project=project).to_dict(),
             )
             app_user.qr_code.save(
                 f"{app_user.name}.png",

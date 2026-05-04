@@ -54,7 +54,6 @@ from .forms import (
     AppUserTemplateVariableFormSet,
     BYODDeviceEnrollmentForm,
     CentralServerFrontendForm,
-    CollectSettingsForm,
     ConfirmImportForm,
     DeviceAppUserForm,
     DeviceEnrollmentQRCodeForm,
@@ -552,7 +551,6 @@ def change_project(request, organization_slug, odk_project_pk=None):
         action = "add"
         project = Project(organization=request.organization)
     form = ProjectForm(request.POST or None, instance=project)
-    collect_settings_form = CollectSettingsForm(request.POST or None, instance=project)
     variables_formset = ProjectTemplateVariableFormSet(
         request.POST or None,
         instance=project,
@@ -566,7 +564,6 @@ def change_project(request, organization_slug, odk_project_pk=None):
     if request.method == "POST" and all(
         [
             form.is_valid(),
-            collect_settings_form.is_valid(),
             variables_formset.is_valid(),
             attachments_formset.is_valid(),
         ]
@@ -575,24 +572,15 @@ def change_project(request, organization_slug, odk_project_pk=None):
         if request.odk_project:
             admin_pw = request.odk_project.get_admin_pw()
             form.save()
-            # Save the collect settings fields onto the project.
-            collect_settings_form.save()
             variables_formset.save()
-            # Regenerate app user QR codes if any field that impacts them has changed.
-            qr_code_fields = ("app_language", "name")
-            if (
-                any(field in form.changed_data for field in qr_code_fields)
-                or collect_settings_form.has_changed()
-                or (
-                    variables_formset.has_changed()
-                    and admin_pw != request.odk_project.get_admin_pw()
-                )
+            # Regenerate QR codes if any field that affects them has changed.
+            if any(f == "name" or f.startswith("collect_") for f in form.changed_data) or (
+                variables_formset.has_changed() and admin_pw != request.odk_project.get_admin_pw()
             ):
                 generate_and_save_app_user_collect_qrcodes(request.odk_project)
             attachments_formset.save()
         else:
             form.save(commit=False)
-            collect_settings_form.save(commit=False)
             # Create the project in ODK Central then save it in the database
             try:
                 project.central_server.decrypt()
@@ -615,7 +603,6 @@ def change_project(request, organization_slug, odk_project_pk=None):
             return redirect("publish_mdm:form-template-list", organization_slug, project.pk)
     context = {
         "form": form,
-        "collect_settings_form": collect_settings_form,
         "variables_formset": variables_formset,
         "attachments_formset": attachments_formset,
         "breadcrumbs": Breadcrumbs.from_items(

@@ -10,6 +10,7 @@ from django.conf import settings
 from django.contrib.postgres.aggregates import ArrayAgg
 from django.core.files.base import ContentFile
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import models
 from django.db.models import Count, Q
 from django.shortcuts import resolve_url
 from django.template.loader import render_to_string
@@ -40,7 +41,6 @@ from apps.publish_mdm.forms import (
     AppUserTemplateVariableFormSet,
     BYODDeviceEnrollmentForm,
     CentralServerFrontendForm,
-    CollectSettingsForm,
     DeviceAppUserForm,
     DeviceEnrollmentQRCodeForm,
     FleetAddForm,
@@ -866,7 +866,18 @@ class TestAddProject(ViewTestBase):
             "name": "New name",
             "central_server": central_server.pk,
             "template_variables": [i.id for i in template_variables],
-            "app_language": "ar",
+            "collect_general_app_language": "ar",
+            "collect_general_font_size": "25",
+            "collect_general_form_update_mode": "match_exactly",
+            "collect_general_periodic_form_updates_check": "every_one_hour",
+            "collect_general_autosend": "wifi_and_cellular",
+            "collect_general_default_completed": True,
+            "collect_general_analytics": True,
+            "collect_general_external_app_recording": True,
+            "collect_admin_moving_backwards": True,
+            "collect_admin_change_language": True,
+            "collect_project_color": "#6ec1e4",
+            "collect_project_icon": "🇱🇾",
             "project_template_variables-TOTAL_FORMS": 2,
             "project_template_variables-INITIAL_FORMS": 0,
             "project_template_variables-MIN_NUM_FORMS": 0,
@@ -898,7 +909,7 @@ class TestAddProject(ViewTestBase):
         assert project.central_id == 10
         assert project.organization == organization
         assert project.central_server == central_server
-        assert project.app_language == "ar"
+        assert project.collect_general_app_language == "ar"
         assert set(project.template_variables.all()) == set(template_variables)
         # Ensure ProjectTemplateVariables are created
         assert set(
@@ -1046,6 +1057,7 @@ class TestEditProject(ViewTestBase):
             # so that the form's has_changed() correctly reports no change.
             "collect_project_color": "#6ec1e4",
             "collect_project_icon": "🇱🇾",
+            "collect_general_app_language": "en",
             "collect_general_font_size": "25",
             "collect_general_form_update_mode": "match_exactly",
             "collect_general_periodic_form_updates_check": "every_one_hour",
@@ -1054,6 +1066,7 @@ class TestEditProject(ViewTestBase):
             "collect_admin_change_language": True,
             "collect_general_default_completed": True,
             "collect_general_analytics": True,
+            "collect_general_external_app_recording": True,
         }
 
     def test_valid_form_and_valid_formset(
@@ -1064,7 +1077,7 @@ class TestEditProject(ViewTestBase):
             {
                 "central_server": other_central_server.id,
                 "template_variables": [i.id for i in template_variables],
-                "app_language": "ar",
+                "collect_general_app_language": "ar",
             }
         )
         mocker.patch("apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes")
@@ -1073,7 +1086,7 @@ class TestEditProject(ViewTestBase):
         project.refresh_from_db()
         assert project.name == "New name"
         assert project.central_server == other_central_server
-        assert project.app_language == "ar"
+        assert project.collect_general_app_language == "ar"
         assert set(project.template_variables.all()) == set(template_variables)
         # Ensure the existing ProjectTemplateVariable was changed and a new one was added
         assert project.project_template_variables.count() == 2
@@ -1114,7 +1127,6 @@ class TestEditProject(ViewTestBase):
         data = {
             "name": project.name,
             "central_server": project.central_server_id,
-            "app_language": project.app_language,
             "template_variables": [],
             "project_template_variables-TOTAL_FORMS": 0,
             "project_template_variables-INITIAL_FORMS": 0,
@@ -1128,6 +1140,7 @@ class TestEditProject(ViewTestBase):
             # so that the form's has_changed() correctly reports no change.
             "collect_project_color": "#6ec1e4",
             "collect_project_icon": "🇱🇾",
+            "collect_general_app_language": "en",
             "collect_general_font_size": "25",
             "collect_general_form_update_mode": "match_exactly",
             "collect_general_periodic_form_updates_check": "every_one_hour",
@@ -1136,20 +1149,44 @@ class TestEditProject(ViewTestBase):
             "collect_admin_change_language": True,
             "collect_general_default_completed": True,
             "collect_general_analytics": True,
+            "collect_general_external_app_recording": True,
         }
         new_values = {
-            "app_language": "ar",
+            "collect_general_app_language": "ar",
             "name": project.name + " edited",
             "central_server": other_central_server.id,
             "template_variables": [i.id for i in template_variables],
         }
-        # QR codes should be regenerated if any of these fields are changed
-        should_regenerate = ("app_language", "name", "admin_pw", "collect_settings")
+        # Build new_values for collect_* fields by flipping boolean defaults
+        # or picking an alternate choice / text value.
+        for field_name in ProjectForm._meta.fields:
+            if field_name.startswith("collect_") and field_name not in new_values:
+                model_field = Project._meta.get_field(field_name)
+                current = getattr(project, field_name)
+                if isinstance(model_field, models.BooleanField):
+                    new_values[field_name] = not current
+                elif hasattr(model_field, "choices") and model_field.choices:
+                    for choice_val, _ in model_field.choices:
+                        if choice_val != current:
+                            new_values[field_name] = choice_val
+                            break
+                else:
+                    # Free-text CharField — use a different value
+                    new_values[field_name] = current + "_changed" if current else "changed"
+        # QR codes should be regenerated if name, collect_settings, or any
+        # collect_* field changes.
+        should_regenerate = (
+            "name",
+            "admin_pw",
+            "collect_settings",
+            *[f for f in ProjectForm._meta.fields if f.startswith("collect_")],
+        )
 
         if changed_field == "collect_settings":
             # Change collect settings by removing the moving_backwards True default
             # (uncheck the toggle so it sends False instead of True).
             data.pop("collect_admin_moving_backwards")
+            data.pop("collect_admin_change_language")
         elif changed_field == "admin_pw":
             admin_pw_var = TemplateVariableFactory.create(
                 name="admin_pw", organization=project.organization
@@ -1360,74 +1397,55 @@ class TestEditProject(ViewTestBase):
 
 @pytest.mark.django_db
 class TestCollectSettingsForm:
-    """Tests for CollectSettingsForm (ModelForm) validation and model integration."""
+    """Tests for collect_* fields within ProjectForm (ModelForm integration)."""
 
     @pytest.fixture
     def project(self):
-        from tests.publish_mdm.factories import ProjectFactory
+        org = OrganizationFactory()
+        cs = CentralServerFactory(organization=org)
+        return ProjectFactory(organization=org, central_server=cs)
 
-        return ProjectFactory()
+    def _base_data(self, project):
+        """Return a POST data dict with all ProjectForm required fields at their defaults."""
+        return {
+            "name": project.name,
+            "central_server": project.central_server_id,
+            "template_variables": [],
+            "collect_project_color": "#6ec1e4",
+            "collect_project_icon": "🇱🇾",
+            "collect_general_app_language": "en",
+            "collect_general_font_size": "25",
+            "collect_general_form_update_mode": "match_exactly",
+            "collect_general_periodic_form_updates_check": "every_one_hour",
+            "collect_general_autosend": "wifi_and_cellular",
+            "collect_admin_moving_backwards": True,
+            "collect_admin_change_language": True,
+            "collect_general_default_completed": True,
+            "collect_general_analytics": True,
+            "collect_general_external_app_recording": True,
+        }
 
     def test_valid_with_default_data(self, project):
         """Submitting all default values is valid and produces no changes."""
-        form = CollectSettingsForm(
-            {
-                # All fields with non-empty / non-False defaults must be submitted
-                # for has_changed() to correctly report no change.
-                "collect_project_color": "#6ec1e4",
-                "collect_project_icon": "🇱🇾",
-                "collect_general_font_size": "25",
-                "collect_general_form_update_mode": "match_exactly",
-                "collect_general_periodic_form_updates_check": "every_one_hour",
-                "collect_general_autosend": "wifi_and_cellular",
-                "collect_admin_moving_backwards": True,
-                "collect_admin_change_language": True,
-                "collect_general_default_completed": True,
-                "collect_general_analytics": True,
-            },
-            instance=project,
-        )
+        form = ProjectForm(self._base_data(project), instance=project)
         assert form.is_valid(), form.errors
-        assert not form.has_changed()
+        assert not any(f.startswith("collect_") for f in form.changed_data)
 
     def test_non_default_font_size_marks_changed(self, project):
         """A non-default font_size is detected as a changed field."""
-        form = CollectSettingsForm(
-            {
-                "collect_project_color": "#6ec1e4",
-                "collect_project_icon": "🇱🇾",
-                "collect_general_font_size": "13",  # differs from default "25"
-                "collect_general_form_update_mode": "match_exactly",
-                "collect_general_periodic_form_updates_check": "every_one_hour",
-                "collect_general_autosend": "wifi_and_cellular",
-                "collect_admin_moving_backwards": True,
-                "collect_admin_change_language": True,
-                "collect_general_default_completed": True,
-                "collect_general_analytics": True,
-            },
-            instance=project,
-        )
+        data = {**self._base_data(project), "collect_general_font_size": "13"}
+        form = ProjectForm(data, instance=project)
         assert form.is_valid(), form.errors
         assert "collect_general_font_size" in form.changed_data
 
     def test_save_updates_model_fields(self, project):
         """Saving the form writes collect_* fields to the Project instance."""
-        form = CollectSettingsForm(
-            {
-                "collect_project_color": "#6ec1e4",
-                "collect_project_icon": "🇱🇾",
-                "collect_admin_moving_backwards": True,
-                "collect_admin_change_language": True,
-                "collect_general_default_completed": True,
-                "collect_general_analytics": True,
-                "collect_general_font_size": "13",
-                "collect_admin_edit_saved": True,
-                "collect_general_autosend": "wifi_and_cellular",
-                "collect_general_form_update_mode": "match_exactly",
-                "collect_general_periodic_form_updates_check": "every_one_hour",
-            },
-            instance=project,
-        )
+        data = {
+            **self._base_data(project),
+            "collect_general_font_size": "13",
+            "collect_admin_edit_saved": True,
+        }
+        form = ProjectForm(data, instance=project)
         assert form.is_valid(), form.errors
         saved_project = form.save()
         assert saved_project.collect_general_font_size == "13"
@@ -1435,10 +1453,11 @@ class TestCollectSettingsForm:
 
     def test_initial_values_from_model_defaults(self, project):
         """Form initial values reflect the model instance defaults."""
-        form = CollectSettingsForm(instance=project)
+        form = ProjectForm(instance=project)
         assert form.initial.get("collect_admin_moving_backwards") is True
         assert form.initial.get("collect_general_font_size") == "25"
         assert form.initial.get("collect_general_autosend") == "wifi_and_cellular"
+        assert form.initial.get("collect_general_app_language") == "en"
 
 
 class TestOrganizationHome(ViewTestBase):

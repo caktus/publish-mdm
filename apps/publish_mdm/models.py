@@ -218,8 +218,8 @@ class TemplateVariable(AbstractBaseModel):
 class Project(AbstractBaseModel):
     """A project in ODK Central."""
 
-    # APP_LANGUAGE_CHOICES should be updated only based on the supported
-    # values for the "app_language " setting: https://docs.getodk.org/collect-import-export/
+    # APP_LANGUAGE_CHOICES: supported values for the collect_general_app_language
+    # field. See https://docs.getodk.org/collect-import-export/
     APP_LANGUAGE_CHOICES: ClassVar = list(
         zip(
             *[
@@ -287,6 +287,55 @@ class Project(AbstractBaseModel):
             strict=False,
         )
     )
+    FONT_SIZE_CHOICES: ClassVar = [
+        ("13", "13"),
+        ("17", "17"),
+        ("21", "21"),
+        ("25", "25"),
+        ("29", "29"),
+    ]
+    FORM_UPDATE_MODE_CHOICES: ClassVar = [
+        ("manual", "Manual"),
+        ("previously_downloaded", "Previously downloaded"),
+        ("match_exactly", "Match exactly"),
+    ]
+    PERIODIC_FORM_UPDATES_CHECK_CHOICES: ClassVar = [
+        ("every_fifteen_minutes", "Every 15 minutes"),
+        ("every_one_hour", "Every hour"),
+        ("every_six_hours", "Every 6 hours"),
+        ("every_24_hours", "Every 24 hours"),
+    ]
+    AUTOSEND_CHOICES: ClassVar = [
+        ("off", "Off"),
+        ("wifi_only", "Wi-Fi only"),
+        ("cellular_only", "Cellular only"),
+        ("wifi_and_cellular", "Wi-Fi and cellular"),
+    ]
+    APP_THEME_CHOICES: ClassVar = [
+        ("light_theme", "Light"),
+        ("dark_theme", "Dark"),
+    ]
+    NAVIGATION_CHOICES: ClassVar = [
+        ("swipe", "Swipe"),
+        ("buttons", "Buttons"),
+        ("swipe_buttons", "Swipe and buttons"),
+    ]
+    CONSTRAINT_BEHAVIOR_CHOICES: ClassVar = [
+        ("on_swipe", "On swipe"),
+        ("on_finalize", "On finalize"),
+    ]
+    IMAGE_SIZE_CHOICES: ClassVar = [
+        ("original", "Original"),
+        ("large", "Large"),
+        ("medium", "Medium"),
+        ("small", "Small"),
+        ("very_small", "Very small"),
+    ]
+    GUIDANCE_HINT_CHOICES: ClassVar = [
+        ("no", "Never"),
+        ("yes", "Always"),
+        ("yes_collapsed", "Collapsed"),
+    ]
 
     name = models.CharField(max_length=255)
     central_id = models.PositiveIntegerField(
@@ -305,15 +354,23 @@ class Project(AbstractBaseModel):
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name="projects"
     )
-    app_language = models.CharField(max_length=6, choices=APP_LANGUAGE_CHOICES, blank=True)
+    collect_general_app_language = models.CharField(
+        max_length=10,
+        choices=APP_LANGUAGE_CHOICES,
+        default="en",
+        verbose_name="App language",
+        help_text="Language used in the ODK Collect UI.",
+    )
 
     # ---------------------------------------------------------------------------
     # ODK Collect settings — individual fields so each can have its own default,
     # validation, and form widget.  A CollectSettingsSerializer assembles these
     # into the nested dict expected by build_collect_settings().
     #
-    # Dynamic fields (server_url, username, app_language, project.name, admin_pw)
-    # are always set programmatically and are NOT stored here.
+    # Dynamic fields (server_url, username) depend on the app user assignment
+    # and are set in build_collect_settings().
+    # All other settings (app_language, admin_pw, project name) come
+    # from model fields and are assembled by CollectSettingsSerializer.
     # ---------------------------------------------------------------------------
 
     # Project display
@@ -333,48 +390,24 @@ class Project(AbstractBaseModel):
     )
 
     # General — font / form management / autosend
-    FONT_SIZE_CHOICES: ClassVar = [
-        ("13", "13"),
-        ("17", "17"),
-        ("21", "21"),
-        ("25", "25"),
-        ("29", "29"),
-    ]
     collect_general_font_size = models.CharField(
         max_length=5,
         choices=FONT_SIZE_CHOICES,
         default="25",
         verbose_name="Font size",
     )
-    FORM_UPDATE_MODE_CHOICES: ClassVar = [
-        ("manual", "Manual"),
-        ("previously_downloaded", "Previously downloaded"),
-        ("match_exactly", "Match exactly"),
-    ]
     collect_general_form_update_mode = models.CharField(
         max_length=30,
         choices=FORM_UPDATE_MODE_CHOICES,
         default="match_exactly",
         verbose_name="Form update mode",
     )
-    PERIODIC_FORM_UPDATES_CHECK_CHOICES: ClassVar = [
-        ("every_fifteen_minutes", "Every 15 minutes"),
-        ("every_one_hour", "Every hour"),
-        ("every_six_hours", "Every 6 hours"),
-        ("every_24_hours", "Every 24 hours"),
-    ]
     collect_general_periodic_form_updates_check = models.CharField(
         max_length=30,
         choices=PERIODIC_FORM_UPDATES_CHECK_CHOICES,
         default="every_one_hour",
         verbose_name="Form update check frequency",
     )
-    AUTOSEND_CHOICES: ClassVar = [
-        ("off", "Off"),
-        ("wifi_only", "Wi-Fi only"),
-        ("cellular_only", "Cellular only"),
-        ("wifi_and_cellular", "Wi-Fi and cellular"),
-    ]
     collect_general_autosend = models.CharField(
         max_length=30,
         choices=AUTOSEND_CHOICES,
@@ -392,6 +425,77 @@ class Project(AbstractBaseModel):
     collect_general_analytics = models.BooleanField(
         default=True,
         verbose_name="Analytics",
+    )
+
+    # General — user interface
+    collect_general_app_theme = models.CharField(
+        max_length=20,
+        choices=APP_THEME_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="App theme",
+    )
+    collect_general_navigation = models.CharField(
+        max_length=20,
+        choices=NAVIGATION_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Navigation",
+    )
+
+    # General — form entry
+    collect_general_constraint_behavior = models.CharField(
+        max_length=20,
+        choices=CONSTRAINT_BEHAVIOR_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Constraint behaviour",
+    )
+    collect_general_high_resolution = models.BooleanField(
+        default=False,
+        verbose_name="High-resolution video",
+    )
+    collect_general_image_size = models.CharField(
+        max_length=20,
+        choices=IMAGE_SIZE_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Image size",
+    )
+    collect_general_external_app_recording = models.BooleanField(
+        default=True,
+        verbose_name="Allow external app to record audio",
+    )
+    collect_general_guidance_hint = models.CharField(
+        max_length=20,
+        choices=GUIDANCE_HINT_CHOICES,
+        default="",
+        blank=True,
+        verbose_name="Guidance for questions",
+    )
+    collect_general_instance_sync = models.BooleanField(
+        default=False,
+        verbose_name="Finalize forms on import",
+    )
+
+    # General — user and device identity
+    collect_general_metadata_username = models.CharField(
+        max_length=255,
+        default="",
+        blank=True,
+        verbose_name="Username (metadata)",
+    )
+    collect_general_metadata_phonenumber = models.CharField(
+        max_length=50,
+        default="",
+        blank=True,
+        verbose_name="Phone number (metadata)",
+    )
+    collect_general_metadata_email = models.CharField(
+        max_length=255,
+        default="",
+        blank=True,
+        verbose_name="Email address (metadata)",
     )
 
     # Admin — main menu access controls
@@ -502,6 +606,14 @@ class Project(AbstractBaseModel):
     collect_admin_analytics = models.BooleanField(
         default=False,
         verbose_name="Show analytics setting",
+    )
+    collect_admin_change_app_language = models.BooleanField(
+        default=False,
+        verbose_name="Change app language",
+    )
+    collect_admin_change_font_size = models.BooleanField(
+        default=False,
+        verbose_name="Change font size",
     )
 
     # Admin — form entry access controls

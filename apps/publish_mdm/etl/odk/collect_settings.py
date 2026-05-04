@@ -18,10 +18,9 @@ if TYPE_CHECKING:
 class CollectSettingsSerializer:
     """Assembles the nested ODK Collect settings dict from a Project's individual fields.
 
-    The returned dict is suitable for passing to ``build_collect_settings()`` as
-    ``project_settings``.  Dynamic fields (server_url, username, app_language,
-    project.name, admin_pw) are intentionally absent — they are injected by
-    ``build_collect_settings()`` and always take precedence.
+    The returned dict is passed to ``build_collect_settings()`` which then applies
+    the remaining dynamic fields (``server_url``, ``username``, ``project.name``)
+    that depend on the individual app user assignment.
     """
 
     project: Project
@@ -29,21 +28,43 @@ class CollectSettingsSerializer:
     def to_dict(self) -> dict:
         """Return the nested collect-settings dict derived from the project's fields."""
         p = self.project
+        admin_pw = p.get_admin_pw() or ""
+
+        general: dict = {
+            "app_language": p.collect_general_app_language,
+            "font_size": p.collect_general_font_size,
+            "form_update_mode": p.collect_general_form_update_mode,
+            "periodic_form_updates_check": p.collect_general_periodic_form_updates_check,
+            "autosend": p.collect_general_autosend,
+            "delete_send": p.collect_general_delete_send,
+            "default_completed": p.collect_general_default_completed,
+            "analytics": p.collect_general_analytics,
+            "high_resolution": p.collect_general_high_resolution,
+            "external_app_recording": p.collect_general_external_app_recording,
+            "instance_sync": p.collect_general_instance_sync,
+        }
+        # Optional string fields — omit when blank so ODK Collect uses its own default.
+        for key, value in [
+            ("app_theme", p.collect_general_app_theme),
+            ("navigation", p.collect_general_navigation),
+            ("constraint_behavior", p.collect_general_constraint_behavior),
+            ("image_size", p.collect_general_image_size),
+            ("guidance_hint", p.collect_general_guidance_hint),
+            ("metadata_username", p.collect_general_metadata_username),
+            ("metadata_phonenumber", p.collect_general_metadata_phonenumber),
+            ("metadata_email", p.collect_general_metadata_email),
+        ]:
+            if value:
+                general[key] = value
+
         return {
             "project": {
                 "color": p.collect_project_color,
                 "icon": p.collect_project_icon,
             },
-            "general": {
-                "font_size": p.collect_general_font_size,
-                "form_update_mode": p.collect_general_form_update_mode,
-                "periodic_form_updates_check": p.collect_general_periodic_form_updates_check,
-                "autosend": p.collect_general_autosend,
-                "delete_send": p.collect_general_delete_send,
-                "default_completed": p.collect_general_default_completed,
-                "analytics": p.collect_general_analytics,
-            },
+            "general": general,
             "admin": {
+                "admin_pw": admin_pw,
                 # Main menu
                 "edit_saved": p.collect_admin_edit_saved,
                 "send_finalized": p.collect_admin_send_finalized,
@@ -73,6 +94,8 @@ class CollectSettingsSerializer:
                 "instance_form_sync": p.collect_admin_instance_form_sync,
                 "change_form_metadata": p.collect_admin_change_form_metadata,
                 "analytics": p.collect_admin_analytics,
+                "change_app_language": p.collect_admin_change_app_language,
+                "change_font_size": p.collect_admin_change_font_size,
                 # Form entry access
                 "moving_backwards": p.collect_admin_moving_backwards,
                 "access_settings": p.collect_admin_access_settings,

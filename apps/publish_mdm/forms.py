@@ -347,42 +347,10 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
             "name",
             "central_server",
             "template_variables",
-            "app_language",
-        )
-        widgets: ClassVar = {
-            "name": TextInput,
-            "central_server": Select,
-            "template_variables": CheckboxSelectMultiple,
-            "app_language": Select(attrs={"class": "!w-30"}),
-        }
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Limit template variables and central servers to those linked to the project's organization
-        self.fields[
-            "template_variables"
-        ].queryset = self.instance.organization.template_variables.all()
-        self.fields["central_server"].queryset = self.instance.organization.central_servers.all()
-
-
-class CollectSettingsForm(PlatformFormMixin, forms.ModelForm):
-    """ModelForm for editing ODK Collect settings stored as individual fields on Project.
-
-    The ``collect_*`` model fields map directly to ODK Collect settings sections
-    (project, general, admin).  A ``CollectSettingsSerializer`` assembles them
-    into the nested dict expected by ``build_collect_settings()``.
-
-    Dynamic fields (server_url, username, app_language, project name, admin_pw)
-    are managed automatically and are NOT included here.
-    """
-
-    class Meta:
-        model = Project
-        fields = (
-            # Project display
+            # ODK Collect settings
+            "collect_general_app_language",
             "collect_project_color",
             "collect_project_icon",
-            # General
             "collect_general_font_size",
             "collect_general_form_update_mode",
             "collect_general_periodic_form_updates_check",
@@ -390,20 +358,28 @@ class CollectSettingsForm(PlatformFormMixin, forms.ModelForm):
             "collect_general_delete_send",
             "collect_general_default_completed",
             "collect_general_analytics",
-            # Admin: main menu
+            "collect_general_app_theme",
+            "collect_general_navigation",
+            "collect_general_constraint_behavior",
+            "collect_general_high_resolution",
+            "collect_general_image_size",
+            "collect_general_external_app_recording",
+            "collect_general_guidance_hint",
+            "collect_general_instance_sync",
+            "collect_general_metadata_username",
+            "collect_general_metadata_phonenumber",
+            "collect_general_metadata_email",
             "collect_admin_edit_saved",
             "collect_admin_send_finalized",
             "collect_admin_view_sent",
             "collect_admin_get_blank",
             "collect_admin_delete_saved",
             "collect_admin_qr_code_scanner",
-            # Admin: project settings
             "collect_admin_change_server",
             "collect_admin_change_project_display",
             "collect_admin_change_app_theme",
             "collect_admin_change_navigation",
             "collect_admin_maps",
-            # Admin: form management
             "collect_admin_form_update_mode",
             "collect_admin_periodic_form_updates_check",
             "collect_admin_automatic_update",
@@ -419,7 +395,8 @@ class CollectSettingsForm(PlatformFormMixin, forms.ModelForm):
             "collect_admin_instance_form_sync",
             "collect_admin_change_form_metadata",
             "collect_admin_analytics",
-            # Admin: form entry
+            "collect_admin_change_app_language",
+            "collect_admin_change_font_size",
             "collect_admin_moving_backwards",
             "collect_admin_access_settings",
             "collect_admin_change_language",
@@ -429,13 +406,30 @@ class CollectSettingsForm(PlatformFormMixin, forms.ModelForm):
             "collect_admin_mark_as_finalized",
         )
         widgets: ClassVar = {
+            "name": TextInput,
+            "central_server": Select,
+            "template_variables": CheckboxSelectMultiple,
+            "collect_general_app_language": Select(attrs={"class": "!w-30"}),
             "collect_project_color": TextInput,
             "collect_project_icon": TextInput,
             "collect_general_font_size": Select,
             "collect_general_form_update_mode": Select,
             "collect_general_periodic_form_updates_check": Select,
             "collect_general_autosend": Select,
+            "collect_general_app_theme": Select,
+            "collect_general_navigation": Select,
+            "collect_general_constraint_behavior": Select,
+            "collect_general_image_size": Select,
+            "collect_general_guidance_hint": Select,
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Limit template variables and central servers to those linked to the project's organization
+        self.fields[
+            "template_variables"
+        ].queryset = self.instance.organization.template_variables.all()
+        self.fields["central_server"].queryset = self.instance.organization.central_servers.all()
 
 
 class ProjectTemplateVariableForm(PlatformFormMixin, forms.ModelForm):
