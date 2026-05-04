@@ -1,0 +1,13 @@
+{% comment %}
+Renders a status badge for an enrollment token.
+Requires: token (EnrollmentToken instance)
+{% endcomment %}
+{% if token.revoked_at %}
+    <span class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-300">Revoked</span>
+{% elif token.is_expired %}
+    <span class="inline-flex items-center rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900 dark:text-red-300">Expired</span>
+{% elif token.is_expiring_soon %}
+    <span class="inline-flex items-center rounded bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300">Expiring Soon</span>
+{% else %}
+    <span class="inline-flex items-center rounded bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-900 dark:text-green-300">Active</span>
+{% endif %}
