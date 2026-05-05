@@ -1,8 +1,6 @@
 """
 CollectSettingsSerializer: assembles a valid ODK Collect settings dict
 from the normalized per-field values stored on a Project.
-
-No ORM calls — receives a pre-fetched Project instance.
 """
 
 from __future__ import annotations
