@@ -13,13 +13,14 @@ from requests.exceptions import RequestException
 from apps.mdm.mdms import AndroidEnterprise
 
 from .etl.load import generate_and_save_app_user_collect_qrcodes
-from .forms import CentralServerForm
+from .forms import BaseCollectSettingsForm, CentralServerForm
 from .models import (
     AndroidEnterpriseAccount,
     AppUser,
     AppUserFormTemplate,
     AppUserFormVersion,
     CentralServer,
+    CollectSettings,
     FormTemplate,
     FormTemplateVersion,
     Organization,
@@ -70,9 +71,160 @@ class ProjectTemplateVariableInline(admin.TabularInline):
     autocomplete_fields = ("template_variable",)
 
 
+@admin.register(CollectSettings)
+class CollectSettingsAdmin(admin.ModelAdmin):
+    list_display = ("name", "organization", "created_at", "modified_at")
+    search_fields = ("name", "organization__name")
+    list_filter = ("organization",)
+    ordering = ("organization__name", "name")
+    form = BaseCollectSettingsForm
+    fieldsets = (
+        (
+            None,
+            {"fields": ("name", "organization")},
+        ),
+        (
+            "ODK Collect: Project Display",
+            {
+                "fields": ("project_color", "project_icon"),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "ODK Collect: General Settings",
+            {
+                "fields": (
+                    "general_app_language",
+                    "general_font_size",
+                    "general_app_theme",
+                    "general_navigation",
+                    "general_form_update_mode",
+                    "general_periodic_form_updates_check",
+                    "general_automatic_update",
+                    "general_hide_old_form_versions",
+                    "general_autosend",
+                    "general_delete_send",
+                    "general_default_completed",
+                    "general_constraint_behavior",
+                    "general_high_resolution",
+                    "general_image_size",
+                    "general_external_app_recording",
+                    "general_guidance_hint",
+                    "general_instance_sync",
+                    "general_analytics",
+                    "general_metadata_username",
+                    "general_metadata_phonenumber",
+                    "general_metadata_email",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "ODK Collect: General — Server",
+            {
+                "fields": (
+                    "general_protocol",
+                    "general_password",
+                    "general_formlist_url",
+                    "general_submission_url",
+                    "general_google_sheets_url",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "ODK Collect: General — Maps",
+            {
+                "fields": (
+                    "general_basemap_source",
+                    "general_google_map_style",
+                    "general_mapbox_map_style",
+                    "general_usgs_map_style",
+                    "general_carto_map_style",
+                    "general_reference_layer",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "ODK Collect: Admin — Main Menu",
+            {
+                "fields": (
+                    "admin_edit_saved",
+                    "admin_send_finalized",
+                    "admin_view_sent",
+                    "admin_get_blank",
+                    "admin_delete_saved",
+                    "admin_qr_code_scanner",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "ODK Collect: Admin — Project Settings",
+            {
+                "fields": (
+                    "admin_change_server",
+                    "admin_change_project_display",
+                    "admin_change_app_theme",
+                    "admin_change_navigation",
+                    "admin_maps",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "ODK Collect: Admin — Form Management",
+            {
+                "fields": (
+                    "admin_form_update_mode",
+                    "admin_periodic_form_updates_check",
+                    "admin_automatic_update",
+                    "admin_hide_old_form_versions",
+                    "admin_change_autosend",
+                    "admin_delete_after_send",
+                    "admin_default_to_finalized",
+                    "admin_change_constraint_behavior",
+                    "admin_high_resolution",
+                    "admin_image_size",
+                    "admin_guidance_hint",
+                    "admin_external_app_recording",
+                    "admin_instance_form_sync",
+                    "admin_change_form_metadata",
+                    "admin_analytics",
+                    "admin_change_app_language",
+                    "admin_change_font_size",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "ODK Collect: Admin — Form Entry",
+            {
+                "fields": (
+                    "admin_moving_backwards",
+                    "admin_access_settings",
+                    "admin_change_language",
+                    "admin_jump_to",
+                    "admin_save_mid",
+                    "admin_save_as",
+                    "admin_mark_as_finalized",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
+
+
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
-    list_display = ("name", "central_id", "central_server", "organization", "app_language")
+    list_display = (
+        "name",
+        "central_id",
+        "central_server",
+        "organization",
+        "collect_settings",
+    )
     search_fields = ("name", "central_id")
     list_filter = ("central_server",)
     filter_horizontal = ("template_variables",)
@@ -80,8 +232,8 @@ class ProjectAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
-        # Regenerate app user QR codes if any field that impacts them has changed
-        qr_code_fields = ("app_language", "central_id", "name")
+        # Regenerate app user QR codes if any field that impacts them has changed.
+        qr_code_fields = ("name", "central_id", "collect_settings")
         if change and any(field in form.changed_data for field in qr_code_fields):
             generate_and_save_app_user_collect_qrcodes(obj)
 
@@ -241,6 +393,8 @@ class OrganizationAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
+        if not change:
+            obj.create_default_collect_settings()
         # Create the default fleet for new organizations, unless Android Enterprise is active —
         # it requires an enrolled enterprise first, so the fleet is created in enterprise_callback.
         if not change and obj.mdm != "Android Enterprise":

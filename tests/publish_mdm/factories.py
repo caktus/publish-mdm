@@ -54,6 +54,17 @@ class TemplateVariableFactory(
     organization = factory.SubFactory(OrganizationFactory)
 
 
+class CollectSettingsFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.CollectSettings],
+):
+    class Meta:
+        model = models.CollectSettings
+
+    name = factory.Faker("word")
+    organization = factory.SubFactory(OrganizationFactory)
+
+
 class ProjectFactory(factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Project]):
     class Meta:
         model = models.Project
@@ -62,6 +73,9 @@ class ProjectFactory(factory.django.DjangoModelFactory, metaclass=BaseMetaFactor
     central_server = factory.SubFactory(CentralServerFactory)
     name = factory.Faker("word")
     organization = factory.SubFactory(OrganizationFactory)
+    collect_settings = factory.SubFactory(
+        CollectSettingsFactory, organization=factory.SelfAttribute("..organization")
+    )
 
 
 class ProjectTemplateVariableFactory(

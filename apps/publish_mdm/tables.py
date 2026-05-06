@@ -7,7 +7,7 @@ from django.utils.html import format_html
 from apps.mdm.models import Device, Fleet
 from apps.publish_mdm.forms import DeviceAppUserForm
 
-from .models import CentralServer, FormTemplate, FormTemplateVersion
+from .models import CentralServer, CollectSettings, FormTemplate, FormTemplateVersion
 
 
 class FormTemplateTable(tables.Table):
@@ -73,6 +73,23 @@ class CentralServerTable(tables.Table):
             "username",
             "created_at",
         )
+        template_name = "patterns/tables/table.html"
+        attrs: ClassVar = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
+        orderable = False
+
+
+class CollectSettingsTable(tables.Table):
+    """A table for listing CollectSettings."""
+
+    name = tables.LinkColumn(
+        "publish_mdm:edit-collect-settings",
+        args=[tables.A("organization__slug"), tables.A("pk")],
+        attrs={"a": {"class": "text-primary-600 hover:underline"}},
+    )
+
+    class Meta:
+        model = CollectSettings
+        fields = ("name", "created_at")
         template_name = "patterns/tables/table.html"
         attrs: ClassVar = {"th": {"scope": "col", "class": "px-4 py-3 whitespace-nowrap"}}
         orderable = False

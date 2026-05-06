@@ -31,6 +31,9 @@ from apps.users.models import User
 
 from .etl import template
 from .etl.google import download_user_google_sheet
+from .etl.odk.utils import (
+    get_default_collect_settings_field_values,
+)
 
 logger = structlog.getLogger(__name__)
 
@@ -149,6 +152,24 @@ class Organization(SoftDeleteModel, AbstractBaseModel):
             fleet.save()
         return fleet
 
+    def create_default_collect_settings(self):
+        """Create a default CollectSettings named 'Default' for this organization.
+
+        Field values are pre-populated from the ``DEFAULT_COLLECT_SETTINGS``
+        Django setting when configured; otherwise the ``CollectSettings`` model
+        field defaults apply.
+        """
+        field_values = get_default_collect_settings_field_values()
+        if field_values:
+            # Restrict to actual model fields so unknown JSON keys don't cause errors.
+            known = {
+                f.name
+                for f in CollectSettings._meta.fields
+                if any(f.name.startswith(prefix) for prefix in ("admin_", "general_", "project_"))
+            }
+            field_values = {k: v for k, v in field_values.items() if k in known}
+        return CollectSettings.objects.create(organization=self, name="Default", **field_values)
+
 
 class CentralServer(AbstractBaseModel):
     """A server running ODK Central."""
@@ -215,11 +236,12 @@ class TemplateVariable(AbstractBaseModel):
         return self.name
 
 
-class Project(AbstractBaseModel):
-    """A project in ODK Central."""
+class CollectSettings(AbstractBaseModel):
+    """ODK Collect configuration that can be shared across multiple Projects."""
 
-    # APP_LANGUAGE_CHOICES should be updated only based on the supported
-    # values for the "app_language " setting: https://docs.getodk.org/collect-import-export/
+    # Choices for various ODK Collect settings.
+    # https://docs.getodk.org/collect-import-export/#list-of-keys-for-all-settings
+    # https://github.com/getodk/collect/blob/master/settings/src/main/resources/client-settings.schema.json
     APP_LANGUAGE_CHOICES: ClassVar = list(
         zip(
             *[
@@ -287,6 +309,457 @@ class Project(AbstractBaseModel):
             strict=False,
         )
     )
+    FONT_SIZE_CHOICES: ClassVar = [
+        ("13", "13"),
+        ("17", "17"),
+        ("21", "21"),
+        ("25", "25"),
+        ("29", "29"),
+    ]
+    FORM_UPDATE_MODE_CHOICES: ClassVar = [
+        ("manual", "Manual"),
+        ("previously_downloaded", "Previously downloaded"),
+        ("match_exactly", "Match exactly"),
+    ]
+    PERIODIC_FORM_UPDATES_CHECK_CHOICES: ClassVar = [
+        ("every_fifteen_minutes", "Every 15 minutes"),
+        ("every_one_hour", "Every hour"),
+        ("every_six_hours", "Every 6 hours"),
+        ("every_24_hours", "Every 24 hours"),
+    ]
+    AUTOSEND_CHOICES: ClassVar = [
+        ("off", "Off"),
+        ("wifi_only", "Wi-Fi only"),
+        ("cellular_only", "Cellular only"),
+        ("wifi_and_cellular", "Wi-Fi and cellular"),
+    ]
+    APP_THEME_CHOICES: ClassVar = [
+        ("light_theme", "Light"),
+        ("dark_theme", "Dark"),
+    ]
+    NAVIGATION_CHOICES: ClassVar = [
+        ("swipe", "Swipe"),
+        ("buttons", "Buttons"),
+        ("swipe_buttons", "Swipe and buttons"),
+    ]
+    CONSTRAINT_BEHAVIOR_CHOICES: ClassVar = [
+        ("on_swipe", "On swipe"),
+        ("on_finalize", "On finalize"),
+    ]
+    IMAGE_SIZE_CHOICES: ClassVar = [
+        ("original", "Original"),
+        ("large", "Large"),
+        ("medium", "Medium"),
+        ("small", "Small"),
+        ("very_small", "Very small"),
+    ]
+    GUIDANCE_HINT_CHOICES: ClassVar = [
+        ("no", "Never"),
+        ("yes", "Always"),
+        ("yes_collapsed", "Collapsed"),
+    ]
+    PROTOCOL_CHOICES: ClassVar = [
+        ("odk_default", "ODK default"),
+        ("google_sheets", "Google Sheets"),
+    ]
+    BASEMAP_SOURCE_CHOICES: ClassVar = [
+        ("google", "Google"),
+        ("mapbox", "Mapbox"),
+        ("osm", "OpenStreetMap"),
+        ("usgs", "USGS"),
+        ("stamen", "Stamen"),
+        ("carto", "Carto"),
+    ]
+    GOOGLE_MAP_STYLE_CHOICES: ClassVar = [
+        ("1", "Normal"),
+        ("2", "Satellite"),
+        ("3", "Terrain"),
+        ("4", "Hybrid"),
+    ]
+    MAPBOX_MAP_STYLE_CHOICES: ClassVar = [
+        ("mapbox://styles/mapbox/light-v10", "Light"),
+        ("mapbox://styles/mapbox/dark-v10", "Dark"),
+        ("mapbox://styles/mapbox/satellite-v9", "Satellite"),
+        ("mapbox://styles/mapbox/satellite-streets-v11", "Satellite streets"),
+        ("mapbox://styles/mapbox/outdoors-v11", "Outdoors"),
+    ]
+    USGS_MAP_STYLE_CHOICES: ClassVar = [
+        ("topographic", "Topographic"),
+        ("hybrid", "Hybrid"),
+        ("satellite", "Satellite"),
+    ]
+    CARTO_MAP_STYLE_CHOICES: ClassVar = [
+        ("positron", "Positron"),
+        ("dark_matter", "Dark matter"),
+    ]
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.CASCADE, related_name="collect_settings"
+    )
+    name = models.CharField(max_length=255)
+
+    # Project display
+    project_color = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        verbose_name="Project colour",
+        help_text="Hex colour shown for this project in ODK Collect.",
+    )
+    project_icon = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        verbose_name="Project icon",
+        help_text="Icon shown for this project in ODK Collect.",
+    )
+
+    # General
+    general_font_size = models.CharField(
+        max_length=5,
+        choices=FONT_SIZE_CHOICES,
+        blank=True,
+        default="",
+        verbose_name="Font size",
+    )
+    general_form_update_mode = models.CharField(
+        max_length=30,
+        choices=FORM_UPDATE_MODE_CHOICES,
+        blank=True,
+        default="",
+        verbose_name="Form update mode",
+    )
+    general_periodic_form_updates_check = models.CharField(
+        max_length=30,
+        choices=PERIODIC_FORM_UPDATES_CHECK_CHOICES,
+        blank=True,
+        default="",
+        verbose_name="Form update check frequency",
+    )
+    general_autosend = models.CharField(
+        max_length=30,
+        choices=AUTOSEND_CHOICES,
+        blank=True,
+        default="",
+        verbose_name="Auto-send",
+    )
+    general_app_language = models.CharField(
+        max_length=10,
+        choices=APP_LANGUAGE_CHOICES,
+        default="en",
+        verbose_name="App language",
+        help_text="Language used in the ODK Collect UI.",
+    )
+    general_app_theme = models.CharField(
+        max_length=20,
+        choices=APP_THEME_CHOICES,
+        blank=True,
+        default="",
+        verbose_name="App theme",
+    )
+    general_navigation = models.CharField(
+        max_length=20,
+        choices=NAVIGATION_CHOICES,
+        blank=True,
+        default="",
+        verbose_name="Navigation",
+    )
+    general_constraint_behavior = models.CharField(
+        max_length=20,
+        choices=CONSTRAINT_BEHAVIOR_CHOICES,
+        blank=True,
+        default="",
+        verbose_name="Constraint behaviour",
+    )
+    general_image_size = models.CharField(
+        max_length=20,
+        choices=IMAGE_SIZE_CHOICES,
+        blank=True,
+        default="",
+        verbose_name="Image size",
+    )
+    general_guidance_hint = models.CharField(
+        max_length=20,
+        choices=GUIDANCE_HINT_CHOICES,
+        blank=True,
+        default="",
+        verbose_name="Guidance for questions",
+    )
+    general_metadata_username = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        verbose_name="Username (metadata)",
+    )
+    general_metadata_phonenumber = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        verbose_name="Phone number (metadata)",
+    )
+    general_metadata_email = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        verbose_name="Email address (metadata)",
+    )
+    general_protocol = models.CharField(
+        max_length=20,
+        choices=PROTOCOL_CHOICES,
+        blank=True,
+        default="",
+        verbose_name="Protocol",
+    )
+    general_password = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        verbose_name="Password",
+    )
+    general_formlist_url = models.CharField(
+        max_length=2048,
+        blank=True,
+        default="",
+        verbose_name="Form list URL",
+    )
+    general_submission_url = models.CharField(
+        max_length=2048,
+        blank=True,
+        default="",
+        verbose_name="Submission URL",
+    )
+    general_google_sheets_url = models.CharField(
+        max_length=2048,
+        blank=True,
+        default="",
+        verbose_name="Google Sheets URL",
+    )
+    general_basemap_source = models.CharField(
+        max_length=20,
+        choices=BASEMAP_SOURCE_CHOICES,
+        blank=True,
+        default="",
+        verbose_name="Basemap source",
+    )
+    general_google_map_style = models.CharField(
+        max_length=5,
+        choices=GOOGLE_MAP_STYLE_CHOICES,
+        blank=True,
+        default="",
+        verbose_name="Google map style",
+    )
+    general_mapbox_map_style = models.CharField(
+        max_length=100,
+        choices=MAPBOX_MAP_STYLE_CHOICES,
+        blank=True,
+        default="",
+        verbose_name="Mapbox map style",
+    )
+    general_usgs_map_style = models.CharField(
+        max_length=20,
+        choices=USGS_MAP_STYLE_CHOICES,
+        blank=True,
+        default="",
+        verbose_name="USGS map style",
+    )
+    general_carto_map_style = models.CharField(
+        max_length=20,
+        choices=CARTO_MAP_STYLE_CHOICES,
+        blank=True,
+        default="",
+        verbose_name="Carto map style",
+    )
+    general_reference_layer = models.CharField(
+        max_length=2048,
+        blank=True,
+        default="",
+        verbose_name="Reference layer",
+        help_text="Absolute path to an MBTiles file.",
+    )
+    general_delete_send = models.BooleanField(
+        default=False,
+        verbose_name="Delete after send",
+    )
+    general_default_completed = models.BooleanField(
+        default=True,
+        verbose_name="Default to finalized",
+    )
+    general_analytics = models.BooleanField(
+        default=True,
+        verbose_name="Analytics",
+    )
+    general_high_resolution = models.BooleanField(
+        default=False,
+        verbose_name="High-resolution video",
+    )
+    general_external_app_recording = models.BooleanField(
+        default=True,
+        verbose_name="Allow external app to record audio",
+    )
+    general_instance_sync = models.BooleanField(
+        default=False,
+        verbose_name="Finalize forms on import",
+    )
+    general_automatic_update = models.BooleanField(
+        default=False,
+        verbose_name="Automatic update",
+    )
+    general_hide_old_form_versions = models.BooleanField(
+        default=False,
+        verbose_name="Hide old form versions",
+    )
+
+    # Admin
+    admin_edit_saved = models.BooleanField(
+        default=True,
+        verbose_name="Edit saved forms",
+    )
+    admin_send_finalized = models.BooleanField(
+        default=True,
+        verbose_name="Send finalized forms",
+    )
+    admin_view_sent = models.BooleanField(
+        default=True,
+        verbose_name="View sent forms",
+    )
+    admin_get_blank = models.BooleanField(
+        default=True,
+        verbose_name="Get blank forms",
+    )
+    admin_delete_saved = models.BooleanField(
+        default=True,
+        verbose_name="Delete saved forms",
+    )
+    admin_qr_code_scanner = models.BooleanField(
+        default=True,
+        verbose_name="QR code scanner",
+    )
+    admin_change_server = models.BooleanField(
+        default=True,
+        verbose_name="Change server",
+    )
+    admin_change_project_display = models.BooleanField(
+        default=True,
+        verbose_name="Change project display",
+    )
+    admin_change_app_theme = models.BooleanField(
+        default=True,
+        verbose_name="Change app theme",
+    )
+    admin_change_navigation = models.BooleanField(
+        default=True,
+        verbose_name="Change navigation",
+    )
+    admin_maps = models.BooleanField(
+        default=True,
+        verbose_name="Maps",
+    )
+    admin_form_update_mode = models.BooleanField(
+        default=True,
+        verbose_name="Show form update mode setting",
+    )
+    admin_periodic_form_updates_check = models.BooleanField(
+        default=True,
+        verbose_name="Show check frequency setting",
+    )
+    admin_automatic_update = models.BooleanField(
+        default=False,
+        verbose_name="Auto-update",
+    )
+    admin_hide_old_form_versions = models.BooleanField(
+        default=True,
+        verbose_name="Hide old form versions",
+    )
+    admin_change_autosend = models.BooleanField(
+        default=True,
+        verbose_name="Change auto-send",
+    )
+    admin_delete_after_send = models.BooleanField(
+        default=False,
+        verbose_name="Delete after send",
+    )
+    admin_default_to_finalized = models.BooleanField(
+        default=True,
+        verbose_name="Show default-to-finalized setting",
+    )
+    admin_change_constraint_behavior = models.BooleanField(
+        default=True,
+        verbose_name="Change constraint behaviour",
+    )
+    admin_high_resolution = models.BooleanField(
+        default=True,
+        verbose_name="High resolution",
+    )
+    admin_image_size = models.BooleanField(
+        default=True,
+        verbose_name="Image size",
+    )
+    admin_guidance_hint = models.BooleanField(
+        default=True,
+        verbose_name="Guidance hint",
+    )
+    admin_external_app_recording = models.BooleanField(
+        default=False,
+        verbose_name="External app recording",
+    )
+    admin_instance_form_sync = models.BooleanField(
+        default=True,
+        verbose_name="Finalize forms on import",
+    )
+    admin_change_form_metadata = models.BooleanField(
+        default=True,
+        verbose_name="Change form metadata",
+    )
+    admin_analytics = models.BooleanField(
+        default=True,
+        verbose_name="Show analytics setting",
+    )
+    admin_change_app_language = models.BooleanField(
+        default=True,
+        verbose_name="Change app language",
+    )
+    admin_change_font_size = models.BooleanField(
+        default=True,
+        verbose_name="Change font size",
+    )
+    admin_moving_backwards = models.BooleanField(
+        default=True,
+        verbose_name="Allow backward navigation",
+    )
+    admin_access_settings = models.BooleanField(
+        default=True,
+        verbose_name="Access settings from within form",
+    )
+    admin_change_language = models.BooleanField(
+        default=True,
+        verbose_name="Allow language change",
+    )
+    admin_jump_to = models.BooleanField(
+        default=True,
+        verbose_name="Jump to",
+    )
+    admin_save_mid = models.BooleanField(
+        default=True,
+        verbose_name="Save form",
+    )
+    admin_save_as = models.BooleanField(
+        default=True,
+        verbose_name="Name this form",
+    )
+    admin_mark_as_finalized = models.BooleanField(
+        default=True,
+        verbose_name="Mark as finalized",
+    )
+
+    class Meta:
+        verbose_name_plural = "collect settings"
+
+    def __str__(self):
+        return self.name
+
+
+class Project(AbstractBaseModel):
+    """A project in ODK Central."""
 
     name = models.CharField(max_length=255)
     central_id = models.PositiveIntegerField(
@@ -305,7 +778,15 @@ class Project(AbstractBaseModel):
     organization = models.ForeignKey(
         Organization, on_delete=models.CASCADE, related_name="projects"
     )
-    app_language = models.CharField(max_length=6, choices=APP_LANGUAGE_CHOICES, blank=True)
+    collect_settings = models.ForeignKey(
+        "CollectSettings",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="projects",
+        verbose_name="ODK Collect settings",
+        help_text="Settings to be used to generate Collect QR codes for this project's app users.",
+    )
 
     def __str__(self):
         return f"{self.name} ({self.central_id})"

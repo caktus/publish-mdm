@@ -31,7 +31,6 @@ from pytest_django.asserts import (
 from requests.exceptions import HTTPError
 
 from apps.mdm.mdms import TinyMDM, get_active_mdm_class
-from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
 from apps.publish_mdm.etl.template import VariableTransform
 from apps.publish_mdm.filters import DeviceFilter
@@ -40,6 +39,7 @@ from apps.publish_mdm.forms import (
     AppUserTemplateVariableFormSet,
     BYODDeviceEnrollmentForm,
     CentralServerFrontendForm,
+    CollectSettingsForm,
     DeviceAppUserForm,
     DeviceEnrollmentQRCodeForm,
     FleetAddForm,
@@ -77,6 +77,7 @@ from tests.publish_mdm.factories import (
     AppUserFormTemplateFactory,
     AppUserFormVersionFactory,
     CentralServerFactory,
+    CollectSettingsFactory,
     FormTemplateFactory,
     FormTemplateVersionFactory,
     OrganizationFactory,
@@ -175,7 +176,9 @@ class TestPublishTemplate(ViewTestBase):
 class TestAppUserDetail(ViewTestBase):
     @pytest.fixture
     def app_user(self, project):
-        return AppUserFactory(project=project, qr_code_data=DEFAULT_COLLECT_SETTINGS)
+        return AppUserFactory(
+            project=project, qr_code_data={"project": {}, "general": {}, "admin": {}}
+        )
 
     @pytest.fixture
     def url(self, app_user):
@@ -865,7 +868,7 @@ class TestAddProject(ViewTestBase):
             "name": "New name",
             "central_server": central_server.pk,
             "template_variables": [i.id for i in template_variables],
-            "app_language": "ar",
+            "collect_settings": "",
             "project_template_variables-TOTAL_FORMS": 2,
             "project_template_variables-INITIAL_FORMS": 0,
             "project_template_variables-MIN_NUM_FORMS": 0,
@@ -897,7 +900,6 @@ class TestAddProject(ViewTestBase):
         assert project.central_id == 10
         assert project.organization == organization
         assert project.central_server == central_server
-        assert project.app_language == "ar"
         assert set(project.template_variables.all()) == set(template_variables)
         # Ensure ProjectTemplateVariables are created
         assert set(
@@ -1051,7 +1053,6 @@ class TestEditProject(ViewTestBase):
             {
                 "central_server": other_central_server.id,
                 "template_variables": [i.id for i in template_variables],
-                "app_language": "ar",
             }
         )
         mocker.patch("apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes")
@@ -1060,7 +1061,6 @@ class TestEditProject(ViewTestBase):
         project.refresh_from_db()
         assert project.name == "New name"
         assert project.central_server == other_central_server
-        assert project.app_language == "ar"
         assert set(project.template_variables.all()) == set(template_variables)
         # Ensure the existing ProjectTemplateVariable was changed and a new one was added
         assert project.project_template_variables.count() == 2
@@ -1078,7 +1078,10 @@ class TestEditProject(ViewTestBase):
         # Ensure there is a success message
         assert f"Successfully edited {project}." in response.content.decode()
 
-    @pytest.mark.parametrize("changed_field", [None, "admin_pw", *ProjectForm._meta.fields])
+    @pytest.mark.parametrize(
+        "changed_field",
+        [None, "admin_pw", "collect_settings", "name", "central_server", "template_variables"],
+    )
     def test_regenerating_qr_codes(
         self,
         client,
@@ -1099,8 +1102,8 @@ class TestEditProject(ViewTestBase):
         data = {
             "name": project.name,
             "central_server": project.central_server_id,
-            "app_language": project.app_language,
             "template_variables": [],
+            "collect_settings": project.collect_settings_id,
             "project_template_variables-TOTAL_FORMS": 0,
             "project_template_variables-INITIAL_FORMS": 0,
             "project_template_variables-MIN_NUM_FORMS": 0,
@@ -1111,15 +1114,16 @@ class TestEditProject(ViewTestBase):
             "attachments-MAX_NUM_FORMS": 1000,
         }
         new_values = {
-            "app_language": "ar",
             "name": project.name + " edited",
             "central_server": other_central_server.id,
             "template_variables": [i.id for i in template_variables],
         }
-        # QR codes should be regenerated if any of these fields are changed
-        should_regenerate = ("app_language", "name", "admin_pw")
+        # QR codes should be regenerated if name, collect_settings, or admin_pw changes.
+        should_regenerate = ("name", "admin_pw", "collect_settings")
 
-        if changed_field == "admin_pw":
+        if changed_field == "collect_settings":
+            data["collect_settings"] = CollectSettingsFactory(organization=project.organization).id
+        elif changed_field == "admin_pw":
             admin_pw_var = TemplateVariableFactory.create(
                 name="admin_pw", organization=project.organization
             )
@@ -1143,6 +1147,9 @@ class TestEditProject(ViewTestBase):
         # Ensure the change was actually made in the database
         if changed_field == "admin_pw":
             assert project.get_admin_pw() == "password"
+        elif changed_field == "collect_settings":
+            project.refresh_from_db()
+            assert project.collect_settings_id == data["collect_settings"]
         elif changed_field:
             new_db_value = Project.objects.values_list(changed_field, flat=True).filter(
                 pk=project.pk
@@ -1322,6 +1329,50 @@ class TestEditProject(ViewTestBase):
         assert expected_error in response.content.decode()
 
 
+@pytest.mark.django_db
+class TestCollectSettingsField:
+    """Tests for the collect_settings FK field on ProjectForm."""
+
+    @pytest.fixture
+    def project(self):
+        org = OrganizationFactory()
+        cs = CentralServerFactory(organization=org)
+        collect_settings = CollectSettingsFactory(organization=org)
+        return ProjectFactory(
+            organization=org, central_server=cs, collect_settings=collect_settings
+        )
+
+    def _base_data(self, project):
+        """Return a POST data dict with all ProjectForm required fields."""
+        return {
+            "name": project.name,
+            "central_server": project.central_server_id,
+            "template_variables": [],
+            "collect_settings": project.collect_settings_id,
+        }
+
+    def test_valid_with_collect_settings(self, project):
+        """Submitting a valid collect_settings FK is valid."""
+        form = ProjectForm(self._base_data(project), instance=project)
+        assert form.is_valid(), form.errors
+
+    def test_no_collect_settings_is_valid(self, project):
+        """collect_settings is optional — submitting without it is valid."""
+        data = {**self._base_data(project), "collect_settings": ""}
+        form = ProjectForm(data, instance=project)
+        assert form.is_valid(), form.errors
+
+    def test_save_updates_collect_settings(self, project):
+        """Saving the form updates the project's collect_settings FK."""
+        org = project.organization
+        new_settings = CollectSettingsFactory(organization=org)
+        data = {**self._base_data(project), "collect_settings": new_settings.id}
+        form = ProjectForm(data, instance=project)
+        assert form.is_valid(), form.errors
+        saved = form.save()
+        assert saved.collect_settings == new_settings
+
+
 class TestOrganizationHome(ViewTestBase):
     @pytest.fixture
     def url(self, organization):
@@ -1355,8 +1406,8 @@ class TestCreateOrganization(ViewTestBase):
 
     @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
     def test_valid_form(self, client, url, user, mocker, force_tinymdm, mdm_api_error):
-        """Test a valid form with TinyMDM: create_default_fleet() is called immediately
-        on organization creation.
+        """Test a valid form with TinyMDM: create_default_fleet() and
+        create_default_collect_settings() are both called on organization creation.
         """
         data = {
             "name": "New organization",
@@ -1369,6 +1420,9 @@ class TestCreateOrganization(ViewTestBase):
         }
         mock_create_default_fleet = mocker.patch.object(
             Organization, "create_default_fleet", side_effect=mdm_api_error
+        )
+        mock_create_default_collect_settings = mocker.patch.object(
+            Organization, "create_default_collect_settings"
         )
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
@@ -1387,8 +1441,9 @@ class TestCreateOrganization(ViewTestBase):
         ]
         # Ensure there is a success message
         assert f"Successfully created {organization}." in response.content.decode()
-        # Ensure the create_default_fleet() method is called
+        # Ensure both setup methods are called
         mock_create_default_fleet.assert_called_once()
+        mock_create_default_collect_settings.assert_called_once()
         if mdm_api_error:
             assertContains(
                 response,
@@ -3776,3 +3831,113 @@ class TestSocialAccountConnectionsView:
                 "publish_mdm:enterprise-setup", args=[enrolled_android_enterprise.organization.slug]
             ),
         )
+
+
+@pytest.mark.django_db
+class TestCollectSettingsList(ViewTestBase):
+    """Tests for the collect_settings_list view."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("publish_mdm:collect-settings-list", args=[organization.slug])
+
+    def test_get(self, client, url, user):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "table" in response.context
+
+    def test_htmx_get(self, client, url, user):
+        """An HTMX request returns the table partial template instead of the full page."""
+        response = client.get(url, headers={"HX-Request": "true"})
+        assert response.status_code == 200
+        template_names = [t.name for t in response.templates]
+        assert "publish_mdm/collect_settings_list.html" not in template_names
+
+    def test_only_shows_org_settings(self, client, url, user, organization):
+        """Only CollectSettings belonging to the current organization are listed."""
+        own = CollectSettingsFactory(organization=organization)
+        other_org = OrganizationFactory()
+        CollectSettingsFactory(organization=other_org)
+        response = client.get(url)
+        assert response.status_code == 200
+        rows = list(response.context["table"].data)
+        assert rows == [own]
+
+
+@pytest.mark.django_db
+class TestAddCollectSettings(ViewTestBase):
+    """Tests for the add-collect-settings view."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("publish_mdm:add-collect-settings", args=[organization.slug])
+
+    def test_get(self, client, url, user):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), CollectSettingsForm)
+
+    def test_valid_form(self, client, url, user, organization):
+        """A valid POST creates a CollectSettings, redirects, and shows a success message."""
+        data = {"name": "My Settings", "general_app_language": "en"}
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        cs = organization.collect_settings.get(name="My Settings")
+        assert cs.organization == organization
+        assertRedirects(
+            response, reverse("publish_mdm:collect-settings-list", args=[organization.slug])
+        )
+        assert "Successfully added My Settings." in response.content.decode()
+
+    def test_invalid_form(self, client, url, user, organization):
+        """A POST with a blank name returns 200 with form errors and creates nothing."""
+        data = {"name": ""}
+        response = client.post(url, data=data)
+        assert response.status_code == 200
+        assert not organization.collect_settings.exists()
+        assert isinstance(response.context.get("form"), CollectSettingsForm)
+        assert response.context["form"].errors
+
+
+@pytest.mark.django_db
+class TestEditCollectSettings(ViewTestBase):
+    """Tests for the edit-collect-settings view."""
+
+    @pytest.fixture
+    def settings_obj(self, organization):
+        return CollectSettingsFactory(organization=organization, name="Original")
+
+    @pytest.fixture
+    def url(self, settings_obj):
+        return reverse(
+            "publish_mdm:edit-collect-settings",
+            args=[settings_obj.organization.slug, settings_obj.id],
+        )
+
+    def test_get(self, client, url, user):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), CollectSettingsForm)
+
+    def test_valid_form(self, client, url, user, organization, settings_obj):
+        """A valid POST updates the CollectSettings, redirects, and shows a success message."""
+        data = {"name": "Updated Name", "general_app_language": "en"}
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        settings_obj.refresh_from_db()
+        assert settings_obj.name == "Updated Name"
+        assertRedirects(
+            response, reverse("publish_mdm:collect-settings-list", args=[organization.slug])
+        )
+        assert "Successfully edited Updated Name." in response.content.decode()
+
+    def test_wrong_org_returns_404(self, client, user, organization):
+        """Attempting to edit a CollectSettings from another org returns 404."""
+        other_org = OrganizationFactory()
+        other_cs = CollectSettingsFactory(organization=other_org)
+        url = reverse(
+            "publish_mdm:edit-collect-settings",
+            args=[organization.slug, other_cs.id],
+        )
+        response = client.get(url)
+        assert response.status_code == 404

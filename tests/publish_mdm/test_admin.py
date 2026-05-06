@@ -11,6 +11,7 @@ from tests.mdm import TestAllMDMsNoAutouse
 from tests.publish_mdm.factories import (
     AndroidEnterpriseAccountFactory,
     CentralServerFactory,
+    CollectSettingsFactory,
     FormTemplateFactory,
     OrganizationFactory,
     ProjectFactory,
@@ -116,7 +117,7 @@ class TestProjectAdmin(BaseTestAdmin):
             "central_id",
             "central_server",
             "organization",
-            "app_language",
+            "collect_settings",
             "template_variables",
             "admin_pw",
         ),
@@ -125,8 +126,8 @@ class TestProjectAdmin(BaseTestAdmin):
         """Ensures app user QR codes are regenerated when form fields that impact
         them are changed.
         """
-        project = project = ProjectFactory(
-            app_language="en", central_server__base_url="https://central"
+        project = ProjectFactory(
+            collect_settings__general_app_language="en", central_server__base_url="https://central"
         )
         url = reverse("admin:publish_mdm_project_change", args=[project.pk])
         mock_generate_qr_codes = mocker.patch(
@@ -137,8 +138,8 @@ class TestProjectAdmin(BaseTestAdmin):
             "central_id": project.central_id,
             "central_server": project.central_server_id,
             "organization": project.organization_id,
-            "app_language": project.app_language,
             "template_variables": [],
+            "collect_settings": project.collect_settings_id,
         }
         for inline_prefix in ("attachments", "project_template_variables"):
             data.update(
@@ -151,7 +152,7 @@ class TestProjectAdmin(BaseTestAdmin):
             )
 
         new_values = {
-            "app_language": "ar",
+            "collect_settings": CollectSettingsFactory(organization=project.organization).id,
             "central_id": project.central_id + 1,
             "name": project.name + " edited",
             "central_server": CentralServerFactory(organization=project.organization).id,
@@ -162,7 +163,7 @@ class TestProjectAdmin(BaseTestAdmin):
             ],
         }
         # QR codes should be regenerated if any of these fields are changed
-        should_regenerate = ("app_language", "central_id", "name", "admin_pw")
+        should_regenerate = ("collect_settings", "central_id", "name", "admin_pw")
 
         if changed_field == "admin_pw":
             admin_pw_var = TemplateVariableFactory.create(

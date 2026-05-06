@@ -9,6 +9,7 @@ from django import forms
 from django.conf import settings
 from django.http import QueryDict
 from django.urls import reverse_lazy
+from django.utils.html import format_html
 from import_export import forms as import_export_forms
 from import_export.tmp_storages import MediaStorage
 from invitations.adapters import get_invitations_adapter
@@ -30,11 +31,13 @@ from apps.patterns.widgets import (
 )
 
 from .etl.odk.client import PublishMDMClient
+from .etl.odk.utils import get_default_collect_settings_field_values
 from .http import HttpRequest
 from .models import (
     AppUser,
     AppUserTemplateVariable,
     CentralServer,
+    CollectSettings,
     FormTemplate,
     Organization,
     OrganizationInvitation,
@@ -346,14 +349,14 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
         fields = (
             "name",
             "central_server",
+            "collect_settings",
             "template_variables",
-            "app_language",
         )
         widgets: ClassVar = {
             "name": TextInput,
             "central_server": Select,
             "template_variables": CheckboxSelectMultiple,
-            "app_language": Select(attrs={"class": "!w-30"}),
+            "collect_settings": Select,
         }
 
     def __init__(self, *args, **kwargs):
@@ -363,6 +366,146 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
             "template_variables"
         ].queryset = self.instance.organization.template_variables.all()
         self.fields["central_server"].queryset = self.instance.organization.central_servers.all()
+        self.fields["collect_settings"].queryset = self.instance.organization.collect_settings.all()
+
+
+class BaseCollectSettingsForm(forms.ModelForm):
+    """Base form for adding or editing CollectSettings on the frontend or Admin."""
+
+    class Meta:
+        model = CollectSettings
+        fields = (
+            "name",
+            # Project display
+            "project_color",
+            "project_icon",
+            # General settings
+            "general_app_language",
+            "general_font_size",
+            "general_form_update_mode",
+            "general_periodic_form_updates_check",
+            "general_autosend",
+            "general_delete_send",
+            "general_default_completed",
+            "general_analytics",
+            "general_app_theme",
+            "general_navigation",
+            "general_constraint_behavior",
+            "general_high_resolution",
+            "general_image_size",
+            "general_external_app_recording",
+            "general_guidance_hint",
+            "general_instance_sync",
+            "general_metadata_username",
+            "general_metadata_phonenumber",
+            "general_metadata_email",
+            "general_protocol",
+            "general_password",
+            "general_formlist_url",
+            "general_submission_url",
+            "general_google_sheets_url",
+            "general_automatic_update",
+            "general_hide_old_form_versions",
+            "general_basemap_source",
+            "general_google_map_style",
+            "general_mapbox_map_style",
+            "general_usgs_map_style",
+            "general_carto_map_style",
+            "general_reference_layer",
+            # Admin: main menu
+            "admin_edit_saved",
+            "admin_send_finalized",
+            "admin_view_sent",
+            "admin_get_blank",
+            "admin_delete_saved",
+            "admin_qr_code_scanner",
+            # Admin: project settings
+            "admin_change_server",
+            "admin_change_project_display",
+            "admin_change_app_theme",
+            "admin_change_navigation",
+            "admin_maps",
+            # Admin: form management
+            "admin_form_update_mode",
+            "admin_periodic_form_updates_check",
+            "admin_automatic_update",
+            "admin_hide_old_form_versions",
+            "admin_change_autosend",
+            "admin_delete_after_send",
+            "admin_default_to_finalized",
+            "admin_change_constraint_behavior",
+            "admin_high_resolution",
+            "admin_image_size",
+            "admin_guidance_hint",
+            "admin_external_app_recording",
+            "admin_instance_form_sync",
+            "admin_change_form_metadata",
+            "admin_analytics",
+            "admin_change_app_language",
+            "admin_change_font_size",
+            # Admin: form entry
+            "admin_moving_backwards",
+            "admin_access_settings",
+            "admin_change_language",
+            "admin_jump_to",
+            "admin_save_mid",
+            "admin_save_as",
+            "admin_mark_as_finalized",
+        )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Pre-populate initial values from the setting when adding a new instance.
+        if not self.instance.pk:
+            self.initial = get_default_collect_settings_field_values()
+        # Append "Sets <code>section.key</code>" to help_text for every settings field.
+        # The field name pattern {section}_{key} maps directly to the settings key
+        # e.g. project_color → project.color, general_app_language → general.app_language.
+        for field_name, field in self.fields.items():
+            if field_name in ("name", "organization"):
+                continue
+            section, key = field_name.split("_", 1)
+            settings_key = f"{section}.{key}"
+            sets_text = format_html("Sets <code>{}</code>", settings_key)
+            if field.help_text:
+                field.help_text = format_html("{} {}", field.help_text, sets_text)
+            else:
+                field.help_text = sets_text
+
+
+class CollectSettingsForm(PlatformFormMixin, BaseCollectSettingsForm):
+    """A form for adding or editing CollectSettings on the frontend."""
+
+    class Meta(BaseCollectSettingsForm.Meta):
+        widgets: ClassVar = {
+            "name": TextInput,
+            "project_color": TextInput,
+            "project_icon": TextInput,
+            "general_app_language": Select(attrs={"class": "!w-30"}),
+            "general_font_size": Select,
+            "general_form_update_mode": Select,
+            "general_periodic_form_updates_check": Select,
+            "general_autosend": Select,
+            "general_app_theme": Select,
+            "general_navigation": Select,
+            "general_constraint_behavior": Select,
+            "general_image_size": Select,
+            "general_guidance_hint": Select,
+            "general_metadata_username": TextInput,
+            "general_metadata_phonenumber": TextInput,
+            "general_metadata_email": TextInput,
+            "general_protocol": Select,
+            "general_password": TextInput(attrs={"type": "password", "autocomplete": "off"}),
+            "general_formlist_url": TextInput,
+            "general_submission_url": TextInput,
+            "general_google_sheets_url": TextInput,
+            "general_basemap_source": Select,
+            "general_google_map_style": Select,
+            "general_mapbox_map_style": Select,
+            "general_usgs_map_style": Select,
+            "general_carto_map_style": Select,
+            "general_reference_layer": TextInput,
+        }
 
 
 class ProjectTemplateVariableForm(PlatformFormMixin, forms.ModelForm):

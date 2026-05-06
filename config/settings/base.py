@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import json
 import logging
 import os
 from pathlib import Path
@@ -422,10 +423,6 @@ ODK_CENTRAL_PASSWORD = os.getenv("ODK_CENTRAL_PASSWORD")
 # django-import-export
 IMPORT_EXPORT_FORMATS = [base_formats.CSV, XLSX]
 
-# The default language for generating App User QR codes. Can be overriden for
-# a Project using the app_language field.
-DEFAULT_APP_LANGUAGE = "en"
-
 # To address Django deprecation warning for URLField
 FORMS_URLFIELD_ASSUME_HTTPS = True
 
@@ -449,6 +446,15 @@ MDM_REGISTRY = {
     "Android Enterprise": "apps.mdm.mdms.AndroidEnterprise",
     "TinyMDM": "apps.mdm.mdms.TinyMDM",
 }
+
+# ODK Collect default settings — pre-populated into new CollectSettings objects and forms.
+# Supply a JSON string in the standard ODK Collect settings format via the
+# DEFAULT_COLLECT_SETTINGS environment variable:
+# https://docs.getodk.org/collect-import-export/#list-of-keys-for-all-settings
+_raw_default_collect_settings = os.getenv("DEFAULT_COLLECT_SETTINGS")
+DEFAULT_COLLECT_SETTINGS = (
+    json.loads(_raw_default_collect_settings) if _raw_default_collect_settings else None
+)
 
 # Shared secret token for the AMAPI Pub/Sub push endpoint.  When set, all push
 # notification requests must include ``?token=<value>`` in the URL; requests

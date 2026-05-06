@@ -4,13 +4,14 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.db import connection
 from django.db.utils import IntegrityError
+from django.test import override_settings
 
 from apps.infisical.api import InfisicalKMS
 from apps.infisical.fields import EncryptedMixin
 from apps.mdm.mdms import get_active_mdm_class
 from apps.mdm.models import Fleet, Policy, PolicyApplication
 from apps.publish_mdm.etl import template
-from apps.publish_mdm.models import CentralServer
+from apps.publish_mdm.models import CentralServer, CollectSettings
 from tests.mdm import TestAllMDMs, _configure_mdm
 
 from .factories import (
@@ -362,3 +363,63 @@ class TestOrganization(TestAllMDMs):
             policy_ids.add(fleet.policy.policy_id)
         assert len(policy_ids) == 3
         assert mock_create_or_update_policy.call_count == 3
+
+
+@pytest.mark.django_db
+class TestOrganizationCreateDefaultCollectSettings:
+    """Tests for Organization.create_default_collect_settings()."""
+
+    def test_creates_collect_settings_named_default(self):
+        org = OrganizationFactory()
+        cs = org.create_default_collect_settings()
+        assert cs.name == "Default"
+        assert cs.organization == org
+        assert isinstance(cs, CollectSettings)
+
+    @override_settings(DEFAULT_COLLECT_SETTINGS=None)
+    def test_uses_model_defaults_when_no_setting(self):
+        org = OrganizationFactory()
+        cs = org.create_default_collect_settings()
+        # Model default for general_app_language is "en"
+        assert cs.general_app_language == "en"
+
+    @override_settings(
+        DEFAULT_COLLECT_SETTINGS={
+            "general": {"app_language": "ar", "font_size": "17"},
+            "admin": {"edit_saved": False},
+        }
+    )
+    def test_applies_setting_field_values(self):
+        org = OrganizationFactory()
+        cs = org.create_default_collect_settings()
+        assert cs.general_app_language == "ar"
+        assert cs.general_font_size == "17"
+        assert cs.admin_edit_saved is False
+
+    @override_settings(
+        DEFAULT_COLLECT_SETTINGS={
+            "general": {"app_language": "fr", "unknown_key": "ignored"},
+        }
+    )
+    def test_filters_unknown_keys_silently(self):
+        org = OrganizationFactory()
+        # Should not raise even though unknown_key is not a model field
+        cs = org.create_default_collect_settings()
+        assert cs.general_app_language == "fr"
+
+    @override_settings(
+        DEFAULT_COLLECT_SETTINGS={
+            "admin": {"admin_pw": "secret", "edit_saved": False},
+            "general": {"server_url": "https://example.com", "app_language": "ar"},
+        }
+    )
+    def test_dynamic_keys_excluded_from_model(self):
+        """admin_pw and server_url are dynamic and excluded by get_default_collect_settings_field_values()."""
+        org = OrganizationFactory()
+        cs = org.create_default_collect_settings()
+        # Dynamic fields must NOT have been written to the model
+        assert not hasattr(cs, "admin_admin_pw")
+        assert not hasattr(cs, "general_server_url")
+        # Non-dynamic fields ARE applied
+        assert cs.admin_edit_saved is False
+        assert cs.general_app_language == "ar"

@@ -13,7 +13,6 @@ from apps.mdm.models import (
     WifiDirectSettings,
 )
 from apps.mdm.serializers import PolicySerializer
-from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from tests.mdm import TestAllMDMs
 from tests.mdm.factories import DeviceFactory, FleetFactory, PolicyFactory
 from tests.publish_mdm.factories import AppUserFactory, OrganizationFactory
@@ -292,7 +291,7 @@ class TestPolicySerializer(TestAllMDMs):
         AppUserFactory(
             name="testuser",
             project=fleet.project,
-            qr_code_data=DEFAULT_COLLECT_SETTINGS,
+            qr_code_data={},
         )
         policy = fleet.policy
         serializer = PolicySerializer(policy=policy, device=device)
@@ -354,7 +353,7 @@ class TestPolicySerializer(TestAllMDMs):
         AppUserFactory(
             name="testuser",
             project=fleet.project,
-            qr_code_data=DEFAULT_COLLECT_SETTINGS,
+            qr_code_data={},
         )
         policy = fleet.policy
         policy.odk_collect_device_id_template = "$serial_number"
@@ -371,7 +370,7 @@ class TestPolicySerializer(TestAllMDMs):
         AppUserFactory(
             name="testuser",
             project=fleet.project,
-            qr_code_data=DEFAULT_COLLECT_SETTINGS,
+            qr_code_data={},
         )
         policy = fleet.policy
         policy.odk_collect_device_id_template = ""
