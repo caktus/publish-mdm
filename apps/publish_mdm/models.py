@@ -663,7 +663,7 @@ class CollectSettings(AbstractBaseModel):
         verbose_name="Show check frequency setting",
     )
     admin_automatic_update = models.BooleanField(
-        default=True,
+        default=False,
         verbose_name="Auto-update",
     )
     admin_hide_old_form_versions = models.BooleanField(
@@ -675,7 +675,7 @@ class CollectSettings(AbstractBaseModel):
         verbose_name="Change auto-send",
     )
     admin_delete_after_send = models.BooleanField(
-        default=True,
+        default=False,
         verbose_name="Delete after send",
     )
     admin_default_to_finalized = models.BooleanField(
@@ -699,7 +699,7 @@ class CollectSettings(AbstractBaseModel):
         verbose_name="Guidance hint",
     )
     admin_external_app_recording = models.BooleanField(
-        default=True,
+        default=False,
         verbose_name="External app recording",
     )
     admin_instance_form_sync = models.BooleanField(

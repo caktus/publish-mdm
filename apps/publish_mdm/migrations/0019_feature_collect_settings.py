@@ -516,7 +516,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "admin_automatic_update",
-                    models.BooleanField(default=True, verbose_name="Auto-update"),
+                    models.BooleanField(default=False, verbose_name="Auto-update"),
                 ),
                 (
                     "admin_hide_old_form_versions",
@@ -528,7 +528,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "admin_delete_after_send",
-                    models.BooleanField(default=True, verbose_name="Delete after send"),
+                    models.BooleanField(default=False, verbose_name="Delete after send"),
                 ),
                 (
                     "admin_default_to_finalized",
@@ -554,7 +554,7 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "admin_external_app_recording",
-                    models.BooleanField(default=True, verbose_name="External app recording"),
+                    models.BooleanField(default=False, verbose_name="External app recording"),
                 ),
                 (
                     "admin_instance_form_sync",
