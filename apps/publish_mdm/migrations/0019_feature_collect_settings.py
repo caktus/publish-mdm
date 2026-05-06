@@ -74,7 +74,7 @@ class Migration(migrations.Migration):
                         blank=True,
                         default="",
                         help_text="Icon shown for this project in ODK Collect.",
-                        max_length=10,
+                        max_length=20,
                         verbose_name="Project icon",
                     ),
                 ),

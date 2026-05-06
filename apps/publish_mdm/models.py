@@ -407,7 +407,7 @@ class CollectSettings(AbstractBaseModel):
         help_text="Hex colour shown for this project in ODK Collect.",
     )
     project_icon = models.CharField(
-        max_length=10,
+        max_length=20,
         blank=True,
         default="",
         verbose_name="Project icon",
