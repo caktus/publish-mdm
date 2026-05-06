@@ -57,9 +57,11 @@ def create_app_user_qrcode(
         base_url=base_url,
     )
 
+    # Generate QR code with segno
     qr_data = base64.b64encode(zlib.compress(json.dumps(collect_settings).encode("utf-8")))
     code_buffer = create_qr_code(qr_data)
 
+    # Add text to QR code with PIL
     png = Image.open(code_buffer)
     png = png.convert("RGB")
     text_anchor = png.height

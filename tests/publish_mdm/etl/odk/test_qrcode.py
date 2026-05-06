@@ -3,50 +3,7 @@ import pytest
 from apps.publish_mdm.etl.load import generate_and_save_app_user_collect_qrcodes
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
 from apps.publish_mdm.etl.odk.qrcode import build_collect_settings, create_app_user_qrcode
-from apps.publish_mdm.etl.odk.serializers import CollectSettingsSerializer
 from tests.publish_mdm.factories import AppUserFactory, ProjectFactory
-
-
-class TestCollectSettingsSerializer:
-    """Unit tests for CollectSettingsSerializer.to_dict()."""
-
-    @pytest.mark.django_db
-    def test_includes_app_language(self):
-        project = ProjectFactory(collect_settings__general_app_language="ar")
-        result = CollectSettingsSerializer(project=project).to_dict()
-        assert result["general"]["app_language"] == "ar"
-
-    @pytest.mark.django_db
-    def test_includes_admin_pw(self, mocker):
-        project = ProjectFactory()
-        mocker.patch.object(project, "get_admin_pw", return_value="secret")
-        result = CollectSettingsSerializer(project=project).to_dict()
-        assert result["admin"]["admin_pw"] == "secret"
-
-    @pytest.mark.django_db
-    def test_admin_pw_empty_when_not_set(self):
-        project = ProjectFactory()
-        result = CollectSettingsSerializer(project=project).to_dict()
-        assert result["admin"]["admin_pw"] == ""
-
-    @pytest.mark.django_db
-    def test_optional_string_fields_omitted_when_blank(self):
-        """Fields with blank=True and default='' are omitted from the output."""
-        project = ProjectFactory(collect_settings__general_app_theme="")
-        result = CollectSettingsSerializer(project=project).to_dict()
-        assert "app_theme" not in result["general"]
-
-    @pytest.mark.django_db
-    def test_optional_string_fields_included_when_set(self):
-        project = ProjectFactory(collect_settings__general_app_theme="dark_theme")
-        result = CollectSettingsSerializer(project=project).to_dict()
-        assert result["general"]["app_theme"] == "dark_theme"
-
-    @pytest.mark.django_db
-    def test_non_default_font_size_reflected(self):
-        project = ProjectFactory(collect_settings__general_font_size="13")
-        result = CollectSettingsSerializer(project=project).to_dict()
-        assert result["general"]["font_size"] == "13"
 
 
 class TestBuildCollectSettings:

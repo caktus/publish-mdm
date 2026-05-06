@@ -61,7 +61,7 @@ class CollectSettingsFactory(
     class Meta:
         model = models.CollectSettings
 
-    name = "Test"
+    name = factory.Faker("word")
     organization = factory.SubFactory(OrganizationFactory)
 
 

@@ -39,6 +39,7 @@ from apps.publish_mdm.forms import (
     AppUserTemplateVariableFormSet,
     BYODDeviceEnrollmentForm,
     CentralServerFrontendForm,
+    CollectSettingsForm,
     DeviceAppUserForm,
     DeviceEnrollmentQRCodeForm,
     FleetAddForm,
@@ -1405,8 +1406,8 @@ class TestCreateOrganization(ViewTestBase):
 
     @pytest.mark.parametrize("mdm_api_error", [False, True], indirect=True)
     def test_valid_form(self, client, url, user, mocker, force_tinymdm, mdm_api_error):
-        """Test a valid form with TinyMDM: create_default_fleet() is called immediately
-        on organization creation.
+        """Test a valid form with TinyMDM: create_default_fleet() and
+        create_default_collect_settings() are both called on organization creation.
         """
         data = {
             "name": "New organization",
@@ -1419,6 +1420,9 @@ class TestCreateOrganization(ViewTestBase):
         }
         mock_create_default_fleet = mocker.patch.object(
             Organization, "create_default_fleet", side_effect=mdm_api_error
+        )
+        mock_create_default_collect_settings = mocker.patch.object(
+            Organization, "create_default_collect_settings"
         )
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
@@ -1437,8 +1441,9 @@ class TestCreateOrganization(ViewTestBase):
         ]
         # Ensure there is a success message
         assert f"Successfully created {organization}." in response.content.decode()
-        # Ensure the create_default_fleet() method is called
+        # Ensure both setup methods are called
         mock_create_default_fleet.assert_called_once()
+        mock_create_default_collect_settings.assert_called_once()
         if mdm_api_error:
             assertContains(
                 response,
@@ -3826,3 +3831,113 @@ class TestSocialAccountConnectionsView:
                 "publish_mdm:enterprise-setup", args=[enrolled_android_enterprise.organization.slug]
             ),
         )
+
+
+@pytest.mark.django_db
+class TestCollectSettingsList(ViewTestBase):
+    """Tests for the collect_settings_list view."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("publish_mdm:collect-settings-list", args=[organization.slug])
+
+    def test_get(self, client, url, user):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "table" in response.context
+
+    def test_htmx_get(self, client, url, user):
+        """An HTMX request returns the table partial template instead of the full page."""
+        response = client.get(url, headers={"HX-Request": "true"})
+        assert response.status_code == 200
+        template_names = [t.name for t in response.templates]
+        assert "publish_mdm/collect_settings_list.html" not in template_names
+
+    def test_only_shows_org_settings(self, client, url, user, organization):
+        """Only CollectSettings belonging to the current organization are listed."""
+        own = CollectSettingsFactory(organization=organization)
+        other_org = OrganizationFactory()
+        CollectSettingsFactory(organization=other_org)
+        response = client.get(url)
+        assert response.status_code == 200
+        rows = list(response.context["table"].data)
+        assert rows == [own]
+
+
+@pytest.mark.django_db
+class TestAddCollectSettings(ViewTestBase):
+    """Tests for the add-collect-settings view."""
+
+    @pytest.fixture
+    def url(self, organization):
+        return reverse("publish_mdm:add-collect-settings", args=[organization.slug])
+
+    def test_get(self, client, url, user):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), CollectSettingsForm)
+
+    def test_valid_form(self, client, url, user, organization):
+        """A valid POST creates a CollectSettings, redirects, and shows a success message."""
+        data = {"name": "My Settings", "general_app_language": "en"}
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        cs = organization.collect_settings.get(name="My Settings")
+        assert cs.organization == organization
+        assertRedirects(
+            response, reverse("publish_mdm:collect-settings-list", args=[organization.slug])
+        )
+        assert "Successfully added My Settings." in response.content.decode()
+
+    def test_invalid_form(self, client, url, user, organization):
+        """A POST with a blank name returns 200 with form errors and creates nothing."""
+        data = {"name": ""}
+        response = client.post(url, data=data)
+        assert response.status_code == 200
+        assert not organization.collect_settings.exists()
+        assert isinstance(response.context.get("form"), CollectSettingsForm)
+        assert response.context["form"].errors
+
+
+@pytest.mark.django_db
+class TestEditCollectSettings(ViewTestBase):
+    """Tests for the edit-collect-settings view."""
+
+    @pytest.fixture
+    def settings_obj(self, organization):
+        return CollectSettingsFactory(organization=organization, name="Original")
+
+    @pytest.fixture
+    def url(self, settings_obj):
+        return reverse(
+            "publish_mdm:edit-collect-settings",
+            args=[settings_obj.organization.slug, settings_obj.id],
+        )
+
+    def test_get(self, client, url, user):
+        response = client.get(url)
+        assert response.status_code == 200
+        assert isinstance(response.context.get("form"), CollectSettingsForm)
+
+    def test_valid_form(self, client, url, user, organization, settings_obj):
+        """A valid POST updates the CollectSettings, redirects, and shows a success message."""
+        data = {"name": "Updated Name", "general_app_language": "en"}
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        settings_obj.refresh_from_db()
+        assert settings_obj.name == "Updated Name"
+        assertRedirects(
+            response, reverse("publish_mdm:collect-settings-list", args=[organization.slug])
+        )
+        assert "Successfully edited Updated Name." in response.content.decode()
+
+    def test_wrong_org_returns_404(self, client, user, organization):
+        """Attempting to edit a CollectSettings from another org returns 404."""
+        other_org = OrganizationFactory()
+        other_cs = CollectSettingsFactory(organization=other_org)
+        url = reverse(
+            "publish_mdm:edit-collect-settings",
+            args=[organization.slug, other_cs.id],
+        )
+        response = client.get(url)
+        assert response.status_code == 404

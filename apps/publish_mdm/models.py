@@ -757,9 +757,6 @@ class CollectSettings(AbstractBaseModel):
     def __str__(self):
         return self.name
 
-    def get_absolute_url(self):
-        return reverse("publish_mdm:edit-collect-settings", args=[self.organization.slug, self.pk])
-
 
 class Project(AbstractBaseModel):
     """A project in ODK Central."""
