@@ -11,6 +11,7 @@ from tests.mdm import TestAllMDMsNoAutouse
 from tests.publish_mdm.factories import (
     AndroidEnterpriseAccountFactory,
     CentralServerFactory,
+    CollectSettingsFactory,
     FormTemplateFactory,
     OrganizationFactory,
     ProjectFactory,
@@ -116,7 +117,7 @@ class TestProjectAdmin(BaseTestAdmin):
             "central_id",
             "central_server",
             "organization",
-            "collect_general_app_language",
+            "collect_settings",
             "template_variables",
             "admin_pw",
         ),
@@ -125,8 +126,8 @@ class TestProjectAdmin(BaseTestAdmin):
         """Ensures app user QR codes are regenerated when form fields that impact
         them are changed.
         """
-        project = project = ProjectFactory(
-            collect_general_app_language="en", central_server__base_url="https://central"
+        project = ProjectFactory(
+            collect_settings__general_app_language="en", central_server__base_url="https://central"
         )
         url = reverse("admin:publish_mdm_project_change", args=[project.pk])
         mock_generate_qr_codes = mocker.patch(
@@ -138,20 +139,7 @@ class TestProjectAdmin(BaseTestAdmin):
             "central_server": project.central_server_id,
             "organization": project.organization_id,
             "template_variables": [],
-            # Collect settings — all non-blank fields with non-False defaults must be
-            # submitted so the admin form is valid and has_changed() is accurate.
-            "collect_project_color": project.collect_project_color,
-            "collect_project_icon": project.collect_project_icon,
-            "collect_general_app_language": project.collect_general_app_language,
-            "collect_general_font_size": project.collect_general_font_size,
-            "collect_general_form_update_mode": project.collect_general_form_update_mode,
-            "collect_general_periodic_form_updates_check": project.collect_general_periodic_form_updates_check,
-            "collect_general_autosend": project.collect_general_autosend,
-            "collect_admin_moving_backwards": True,
-            "collect_admin_change_language": True,
-            "collect_general_default_completed": True,
-            "collect_general_analytics": True,
-            "collect_general_external_app_recording": True,
+            "collect_settings": project.collect_settings_id,
         }
         for inline_prefix in ("attachments", "project_template_variables"):
             data.update(
@@ -164,7 +152,7 @@ class TestProjectAdmin(BaseTestAdmin):
             )
 
         new_values = {
-            "collect_general_app_language": "ar",
+            "collect_settings": CollectSettingsFactory(organization=project.organization).id,
             "central_id": project.central_id + 1,
             "name": project.name + " edited",
             "central_server": CentralServerFactory(organization=project.organization).id,
@@ -175,7 +163,7 @@ class TestProjectAdmin(BaseTestAdmin):
             ],
         }
         # QR codes should be regenerated if any of these fields are changed
-        should_regenerate = ("collect_general_app_language", "central_id", "name", "admin_pw")
+        should_regenerate = ("collect_settings", "central_id", "name", "admin_pw")
 
         if changed_field == "admin_pw":
             admin_pw_var = TemplateVariableFactory.create(

@@ -1,9 +1,9 @@
 import pytest
 
 from apps.publish_mdm.etl.load import generate_and_save_app_user_collect_qrcodes
-from apps.publish_mdm.etl.odk.collect_settings import CollectSettingsSerializer
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
 from apps.publish_mdm.etl.odk.qrcode import build_collect_settings, create_app_user_qrcode
+from apps.publish_mdm.etl.odk.serializers import CollectSettingsSerializer
 from tests.publish_mdm.factories import AppUserFactory, ProjectFactory
 
 
@@ -12,7 +12,7 @@ class TestCollectSettingsSerializer:
 
     @pytest.mark.django_db
     def test_includes_app_language(self):
-        project = ProjectFactory(collect_general_app_language="ar")
+        project = ProjectFactory(collect_settings__general_app_language="ar")
         result = CollectSettingsSerializer(project=project).to_dict()
         assert result["general"]["app_language"] == "ar"
 
@@ -32,19 +32,19 @@ class TestCollectSettingsSerializer:
     @pytest.mark.django_db
     def test_optional_string_fields_omitted_when_blank(self):
         """Fields with blank=True and default='' are omitted from the output."""
-        project = ProjectFactory(collect_general_app_theme="")
+        project = ProjectFactory(collect_settings__general_app_theme="")
         result = CollectSettingsSerializer(project=project).to_dict()
         assert "app_theme" not in result["general"]
 
     @pytest.mark.django_db
     def test_optional_string_fields_included_when_set(self):
-        project = ProjectFactory(collect_general_app_theme="dark_theme")
+        project = ProjectFactory(collect_settings__general_app_theme="dark_theme")
         result = CollectSettingsSerializer(project=project).to_dict()
         assert result["general"]["app_theme"] == "dark_theme"
 
     @pytest.mark.django_db
     def test_non_default_font_size_reflected(self):
-        project = ProjectFactory(collect_general_font_size="13")
+        project = ProjectFactory(collect_settings__general_font_size="13")
         result = CollectSettingsSerializer(project=project).to_dict()
         assert result["general"]["font_size"] == "13"
 
@@ -67,7 +67,7 @@ class TestBuildCollectSettings:
     def test_build_collect_settings(self, app_user):
         project = ProjectFactory(
             central_id=1,
-            collect_general_app_language="en",
+            collect_settings__general_app_language="en",
             central_server__base_url="https://central",
         )
         collect_settings = build_collect_settings(
@@ -85,8 +85,8 @@ class TestBuildCollectSettings:
         """Non-default model field values appear in the generated settings."""
         project = ProjectFactory(
             central_id=1,
-            collect_general_font_size="13",
-            collect_admin_edit_saved=True,
+            collect_settings__general_font_size="13",
+            collect_settings__admin_edit_saved=True,
             central_server__base_url="https://central",
         )
         result = build_collect_settings(
@@ -117,7 +117,7 @@ class TestBuildCollectSettings:
         """QR code PNG is generated and contains the correct settings."""
         project = ProjectFactory(
             central_id=1,
-            collect_general_app_language="en",
+            collect_settings__general_app_language="en",
             central_server__base_url="https://central",
         )
         qr_code, collect_settings = create_app_user_qrcode(
@@ -132,7 +132,7 @@ class TestBuildCollectSettings:
     def test_generate_and_save_app_user_collect_qrcodes(self, app_user, mocker):
         """generate_and_save_app_user_collect_qrcodes() passes project to create_app_user_qrcode."""
         project = ProjectFactory(
-            collect_general_app_language="ar",
+            collect_settings__general_app_language="ar",
             central_server__base_url="https://central",
         )
         AppUserFactory(name=app_user.displayName, project=project)
@@ -153,7 +153,7 @@ class TestBuildCollectSettings:
     def test_generate_and_save_passes_project_language_to_qrcode(self, app_user, mocker):
         """The app language from model field is embedded in the generated QR code."""
         project = ProjectFactory(
-            collect_general_app_language="ar",
+            collect_settings__general_app_language="ar",
             central_server__base_url="https://central",
         )
         AppUserFactory(name=app_user.displayName, project=project)

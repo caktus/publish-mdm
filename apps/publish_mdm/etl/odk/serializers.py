@@ -1,0 +1,135 @@
+"""
+CollectSettingsSerializer for assembling the nested ODK Collect settings dict
+from a ``Project``'s ``CollectSettings`` model instance.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from django.conf import settings
+
+if TYPE_CHECKING:
+    from apps.publish_mdm.models import Project
+
+
+@dataclass
+class CollectSettingsSerializer:
+    """Assembles the nested ODK Collect settings dict from a Project's CollectSettings.
+
+    All settings are sourced from ``project.collect_settings`` (a
+    ``CollectSettings`` instance).  The only fields not stored on the model —
+    because they depend on the individual app user assignment — are
+    ``general.server_url``, ``general.username``, and ``project.name``.  Those
+    three are applied by ``build_collect_settings()`` after calling this
+    serializer.
+
+    If ``project.collect_settings`` is ``None`` and
+    ``settings.DEFAULT_COLLECT_SETTINGS`` is configured, those values are used.
+    Otherwise ``{"project": {}, "general": {"app_language": "en"}, "admin": {}}`` is
+    returned (with ``admin_pw`` injected from the project's template variable).
+    """
+
+    project: Project
+
+    def to_dict(self) -> dict:
+        """Return the nested collect-settings dict derived from the project's CollectSettings."""
+        p = self.project
+        s = p.collect_settings
+        admin_pw = p.get_admin_pw() or ""
+
+        if s is None:
+            result: dict = {"project": {}, "general": {"app_language": "en"}, "admin": {}}
+            if isinstance(settings.DEFAULT_COLLECT_SETTINGS, dict):
+                for section, keys in settings.DEFAULT_COLLECT_SETTINGS.items():
+                    if section in result and isinstance(keys, dict):
+                        result[section].update(keys)
+            result["admin"]["admin_pw"] = admin_pw
+            return result
+
+        general: dict = {
+            "delete_send": s.general_delete_send,
+            "default_completed": s.general_default_completed,
+            "analytics": s.general_analytics,
+            "high_resolution": s.general_high_resolution,
+            "external_app_recording": s.general_external_app_recording,
+            "instance_sync": s.general_instance_sync,
+            "automatic_update": s.general_automatic_update,
+            "hide_old_form_versions": s.general_hide_old_form_versions,
+        }
+        # Optional string/choice fields — include only the non-blank ones.
+        for key, value in [
+            ("app_language", s.general_app_language),
+            ("font_size", s.general_font_size),
+            ("form_update_mode", s.general_form_update_mode),
+            ("periodic_form_updates_check", s.general_periodic_form_updates_check),
+            ("autosend", s.general_autosend),
+            ("app_theme", s.general_app_theme),
+            ("navigation", s.general_navigation),
+            ("constraint_behavior", s.general_constraint_behavior),
+            ("image_size", s.general_image_size),
+            ("guidance_hint", s.general_guidance_hint),
+            ("metadata_username", s.general_metadata_username),
+            ("metadata_phonenumber", s.general_metadata_phonenumber),
+            ("metadata_email", s.general_metadata_email),
+            ("protocol", s.general_protocol),
+            ("password", s.general_password),
+            ("formlist_url", s.general_formlist_url),
+            ("submission_url", s.general_submission_url),
+            ("google_sheets_url", s.general_google_sheets_url),
+            ("basemap_source", s.general_basemap_source),
+            ("google_map_style", s.general_google_map_style),
+            ("mapbox_map_style", s.general_mapbox_map_style),
+            ("usgs_map_style", s.general_usgs_map_style),
+            ("carto_map_style", s.general_carto_map_style),
+            ("reference_layer", s.general_reference_layer),
+        ]:
+            if value:
+                general[key] = value
+
+        return {
+            "project": {
+                "color": s.project_color,
+                "icon": s.project_icon,
+            },
+            "general": general,
+            "admin": {
+                "admin_pw": admin_pw,
+                "edit_saved": s.admin_edit_saved,
+                "send_finalized": s.admin_send_finalized,
+                "view_sent": s.admin_view_sent,
+                "get_blank": s.admin_get_blank,
+                "delete_saved": s.admin_delete_saved,
+                "qr_code_scanner": s.admin_qr_code_scanner,
+                "change_server": s.admin_change_server,
+                "change_project_display": s.admin_change_project_display,
+                "change_app_theme": s.admin_change_app_theme,
+                "change_navigation": s.admin_change_navigation,
+                "maps": s.admin_maps,
+                "form_update_mode": s.admin_form_update_mode,
+                "periodic_form_updates_check": s.admin_periodic_form_updates_check,
+                "automatic_update": s.admin_automatic_update,
+                "hide_old_form_versions": s.admin_hide_old_form_versions,
+                "change_autosend": s.admin_change_autosend,
+                "delete_after_send": s.admin_delete_after_send,
+                "default_to_finalized": s.admin_default_to_finalized,
+                "change_constraint_behavior": s.admin_change_constraint_behavior,
+                "high_resolution": s.admin_high_resolution,
+                "image_size": s.admin_image_size,
+                "guidance_hint": s.admin_guidance_hint,
+                "external_app_recording": s.admin_external_app_recording,
+                "instance_form_sync": s.admin_instance_form_sync,
+                "change_form_metadata": s.admin_change_form_metadata,
+                "analytics": s.admin_analytics,
+                "change_app_language": s.admin_change_app_language,
+                "change_font_size": s.admin_change_font_size,
+                "moving_backwards": s.admin_moving_backwards,
+                "access_settings": s.admin_access_settings,
+                "change_language": s.admin_change_language,
+                "jump_to": s.admin_jump_to,
+                "save_mid": s.admin_save_mid,
+                "save_as": s.admin_save_as,
+                "mark_as_finalized": s.admin_mark_as_finalized,
+            },
+        }

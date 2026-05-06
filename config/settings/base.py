@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import json
 import logging
 import os
 from pathlib import Path
@@ -445,6 +446,15 @@ MDM_REGISTRY = {
     "Android Enterprise": "apps.mdm.mdms.AndroidEnterprise",
     "TinyMDM": "apps.mdm.mdms.TinyMDM",
 }
+
+# ODK Collect default settings — pre-populated into new CollectSettings objects and forms.
+# Supply a JSON string in the standard ODK Collect settings format via the
+# DEFAULT_COLLECT_SETTINGS environment variable:
+# https://docs.getodk.org/collect-import-export/#list-of-keys-for-all-settings
+_raw_default_collect_settings = os.getenv("DEFAULT_COLLECT_SETTINGS")
+DEFAULT_COLLECT_SETTINGS = (
+    json.loads(_raw_default_collect_settings) if _raw_default_collect_settings else None
+)
 
 # Shared secret token for the AMAPI Pub/Sub push endpoint.  When set, all push
 # notification requests must include ``?token=<value>`` in the URL; requests

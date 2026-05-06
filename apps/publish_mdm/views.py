@@ -54,6 +54,7 @@ from .forms import (
     AppUserTemplateVariableFormSet,
     BYODDeviceEnrollmentForm,
     CentralServerFrontendForm,
+    CollectSettingsForm,
     ConfirmImportForm,
     DeviceAppUserForm,
     DeviceEnrollmentQRCodeForm,
@@ -77,6 +78,7 @@ from .models import (
     AppUser,
     AppUserFormTemplate,
     CentralServer,
+    CollectSettings,
     FormTemplate,
     FormTemplateVersion,
     Project,
@@ -84,6 +86,7 @@ from .models import (
 from .nav import Breadcrumbs
 from .tables import (
     CentralServerTable,
+    CollectSettingsTable,
     DeviceTable,
     FleetTable,
     FormTemplateTable,
@@ -573,8 +576,9 @@ def change_project(request, organization_slug, odk_project_pk=None):
             admin_pw = request.odk_project.get_admin_pw()
             form.save()
             variables_formset.save()
-            # Regenerate QR codes if any field that affects them has changed.
-            if any(f == "name" or f.startswith("collect_") for f in form.changed_data) or (
+            # Regenerate app user QR codes if any field that impacts them has changed
+            qr_code_fields = ("name", "collect_settings")
+            if any(field in form.changed_data for field in qr_code_fields) or (
                 variables_formset.has_changed() and admin_pw != request.odk_project.get_admin_pw()
             ):
                 generate_and_save_app_user_collect_qrcodes(request.odk_project)
@@ -621,6 +625,7 @@ def create_organization(request: HttpRequest):
         organization = form.save()
         organization.users.add(request.user)
         messages.success(request, f"Successfully created {organization}.")
+        organization.create_default_collect_settings()
         # Create the default fleet; Android Enterprise requires an enrolled enterprise
         # first, so for that MDM the fleet is created in enterprise_callback after enrollment.
         if organization.mdm != "Android Enterprise":
@@ -864,6 +869,57 @@ def change_central_server(request: HttpRequest, organization_slug, central_serve
         "server": server,
     }
     return render(request, "publish_mdm/change_central_server.html", context)
+
+
+@login_required
+def collect_settings_list(request: HttpRequest, organization_slug):
+    """List CollectSettings linked to the current organization."""
+    collect_settings = CollectSettings.objects.filter(organization=request.organization).order_by(
+        "-created_at"
+    )
+    table = CollectSettingsTable(data=collect_settings, request=request, show_footer=False)
+    context = {
+        "table": table,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[("Collect Settings", "collect-settings-list")],
+        ),
+    }
+    if request.htmx:
+        template = "patterns/tables/table-partial.html"
+    else:
+        template = "publish_mdm/collect_settings_list.html"
+    return render(request, template, context)
+
+
+@login_required
+def change_collect_settings(request: HttpRequest, organization_slug, collect_settings_id=None):
+    """Add or edit CollectSettings."""
+    if collect_settings_id:
+        action = "edit"
+        settings_obj = get_object_or_404(
+            CollectSettings, pk=collect_settings_id, organization=request.organization
+        )
+    else:
+        action = "add"
+        settings_obj = CollectSettings(organization=request.organization)
+    form = CollectSettingsForm(request.POST or None, instance=settings_obj)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, f"Successfully {action}ed {settings_obj.name}.")
+        return redirect("publish_mdm:collect-settings-list", organization_slug)
+    context = {
+        "form": form,
+        "settings_obj": settings_obj,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[
+                ("Collect Settings", "collect-settings-list"),
+                (f"{action.title()} Collect Settings", f"{action}-collect-settings"),
+            ],
+        ),
+    }
+    return render(request, "publish_mdm/change_collect_settings.html", context)
 
 
 @login_required

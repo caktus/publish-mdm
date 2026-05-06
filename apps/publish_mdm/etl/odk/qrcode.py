@@ -10,8 +10,8 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from apps.publish_mdm.utils import create_qr_code
 
-from .collect_settings import CollectSettingsSerializer
 from .publish import ProjectAppUserAssignment
+from .serializers import CollectSettingsSerializer
 
 if TYPE_CHECKING:
     from apps.publish_mdm.models import Project
@@ -26,7 +26,7 @@ def build_collect_settings(
 ) -> dict:
     """Build Collect settings for the given app user from a Project instance.
 
-    All settings are sourced from the project's ``collect_*`` model fields via
+    All settings are sourced from ``project.collect_settings`` via
     ``CollectSettingsSerializer``.  The only truly dynamic fields — those that
     depend on the individual app user assignment — are applied on top:
 
@@ -39,7 +39,7 @@ def build_collect_settings(
     url = f"{base_url.rstrip('/')}/key/{app_user.token}/projects/{project.central_id}"
     collect_settings["general"]["server_url"] = url
     collect_settings["general"]["username"] = app_user.displayName
-    language = project.collect_general_app_language
+    language = collect_settings["general"].get("app_language")
     collect_settings["project"]["name"] = f"{project.name}: {app_user.displayName} ({language})"
 
     return collect_settings
@@ -66,7 +66,7 @@ def create_app_user_qrcode(
     png = ImageOps.expand(png, border=(0, 0, 0, 30), fill=(255, 255, 255))
     draw = ImageDraw.Draw(png)
     font = ImageFont.truetype(Path(__file__).parent / "Roboto-Regular.ttf", 24)
-    language = project.collect_general_app_language
+    language = collect_settings["general"].get("app_language")
     label = f"{app_user.displayName}-{language}"
     draw.text((20, text_anchor - 10), label, font=font, fill=(0, 0, 0))
     png_buffer = io.BytesIO()
