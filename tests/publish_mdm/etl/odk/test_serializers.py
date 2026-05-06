@@ -186,3 +186,5 @@ class TestCollectSettingsSerializerWithModel:
         assert "font_size" not in result["general"]
         assert "autosend" not in result["general"]
         assert "app_theme" not in result["general"]
+        assert "color" not in result["project"]
+        assert "icon" not in result["project"]

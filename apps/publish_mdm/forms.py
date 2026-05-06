@@ -457,7 +457,7 @@ class BaseCollectSettingsForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         # Pre-populate initial values from the setting when adding a new instance.
         if not self.instance.pk:
-            self.initial = get_default_collect_settings_field_values()
+            self.initial.update(get_default_collect_settings_field_values())
         # Append "Sets <code>section.key</code>" to help_text for every settings field.
         # The field name pattern {section}_{key} maps directly to the settings key
         # e.g. project_color → project.color, general_app_language → general.app_language.

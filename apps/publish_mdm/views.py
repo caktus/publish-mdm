@@ -875,7 +875,7 @@ def change_central_server(request: HttpRequest, organization_slug, central_serve
 def collect_settings_list(request: HttpRequest, organization_slug):
     """List CollectSettings linked to the current organization."""
     collect_settings = CollectSettings.objects.filter(organization=request.organization).order_by(
-        "-created_at"
+        "name"
     )
     table = CollectSettingsTable(data=collect_settings, request=request, show_footer=False)
     context = {
