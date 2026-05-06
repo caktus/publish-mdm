@@ -464,119 +464,117 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "admin_edit_saved",
-                    models.BooleanField(default=False, verbose_name="Edit saved forms"),
+                    models.BooleanField(default=True, verbose_name="Edit saved forms"),
                 ),
                 (
                     "admin_send_finalized",
-                    models.BooleanField(default=False, verbose_name="Send finalized forms"),
+                    models.BooleanField(default=True, verbose_name="Send finalized forms"),
                 ),
                 (
                     "admin_view_sent",
-                    models.BooleanField(default=False, verbose_name="View sent forms"),
+                    models.BooleanField(default=True, verbose_name="View sent forms"),
                 ),
                 (
                     "admin_get_blank",
-                    models.BooleanField(default=False, verbose_name="Get blank forms"),
+                    models.BooleanField(default=True, verbose_name="Get blank forms"),
                 ),
                 (
                     "admin_delete_saved",
-                    models.BooleanField(default=False, verbose_name="Delete saved forms"),
+                    models.BooleanField(default=True, verbose_name="Delete saved forms"),
                 ),
                 (
                     "admin_qr_code_scanner",
-                    models.BooleanField(default=False, verbose_name="QR code scanner"),
+                    models.BooleanField(default=True, verbose_name="QR code scanner"),
                 ),
                 (
                     "admin_change_server",
-                    models.BooleanField(default=False, verbose_name="Change server"),
+                    models.BooleanField(default=True, verbose_name="Change server"),
                 ),
                 (
                     "admin_change_project_display",
-                    models.BooleanField(default=False, verbose_name="Change project display"),
+                    models.BooleanField(default=True, verbose_name="Change project display"),
                 ),
                 (
                     "admin_change_app_theme",
-                    models.BooleanField(default=False, verbose_name="Change app theme"),
+                    models.BooleanField(default=True, verbose_name="Change app theme"),
                 ),
                 (
                     "admin_change_navigation",
-                    models.BooleanField(default=False, verbose_name="Change navigation"),
+                    models.BooleanField(default=True, verbose_name="Change navigation"),
                 ),
                 (
                     "admin_maps",
-                    models.BooleanField(default=False, verbose_name="Maps"),
+                    models.BooleanField(default=True, verbose_name="Maps"),
                 ),
                 (
                     "admin_form_update_mode",
-                    models.BooleanField(
-                        default=False, verbose_name="Show form update mode setting"
-                    ),
+                    models.BooleanField(default=True, verbose_name="Show form update mode setting"),
                 ),
                 (
                     "admin_periodic_form_updates_check",
-                    models.BooleanField(default=False, verbose_name="Show check frequency setting"),
+                    models.BooleanField(default=True, verbose_name="Show check frequency setting"),
                 ),
                 (
                     "admin_automatic_update",
-                    models.BooleanField(default=False, verbose_name="Auto-update"),
+                    models.BooleanField(default=True, verbose_name="Auto-update"),
                 ),
                 (
                     "admin_hide_old_form_versions",
-                    models.BooleanField(default=False, verbose_name="Hide old form versions"),
+                    models.BooleanField(default=True, verbose_name="Hide old form versions"),
                 ),
                 (
                     "admin_change_autosend",
-                    models.BooleanField(default=False, verbose_name="Change auto-send"),
+                    models.BooleanField(default=True, verbose_name="Change auto-send"),
                 ),
                 (
                     "admin_delete_after_send",
-                    models.BooleanField(default=False, verbose_name="Delete after send"),
+                    models.BooleanField(default=True, verbose_name="Delete after send"),
                 ),
                 (
                     "admin_default_to_finalized",
                     models.BooleanField(
-                        default=False, verbose_name="Show default-to-finalized setting"
+                        default=True, verbose_name="Show default-to-finalized setting"
                     ),
                 ),
                 (
                     "admin_change_constraint_behavior",
-                    models.BooleanField(default=False, verbose_name="Change constraint behaviour"),
+                    models.BooleanField(default=True, verbose_name="Change constraint behaviour"),
                 ),
                 (
                     "admin_high_resolution",
-                    models.BooleanField(default=False, verbose_name="High resolution"),
+                    models.BooleanField(default=True, verbose_name="High resolution"),
                 ),
                 (
                     "admin_image_size",
-                    models.BooleanField(default=False, verbose_name="Image size"),
+                    models.BooleanField(default=True, verbose_name="Image size"),
                 ),
                 (
                     "admin_guidance_hint",
-                    models.BooleanField(default=False, verbose_name="Guidance hint"),
+                    models.BooleanField(default=True, verbose_name="Guidance hint"),
                 ),
                 (
                     "admin_external_app_recording",
-                    models.BooleanField(default=False, verbose_name="External app recording"),
+                    models.BooleanField(default=True, verbose_name="External app recording"),
                 ),
                 (
                     "admin_instance_form_sync",
-                    models.BooleanField(default=False, verbose_name="Finalize forms on import"),
+                    models.BooleanField(default=True, verbose_name="Finalize forms on import"),
                 ),
                 (
                     "admin_change_form_metadata",
-                    models.BooleanField(default=False, verbose_name="Change form metadata"),
+                    models.BooleanField(default=True, verbose_name="Change form metadata"),
                 ),
                 (
                     "admin_analytics",
-                    models.BooleanField(default=False, verbose_name="Show analytics setting"),
+                    models.BooleanField(default=True, verbose_name="Show analytics setting"),
                 ),
                 (
                     "admin_change_app_language",
-                    models.BooleanField(default=False, verbose_name="Change app language"),
+                    models.BooleanField(default=True, verbose_name="Change app language"),
                 ),
                 (
                     "admin_change_font_size",
-                    models.BooleanField(default=False, verbose_name="Change font size"),
+                    models.BooleanField(default=True, verbose_name="Change font size"),
                 ),
                 (
                     "admin_moving_backwards",
@@ -585,7 +583,7 @@ class Migration(migrations.Migration):
                 (
                     "admin_access_settings",
                     models.BooleanField(
-                        default=False, verbose_name="Access settings from within form"
+                        default=True, verbose_name="Access settings from within form"
                     ),
                 ),
                 (
@@ -594,19 +592,19 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "admin_jump_to",
-                    models.BooleanField(default=False, verbose_name="Jump to"),
+                    models.BooleanField(default=True, verbose_name="Jump to"),
                 ),
                 (
                     "admin_save_mid",
-                    models.BooleanField(default=False, verbose_name="Save form"),
+                    models.BooleanField(default=True, verbose_name="Save form"),
                 ),
                 (
                     "admin_save_as",
-                    models.BooleanField(default=False, verbose_name="Name this form"),
+                    models.BooleanField(default=True, verbose_name="Name this form"),
                 ),
                 (
                     "admin_mark_as_finalized",
-                    models.BooleanField(default=False, verbose_name="Mark as finalized"),
+                    models.BooleanField(default=True, verbose_name="Mark as finalized"),
                 ),
                 (
                     "organization",
