@@ -1,0 +1,24 @@
+<button type="button"
+        onclick="copyText('{{ input_id }}', this)"
+        class="absolute end-1 top-1 inline-flex items-center rounded border border-gray-300 bg-white px-1.5 py-1 text-xs font-medium text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700 dark:focus:ring-gray-700">
+    <span class="copy-default inline-flex items-center">
+        <svg class="me-1 h-4 w-4"
+             aria-hidden="true"
+             xmlns="http://www.w3.org/2000/svg"
+             fill="none"
+             viewBox="0 0 24 24">
+            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 4h3a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3m0 3h6m-6 5h6m-6 4h6M10 3v4h4V3h-4Z" />
+        </svg>
+        Copy
+    </span>
+    <span class="copy-success hidden items-center">
+        <svg class="me-1 h-4 w-4 text-primary-600"
+             aria-hidden="true"
+             xmlns="http://www.w3.org/2000/svg"
+             fill="none"
+             viewBox="0 0 24 24">
+            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 4h3a1 1 0 0 1 1 1v15a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h3m0 3h6m-6 7 2 2 4-4m-5-9v4h4V3h-4Z" />
+        </svg>
+        <span class="text-primary-600">Copied</span>
+    </span>
+</button>

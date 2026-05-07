@@ -4,9 +4,17 @@ import json
 import faker
 import pytest
 from django.core.exceptions import ValidationError
+from django.utils.timezone import now
 
 from apps.mdm.mdms import get_active_mdm_class
-from apps.mdm.models import DeviceSnapshotApp, PolicyApplication, PolicyVariable
+from apps.mdm.models import (
+    EMM_DPC_PACKAGE,
+    AllowPersonalUsage,
+    DeviceSnapshotApp,
+    EnrollmentToken,
+    PolicyApplication,
+    PolicyVariable,
+)
 from tests.mdm import TestAllMDMs
 from tests.publish_mdm.factories import (
     AppUserFactory,
@@ -17,6 +25,7 @@ from tests.publish_mdm.factories import (
 from .factories import (
     DeviceFactory,
     DeviceSnapshotFactory,
+    EnrollmentTokenFactory,
     FirmwareSnapshotFactory,
     FleetFactory,
     PolicyApplicationFactory,
@@ -460,3 +469,148 @@ class TestModels(TestAllMDMs):
         assert result is False
         device.refresh_from_db()
         assert device.is_deleted is False
+
+
+# ---------------------------------------------------------------------------
+# EnrollmentToken model tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+class TestEnrollmentTokenModel:
+    """Tests for the EnrollmentToken model properties and manager."""
+
+    def test_is_expired_no_expiry(self):
+        """is_expired returns False when expires_at is None."""
+        token = EnrollmentTokenFactory(expires_at=None)
+        assert token.is_expired is False
+
+    def test_is_expired_future(self):
+        """is_expired returns False when expires_at is in the future."""
+        token = EnrollmentTokenFactory(expires_at=now() + dt.timedelta(days=30))
+        assert token.is_expired is False
+
+    def test_is_expired_past(self):
+        """is_expired returns True when expires_at is in the past."""
+        token = EnrollmentTokenFactory(expires_at=now() - dt.timedelta(seconds=1))
+        assert token.is_expired is True
+
+    def test_is_active_when_not_revoked_and_not_expired(self):
+        """is_active returns True when the token is not revoked and not expired."""
+        token = EnrollmentTokenFactory(revoked_at=None, expires_at=now() + dt.timedelta(days=30))
+        assert token.is_active is True
+
+    def test_is_active_false_when_revoked(self):
+        """is_active returns False when the token is revoked."""
+        token = EnrollmentTokenFactory(revoked_at=now())
+        assert token.is_active is False
+
+    def test_is_active_false_when_expired(self):
+        """is_active returns False when the token is expired."""
+        token = EnrollmentTokenFactory(revoked_at=None, expires_at=now() - dt.timedelta(seconds=1))
+        assert token.is_active is False
+
+    @pytest.mark.parametrize(
+        "expires_at, expected_result",
+        [
+            (now() + dt.timedelta(1), True),
+            (None, False),
+            (now() + dt.timedelta(8), False),
+        ],
+    )
+    def test_is_expiring_soon(self, expires_at, expected_result):
+        """is_expiring_soon returns True if expires_at is set and is less than 7 days from now."""
+        token = EnrollmentTokenFactory(expires_at=expires_at)
+        assert token.is_expiring_soon is expected_result
+
+    def test_is_active_false_when_both_revoked_and_expired(self):
+        """is_active returns False when the token is both revoked and expired."""
+        token = EnrollmentTokenFactory(
+            revoked_at=now() - dt.timedelta(days=5),
+            expires_at=now() - dt.timedelta(days=1),
+        )
+        assert token.is_active is False
+
+    def test_enrollment_url_with_token_value(self):
+        """enrollment_url returns the AMAPI enrollment URL when token_value is set."""
+        token = EnrollmentTokenFactory(token_value="abc123")
+        assert token.enrollment_url == "https://enterprise.google.com/android/enroll?et=abc123"
+
+    def test_enrollment_url_without_token_value(self):
+        """enrollment_url returns None when token_value is empty."""
+        token = EnrollmentTokenFactory(token_value="")
+        assert token.enrollment_url is None
+
+    def test_dpc_extras_json_with_token_value(self):
+        """dpc_extras_json returns valid JSON with the correct structure for ZTE."""
+        token = EnrollmentTokenFactory(token_value="mytoken")
+        result = token.dpc_extras_json
+        assert result is not None
+        data = json.loads(result)
+        bundle = data["android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE"]
+        assert bundle[f"{EMM_DPC_PACKAGE}.EXTRA_ENROLLMENT_TOKEN"] == "mytoken"
+
+    def test_dpc_extras_json_without_token_value(self):
+        """dpc_extras_json returns None when token_value is empty."""
+        token = EnrollmentTokenFactory(token_value="")
+        assert token.dpc_extras_json is None
+
+    def test_str_uses_label_when_set(self):
+        """__str__ returns the label when it is set."""
+        token = EnrollmentTokenFactory(label="My Token")
+        assert str(token) == "My Token"
+
+    def test_str_uses_token_resource_name_when_no_label(self):
+        """__str__ returns the last segment of token_resource_name (name property) when label is empty."""
+        token = EnrollmentTokenFactory(
+            label="", token_resource_name="enterprises/test/enrollmentTokens/abc"
+        )
+        assert str(token) == "abc"
+
+    def test_name_property_extracts_last_segment(self):
+        """name property returns the last path segment of token_resource_name."""
+        token = EnrollmentTokenFactory(token_resource_name="enterprises/test/enrollmentTokens/abc")
+        assert token.name == "abc"
+
+    def test_name_property_empty_when_no_resource_name(self):
+        """name property returns empty string when token_resource_name is empty."""
+        token = EnrollmentTokenFactory(token_resource_name="")
+        assert token.name == ""
+
+    def test_str_uses_pk_when_no_label_or_resource_name(self):
+        """__str__ returns 'Enrollment token <pk>' when both label and resource_name are empty."""
+        token = EnrollmentTokenFactory(label="", token_resource_name="")
+        assert str(token) == f"Enrollment token {token.pk}"
+
+    def test_manager_excludes_deleted_org_tokens(self):
+        """EnrollmentTokenManager excludes tokens for soft-deleted organizations."""
+        token = EnrollmentTokenFactory()
+        assert EnrollmentToken.objects.filter(pk=token.pk).exists()
+
+        # Soft-delete the organization
+        token.organization.soft_delete()
+        assert not EnrollmentToken.objects.filter(pk=token.pk).exists()
+
+    def test_all_orgs_manager_includes_deleted_org_tokens(self):
+        """all_orgs manager includes tokens for soft-deleted organizations."""
+        token = EnrollmentTokenFactory()
+        token.organization.soft_delete()
+        assert EnrollmentToken.all_orgs.filter(pk=token.pk).exists()
+
+    def test_ordering_newest_first(self):
+        """EnrollmentToken default ordering is newest-first by created_at."""
+
+        fleet = FleetFactory()
+        older = EnrollmentTokenFactory(fleet=fleet, organization=fleet.organization)
+        newer = EnrollmentTokenFactory(fleet=fleet, organization=fleet.organization)
+        tokens = list(EnrollmentToken.objects.filter(fleet=fleet))
+        assert tokens[0].pk == newer.pk
+        assert tokens[1].pk == older.pk
+
+    def test_allow_personal_usage_choices(self):
+        """AllowPersonalUsage has the four expected choices."""
+        values = [v for v, _ in AllowPersonalUsage.choices]
+        assert "ALLOW_PERSONAL_USAGE_UNSPECIFIED" in values
+        assert "PERSONAL_USAGE_ALLOWED" in values
+        assert "PERSONAL_USAGE_DISALLOWED" in values
+        assert "PERSONAL_USAGE_DISALLOWED_USERLESS" in values

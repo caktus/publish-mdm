@@ -72,6 +72,7 @@ from tests.mdm.factories import (
     PolicyFactory,
 )
 from tests.publish_mdm.factories import (
+    AndroidEnterpriseAccountFactory,
     AppUserFactory,
     AppUserFormTemplateFactory,
     AppUserFormVersionFactory,
@@ -3719,3 +3720,59 @@ class TestEnterpriseCallback(TestAndroidEnterpriseOnly):
         assertContains(response, "Android Enterprise enrollment completed successfully.")
         account.refresh_from_db()
         assert account.enterprise_name == "enterprises/LC00lvvue0"
+
+
+@pytest.mark.django_db
+class TestSocialAccountConnectionsView:
+    """Tests the SocialAccountConnectionsView at /accounts/3rdparty/."""
+
+    @pytest.fixture
+    def url(self):
+        return reverse("socialaccount_connections")
+
+    @pytest.fixture
+    def user(self, client):
+        user = UserFactory()
+        user.save()
+        client.force_login(user)
+        return user
+
+    def test_login_required(self, client, url, user):
+        """Unauthenticated requests are redirected to the login page."""
+        client.logout()
+        response = client.get(url)
+        assert response.status_code == 302
+
+    def test_get(self, client, url, user):
+        """All Android Enterprise organizations that the user belongs to should be added to the context."""
+        android_enterprise_organizations = OrganizationFactory.create_batch(
+            3, mdm="Android Enterprise"
+        )
+        user.organizations.set(android_enterprise_organizations)
+        # One of the orgs is enrolled
+        enrolled_android_enterprise = AndroidEnterpriseAccountFactory(
+            organization=android_enterprise_organizations[0], enterprise_name="enterprises/test123"
+        )
+        AndroidEnterpriseAccountFactory(organization=android_enterprise_organizations[1])
+        # An Android Enterprise org that the user does not belong to should not be included
+        OrganizationFactory(mdm="Android Enterprise")
+        # A TinyMDM org should not be included, even if the user belongs to it
+        OrganizationFactory(mdm="TinyMDM")
+        OrganizationFactory(mdm="TinyMDM").users.add(user)
+        response = client.get(url)
+        assert response.status_code == 200
+        assertQuerySetEqual(
+            response.context["android_enterprise_organizations"],
+            android_enterprise_organizations,
+        )
+        assertContains(response, enrolled_android_enterprise.enterprise_name)
+        # An enterprise setup link should be displayed for orgs that haven't enrolled yet,
+        # including the one that has a AndroidEnterpriseAccount but hasn't completed enrollment.
+        for org in android_enterprise_organizations[1:]:
+            assertContains(response, reverse("publish_mdm:enterprise-setup", args=[org.slug]))
+        assertNotContains(
+            response,
+            reverse(
+                "publish_mdm:enterprise-setup", args=[enrolled_android_enterprise.organization.slug]
+            ),
+        )

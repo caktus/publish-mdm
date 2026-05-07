@@ -1,6 +1,7 @@
 from typing import ClassVar
 
 import structlog
+from dateutil.relativedelta import relativedelta
 from django import forms
 from django.forms import (
     BaseInlineFormSet,
@@ -15,7 +16,9 @@ from apps.patterns.forms import PlatformFormMixin
 from apps.patterns.widgets import CheckboxInput, Select, TextInput
 
 from .models import (
+    EnrollmentToken,
     FirmwareSnapshot,
+    Fleet,
     InstallType,
     Policy,
     PolicyApplication,
@@ -411,3 +414,43 @@ PolicyVariableFormSet = modelformset_factory(
     extra=0,
     can_delete=True,
 )
+
+
+ENROLLMENT_TOKEN_DURATION_CHOICES = [
+    ("1 weeks", "1 week"),
+    ("1 months", "1 month"),
+    ("3 months", "3 months"),
+    ("6 months", "6 months"),
+    ("12 months", "12 months"),
+]
+
+
+class EnrollmentTokenCreateForm(PlatformFormMixin, forms.ModelForm):
+    """Form for creating a new long-lived enrollment token."""
+
+    expiration = forms.ChoiceField(
+        choices=ENROLLMENT_TOKEN_DURATION_CHOICES,
+        initial="1 months",
+        widget=Select,
+        help_text="How long this token will be valid.",
+    )
+
+    class Meta:
+        model = EnrollmentToken
+        fields = ("fleet", "label", "allow_personal_usage")
+        widgets: ClassVar = {
+            "fleet": Select,
+            "label": TextInput,
+            "allow_personal_usage": Select,
+        }
+
+    def __init__(self, *args, organization=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if organization:
+            self.fields["fleet"].queryset = Fleet.objects.filter(organization=organization)
+
+    def clean_expiration(self):
+        value = self.cleaned_data.get("expiration")
+        if value:
+            arg_value, arg = value.split()
+            return relativedelta(**{arg: int(arg_value)})

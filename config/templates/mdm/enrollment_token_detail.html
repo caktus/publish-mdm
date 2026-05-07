@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block page_header %}
+    <span class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between w-full">
+        <span>{{ breadcrumbs.crumbs|last }}</span>
+        {% if token.is_active %}
+            <button type="button"
+                    data-modal-target="revoke-token-modal"
+                    data-modal-toggle="revoke-token-modal"
+                    class="btn btn-outline border-red-600 text-red-600 hover:bg-red-600 hover:text-white focus:ring-red-300 dark:border-red-500 dark:text-red-500 dark:hover:bg-red-600 dark:hover:text-white dark:focus:ring-red-900">
+                Revoke Token
+            </button>
+        {% endif %}
+    </span>
+{% endblock page_header %}
+{% block content %}
+    <div class="grid gap-6 md:grid-cols-2">
+        <div class="space-y-4">
+            <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Token Details</h2>
+                <dl class="space-y-3 text-sm">
+                    <div class="flex justify-between">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Label</dt>
+                        <dd class="text-gray-900 dark:text-white">
+                            {{ token.label|default:"—" }}
+                        </dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Fleet</dt>
+                        <dd class="text-gray-900 dark:text-white">
+                            {{ token.fleet }}
+                        </dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Status</dt>
+                        <dd>
+                            {% include "includes/enrollment_token_status_badge.html" %}
+                        </dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Expires</dt>
+                        <dd class="text-gray-900 dark:text-white">
+                            {{ token.expires_at|default:"—" }}
+                        </dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Created</dt>
+                        <dd class="text-gray-900 dark:text-white">
+                            {{ token.created_at }}
+                        </dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Created by</dt>
+                        <dd class="text-gray-900 dark:text-white">
+                            {{ token.created_by|default:"—" }}
+                        </dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="font-medium text-gray-500 dark:text-gray-400">Personal usage</dt>
+                        <dd class="text-gray-900 dark:text-white">
+                            {{ token.get_allow_personal_usage_display }}
+                        </dd>
+                    </div>
+                </dl>
+            </div>
+            {% if token.qr_code %}
+                <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    <h2 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Enrollment QR Code</h2>
+                    <div class="flex justify-center">
+                        <img src="{{ token.qr_code.url }}"
+                             alt="Enrollment QR code"
+                             width="280"
+                             height="280"
+                             class="max-w-[280px]">
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+        <div class="space-y-4">
+            {% if token.enrollment_url %}
+                <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    <h2 class="mb-2 text-base font-semibold text-gray-900 dark:text-white">Enrollment URL</h2>
+                    <div class="relative mt-2">
+                        <label for="enrollment-url" class="sr-only">Enrollment URL</label>
+                        <input id="enrollment-url"
+                               type="text"
+                               value="{{ token.enrollment_url }}"
+                               readonly
+                               class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2 pe-18 text-xs text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                        {% include "includes/copy_button.html" with input_id="enrollment-url" %}
+                    </div>
+                </div>
+            {% endif %}
+            {% if token.dpc_extras_json %}
+                <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    <h2 class="mb-2 text-base font-semibold text-gray-900 dark:text-white">Zero-Touch Enrollment</h2>
+                    <p class="mb-2 text-sm text-gray-500 dark:text-gray-400">EMM DPC Package name:</p>
+                    <div class="relative mb-4">
+                        <label for="emm-dpc" class="sr-only">EMM DPC Package name</label>
+                        <input id="emm-dpc"
+                               type="text"
+                               value="com.google.android.apps.work.clouddpc"
+                               readonly
+                               class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2 pe-18 text-xs text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                        {% include "includes/copy_button.html" with input_id="emm-dpc" %}
+                    </div>
+                    <p class="mb-2 text-sm text-gray-500 dark:text-gray-400">DPC Extras (paste into zero-touch portal):</p>
+                    <div class="relative">
+                        <label for="dpc-extras" class="sr-only">DPC Extras</label>
+                        <textarea id="dpc-extras"
+                                  readonly
+                                  rows="6"
+                                  class="block w-full rounded-lg border border-gray-300 bg-gray-50 p-2 text-xs text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400">{{ token.dpc_extras_json }}</textarea>
+                        {% include "includes/copy_button.html" with input_id="dpc-extras" %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% include "includes/copy_to_clipboard.html" %}
+    {% if token.is_active %}
+        {% include "includes/revoke_token_modal.html" %}
+    {% endif %}
+{% endblock content %}
