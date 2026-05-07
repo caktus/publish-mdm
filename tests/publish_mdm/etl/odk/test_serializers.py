@@ -171,7 +171,7 @@ class TestCollectSettingsSerializerWithModel:
         )
         result = CollectSettingsSerializer(project=project).to_dict()
         assert result["general"]["app_language"] == "ar"
-        assert result["general"]["app_theme"] == "dark_theme"
+        assert result["general"]["appTheme"] == "dark_theme"
         assert result["general"]["font_size"] == "13"
         assert result["general"]["metadata_username"] == "user123"
 
@@ -185,6 +185,6 @@ class TestCollectSettingsSerializerWithModel:
         result = CollectSettingsSerializer(project=project).to_dict()
         assert "font_size" not in result["general"]
         assert "autosend" not in result["general"]
-        assert "app_theme" not in result["general"]
+        assert "appTheme" not in result["general"]
         assert "color" not in result["project"]
         assert "icon" not in result["project"]

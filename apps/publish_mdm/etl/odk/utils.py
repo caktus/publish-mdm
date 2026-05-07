@@ -36,5 +36,7 @@ def get_default_collect_settings_field_values() -> dict:
         for key, value in keys.items():
             if key in skip:
                 continue
+            if key == "appTheme":
+                key = "app_theme"
             fields[f"{section}_{key}"] = value
     return fields

@@ -69,7 +69,7 @@ class CollectSettingsSerializer:
             ("form_update_mode", s.general_form_update_mode),
             ("periodic_form_updates_check", s.general_periodic_form_updates_check),
             ("autosend", s.general_autosend),
-            ("app_theme", s.general_app_theme),
+            ("appTheme", s.general_app_theme),
             ("navigation", s.general_navigation),
             ("constraint_behavior", s.general_constraint_behavior),
             ("image_size", s.general_image_size),

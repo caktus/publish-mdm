@@ -22,7 +22,7 @@ class TestGetDefaultCollectSettingsFieldValues:
 
     @override_settings(
         DEFAULT_COLLECT_SETTINGS={
-            "general": {"app_language": "en", "font_size": "25"},
+            "general": {"app_language": "en", "font_size": "25", "appTheme": "dark_theme"},
             "admin": {"edit_saved": False},
         }
     )
@@ -33,6 +33,7 @@ class TestGetDefaultCollectSettingsFieldValues:
             "general_app_language": "en",
             "general_font_size": "25",
             "admin_edit_saved": False,
+            "general_app_theme": "dark_theme",
         }
 
     @override_settings(
