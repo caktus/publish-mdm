@@ -1,43 +1,32 @@
 {% extends "base.html" %}
 {% load mdm_tags %}
 {% block content %}
-    <details class="mb-4 text-sm text-gray-500 dark:text-gray-400">
-        <summary class="cursor-pointer select-none list-none flex items-center gap-1 w-fit font-medium">
-            <svg class="details-arrow w-3 h-3 shrink-0 transition-transform"
-                 aria-hidden="true"
-                 xmlns="http://www.w3.org/2000/svg"
-                 fill="none"
-                 viewBox="0 0 24 24">
-                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m9 5 7 7-7 7" />
-            </svg>
-            Notes
-        </summary>
-        <div class="mt-1 ps-4">
-            <p class="mb-3">
-                These settings are used to generate ODK Collect QR codes for app users assigned to projects using this configuration. See the
-                <a class="underline"
-                   href="https://docs.getodk.org/collect-import-export/#list-of-keys-for-all-settings"
-                   target="_blank"
-                   rel="noopener noreferrer">ODK Collect docs</a>
-                for a full list of available settings.
-            </p>
-            <p>The following fields are set automatically and cannot be set here:</p>
-            <ul class="list-disc ps-5">
-                <li>
-                    <code>general.server_url</code>
-                </li>
-                <li>
-                    <code>general.username</code>: will be set to the app user's name.
-                </li>
-                <li>
-                    <code>project.name</code>: will be set based on the project name, app user's name, and <code>general.app_language</code> e.g. "project name: appuser (en)"
-                </li>
-                <li>
-                    <code>admin.admin_pw</code>: can be added as a template variable.
-                </li>
-            </ul>
-        </div>
-    </details>
+    <div class="p-4 mb-6 text-sm text-blue-800 rounded-lg bg-blue-50 dark:bg-gray-800 dark:text-blue-400"
+         role="alert">
+        <p class="mb-3">
+            These settings are used to generate ODK Collect QR codes for app users assigned to projects using this configuration. See the
+            <a class="underline font-medium"
+               href="https://docs.getodk.org/collect-import-export/#list-of-keys-for-all-settings"
+               target="_blank"
+               rel="noopener noreferrer">ODK Collect docs</a>
+            for the full list of settings.
+        </p>
+        <p class="mb-1">The following fields are set automatically and cannot be set here:</p>
+        <ul class="list-disc ps-5">
+            <li>
+                <code>general.server_url</code> — ODK Central URL with app user token.
+            </li>
+            <li>
+                <code>general.username</code> — app user's display name.
+            </li>
+            <li>
+                <code>project.name</code> — based on the project name, app user's display name, and <code>general.app_language</code> e.g. "Project: AppUser (en)".
+            </li>
+            <li>
+                <code>admin.admin_pw</code> — add an <code>admin_pw</code> template variable to set this.
+            </li>
+        </ul>
+    </div>
     <form method="post">
         {% csrf_token %}
         {{ form.non_field_errors }}
