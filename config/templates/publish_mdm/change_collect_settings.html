@@ -87,15 +87,15 @@
                 </div>
             </div>
             {# ------------------------------------------------------------------ #}
-            {# General settings #}
+            {# Server #}
             {# ------------------------------------------------------------------ #}
-            <h2 id="collect-heading-general">
+            <h2 id="collect-heading-server">
                 <button type="button"
                         class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
-                        data-accordion-target="#collect-body-general"
+                        data-accordion-target="#collect-body-server"
                         aria-expanded="false"
-                        aria-controls="collect-body-general">
-                    <span>General Settings</span>
+                        aria-controls="collect-body-server">
+                    <span>Server</span>
                     <svg data-accordion-icon
                          class="w-5 h-5 rotate-180 shrink-0"
                          aria-hidden="true"
@@ -108,9 +108,54 @@
                     </svg>
                 </button>
             </h2>
-            <div id="collect-body-general"
+            <div id="collect-body-server"
                  class="hidden"
-                 aria-labelledby="collect-heading-general">
+                 aria-labelledby="collect-heading-server">
+                <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            {{ form.general_password.label_tag }}
+                            {{ form.general_password }}
+                            {{ form.general_password.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_formlist_url.label_tag }}
+                            {{ form.general_formlist_url }}
+                            {{ form.general_formlist_url.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_submission_url.label_tag }}
+                            {{ form.general_submission_url }}
+                            {{ form.general_submission_url.errors }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {# ------------------------------------------------------------------ #}
+            {# User Interface #}
+            {# ------------------------------------------------------------------ #}
+            <h2 id="collect-heading-user-interface">
+                <button type="button"
+                        class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                        data-accordion-target="#collect-body-user-interface"
+                        aria-expanded="false"
+                        aria-controls="collect-body-user-interface">
+                    <span>User Interface</span>
+                    <svg data-accordion-icon
+                         class="w-5 h-5 rotate-180 shrink-0"
+                         aria-hidden="true"
+                         xmlns="http://www.w3.org/2000/svg"
+                         width="24"
+                         height="24"
+                         fill="none"
+                         viewBox="0 0 24 24">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
+                    </svg>
+                </button>
+            </h2>
+            <div id="collect-body-user-interface"
+                 class="hidden"
+                 aria-labelledby="collect-heading-user-interface">
                 <div class="p-3 border-b border-gray-200 dark:border-gray-700">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
@@ -133,150 +178,11 @@
                             {{ form.general_navigation }}
                             {{ form.general_navigation.errors }}
                         </div>
-                        <div>
-                            {{ form.general_form_update_mode.label_tag }}
-                            {{ form.general_form_update_mode }}
-                            {{ form.general_form_update_mode.errors }}
-                        </div>
-                        <div>
-                            {{ form.general_periodic_form_updates_check.label_tag }}
-                            {{ form.general_periodic_form_updates_check }}
-                            {{ form.general_periodic_form_updates_check.errors }}
-                        </div>
-                        <div>
-                            {{ form.general_autosend.label_tag }}
-                            {{ form.general_autosend }}
-                            {{ form.general_autosend.errors }}
-                        </div>
-                        <div>
-                            {{ form.general_constraint_behavior.label_tag }}
-                            {{ form.general_constraint_behavior }}
-                            {{ form.general_constraint_behavior.errors }}
-                        </div>
-                        <div>
-                            {{ form.general_image_size.label_tag }}
-                            {{ form.general_image_size }}
-                            {{ form.general_image_size.errors }}
-                        </div>
-                        <div>
-                            {{ form.general_guidance_hint.label_tag }}
-                            {{ form.general_guidance_hint }}
-                            {{ form.general_guidance_hint.errors }}
-                        </div>
-                        <div>{% toggle_field form.general_automatic_update %}</div>
-                        <div>{% toggle_field form.general_hide_old_form_versions %}</div>
-                        <div>{% toggle_field form.general_delete_send %}</div>
-                        <div>{% toggle_field form.general_default_completed %}</div>
-                        <div>{% toggle_field form.general_high_resolution %}</div>
-                        <div>{% toggle_field form.general_external_app_recording %}</div>
-                        <div>{% toggle_field form.general_instance_sync %}</div>
-                        <div>{% toggle_field form.general_analytics %}</div>
                     </div>
                 </div>
             </div>
             {# ------------------------------------------------------------------ #}
-            {# Server settings #}
-            {# ------------------------------------------------------------------ #}
-            <h2 id="collect-heading-server">
-                <button type="button"
-                        class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
-                        data-accordion-target="#collect-body-server"
-                        aria-expanded="false"
-                        aria-controls="collect-body-server">
-                    <span>Server Settings</span>
-                    <svg data-accordion-icon
-                         class="w-5 h-5 rotate-180 shrink-0"
-                         aria-hidden="true"
-                         xmlns="http://www.w3.org/2000/svg"
-                         width="24"
-                         height="24"
-                         fill="none"
-                         viewBox="0 0 24 24">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
-                    </svg>
-                </button>
-            </h2>
-            <div id="collect-body-server"
-                 class="hidden"
-                 aria-labelledby="collect-heading-server">
-                <div class="p-3 border-b border-gray-200 dark:border-gray-700">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            {{ form.general_protocol.label_tag }}
-                            {{ form.general_protocol }}
-                            {{ form.general_protocol.errors }}
-                        </div>
-                        <div>
-                            {{ form.general_password.label_tag }}
-                            {{ form.general_password }}
-                            {{ form.general_password.errors }}
-                        </div>
-                        <div>
-                            {{ form.general_formlist_url.label_tag }}
-                            {{ form.general_formlist_url }}
-                            {{ form.general_formlist_url.errors }}
-                        </div>
-                        <div>
-                            {{ form.general_submission_url.label_tag }}
-                            {{ form.general_submission_url }}
-                            {{ form.general_submission_url.errors }}
-                        </div>
-                        <div>
-                            {{ form.general_google_sheets_url.label_tag }}
-                            {{ form.general_google_sheets_url }}
-                            {{ form.general_google_sheets_url.errors }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {# ------------------------------------------------------------------ #}
-            {# Form metadata #}
-            {# ------------------------------------------------------------------ #}
-            <h2 id="collect-heading-metadata">
-                <button type="button"
-                        class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
-                        data-accordion-target="#collect-body-metadata"
-                        aria-expanded="false"
-                        aria-controls="collect-body-metadata">
-                    <span>Form Metadata</span>
-                    <svg data-accordion-icon
-                         class="w-5 h-5 rotate-180 shrink-0"
-                         aria-hidden="true"
-                         xmlns="http://www.w3.org/2000/svg"
-                         width="24"
-                         height="24"
-                         fill="none"
-                         viewBox="0 0 24 24">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
-                    </svg>
-                </button>
-            </h2>
-            <div id="collect-body-metadata"
-                 class="hidden"
-                 aria-labelledby="collect-heading-metadata">
-                <div class="p-3 border-b border-gray-200 dark:border-gray-700">
-                    <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">Automatically filled into form metadata fields.</p>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            {{ form.general_metadata_username.label_tag }}
-                            {{ form.general_metadata_username }}
-                            {{ form.general_metadata_username.errors }}
-                        </div>
-                        <div>
-                            {{ form.general_metadata_phonenumber.label_tag }}
-                            {{ form.general_metadata_phonenumber }}
-                            {{ form.general_metadata_phonenumber.errors }}
-                        </div>
-                        <div>
-                            {{ form.general_metadata_email.label_tag }}
-                            {{ form.general_metadata_email }}
-                            {{ form.general_metadata_email.errors }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {# ------------------------------------------------------------------ #}
-            {# Maps settings #}
+            {# Maps #}
             {# ------------------------------------------------------------------ #}
             <h2 id="collect-heading-maps">
                 <button type="button"
@@ -336,15 +242,15 @@
                 </div>
             </div>
             {# ------------------------------------------------------------------ #}
-            {# Admin: Main menu #}
+            {# Form Management #}
             {# ------------------------------------------------------------------ #}
-            <h2 id="collect-heading-admin-main-menu">
+            <h2 id="collect-heading-form-management">
                 <button type="button"
                         class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
-                        data-accordion-target="#collect-body-admin-main-menu"
+                        data-accordion-target="#collect-body-form-management"
                         aria-expanded="false"
-                        aria-controls="collect-body-admin-main-menu">
-                    <span>Admin: Main Menu</span>
+                        aria-controls="collect-body-form-management">
+                    <span>Form Management</span>
                     <svg data-accordion-icon
                          class="w-5 h-5 rotate-180 shrink-0"
                          aria-hidden="true"
@@ -357,31 +263,61 @@
                     </svg>
                 </button>
             </h2>
-            <div id="collect-body-admin-main-menu"
+            <div id="collect-body-form-management"
                  class="hidden"
-                 aria-labelledby="collect-heading-admin-main-menu">
+                 aria-labelledby="collect-heading-form-management">
                 <div class="p-3 border-b border-gray-200 dark:border-gray-700">
-                    <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">Controls which main-menu items are visible to app users.</p>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>{% toggle_field form.admin_edit_saved %}</div>
-                        <div>{% toggle_field form.admin_send_finalized %}</div>
-                        <div>{% toggle_field form.admin_view_sent %}</div>
-                        <div>{% toggle_field form.admin_get_blank %}</div>
-                        <div>{% toggle_field form.admin_delete_saved %}</div>
-                        <div>{% toggle_field form.admin_qr_code_scanner %}</div>
+                        <div>
+                            {{ form.general_form_update_mode.label_tag }}
+                            {{ form.general_form_update_mode }}
+                            {{ form.general_form_update_mode.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_periodic_form_updates_check.label_tag }}
+                            {{ form.general_periodic_form_updates_check }}
+                            {{ form.general_periodic_form_updates_check.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_autosend.label_tag }}
+                            {{ form.general_autosend }}
+                            {{ form.general_autosend.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_constraint_behavior.label_tag }}
+                            {{ form.general_constraint_behavior }}
+                            {{ form.general_constraint_behavior.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_image_size.label_tag }}
+                            {{ form.general_image_size }}
+                            {{ form.general_image_size.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_guidance_hint.label_tag }}
+                            {{ form.general_guidance_hint }}
+                            {{ form.general_guidance_hint.errors }}
+                        </div>
+                        <div>{% toggle_field form.general_automatic_update %}</div>
+                        <div>{% toggle_field form.general_hide_old_form_versions %}</div>
+                        <div>{% toggle_field form.general_delete_send %}</div>
+                        <div>{% toggle_field form.general_default_completed %}</div>
+                        <div>{% toggle_field form.general_high_resolution %}</div>
+                        <div>{% toggle_field form.general_external_app_recording %}</div>
+                        <div>{% toggle_field form.general_instance_sync %}</div>
                     </div>
                 </div>
             </div>
             {# ------------------------------------------------------------------ #}
-            {# Admin: Project settings #}
+            {# User and Device Identity #}
             {# ------------------------------------------------------------------ #}
-            <h2 id="collect-heading-admin-project-settings">
+            <h2 id="collect-heading-user-device-identity">
                 <button type="button"
                         class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
-                        data-accordion-target="#collect-body-admin-project-settings"
+                        data-accordion-target="#collect-body-user-device-identity"
                         aria-expanded="false"
-                        aria-controls="collect-body-admin-project-settings">
-                    <span>Admin: Project Settings</span>
+                        aria-controls="collect-body-user-device-identity">
+                    <span>User and Device Identity</span>
                     <svg data-accordion-icon
                          class="w-5 h-5 rotate-180 shrink-0"
                          aria-hidden="true"
@@ -394,32 +330,40 @@
                     </svg>
                 </button>
             </h2>
-            <div id="collect-body-admin-project-settings"
+            <div id="collect-body-user-device-identity"
                  class="hidden"
-                 aria-labelledby="collect-heading-admin-project-settings">
+                 aria-labelledby="collect-heading-user-device-identity">
                 <div class="p-3 border-b border-gray-200 dark:border-gray-700">
-                    <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-                        Controls which Project Settings options are accessible to app users.
-                    </p>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>{% toggle_field form.admin_change_server %}</div>
-                        <div>{% toggle_field form.admin_change_project_display %}</div>
-                        <div>{% toggle_field form.admin_change_app_theme %}</div>
-                        <div>{% toggle_field form.admin_change_navigation %}</div>
-                        <div>{% toggle_field form.admin_maps %}</div>
+                        <div>
+                            {{ form.general_metadata_username.label_tag }}
+                            {{ form.general_metadata_username }}
+                            {{ form.general_metadata_username.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_metadata_phonenumber.label_tag }}
+                            {{ form.general_metadata_phonenumber }}
+                            {{ form.general_metadata_phonenumber.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_metadata_email.label_tag }}
+                            {{ form.general_metadata_email }}
+                            {{ form.general_metadata_email.errors }}
+                        </div>
+                        <div>{% toggle_field form.general_analytics %}</div>
                     </div>
                 </div>
             </div>
             {# ------------------------------------------------------------------ #}
-            {# Admin: Form management #}
+            {# Access control #}
             {# ------------------------------------------------------------------ #}
-            <h2 id="collect-heading-admin-form-management">
+            <h2 id="collect-heading-access-control">
                 <button type="button"
                         class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
-                        data-accordion-target="#collect-body-admin-form-management"
+                        data-accordion-target="#collect-body-access-control"
                         aria-expanded="false"
-                        aria-controls="collect-body-admin-form-management">
-                    <span>Admin: Form Management</span>
+                        aria-controls="collect-body-access-control">
+                    <span>Access control</span>
                     <svg data-accordion-icon
                          class="w-5 h-5 rotate-180 shrink-0"
                          aria-hidden="true"
@@ -432,69 +376,152 @@
                     </svg>
                 </button>
             </h2>
-            <div id="collect-body-admin-form-management"
+            <div id="collect-body-access-control"
                  class="hidden"
-                 aria-labelledby="collect-heading-admin-form-management">
+                 aria-labelledby="collect-heading-access-control">
                 <div class="p-3 border-b border-gray-200 dark:border-gray-700">
-                    <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-                        Controls which form management options are accessible to app users.
-                    </p>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>{% toggle_field form.admin_form_update_mode %}</div>
-                        <div>{% toggle_field form.admin_periodic_form_updates_check %}</div>
-                        <div>{% toggle_field form.admin_automatic_update %}</div>
-                        <div>{% toggle_field form.admin_hide_old_form_versions %}</div>
-                        <div>{% toggle_field form.admin_change_autosend %}</div>
-                        <div>{% toggle_field form.admin_delete_after_send %}</div>
-                        <div>{% toggle_field form.admin_default_to_finalized %}</div>
-                        <div>{% toggle_field form.admin_change_constraint_behavior %}</div>
-                        <div>{% toggle_field form.admin_high_resolution %}</div>
-                        <div>{% toggle_field form.admin_image_size %}</div>
-                        <div>{% toggle_field form.admin_guidance_hint %}</div>
-                        <div>{% toggle_field form.admin_external_app_recording %}</div>
-                        <div>{% toggle_field form.admin_instance_form_sync %}</div>
-                        <div>{% toggle_field form.admin_change_form_metadata %}</div>
-                        <div>{% toggle_field form.admin_analytics %}</div>
-                        <div>{% toggle_field form.admin_change_app_language %}</div>
-                        <div>{% toggle_field form.admin_change_font_size %}</div>
-                    </div>
-                </div>
-            </div>
-            {# ------------------------------------------------------------------ #}
-            {# Admin: Form entry #}
-            {# ------------------------------------------------------------------ #}
-            <h2 id="collect-heading-admin-form-entry">
-                <button type="button"
-                        class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
-                        data-accordion-target="#collect-body-admin-form-entry"
-                        aria-expanded="false"
-                        aria-controls="collect-body-admin-form-entry">
-                    <span>Admin: Form Entry</span>
-                    <svg data-accordion-icon
-                         class="w-5 h-5 rotate-180 shrink-0"
-                         aria-hidden="true"
-                         xmlns="http://www.w3.org/2000/svg"
-                         width="24"
-                         height="24"
-                         fill="none"
-                         viewBox="0 0 24 24">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
-                    </svg>
-                </button>
-            </h2>
-            <div id="collect-body-admin-form-entry"
-                 class="hidden"
-                 aria-labelledby="collect-heading-admin-form-entry">
-                <div class="p-3 border-b border-gray-200 dark:border-gray-700">
-                    <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">Controls app-user capabilities while filling in a form.</p>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>{% toggle_field form.admin_moving_backwards %}</div>
-                        <div>{% toggle_field form.admin_access_settings %}</div>
-                        <div>{% toggle_field form.admin_change_language %}</div>
-                        <div>{% toggle_field form.admin_jump_to %}</div>
-                        <div>{% toggle_field form.admin_save_mid %}</div>
-                        <div>{% toggle_field form.admin_save_as %}</div>
-                        <div>{% toggle_field form.admin_mark_as_finalized %}</div>
+                    <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">Limit access to some parts of the user interface.</p>
+                    <div id="access-control-accordion"
+                         data-accordion="open"
+                         class="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                        {# ---------------------------------------------------------- #}
+                        {# Main Menu Settings #}
+                        {# ---------------------------------------------------------- #}
+                        <h2 id="ac-heading-main-menu">
+                            <button type="button"
+                                    class="flex items-center justify-between w-full p-3 pl-6 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                                    data-accordion-target="#ac-body-main-menu"
+                                    aria-expanded="false"
+                                    aria-controls="ac-body-main-menu">
+                                <span>Main Menu Settings</span>
+                                <svg data-accordion-icon
+                                     class="w-5 h-5 rotate-180 shrink-0"
+                                     aria-hidden="true"
+                                     xmlns="http://www.w3.org/2000/svg"
+                                     width="24"
+                                     height="24"
+                                     fill="none"
+                                     viewBox="0 0 24 24">
+                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
+                                </svg>
+                            </button>
+                        </h2>
+                        <div id="ac-body-main-menu"
+                             class="hidden"
+                             aria-labelledby="ac-heading-main-menu">
+                            <div class="p-3 pl-6 border-b border-gray-200 dark:border-gray-700">
+                                <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">Uncheck to hide items from the main menu.</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>{% toggle_field form.admin_edit_saved %}</div>
+                                    <div>{% toggle_field form.admin_send_finalized %}</div>
+                                    <div>{% toggle_field form.admin_view_sent %}</div>
+                                    <div>{% toggle_field form.admin_get_blank %}</div>
+                                    <div>{% toggle_field form.admin_delete_saved %}</div>
+                                    <div>{% toggle_field form.admin_qr_code_scanner %}</div>
+                                </div>
+                            </div>
+                        </div>
+                        {# ---------------------------------------------------------- #}
+                        {# User Settings #}
+                        {# ---------------------------------------------------------- #}
+                        <h2 id="ac-heading-user-settings">
+                            <button type="button"
+                                    class="flex items-center justify-between w-full p-3 pl-6 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                                    data-accordion-target="#ac-body-user-settings"
+                                    aria-expanded="false"
+                                    aria-controls="ac-body-user-settings">
+                                <span>User Settings</span>
+                                <svg data-accordion-icon
+                                     class="w-5 h-5 rotate-180 shrink-0"
+                                     aria-hidden="true"
+                                     xmlns="http://www.w3.org/2000/svg"
+                                     width="24"
+                                     height="24"
+                                     fill="none"
+                                     viewBox="0 0 24 24">
+                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
+                                </svg>
+                            </button>
+                        </h2>
+                        <div id="ac-body-user-settings"
+                             class="hidden"
+                             aria-labelledby="ac-heading-user-settings">
+                            <div class="p-3 pl-6 border-b border-gray-200 dark:border-gray-700">
+                                <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">Uncheck to hide items from user-accessible settings.</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>{% toggle_field form.admin_change_server %}</div>
+                                    <div>{% toggle_field form.admin_change_app_language %}</div>
+                                    <div>{% toggle_field form.admin_change_font_size %}</div>
+                                    <div>{% toggle_field form.admin_change_navigation %}</div>
+                                    <div>{% toggle_field form.admin_maps %}</div>
+                                    <div>{% toggle_field form.admin_change_app_theme %}</div>
+                                    <div>{% toggle_field form.admin_periodic_form_updates_check %}</div>
+                                    <div>{% toggle_field form.admin_automatic_update %}</div>
+                                    <div>{% toggle_field form.admin_hide_old_form_versions %}</div>
+                                    <div>{% toggle_field form.admin_change_autosend %}</div>
+                                    <div>{% toggle_field form.admin_delete_after_send %}</div>
+                                    <div>{% toggle_field form.admin_change_constraint_behavior %}</div>
+                                    <div>{% toggle_field form.admin_high_resolution %}</div>
+                                    <div>{% toggle_field form.admin_image_size %}</div>
+                                    <div>{% toggle_field form.admin_guidance_hint %}</div>
+                                    <div>{% toggle_field form.admin_external_app_recording %}</div>
+                                    <div>{% toggle_field form.admin_instance_form_sync %}</div>
+                                    <div>{% toggle_field form.admin_change_form_metadata %}</div>
+                                    <div>{% toggle_field form.admin_analytics %}</div>
+                                </div>
+                            </div>
+                        </div>
+                        {# ---------------------------------------------------------- #}
+                        {# Form Entry Settings #}
+                        {# ---------------------------------------------------------- #}
+                        <h2 id="ac-heading-form-entry">
+                            <button type="button"
+                                    class="flex items-center justify-between w-full p-3 pl-6 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                                    data-accordion-target="#ac-body-form-entry"
+                                    aria-expanded="false"
+                                    aria-controls="ac-body-form-entry">
+                                <span>Form Entry Settings</span>
+                                <svg data-accordion-icon
+                                     class="w-5 h-5 rotate-180 shrink-0"
+                                     aria-hidden="true"
+                                     xmlns="http://www.w3.org/2000/svg"
+                                     width="24"
+                                     height="24"
+                                     fill="none"
+                                     viewBox="0 0 24 24">
+                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
+                                </svg>
+                            </button>
+                        </h2>
+                        <div id="ac-body-form-entry"
+                             class="hidden"
+                             aria-labelledby="ac-heading-form-entry">
+                            <div class="p-3 pl-6 border-b border-gray-200 dark:border-gray-700">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                    <div class="space-y-6">
+                                        <div>{% toggle_field form.admin_moving_backwards %}</div>
+                                        <div class="space-y-3">
+                                            <p class="text-sm text-gray-600 dark:text-gray-400">Uncheck to hide from Form Entry</p>
+                                            <div>{% toggle_field form.admin_access_settings %}</div>
+                                            <div>{% toggle_field form.admin_change_language %}</div>
+                                            <div>{% toggle_field form.admin_jump_to %}</div>
+                                            <div>{% toggle_field form.admin_save_mid %}</div>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-6">
+                                        <div class="space-y-3">
+                                            <p class="text-sm text-gray-600 dark:text-gray-400">Uncheck to hide from Form End</p>
+                                            <div>{% toggle_field form.admin_save_as %}</div>
+                                            <div>{% toggle_field form.admin_mark_as_finalized %}</div>
+                                        </div>
+                                        <div class="space-y-3">
+                                            <p class="text-sm text-gray-600 dark:text-gray-400">Uncheck to hide from Drafts</p>
+                                            <div>{% toggle_field form.admin_default_to_finalized %}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

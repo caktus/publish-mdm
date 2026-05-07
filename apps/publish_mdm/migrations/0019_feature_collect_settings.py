@@ -63,9 +63,9 @@ class Migration(migrations.Migration):
                     models.CharField(
                         blank=True,
                         default="",
-                        help_text="Hex colour shown for this project in ODK Collect.",
+                        help_text="Hex color shown for this project in ODK Collect.",
                         max_length=50,
-                        verbose_name="Project colour",
+                        verbose_name="Project color",
                     ),
                 ),
                 (
@@ -246,10 +246,10 @@ class Migration(migrations.Migration):
                         blank=True,
                         choices=[
                             ("original", "Original"),
-                            ("large", "Large"),
-                            ("medium", "Medium"),
                             ("small", "Small"),
                             ("very_small", "Very small"),
+                            ("medium", "Medium"),
+                            ("large", "Large"),
                         ],
                         default="",
                         max_length=20,
@@ -298,19 +298,6 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    "general_protocol",
-                    models.CharField(
-                        blank=True,
-                        choices=[
-                            ("odk_default", "ODK default"),
-                            ("google_sheets", "Google Sheets"),
-                        ],
-                        default="",
-                        max_length=20,
-                        verbose_name="Protocol",
-                    ),
-                ),
-                (
                     "general_password",
                     models.CharField(
                         blank=True,
@@ -338,15 +325,6 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    "general_google_sheets_url",
-                    models.CharField(
-                        blank=True,
-                        default="",
-                        max_length=2048,
-                        verbose_name="Google Sheets URL",
-                    ),
-                ),
-                (
                     "general_basemap_source",
                     models.CharField(
                         blank=True,
@@ -355,7 +333,6 @@ class Migration(migrations.Migration):
                             ("mapbox", "Mapbox"),
                             ("osm", "OpenStreetMap"),
                             ("usgs", "USGS"),
-                            ("stamen", "Stamen"),
                             ("carto", "Carto"),
                         ],
                         default="",
@@ -442,17 +419,17 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "general_high_resolution",
-                    models.BooleanField(default=False, verbose_name="High-resolution video"),
+                    models.BooleanField(default=True, verbose_name="High-resolution video"),
                 ),
                 (
                     "general_external_app_recording",
                     models.BooleanField(
-                        default=True, verbose_name="Allow external app to record audio"
+                        default=False, verbose_name="Allow external app to record audio"
                     ),
                 ),
                 (
                     "general_instance_sync",
-                    models.BooleanField(default=False, verbose_name="Finalize forms on import"),
+                    models.BooleanField(default=True, verbose_name="Finalize forms on import"),
                 ),
                 (
                     "general_automatic_update",
@@ -460,27 +437,27 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "general_hide_old_form_versions",
-                    models.BooleanField(default=False, verbose_name="Hide old form versions"),
+                    models.BooleanField(default=True, verbose_name="Hide old form versions"),
                 ),
                 (
                     "admin_edit_saved",
-                    models.BooleanField(default=True, verbose_name="Edit saved forms"),
+                    models.BooleanField(default=True, verbose_name="Drafts"),
                 ),
                 (
                     "admin_send_finalized",
-                    models.BooleanField(default=True, verbose_name="Send finalized forms"),
+                    models.BooleanField(default=True, verbose_name="Ready to send"),
                 ),
                 (
                     "admin_view_sent",
-                    models.BooleanField(default=True, verbose_name="View sent forms"),
+                    models.BooleanField(default=True, verbose_name="Sent"),
                 ),
                 (
                     "admin_get_blank",
-                    models.BooleanField(default=True, verbose_name="Get blank forms"),
+                    models.BooleanField(default=True, verbose_name="Download form"),
                 ),
                 (
                     "admin_delete_saved",
-                    models.BooleanField(default=True, verbose_name="Delete saved forms"),
+                    models.BooleanField(default=True, verbose_name="Delete form"),
                 ),
                 (
                     "admin_qr_code_scanner",
@@ -488,35 +465,27 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "admin_change_server",
-                    models.BooleanField(default=True, verbose_name="Change server"),
-                ),
-                (
-                    "admin_change_project_display",
-                    models.BooleanField(default=True, verbose_name="Change project display"),
+                    models.BooleanField(default=True, verbose_name="Server"),
                 ),
                 (
                     "admin_change_app_theme",
-                    models.BooleanField(default=True, verbose_name="Change app theme"),
+                    models.BooleanField(default=True, verbose_name="App theme"),
                 ),
                 (
                     "admin_change_navigation",
-                    models.BooleanField(default=True, verbose_name="Change navigation"),
+                    models.BooleanField(default=True, verbose_name="Navigation"),
                 ),
                 (
                     "admin_maps",
                     models.BooleanField(default=True, verbose_name="Maps"),
                 ),
                 (
-                    "admin_form_update_mode",
-                    models.BooleanField(default=True, verbose_name="Show form update mode setting"),
-                ),
-                (
                     "admin_periodic_form_updates_check",
-                    models.BooleanField(default=True, verbose_name="Show check frequency setting"),
+                    models.BooleanField(default=True, verbose_name="Automatic update frequency"),
                 ),
                 (
                     "admin_automatic_update",
-                    models.BooleanField(default=False, verbose_name="Auto-update"),
+                    models.BooleanField(default=True, verbose_name="Automatic download"),
                 ),
                 (
                     "admin_hide_old_form_versions",
@@ -524,25 +493,23 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "admin_change_autosend",
-                    models.BooleanField(default=True, verbose_name="Change auto-send"),
+                    models.BooleanField(default=True, verbose_name="Auto send"),
                 ),
                 (
                     "admin_delete_after_send",
-                    models.BooleanField(default=False, verbose_name="Delete after send"),
+                    models.BooleanField(default=True, verbose_name="Delete after send"),
                 ),
                 (
                     "admin_default_to_finalized",
-                    models.BooleanField(
-                        default=True, verbose_name="Show default-to-finalized setting"
-                    ),
+                    models.BooleanField(default=True, verbose_name="Finalize all drafts"),
                 ),
                 (
                     "admin_change_constraint_behavior",
-                    models.BooleanField(default=True, verbose_name="Change constraint behaviour"),
+                    models.BooleanField(default=True, verbose_name="Constraint processing"),
                 ),
                 (
                     "admin_high_resolution",
-                    models.BooleanField(default=True, verbose_name="High resolution"),
+                    models.BooleanField(default=True, verbose_name="High res video"),
                 ),
                 (
                     "admin_image_size",
@@ -550,11 +517,13 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "admin_guidance_hint",
-                    models.BooleanField(default=True, verbose_name="Guidance hint"),
+                    models.BooleanField(default=True, verbose_name="Show guidance for questions"),
                 ),
                 (
                     "admin_external_app_recording",
-                    models.BooleanField(default=False, verbose_name="External app recording"),
+                    models.BooleanField(
+                        default=True, verbose_name="Use external app for audio recording"
+                    ),
                 ),
                 (
                     "admin_instance_form_sync",
@@ -562,49 +531,51 @@ class Migration(migrations.Migration):
                 ),
                 (
                     "admin_change_form_metadata",
-                    models.BooleanField(default=True, verbose_name="Change form metadata"),
+                    models.BooleanField(default=True, verbose_name="Form metadata"),
                 ),
                 (
                     "admin_analytics",
-                    models.BooleanField(default=True, verbose_name="Show analytics setting"),
+                    models.BooleanField(default=True, verbose_name="Collect anonymous usage data"),
                 ),
                 (
                     "admin_change_app_language",
-                    models.BooleanField(default=True, verbose_name="Change app language"),
+                    models.BooleanField(default=True, verbose_name="Language"),
                 ),
                 (
                     "admin_change_font_size",
-                    models.BooleanField(default=True, verbose_name="Change font size"),
+                    models.BooleanField(default=True, verbose_name="Text font size"),
                 ),
                 (
                     "admin_moving_backwards",
-                    models.BooleanField(default=True, verbose_name="Allow backward navigation"),
+                    models.BooleanField(default=True, verbose_name="Moving backwards"),
                 ),
                 (
                     "admin_access_settings",
-                    models.BooleanField(
-                        default=True, verbose_name="Access settings from within form"
-                    ),
+                    models.BooleanField(default=True, verbose_name="Project settings"),
                 ),
                 (
                     "admin_change_language",
-                    models.BooleanField(default=True, verbose_name="Allow language change"),
+                    models.BooleanField(default=True, verbose_name="Change Language"),
                 ),
                 (
                     "admin_jump_to",
-                    models.BooleanField(default=True, verbose_name="Jump to"),
+                    models.BooleanField(default=True, verbose_name="Go To Prompt"),
                 ),
                 (
                     "admin_save_mid",
-                    models.BooleanField(default=True, verbose_name="Save form"),
+                    models.BooleanField(
+                        default=True,
+                        help_text='Save icon in top bar and "Save as draft" button when exiting form.',
+                        verbose_name="Save as draft",
+                    ),
                 ),
                 (
                     "admin_save_as",
-                    models.BooleanField(default=True, verbose_name="Name this form"),
+                    models.BooleanField(default=True, verbose_name="Save as draft"),
                 ),
                 (
                     "admin_mark_as_finalized",
-                    models.BooleanField(default=True, verbose_name="Mark as finalized"),
+                    models.BooleanField(default=True, verbose_name="Finalize"),
                 ),
                 (
                     "organization",

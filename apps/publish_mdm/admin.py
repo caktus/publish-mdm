@@ -91,43 +91,24 @@ class CollectSettingsAdmin(admin.ModelAdmin):
             },
         ),
         (
-            "ODK Collect: General Settings",
+            "ODK Collect: General — Server",
+            {
+                "fields": (
+                    "general_password",
+                    "general_formlist_url",
+                    "general_submission_url",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "ODK Collect: General — User Interface",
             {
                 "fields": (
                     "general_app_language",
                     "general_font_size",
                     "general_app_theme",
                     "general_navigation",
-                    "general_form_update_mode",
-                    "general_periodic_form_updates_check",
-                    "general_automatic_update",
-                    "general_hide_old_form_versions",
-                    "general_autosend",
-                    "general_delete_send",
-                    "general_default_completed",
-                    "general_constraint_behavior",
-                    "general_high_resolution",
-                    "general_image_size",
-                    "general_external_app_recording",
-                    "general_guidance_hint",
-                    "general_instance_sync",
-                    "general_analytics",
-                    "general_metadata_username",
-                    "general_metadata_phonenumber",
-                    "general_metadata_email",
-                ),
-                "classes": ("collapse",),
-            },
-        ),
-        (
-            "ODK Collect: General — Server",
-            {
-                "fields": (
-                    "general_protocol",
-                    "general_password",
-                    "general_formlist_url",
-                    "general_submission_url",
-                    "general_google_sheets_url",
                 ),
                 "classes": ("collapse",),
             },
@@ -147,7 +128,40 @@ class CollectSettingsAdmin(admin.ModelAdmin):
             },
         ),
         (
-            "ODK Collect: Admin — Main Menu",
+            "ODK Collect: General — Form Management",
+            {
+                "fields": (
+                    "general_form_update_mode",
+                    "general_periodic_form_updates_check",
+                    "general_automatic_update",
+                    "general_hide_old_form_versions",
+                    "general_autosend",
+                    "general_delete_send",
+                    "general_default_completed",
+                    "general_constraint_behavior",
+                    "general_high_resolution",
+                    "general_image_size",
+                    "general_external_app_recording",
+                    "general_guidance_hint",
+                    "general_instance_sync",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "ODK Collect: General — User and Device Identity",
+            {
+                "fields": (
+                    "general_analytics",
+                    "general_metadata_username",
+                    "general_metadata_phonenumber",
+                    "general_metadata_email",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "ODK Collect: Access Control — Main Menu Settings",
             {
                 "fields": (
                     "admin_edit_saved",
@@ -161,29 +175,20 @@ class CollectSettingsAdmin(admin.ModelAdmin):
             },
         ),
         (
-            "ODK Collect: Admin — Project Settings",
+            "ODK Collect: Access Control — User Settings",
             {
                 "fields": (
                     "admin_change_server",
-                    "admin_change_project_display",
-                    "admin_change_app_theme",
+                    "admin_change_app_language",
+                    "admin_change_font_size",
                     "admin_change_navigation",
                     "admin_maps",
-                ),
-                "classes": ("collapse",),
-            },
-        ),
-        (
-            "ODK Collect: Admin — Form Management",
-            {
-                "fields": (
-                    "admin_form_update_mode",
+                    "admin_change_app_theme",
                     "admin_periodic_form_updates_check",
                     "admin_automatic_update",
                     "admin_hide_old_form_versions",
                     "admin_change_autosend",
                     "admin_delete_after_send",
-                    "admin_default_to_finalized",
                     "admin_change_constraint_behavior",
                     "admin_high_resolution",
                     "admin_image_size",
@@ -192,14 +197,12 @@ class CollectSettingsAdmin(admin.ModelAdmin):
                     "admin_instance_form_sync",
                     "admin_change_form_metadata",
                     "admin_analytics",
-                    "admin_change_app_language",
-                    "admin_change_font_size",
                 ),
                 "classes": ("collapse",),
             },
         ),
         (
-            "ODK Collect: Admin — Form Entry",
+            "ODK Collect: Access Control — Form Entry Settings",
             {
                 "fields": (
                     "admin_moving_backwards",
@@ -209,6 +212,7 @@ class CollectSettingsAdmin(admin.ModelAdmin):
                     "admin_save_mid",
                     "admin_save_as",
                     "admin_mark_as_finalized",
+                    "admin_default_to_finalized",
                 ),
                 "classes": ("collapse",),
             },
