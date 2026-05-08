@@ -128,6 +128,21 @@ urlpatterns = [
         name="add-central-server",
     ),
     path(
+        "o/<slug:organization_slug>/collect-settings/",
+        views.collect_settings_list,
+        name="collect-settings-list",
+    ),
+    path(
+        "o/<slug:organization_slug>/collect-settings/add/",
+        views.change_collect_settings,
+        name="add-collect-settings",
+    ),
+    path(
+        "o/<slug:organization_slug>/collect-settings/<int:collect_settings_id>/",
+        views.change_collect_settings,
+        name="edit-collect-settings",
+    ),
+    path(
         "o/<slug:organization_slug>/devices/",
         views.devices_list,
         name="devices-list",

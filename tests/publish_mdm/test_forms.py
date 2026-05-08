@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 from django.forms.widgets import PasswordInput
+from django.test import override_settings
 from django.urls import reverse
 from pytest_django.asserts import assertFormError, assertQuerySetEqual
 from requests.exceptions import ConnectionError
@@ -11,6 +12,7 @@ from apps.publish_mdm.forms import (
     BYODDeviceEnrollmentForm,
     CentralServerForm,
     CentralServerFrontendForm,
+    CollectSettingsForm,
     DeviceAppUserForm,
     DeviceEnrollmentQRCodeForm,
     FleetAddForm,
@@ -19,6 +21,7 @@ from apps.publish_mdm.forms import (
     PublishTemplateForm,
 )
 from apps.publish_mdm.http import HttpRequest
+from apps.publish_mdm.models import CollectSettings
 from tests.mdm.factories import (
     DeviceFactory as MDMDeviceFactory,
 )
@@ -30,6 +33,7 @@ from tests.publish_mdm.factories import (
     AppUserFactory,
     AppUserFormTemplateFactory,
     CentralServerFactory,
+    CollectSettingsFactory,
     FormTemplateFactory,
     OrganizationFactory,
     ProjectFactory,
@@ -500,3 +504,61 @@ class TestDeviceAppUserForm:
         device.fleet.save()
         form = DeviceAppUserForm(instance=device)
         assert form.fields["app_user_name"].choices == [("", "---")]
+
+
+@pytest.mark.django_db
+class TestCollectSettingsForm:
+    """Tests for CollectSettingsForm."""
+
+    @override_settings(
+        DEFAULT_COLLECT_SETTINGS={
+            "general": {"app_language": "ar", "font_size": "17"},
+        }
+    )
+    def test_new_instance_prepopulates_initial_from_setting(self):
+        org = OrganizationFactory()
+        form = CollectSettingsForm(instance=CollectSettings(organization=org))
+        assert form.initial.get("general_app_language") == "ar"
+        assert form.initial.get("general_font_size") == "17"
+
+    @override_settings(
+        DEFAULT_COLLECT_SETTINGS={
+            "general": {"app_language": "ar"},
+        }
+    )
+    def test_existing_instance_does_not_use_default_initial(self):
+        cs = CollectSettingsFactory(general_app_language="en")
+        form = CollectSettingsForm(instance=cs)
+        # For a saved instance, initial is NOT overwritten with DEFAULT_COLLECT_SETTINGS
+        assert form.initial.get("general_app_language") != "ar"
+
+    def test_help_text_contains_settings_key(self):
+        org = OrganizationFactory()
+        form = CollectSettingsForm(instance=CollectSettings(organization=org))
+        assert "general.app_language" in form.fields["general_app_language"].help_text
+
+    def test_name_field_has_no_settings_key_help_text(self):
+        org = OrganizationFactory()
+        form = CollectSettingsForm(instance=CollectSettings(organization=org))
+        assert "Sets" not in form.fields["name"].help_text
+
+    def test_form_valid_with_minimal_data(self):
+        org = OrganizationFactory()
+        form = CollectSettingsForm(
+            data={"name": "My Settings", "general_app_language": "en"},
+            instance=CollectSettings(organization=org),
+        )
+        assert form.is_valid(), form.errors
+
+    def test_save_action_absent_for_new_instance(self):
+        """save_action field is removed when creating a new CollectSettings."""
+        org = OrganizationFactory()
+        form = CollectSettingsForm(instance=CollectSettings(organization=org))
+        assert "save_action" not in form.fields
+
+    def test_save_action_present_for_existing_instance(self):
+        """save_action field is present when editing an existing CollectSettings."""
+        cs = CollectSettingsFactory()
+        form = CollectSettingsForm(instance=cs)
+        assert "save_action" in form.fields
+        assert form.fields["save_action"].initial == CollectSettingsForm.SAVE_ACTION_SAVE_ONLY

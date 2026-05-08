@@ -15,7 +15,6 @@ from apps.mdm.mdms.android_enterprise import (
     MDMDevice,
 )
 from apps.mdm.models import Device, DeviceSnapshot
-from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from tests.mdm import TestAndroidEnterpriseOnly
 from tests.publish_mdm.factories import (
     AndroidEnterpriseAccountFactory,
@@ -130,7 +129,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             AppUserFactory(
                 name=device.app_user_name,
                 project=fleet.project,
-                qr_code_data=DEFAULT_COLLECT_SETTINGS,
+                qr_code_data={},
             )
         else:
             device.app_user_name = ""

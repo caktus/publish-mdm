@@ -3,61 +3,58 @@ import io
 import json
 import zlib
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import structlog
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from apps.publish_mdm.utils import create_qr_code
 
-from .constants import DEFAULT_COLLECT_SETTINGS
 from .publish import ProjectAppUserAssignment
+from .serializers import CollectSettingsSerializer
+
+if TYPE_CHECKING:
+    from apps.publish_mdm.models import Project
 
 logger = structlog.getLogger(__name__)
 
 
 def build_collect_settings(
+    project: "Project",
     app_user: ProjectAppUserAssignment,
     base_url: str,
-    project_id: int,
-    project_name_prefix: str,
-    language: str = "en",
-    admin_pw: str = "",
-):
-    """Build Collect settings for the given app user."""
-    collect_settings = DEFAULT_COLLECT_SETTINGS.copy()
+) -> dict:
+    """Build Collect settings for the given app user from a Project instance.
 
-    if admin_pw:
-        collect_settings["admin"]["admin_pw"] = admin_pw
+    All settings are sourced from ``project.collect_settings`` via
+    ``CollectSettingsSerializer``.  The only truly dynamic fields — those that
+    depend on the individual app user assignment — are applied on top:
 
-    # Customize settings
-    url = f"{base_url.rstrip('/')}/key/{app_user.token}/projects/{project_id}"
+    * ``general.server_url`` — ODK Central URL + app user token
+    * ``general.username``   — app user display name
+    * ``project.name``       — ``"{project.name}: {displayName} ({language})"``
+    """
+    collect_settings = CollectSettingsSerializer(project=project).to_dict()
+
+    url = f"{base_url.rstrip('/')}/key/{app_user.token}/projects/{project.central_id}"
     collect_settings["general"]["server_url"] = url
     collect_settings["general"]["username"] = app_user.displayName
-    collect_settings["general"]["app_language"] = language
-    project_name = f"{project_name_prefix}: {app_user.displayName} ({language})"
-    collect_settings["project"]["name"] = project_name
+    language = collect_settings["general"].get("app_language")
+    collect_settings["project"]["name"] = f"{project.name}: {app_user.displayName} ({language})"
 
     return collect_settings
 
 
 def create_app_user_qrcode(
+    project: "Project",
     app_user: ProjectAppUserAssignment,
-    admin_pw: str,
     base_url: str,
-    project_id: int,
-    project_name_prefix: str,
-    language: str = "en",
 ) -> tuple[io.BytesIO, dict]:
-    """Generate a QR code as a PNG for the given app user."""
-
-    # Build app user settings
+    """Generate a QR code PNG for the given app user."""
     collect_settings = build_collect_settings(
+        project=project,
         app_user=app_user,
-        admin_pw=admin_pw,
         base_url=base_url,
-        project_id=project_id,
-        project_name_prefix=project_name_prefix,
-        language=language,
     )
 
     # Generate QR code with segno
@@ -71,6 +68,7 @@ def create_app_user_qrcode(
     png = ImageOps.expand(png, border=(0, 0, 0, 30), fill=(255, 255, 255))
     draw = ImageDraw.Draw(png)
     font = ImageFont.truetype(Path(__file__).parent / "Roboto-Regular.ttf", 24)
+    language = collect_settings["general"].get("app_language")
     label = f"{app_user.displayName}-{language}"
     draw.text((20, text_anchor - 10), label, font=font, fill=(0, 0, 0))
     png_buffer = io.BytesIO()

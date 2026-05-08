@@ -96,6 +96,11 @@
   opacity: 100%;
 }
 
+/* Rotate the chevron arrow inside a <details> summary when expanded */
+details[open] .details-arrow {
+  transform: rotate(90deg);
+}
+
 /* === Device table ===
  * table-layout: fixed + width: 100% ensures the table never exceeds its
  * container width regardless of cell content — no horizontal scroll on any

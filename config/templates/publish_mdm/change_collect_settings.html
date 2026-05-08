@@ -1,0 +1,516 @@
+{% extends "base.html" %}
+{% load mdm_tags %}
+{% block content %}
+    <div class="p-4 mb-6 text-sm text-blue-800 rounded-lg bg-blue-50 dark:bg-gray-800 dark:text-blue-400"
+         role="alert">
+        <p class="mb-3">
+            These settings are used to generate ODK Collect QR codes for app users assigned to projects using this configuration. See the
+            <a class="underline font-medium"
+               href="https://docs.getodk.org/collect-import-export/#list-of-keys-for-all-settings"
+               target="_blank"
+               rel="noopener noreferrer">ODK Collect docs</a>
+            for the full list of settings.
+        </p>
+        <p class="mb-1">The following settings are set automatically and cannot be set here:</p>
+        <ul class="list-disc ps-5 mb-3">
+            <li>
+                <code>general.server_url</code> — ODK Central URL with app user token.
+            </li>
+            <li>
+                <code>general.username</code> — app user's display name.
+            </li>
+            <li>
+                <code>project.name</code> — based on the project name, app user's display name, and <code>general.app_language</code> e.g. "Project: AppUser (en)".
+            </li>
+            <li>
+                <code>admin.admin_pw</code> — add an <code>admin_pw</code> template variable to set this.
+            </li>
+        </ul>
+        <p>
+            These settings are omitted: <code>general.password</code>, <code>general.formlist_url</code>, <code>general.submission_url</code>.
+        </p>
+    </div>
+    <form method="post"
+          x-data="{submitting: false}"
+          @submit="submitting = true">
+        {% csrf_token %}
+        {{ form.non_field_errors }}
+        {% for field in form.hidden_fields %}{{ field }}{% endfor %}
+        <div class="mb-6">
+            <div class="grid gap-4 sm:grid-cols-2 md:mb-4">
+                <div class="grid gap-4 sm:grid-cols-1 sm:gap-6">
+                    <div id="id_name_container">
+                        {{ form.name.label_tag }}
+                        {{ form.name }}
+                        {{ form.name.errors }}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="collect-settings-accordion"
+             data-accordion="open"
+             class="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-xs">
+            {# ------------------------------------------------------------------ #}
+            {# Project display #}
+            {# ------------------------------------------------------------------ #}
+            <h2 id="collect-heading-project-display">
+                <button type="button"
+                        class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                        data-accordion-target="#collect-body-project-display"
+                        aria-expanded="true"
+                        aria-controls="collect-body-project-display">
+                    <span>Project Display</span>
+                    <svg data-accordion-icon
+                         class="w-5 h-5 rotate-180 shrink-0"
+                         aria-hidden="true"
+                         xmlns="http://www.w3.org/2000/svg"
+                         width="24"
+                         height="24"
+                         fill="none"
+                         viewBox="0 0 24 24">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
+                    </svg>
+                </button>
+            </h2>
+            <div id="collect-body-project-display"
+                 class="hidden"
+                 aria-labelledby="collect-heading-project-display">
+                <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+                    <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">Appearance of this project in ODK Collect's project list.</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            {{ form.project_color.label_tag }}
+                            {{ form.project_color }}
+                            {{ form.project_color.errors }}
+                        </div>
+                        <div>
+                            {{ form.project_icon.label_tag }}
+                            {{ form.project_icon }}
+                            {{ form.project_icon.errors }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {# ------------------------------------------------------------------ #}
+            {# User Interface #}
+            {# ------------------------------------------------------------------ #}
+            <h2 id="collect-heading-user-interface">
+                <button type="button"
+                        class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                        data-accordion-target="#collect-body-user-interface"
+                        aria-expanded="false"
+                        aria-controls="collect-body-user-interface">
+                    <span>User Interface</span>
+                    <svg data-accordion-icon
+                         class="w-5 h-5 rotate-180 shrink-0"
+                         aria-hidden="true"
+                         xmlns="http://www.w3.org/2000/svg"
+                         width="24"
+                         height="24"
+                         fill="none"
+                         viewBox="0 0 24 24">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
+                    </svg>
+                </button>
+            </h2>
+            <div id="collect-body-user-interface"
+                 class="hidden"
+                 aria-labelledby="collect-heading-user-interface">
+                <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            {{ form.general_app_language.label_tag }}
+                            {{ form.general_app_language }}
+                            {{ form.general_app_language.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_font_size.label_tag }}
+                            {{ form.general_font_size }}
+                            {{ form.general_font_size.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_app_theme.label_tag }}
+                            {{ form.general_app_theme }}
+                            {{ form.general_app_theme.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_navigation.label_tag }}
+                            {{ form.general_navigation }}
+                            {{ form.general_navigation.errors }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {# ------------------------------------------------------------------ #}
+            {# Maps #}
+            {# ------------------------------------------------------------------ #}
+            <h2 id="collect-heading-maps">
+                <button type="button"
+                        class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                        data-accordion-target="#collect-body-maps"
+                        aria-expanded="false"
+                        aria-controls="collect-body-maps">
+                    <span>Maps</span>
+                    <svg data-accordion-icon
+                         class="w-5 h-5 rotate-180 shrink-0"
+                         aria-hidden="true"
+                         xmlns="http://www.w3.org/2000/svg"
+                         width="24"
+                         height="24"
+                         fill="none"
+                         viewBox="0 0 24 24">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
+                    </svg>
+                </button>
+            </h2>
+            <div id="collect-body-maps"
+                 class="hidden"
+                 aria-labelledby="collect-heading-maps">
+                <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            {{ form.general_basemap_source.label_tag }}
+                            {{ form.general_basemap_source }}
+                            {{ form.general_basemap_source.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_google_map_style.label_tag }}
+                            {{ form.general_google_map_style }}
+                            {{ form.general_google_map_style.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_mapbox_map_style.label_tag }}
+                            {{ form.general_mapbox_map_style }}
+                            {{ form.general_mapbox_map_style.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_usgs_map_style.label_tag }}
+                            {{ form.general_usgs_map_style }}
+                            {{ form.general_usgs_map_style.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_carto_map_style.label_tag }}
+                            {{ form.general_carto_map_style }}
+                            {{ form.general_carto_map_style.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_reference_layer.label_tag }}
+                            {{ form.general_reference_layer }}
+                            {{ form.general_reference_layer.errors }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {# ------------------------------------------------------------------ #}
+            {# Form Management #}
+            {# ------------------------------------------------------------------ #}
+            <h2 id="collect-heading-form-management">
+                <button type="button"
+                        class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                        data-accordion-target="#collect-body-form-management"
+                        aria-expanded="false"
+                        aria-controls="collect-body-form-management">
+                    <span>Form Management</span>
+                    <svg data-accordion-icon
+                         class="w-5 h-5 rotate-180 shrink-0"
+                         aria-hidden="true"
+                         xmlns="http://www.w3.org/2000/svg"
+                         width="24"
+                         height="24"
+                         fill="none"
+                         viewBox="0 0 24 24">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
+                    </svg>
+                </button>
+            </h2>
+            <div id="collect-body-form-management"
+                 class="hidden"
+                 aria-labelledby="collect-heading-form-management">
+                <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            {{ form.general_form_update_mode.label_tag }}
+                            {{ form.general_form_update_mode }}
+                            {{ form.general_form_update_mode.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_periodic_form_updates_check.label_tag }}
+                            {{ form.general_periodic_form_updates_check }}
+                            {{ form.general_periodic_form_updates_check.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_autosend.label_tag }}
+                            {{ form.general_autosend }}
+                            {{ form.general_autosend.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_constraint_behavior.label_tag }}
+                            {{ form.general_constraint_behavior }}
+                            {{ form.general_constraint_behavior.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_image_size.label_tag }}
+                            {{ form.general_image_size }}
+                            {{ form.general_image_size.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_guidance_hint.label_tag }}
+                            {{ form.general_guidance_hint }}
+                            {{ form.general_guidance_hint.errors }}
+                        </div>
+                        <div>{% toggle_field form.general_automatic_update %}</div>
+                        <div>{% toggle_field form.general_hide_old_form_versions %}</div>
+                        <div>{% toggle_field form.general_delete_send %}</div>
+                        <div>{% toggle_field form.general_default_completed %}</div>
+                        <div>{% toggle_field form.general_high_resolution %}</div>
+                        <div>{% toggle_field form.general_external_app_recording %}</div>
+                        <div>{% toggle_field form.general_instance_sync %}</div>
+                    </div>
+                </div>
+            </div>
+            {# ------------------------------------------------------------------ #}
+            {# User and Device Identity #}
+            {# ------------------------------------------------------------------ #}
+            <h2 id="collect-heading-user-device-identity">
+                <button type="button"
+                        class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                        data-accordion-target="#collect-body-user-device-identity"
+                        aria-expanded="false"
+                        aria-controls="collect-body-user-device-identity">
+                    <span>User and Device Identity</span>
+                    <svg data-accordion-icon
+                         class="w-5 h-5 rotate-180 shrink-0"
+                         aria-hidden="true"
+                         xmlns="http://www.w3.org/2000/svg"
+                         width="24"
+                         height="24"
+                         fill="none"
+                         viewBox="0 0 24 24">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
+                    </svg>
+                </button>
+            </h2>
+            <div id="collect-body-user-device-identity"
+                 class="hidden"
+                 aria-labelledby="collect-heading-user-device-identity">
+                <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            {{ form.general_metadata_username.label_tag }}
+                            {{ form.general_metadata_username }}
+                            {{ form.general_metadata_username.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_metadata_phonenumber.label_tag }}
+                            {{ form.general_metadata_phonenumber }}
+                            {{ form.general_metadata_phonenumber.errors }}
+                        </div>
+                        <div>
+                            {{ form.general_metadata_email.label_tag }}
+                            {{ form.general_metadata_email }}
+                            {{ form.general_metadata_email.errors }}
+                        </div>
+                        <div>{% toggle_field form.general_analytics %}</div>
+                    </div>
+                </div>
+            </div>
+            {# ------------------------------------------------------------------ #}
+            {# Access control #}
+            {# ------------------------------------------------------------------ #}
+            <h2 id="collect-heading-access-control">
+                <button type="button"
+                        class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                        data-accordion-target="#collect-body-access-control"
+                        aria-expanded="false"
+                        aria-controls="collect-body-access-control">
+                    <span>Access control</span>
+                    <svg data-accordion-icon
+                         class="w-5 h-5 rotate-180 shrink-0"
+                         aria-hidden="true"
+                         xmlns="http://www.w3.org/2000/svg"
+                         width="24"
+                         height="24"
+                         fill="none"
+                         viewBox="0 0 24 24">
+                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
+                    </svg>
+                </button>
+            </h2>
+            <div id="collect-body-access-control"
+                 class="hidden"
+                 aria-labelledby="collect-heading-access-control">
+                <div class="p-3 border-b border-gray-200 dark:border-gray-700">
+                    <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">Limit access to some parts of the user interface.</p>
+                    <div id="access-control-accordion"
+                         data-accordion="open"
+                         class="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                        {# ---------------------------------------------------------- #}
+                        {# Main Menu Settings #}
+                        {# ---------------------------------------------------------- #}
+                        <h2 id="ac-heading-main-menu">
+                            <button type="button"
+                                    class="flex items-center justify-between w-full p-3 pl-6 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                                    data-accordion-target="#ac-body-main-menu"
+                                    aria-expanded="false"
+                                    aria-controls="ac-body-main-menu">
+                                <span>Main Menu Settings</span>
+                                <svg data-accordion-icon
+                                     class="w-5 h-5 rotate-180 shrink-0"
+                                     aria-hidden="true"
+                                     xmlns="http://www.w3.org/2000/svg"
+                                     width="24"
+                                     height="24"
+                                     fill="none"
+                                     viewBox="0 0 24 24">
+                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
+                                </svg>
+                            </button>
+                        </h2>
+                        <div id="ac-body-main-menu"
+                             class="hidden"
+                             aria-labelledby="ac-heading-main-menu">
+                            <div class="p-3 pl-6 border-b border-gray-200 dark:border-gray-700">
+                                <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">Uncheck to hide items from the main menu.</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>{% toggle_field form.admin_edit_saved %}</div>
+                                    <div>{% toggle_field form.admin_send_finalized %}</div>
+                                    <div>{% toggle_field form.admin_view_sent %}</div>
+                                    <div>{% toggle_field form.admin_get_blank %}</div>
+                                    <div>{% toggle_field form.admin_delete_saved %}</div>
+                                    <div>{% toggle_field form.admin_qr_code_scanner %}</div>
+                                </div>
+                            </div>
+                        </div>
+                        {# ---------------------------------------------------------- #}
+                        {# User Settings #}
+                        {# ---------------------------------------------------------- #}
+                        <h2 id="ac-heading-user-settings">
+                            <button type="button"
+                                    class="flex items-center justify-between w-full p-3 pl-6 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                                    data-accordion-target="#ac-body-user-settings"
+                                    aria-expanded="false"
+                                    aria-controls="ac-body-user-settings">
+                                <span>User Settings</span>
+                                <svg data-accordion-icon
+                                     class="w-5 h-5 rotate-180 shrink-0"
+                                     aria-hidden="true"
+                                     xmlns="http://www.w3.org/2000/svg"
+                                     width="24"
+                                     height="24"
+                                     fill="none"
+                                     viewBox="0 0 24 24">
+                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
+                                </svg>
+                            </button>
+                        </h2>
+                        <div id="ac-body-user-settings"
+                             class="hidden"
+                             aria-labelledby="ac-heading-user-settings">
+                            <div class="p-3 pl-6 border-b border-gray-200 dark:border-gray-700">
+                                <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">Uncheck to hide items from user-accessible settings.</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>{% toggle_field form.admin_change_server %}</div>
+                                    <div>{% toggle_field form.admin_change_app_language %}</div>
+                                    <div>{% toggle_field form.admin_change_font_size %}</div>
+                                    <div>{% toggle_field form.admin_change_navigation %}</div>
+                                    <div>{% toggle_field form.admin_maps %}</div>
+                                    <div>{% toggle_field form.admin_change_app_theme %}</div>
+                                    <div>{% toggle_field form.admin_periodic_form_updates_check %}</div>
+                                    <div>{% toggle_field form.admin_automatic_update %}</div>
+                                    <div>{% toggle_field form.admin_hide_old_form_versions %}</div>
+                                    <div>{% toggle_field form.admin_change_autosend %}</div>
+                                    <div>{% toggle_field form.admin_delete_after_send %}</div>
+                                    <div>{% toggle_field form.admin_change_constraint_behavior %}</div>
+                                    <div>{% toggle_field form.admin_high_resolution %}</div>
+                                    <div>{% toggle_field form.admin_image_size %}</div>
+                                    <div>{% toggle_field form.admin_guidance_hint %}</div>
+                                    <div>{% toggle_field form.admin_external_app_recording %}</div>
+                                    <div>{% toggle_field form.admin_instance_form_sync %}</div>
+                                    <div>{% toggle_field form.admin_change_form_metadata %}</div>
+                                    <div>{% toggle_field form.admin_analytics %}</div>
+                                </div>
+                            </div>
+                        </div>
+                        {# ---------------------------------------------------------- #}
+                        {# Form Entry Settings #}
+                        {# ---------------------------------------------------------- #}
+                        <h2 id="ac-heading-form-entry">
+                            <button type="button"
+                                    class="flex items-center justify-between w-full p-3 pl-6 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
+                                    data-accordion-target="#ac-body-form-entry"
+                                    aria-expanded="false"
+                                    aria-controls="ac-body-form-entry">
+                                <span>Form Entry Settings</span>
+                                <svg data-accordion-icon
+                                     class="w-5 h-5 rotate-180 shrink-0"
+                                     aria-hidden="true"
+                                     xmlns="http://www.w3.org/2000/svg"
+                                     width="24"
+                                     height="24"
+                                     fill="none"
+                                     viewBox="0 0 24 24">
+                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
+                                </svg>
+                            </button>
+                        </h2>
+                        <div id="ac-body-form-entry"
+                             class="hidden"
+                             aria-labelledby="ac-heading-form-entry">
+                            <div class="p-3 pl-6 border-b border-gray-200 dark:border-gray-700">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                    <div class="space-y-6">
+                                        <div>{% toggle_field form.admin_moving_backwards %}</div>
+                                        <div class="space-y-3">
+                                            <p class="text-sm text-gray-600 dark:text-gray-400">Uncheck to hide from Form Entry</p>
+                                            <div>{% toggle_field form.admin_access_settings %}</div>
+                                            <div>{% toggle_field form.admin_change_language %}</div>
+                                            <div>{% toggle_field form.admin_jump_to %}</div>
+                                            <div>{% toggle_field form.admin_save_mid %}</div>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-6">
+                                        <div class="space-y-3">
+                                            <p class="text-sm text-gray-600 dark:text-gray-400">Uncheck to hide from Form End</p>
+                                            <div>{% toggle_field form.admin_save_as %}</div>
+                                            <div>{% toggle_field form.admin_mark_as_finalized %}</div>
+                                        </div>
+                                        <div class="space-y-3">
+                                            <p class="text-sm text-gray-600 dark:text-gray-400">Uncheck to hide from Drafts</p>
+                                            <div>{% toggle_field form.admin_default_to_finalized %}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% if settings_obj.id %}
+            <div class="mt-6 mb-2">
+                {% for radio in form.save_action %}
+                    <label class="flex items-center gap-2 mb-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                        {{ radio.tag }}
+                        {{ radio.choice_label }}
+                    </label>
+                {% endfor %}
+                {{ form.save_action.errors }}
+            </div>
+        {% endif %}
+        <div class="flex items-center space-x-4 mt-6">
+            <button type="submit"
+                    class="btn btn-outline btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    :disabled="submitting">
+                {% if settings_obj.id %}
+                    Save
+                {% else %}
+                    Add
+                {% endif %}
+                collect settings
+            </button>
+            <a type="button"
+               class="btn btn-outline"
+               href="{% url 'publish_mdm:collect-settings-list' request.organization.slug %}">Cancel</a>
+        </div>
+    </form>
+{% endblock content %}
