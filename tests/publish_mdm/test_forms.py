@@ -549,3 +549,16 @@ class TestCollectSettingsForm:
             instance=CollectSettings(organization=org),
         )
         assert form.is_valid(), form.errors
+
+    def test_save_action_absent_for_new_instance(self):
+        """save_action field is removed when creating a new CollectSettings."""
+        org = OrganizationFactory()
+        form = CollectSettingsForm(instance=CollectSettings(organization=org))
+        assert "save_action" not in form.fields
+
+    def test_save_action_present_for_existing_instance(self):
+        """save_action field is present when editing an existing CollectSettings."""
+        cs = CollectSettingsFactory()
+        form = CollectSettingsForm(instance=cs)
+        assert "save_action" in form.fields
+        assert form.fields["save_action"].initial == CollectSettingsForm.SAVE_ACTION_SAVE_ONLY

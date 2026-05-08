@@ -15,7 +15,7 @@ from django.db.models.functions import Collate, Lower, NullIf
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.utils.html import format_html, mark_safe
+from django.utils.html import format_html, format_html_join, mark_safe
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timezone import localdate
 from django.views.decorators.http import require_POST
@@ -874,8 +874,10 @@ def change_central_server(request: HttpRequest, organization_slug, central_serve
 @login_required
 def collect_settings_list(request: HttpRequest, organization_slug):
     """List CollectSettings linked to the current organization."""
-    collect_settings = CollectSettings.objects.filter(organization=request.organization).order_by(
-        "name"
+    collect_settings = (
+        CollectSettings.objects.filter(organization=request.organization)
+        .order_by("name")
+        .select_related("organization")
     )
     table = CollectSettingsTable(data=collect_settings, request=request, show_footer=False)
     context = {
@@ -907,6 +909,40 @@ def change_collect_settings(request: HttpRequest, organization_slug, collect_set
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(request, f"Successfully {action}ed {settings_obj.name}.")
+        # Regenerate QR codes for all projects linked to this CollectSettings
+        if form.cleaned_data.get("save_action") == CollectSettingsForm.SAVE_ACTION_REGENERATE:
+            projects = settings_obj.projects.select_related("central_server").prefetch_related(
+                "app_users"
+            )
+            succeeded = []
+            failed = []
+            for project in projects.order_by("name"):
+                try:
+                    generate_and_save_app_user_collect_qrcodes(project)
+                    succeeded.append((project.name, project.central_server.base_url))
+                except (RequestException, PyODKError):
+                    logger.warning(
+                        "Failed to regenerate QR codes",
+                        project=project.pk,
+                        exc_info=True,
+                    )
+                    failed.append((project.name, project.central_server.base_url))
+            if succeeded:
+                messages.success(
+                    request,
+                    format_html(
+                        "QR codes regenerated for:<ul class='list-disc pl-4'>{}</ul>",
+                        format_html_join("", "<li>{} ({})</li>", succeeded),
+                    ),
+                )
+            if failed:
+                messages.warning(
+                    request,
+                    format_html(
+                        "QR codes could not be regenerated for:<ul class='list-disc pl-4'>{}</ul>",
+                        format_html_join("", "<li>{} ({})</li>", failed),
+                    ),
+                )
         return redirect("publish_mdm:collect-settings-list", organization_slug)
     context = {
         "form": form,

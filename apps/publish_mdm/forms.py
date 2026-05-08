@@ -372,6 +372,27 @@ class ProjectForm(PlatformFormMixin, forms.ModelForm):
 class BaseCollectSettingsForm(forms.ModelForm):
     """Base form for adding or editing CollectSettings on the frontend or Admin."""
 
+    SAVE_ACTION_SAVE_ONLY = "save_only"
+    SAVE_ACTION_REGENERATE = "regenerate"
+
+    save_action = forms.ChoiceField(
+        choices=[
+            (
+                SAVE_ACTION_SAVE_ONLY,
+                "Save settings to the database only so they are pushed to the devices"
+                " the next time QR codes are regenerated and app users are assigned",
+            ),
+            (
+                SAVE_ACTION_REGENERATE,
+                "Regenerate QR codes and update devices that use these settings",
+            ),
+        ],
+        initial=SAVE_ACTION_SAVE_ONLY,
+        widget=forms.RadioSelect,
+        required=False,
+        label="Save action",
+    )
+
     class Meta:
         model = CollectSettings
         fields = (
@@ -461,7 +482,7 @@ class BaseCollectSettingsForm(forms.ModelForm):
         # The field name pattern {section}_{key} maps directly to the settings key
         # e.g. project_color → project.color, general_app_language → general.app_language.
         for field_name, field in self.fields.items():
-            if field_name in ("name", "organization"):
+            if field_name in ("name", "organization", "save_action"):
                 continue
             section, key = field_name.split("_", 1)
             settings_key = f"{section}.{key}"
@@ -503,6 +524,13 @@ class CollectSettingsForm(PlatformFormMixin, BaseCollectSettingsForm):
             "general_carto_map_style": Select,
             "general_reference_layer": TextInput,
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Hide the save_action radio buttons when adding a new instance — there are no
+        # linked projects yet, so regenerating QR codes would have no effect.
+        if not self.instance.pk:
+            del self.fields["save_action"]
 
 
 class ProjectTemplateVariableForm(PlatformFormMixin, forms.ModelForm):

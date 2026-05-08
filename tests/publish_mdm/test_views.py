@@ -28,7 +28,7 @@ from pytest_django.asserts import (
     assertRedirects,
     assertTemplateNotUsed,
 )
-from requests.exceptions import HTTPError
+from requests.exceptions import HTTPError, RequestException
 
 from apps.mdm.mdms import TinyMDM, get_active_mdm_class
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
@@ -3898,6 +3898,12 @@ class TestAddCollectSettings(ViewTestBase):
         assert isinstance(response.context.get("form"), CollectSettingsForm)
         assert response.context["form"].errors
 
+    def test_save_action_field_absent_from_add_form(self, client, url, user):
+        """save_action field is not rendered on the add form (new instance)."""
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "save_action" not in response.context["form"].fields
+
 
 @pytest.mark.django_db
 class TestEditCollectSettings(ViewTestBase):
@@ -3931,7 +3937,52 @@ class TestEditCollectSettings(ViewTestBase):
         )
         assert "Successfully edited Updated Name." in response.content.decode()
 
-    def test_wrong_org_returns_404(self, client, user, organization):
+    def test_regenerate_action_shows_consolidated_warning_on_error(
+        self, client, url, user, settings_obj, mocker
+    ):
+        """A single consolidated warning lists every project where QR code generation
+        raised a RequestException or PyODKError.
+        """
+        projects = ProjectFactory.create_batch(2, collect_settings=settings_obj)
+        mocker.patch(
+            "apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes",
+            side_effect=RequestException("connection failed"),
+        )
+        data = {
+            "name": "Updated Name",
+            "general_app_language": "en",
+            "save_action": CollectSettingsForm.SAVE_ACTION_REGENERATE,
+        }
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        assertContains(response, "QR codes could not be regenerated for:")
+        for project in projects:
+            assertContains(response, project.name)
+            assertContains(response, project.central_server.base_url)
+        assertNotContains(response, "QR codes regenerated for:")
+
+    def test_regenerate_action_shows_consolidated_success_message(
+        self, client, url, user, settings_obj, mocker
+    ):
+        """A single consolidated success message lists every project whose QR codes
+        were successfully regenerated.
+        """
+        projects = ProjectFactory.create_batch(2, collect_settings=settings_obj)
+        mocker.patch("apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes")
+        data = {
+            "name": "Updated Name",
+            "general_app_language": "en",
+            "save_action": CollectSettingsForm.SAVE_ACTION_REGENERATE,
+        }
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        assertContains(response, "QR codes regenerated for:")
+        for project in projects:
+            assertContains(response, project.name)
+            assertContains(response, project.central_server.base_url)
+        assertNotContains(response, "QR codes could not be regenerated for:")
+
+    def test_wrong_org_returns_404(self, client, url, user, organization):
         """Attempting to edit a CollectSettings from another org returns 404."""
         other_org = OrganizationFactory()
         other_cs = CollectSettingsFactory(organization=other_org)
@@ -3941,3 +3992,47 @@ class TestEditCollectSettings(ViewTestBase):
         )
         response = client.get(url)
         assert response.status_code == 404
+
+    def test_save_action_field_present_on_edit_form(self, client, url, user):
+        """save_action field is present on the edit form."""
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "save_action" in response.context["form"].fields
+
+    def test_save_only_action_does_not_regenerate_qr_codes(
+        self, client, url, user, settings_obj, mocker
+    ):
+        """Posting save_action=save_only does not trigger QR code regeneration."""
+        ProjectFactory(collect_settings=settings_obj)
+        mock_generate = mocker.patch(
+            "apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes"
+        )
+        data = {
+            "name": "Updated Name",
+            "general_app_language": "en",
+            "save_action": CollectSettingsForm.SAVE_ACTION_SAVE_ONLY,
+        }
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        mock_generate.assert_not_called()
+
+    def test_regenerate_action_regenerates_qr_codes_for_linked_projects(
+        self, client, url, user, settings_obj, mocker
+    ):
+        """Posting save_action=regenerate calls generate_and_save_app_user_collect_qrcodes
+        for each project linked to the CollectSettings object.
+        """
+        projects = ProjectFactory.create_batch(2, collect_settings=settings_obj)
+        mock_generate = mocker.patch(
+            "apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes"
+        )
+        data = {
+            "name": "Updated Name",
+            "general_app_language": "en",
+            "save_action": CollectSettingsForm.SAVE_ACTION_REGENERATE,
+        }
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        assert mock_generate.call_count == 2
+        called_projects = {call.args[0] for call in mock_generate.call_args_list}
+        assert called_projects == set(projects)

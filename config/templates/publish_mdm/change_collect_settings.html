@@ -27,7 +27,9 @@
             </li>
         </ul>
     </div>
-    <form method="post">
+    <form method="post"
+          x-data="{submitting: false}"
+          @submit="submitting = true">
         {% csrf_token %}
         {{ form.non_field_errors }}
         {% for field in form.hidden_fields %}{{ field }}{% endfor %}
@@ -526,8 +528,21 @@
                 </div>
             </div>
         </div>
+        {% if settings_obj.id %}
+            <div class="mt-6 mb-2">
+                {% for radio in form.save_action %}
+                    <label class="flex items-center gap-2 mb-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                        {{ radio.tag }}
+                        {{ radio.choice_label }}
+                    </label>
+                {% endfor %}
+                {{ form.save_action.errors }}
+            </div>
+        {% endif %}
         <div class="flex items-center space-x-4 mt-6">
-            <button type="submit" class="btn btn-outline btn-primary">
+            <button type="submit"
+                    class="btn btn-outline btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    :disabled="submitting">
                 {% if settings_obj.id %}
                     Save
                 {% else %}

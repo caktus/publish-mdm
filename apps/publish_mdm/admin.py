@@ -6,8 +6,9 @@ from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
 from django.urls import reverse
-from django.utils.html import mark_safe
+from django.utils.html import format_html, format_html_join, mark_safe
 from invitations.admin import InvitationAdmin
+from pyodk.errors import PyODKError
 from requests.exceptions import RequestException
 
 from apps.mdm.mdms import AndroidEnterprise
@@ -217,7 +218,52 @@ class CollectSettingsAdmin(admin.ModelAdmin):
                 "classes": ("collapse",),
             },
         ),
+        (
+            None,
+            {"fields": ("save_action",)},
+        ),
     )
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        # Regenerate QR codes for all projects linked to this CollectSettings
+        if (
+            change
+            and form.cleaned_data.get("save_action")
+            == BaseCollectSettingsForm.SAVE_ACTION_REGENERATE
+        ):
+            projects = obj.projects.select_related("central_server").prefetch_related("app_users")
+            succeeded = []
+            failed = []
+            for project in projects.order_by("name"):
+                try:
+                    generate_and_save_app_user_collect_qrcodes(project)
+                    succeeded.append((project.name, project.central_server.base_url))
+                except (RequestException, PyODKError):
+                    logger.warning(
+                        "Failed to regenerate QR codes",
+                        project=project.pk,
+                        exc_info=True,
+                    )
+                    failed.append((project.name, project.central_server.base_url))
+            if succeeded:
+                self.message_user(
+                    request,
+                    format_html(
+                        "QR codes regenerated for:{}",
+                        format_html_join("", "<br>* {} ({})", succeeded),
+                    ),
+                    messages.SUCCESS,
+                )
+            if failed:
+                self.message_user(
+                    request,
+                    format_html(
+                        "QR codes could not be regenerated for:{}",
+                        format_html_join("", "<br>* {} ({})", failed),
+                    ),
+                    messages.WARNING,
+                )
 
 
 @admin.register(Project)
