@@ -45,35 +45,29 @@ def _get_app():
     return _app
 
 
-def send_start_screen_share(
-    fcm_token: str, screen_stream_url: str = "", screen_stream_token: str = ""
-) -> bool:
-    """Send an FCM message (notification + data payload) that triggers the screen-share consent UI.
+def send_start_screen_share(fcm_token: str, request_id: str = "") -> bool:
+    """Send an FCM message that triggers the screen-share consent UI.
 
-    Includes screen_stream_url and screen_stream_token in the payload so the
-    device can start the WebSocket immediately without waiting for the AMAPI
-    managed-config push to propagate (which can take 20-30 seconds).
+    The ``request_id`` is a server-generated UUID that the device uses in the
+    challenge-response auth flow to obtain a session token for the WebSocket.
 
     Returns True on success, False (with a logged warning) on failure.
     """
     from firebase_admin import messaging  # noqa: PLC0415
 
+    # Pure data message (no `notification` field) so that onMessageReceived is
+    # always called on the device regardless of whether the app is in the
+    # foreground or background.  If the message had a `notification` field,
+    # Android would deliver it silently through the system tray when the app is
+    # backgrounded and would NOT call onMessageReceived — meaning the device
+    # would never receive the request_id or show the consent dialog.
     message = messaging.Message(
-        notification=messaging.Notification(
-            title="Screen share requested",
-            body="An administrator wants to view this device\u2019s screen. Tap to allow.",
-        ),
         data={
             "action": "start_screen_share",
-            "screen_stream_url": screen_stream_url,
-            "screen_stream_token": screen_stream_token,
+            "request_id": request_id,
         },
         android=messaging.AndroidConfig(
             priority="high",
-            notification=messaging.AndroidNotification(
-                channel_id="screen_share_request",
-                click_action="com.publishmdm.agent.ACTION_SHOW_SCREEN_CONSENT",
-            ),
         ),
         token=fcm_token,
     )

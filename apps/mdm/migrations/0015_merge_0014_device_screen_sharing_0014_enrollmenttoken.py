@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("mdm", "0014_device_screen_sharing"),
         ("mdm", "0014_enrollmenttoken"),

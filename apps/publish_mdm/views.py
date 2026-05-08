@@ -1,5 +1,6 @@
 import contextlib
 import json
+import uuid
 from urllib.parse import urlencode
 
 import structlog
@@ -1547,9 +1548,8 @@ class SocialAccountConnectionsView(ConnectionsView):
 def device_screen_view(request: HttpRequest, organization_slug, device_pk):
     """Render the live screen viewer page for a device.
 
-    Ensures the per-device screen-stream token exists, then attempts to
-    trigger screen sharing via FCM so the firmware app can start the
-    MediaProjection consent flow.
+    Sends an FCM trigger with a unique ``request_id`` so the device can use
+    challenge-response auth to obtain a session token for the WebSocket.
     """
     from apps.mdm.models import Device  # noqa: PLC0415
 
@@ -1558,31 +1558,19 @@ def device_screen_view(request: HttpRequest, organization_slug, device_pk):
         pk=device_pk,
         fleet__organization=request.organization,
     )
-    device.ensure_screen_stream_token()
+
+    request_id = str(uuid.uuid4())
 
     # Send FCM trigger so the app shows the MediaProjection consent dialog.
     logger.info(
         "device_screen_view: FCM trigger",
         device_pk=device.pk,
         has_fcm_token=bool(device.fcm_token),
+        request_id=request_id,
     )
     if device.fcm_token:
-        cb_domain = settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN
-        if cb_domain:
-            stream_url = (
-                f"wss://{cb_domain}/ws/devices/screen-publish/{device.screen_stream_token}/"
-            )
-            sent = send_start_screen_share(
-                device.fcm_token,
-                screen_stream_url=stream_url,
-                screen_stream_token=device.screen_stream_token,
-            )
-            logger.info("device_screen_view: FCM send result", device_pk=device.pk, sent=sent)
-        else:
-            logger.warning(
-                "device_screen_view: ANDROID_ENTERPRISE_CALLBACK_DOMAIN not set — cannot trigger screen share",
-                device_pk=device.pk,
-            )
+        sent = send_start_screen_share(device.fcm_token, request_id=request_id)
+        logger.info("device_screen_view: FCM send result", device_pk=device.pk, sent=sent)
     else:
         logger.warning(
             "device_screen_view: no FCM token on device — cannot trigger screen share",

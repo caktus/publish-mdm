@@ -564,6 +564,12 @@ class PushMethodChoices(models.TextChoices):
     ALL = "all", "Push All Devices"
 
 
+class DeviceKeyState(models.TextChoices):
+    UNBOUND = "unbound", "Unbound"
+    ACTIVE = "active", "Active"
+    REVOKED = "revoked", "Revoked"
+
+
 class Device(SoftDeleteModel):
     """A device that is enrolled in the MDM."""
 
@@ -647,6 +653,32 @@ class Device(SoftDeleteModel):
         default="",
         help_text="Per-device secret used by the firmware app to authenticate"
         " its screen-share WebSocket connection.",
+    )
+    auth_public_key_pem = models.TextField(
+        blank=True,
+        default="",
+        help_text="Device public key (PEM) used for challenge-response authentication.",
+    )
+    auth_public_key_fingerprint = models.CharField(
+        max_length=64,
+        blank=True,
+        default="",
+        help_text="SHA-256 fingerprint (hex) of auth_public_key_pem.",
+    )
+    auth_key_bound_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the current device auth key was bound.",
+    )
+    auth_key_version = models.PositiveIntegerField(
+        default=0,
+        help_text="Monotonic version for the bound device auth key.",
+    )
+    auth_key_state = models.CharField(
+        max_length=12,
+        choices=DeviceKeyState,
+        default=DeviceKeyState.UNBOUND,
+        help_text="Current state of the bound device auth key.",
     )
     fcm_token = models.CharField(
         max_length=256,
@@ -766,6 +798,116 @@ class Device(SoftDeleteModel):
             and isinstance(software_info, dict)
         ):
             return software_info.get("androidBuildNumber")
+
+
+class DeviceBindCode(models.Model):
+    """One-time bootstrap code used to bind a device public key."""
+
+    device = models.ForeignKey(
+        Device,
+        on_delete=models.CASCADE,
+        related_name="bind_codes",
+    )
+    code_hash = models.CharField(max_length=64, db_index=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = (
+            models.Index(fields=["device", "expires_at"]),
+            models.Index(fields=["used_at"]),
+        )
+
+    def __str__(self):
+        return f"BindCode({self.device_id}, expires={self.expires_at})"
+
+
+class DeviceAuthChallenge(models.Model):
+    """One-time challenge used for runtime device proof-of-possession."""
+
+    challenge_id = models.UUIDField(unique=True)
+    device = models.ForeignKey(
+        Device,
+        on_delete=models.CASCADE,
+        related_name="auth_challenges",
+    )
+    request_id = models.CharField(max_length=64)
+    nonce = models.CharField(max_length=128)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = (
+            models.Index(fields=["challenge_id"]),
+            models.Index(fields=["device", "request_id"]),
+            models.Index(fields=["expires_at"]),
+            models.Index(fields=["used_at"]),
+        )
+
+    def __str__(self):
+        return f"AuthChallenge({self.challenge_id}, device={self.device_id})"
+
+
+class ScreenShareSession(models.Model):
+    """Single-use, short-lived session credential for screen-share websocket auth."""
+
+    session_id = models.UUIDField(unique=True)
+    token_hash = models.CharField(max_length=64, db_index=True)
+    device = models.ForeignKey(
+        Device,
+        on_delete=models.CASCADE,
+        related_name="screen_share_sessions",
+    )
+    request_id = models.CharField(max_length=64)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = (
+            models.Index(fields=["session_id"]),
+            models.Index(fields=["device", "request_id"]),
+            models.Index(fields=["expires_at"]),
+            models.Index(fields=["used_at"]),
+        )
+
+    def __str__(self):
+        return f"ScreenShareSession({self.session_id}, device={self.device_id})"
+
+
+class ScreenShareAuditLog(models.Model):
+    """Audit trail for screen-share auth and session lifecycle events."""
+
+    event_type = models.CharField(max_length=64)
+    device = models.ForeignKey(
+        Device,
+        on_delete=models.SET_NULL,
+        related_name="screen_share_audit_logs",
+        null=True,
+        blank=True,
+    )
+    actor = models.ForeignKey(
+        "users.User",
+        on_delete=models.SET_NULL,
+        related_name="screen_share_audit_logs",
+        null=True,
+        blank=True,
+    )
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    metadata_json = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = (
+            models.Index(fields=["event_type", "created_at"]),
+            models.Index(fields=["device", "created_at"]),
+            models.Index(fields=["actor", "created_at"]),
+        )
+
+    def __str__(self):
+        return f"AuditLog({self.event_type}, device={self.device_id}, {self.created_at})"
 
 
 class DeviceSnapshot(models.Model):

@@ -8,6 +8,19 @@ urlpatterns = [
     path("mdm/api/firmware/", views.firmware_snapshot_view, name="firmware_snapshot"),
     path("mdm/api/devices/fcm-token/", views.device_fcm_token_view, name="device-fcm-token"),
     path(
+        "mdm/api/devices/register-key/", views.device_register_key_view, name="device-register-key"
+    ),
+    path(
+        "mdm/api/devices/auth/challenge/",
+        views.device_auth_challenge_view,
+        name="device-auth-challenge",
+    ),
+    path(
+        "mdm/api/devices/auth/verify/",
+        views.device_auth_verify_view,
+        name="device-auth-verify",
+    ),
+    path(
         "mdm/api/amapi/notifications/", views.amapi_notifications_view, name="amapi_notifications"
     ),
     # Policy editor

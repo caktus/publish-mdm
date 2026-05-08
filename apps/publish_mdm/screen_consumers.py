@@ -1,22 +1,24 @@
 """WebSocket consumers for live device screen sharing.
 
 A device running the firmware app connects to ``DeviceScreenPublisherConsumer``
-authenticated by its per-device ``screen_stream_token`` (passed in the URL).
-Every binary frame (a JPEG byte string) it sends is broadcast to a Channels
-group named ``device-screen-<device_pk>``. The browser-side viewer connects to
-``DeviceScreenViewerConsumer`` (auth via the standard Django session) and is
-joined to that same group, receiving each frame and rendering it.
+authenticated by a short-lived session token obtained via challenge-response
+(passed in the URL).  Every binary frame (a JPEG byte string) it sends is
+broadcast to a Channels group named ``device-screen-<device_pk>``. The
+browser-side viewer connects to ``DeviceScreenViewerConsumer`` (auth via the
+standard Django session) and is joined to that same group, receiving each frame
+and rendering it.
 """
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 
 import structlog
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
-from apps.mdm.models import Device
+from apps.mdm.models import Device, ScreenShareSession
 
 logger = structlog.getLogger(__name__)
 
@@ -78,8 +80,28 @@ class DeviceScreenPublisherConsumer(AsyncWebsocketConsumer):
     @staticmethod
     @database_sync_to_async
     def _lookup_device_pk(token: str) -> int | None:
+        """Look up the device PK from a session token (challenge-response flow)
+        or legacy screen_stream_token."""
         if not token:
             return None
+        # Try session token first (new auth flow).
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        try:
+            from django.utils.timezone import now  # noqa: PLC0415
+
+            session = ScreenShareSession.objects.select_related("device").get(
+                token_hash=token_hash,
+                used_at__isnull=True,
+                expires_at__gt=now(),
+            )
+            # Mark as used (single-use).
+            ScreenShareSession.objects.filter(pk=session.pk, used_at__isnull=True).update(
+                used_at=now()
+            )
+            return session.device_id
+        except ScreenShareSession.DoesNotExist:
+            pass
+        # Fallback: legacy screen_stream_token.
         try:
             return Device.objects.get(screen_stream_token=token).pk
         except (Device.DoesNotExist, Device.MultipleObjectsReturned):
