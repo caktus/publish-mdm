@@ -52,6 +52,7 @@ from .models import (
     ScreenShareSession,
 )
 from .tables import EnrollmentTokenTable, PolicyTable
+from .utils import get_callback_domain
 
 logger = structlog.get_logger()
 
@@ -415,10 +416,7 @@ def device_auth_verify_view(request):
     )
 
     # Build the WebSocket URL the device should connect to for streaming.
-    cb_domain = getattr(settings, "ANDROID_ENTERPRISE_CALLBACK_DOMAIN", "")
-    stream_url = ""
-    if cb_domain:
-        stream_url = f"wss://{cb_domain}/ws/devices/screen-publish/{session_token}/"
+    stream_url = f"wss://{get_callback_domain()}/ws/devices/screen-publish/{session_token}/"
 
     return JsonResponse(
         {

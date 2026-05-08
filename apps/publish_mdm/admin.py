@@ -11,6 +11,7 @@ from invitations.admin import InvitationAdmin
 from requests.exceptions import RequestException
 
 from apps.mdm.mdms import AndroidEnterprise
+from apps.mdm.utils import get_callback_domain
 
 from .etl.load import generate_and_save_app_user_collect_qrcodes
 from .forms import CentralServerForm
@@ -304,12 +305,7 @@ class AndroidEnterpriseAccountAdmin(admin.ModelAdmin):
                     "publish_mdm:enterprise-callback",
                     kwargs={"callback_token": obj.callback_token},
                 )
-                callback_domain = settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN
-                callback_url = (
-                    "https://" + callback_domain + callback_path
-                    if callback_domain
-                    else request.build_absolute_uri(callback_path)
-                )
+                callback_url = "https://" + get_callback_domain() + callback_path
                 next_path = reverse(
                     "admin:publish_mdm_androidenterpriseaccount_change",
                     args=[obj.pk],

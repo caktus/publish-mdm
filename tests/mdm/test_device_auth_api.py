@@ -35,8 +35,10 @@ class TestDeviceAuthApi:
         )
 
     @staticmethod
-    def _sign_payload(private_key, challenge_id: str, request_id: str, device_id: str, timestamp: int):
-        payload = f"{challenge_id}.{request_id}.{device_id}.{timestamp}".encode("utf-8")
+    def _sign_payload(
+        private_key, challenge_id: str, request_id: str, device_id: str, timestamp: int
+    ):
+        payload = f"{challenge_id}.{request_id}.{device_id}.{timestamp}".encode()
         signature = private_key.sign(payload, ec.ECDSA(hashes.SHA256()))
         return base64.b64encode(signature).decode("ascii")
 
@@ -278,8 +280,12 @@ class TestDeviceAuthApi:
             "signature_b64": signature_b64,
         }
 
-        first = client.post(self.verify_url, data=json.dumps(payload), content_type="application/json")
-        second = client.post(self.verify_url, data=json.dumps(payload), content_type="application/json")
+        first = client.post(
+            self.verify_url, data=json.dumps(payload), content_type="application/json"
+        )
+        second = client.post(
+            self.verify_url, data=json.dumps(payload), content_type="application/json"
+        )
 
         assert first.status_code == 200
         assert second.status_code == 409

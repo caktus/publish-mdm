@@ -1043,10 +1043,12 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
 
     @pytest.mark.django_db
     def test_build_push_endpoint(self, set_amapi_service_account_file, settings):
-        """_build_push_endpoint() falls back to the Site domain when no domain is supplied."""
+        """_build_push_endpoint() falls back to the Site domain when no domain is supplied
+        and neither ANDROID_ENTERPRISE_CALLBACK_DOMAIN nor ALLOWED_HOSTS is set."""
         active_mdm = AndroidEnterprise()
         settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = "mysecret"
         settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN = ""
+        settings.ALLOWED_HOSTS = []
         Site.objects.filter(pk=settings.SITE_ID).update(domain="app.example.com")
         endpoint = active_mdm._build_push_endpoint()
         assert endpoint == "https://app.example.com/mdm/api/amapi/notifications/?token=mysecret"

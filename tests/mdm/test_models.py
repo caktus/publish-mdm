@@ -238,9 +238,11 @@ class TestModels(TestAllMDMs):
             order=1,
         )
         policy_data = policy.get_policy_data()
-        assert len(policy_data["applications"]) == 2
-        assert policy_data["applications"][1]["packageName"] == "com.example.app"
-        assert policy_data["applications"][1]["installType"] == "PREINSTALLED"
+        assert len(policy_data["applications"]) == 3  # ODK Collect + firmware app + com.example.app
+        app_entry = next(
+            a for a in policy_data["applications"] if a["packageName"] == "com.example.app"
+        )
+        assert app_entry["installType"] == "PREINSTALLED"
 
         # get_policy_data() with device context should inject ODK managed config
         device = DeviceFactory()

@@ -5,7 +5,6 @@ from functools import cached_property
 
 import structlog
 from django.conf import settings
-from django.contrib.sites.models import Site
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import F, OuterRef, Q, Subquery
 from django.urls import reverse
@@ -15,6 +14,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from apps.mdm.models import Device, DeviceSnapshot, DeviceSnapshotApp, Fleet, Policy
+from apps.mdm.utils import get_callback_domain
 from apps.publish_mdm.utils import create_qr_code
 
 from .base import MDM, MDMAPIError
@@ -616,9 +616,8 @@ class AndroidEnterprise(MDM):
            if it does not already exist.
         2. Creates (or updates) a push subscription
            ``projects/{project_id}/subscriptions/publish-mdm-{environment}``.
-           The push endpoint is built from ``push_endpoint_domain`` when
-           provided, otherwise from ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN``
-           (if set), otherwise from the current ``Site`` domain.
+           The push endpoint domain is resolved via :func:`~apps.mdm.utils.get_callback_domain`
+           when ``push_endpoint_domain`` is not provided.
         3. Grants ``android-cloud-policy@system.gserviceaccount.com``
            ``roles/pubsub.publisher`` on the topic so that Android Device Policy
            can publish AMAPI notifications to it.
@@ -630,8 +629,9 @@ class AndroidEnterprise(MDM):
         Args:
             push_endpoint_domain: Domain (without scheme, e.g. ``example.com``)
                 used to construct the full push endpoint.  When ``None``,
-                ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` is used if set,
-                otherwise the domain is taken from the current
+                the domain is resolved by :func:`~apps.mdm.utils.get_callback_domain`:
+                ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` takes priority, then the
+                first non-wildcard entry in ``ALLOWED_HOSTS``, then the current
                 ``django.contrib.sites`` ``Site`` object.  HTTPS is always used.
         """
         push_endpoint = self._build_push_endpoint(domain=push_endpoint_domain)
@@ -684,13 +684,14 @@ class AndroidEnterprise(MDM):
         is always used.  The domain is resolved with the following priority:
 
         1. The ``domain`` argument (when explicitly supplied).
-        2. ``settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` (when set).
-        3. The current ``django.contrib.sites`` ``Site`` object domain (fallback).
+        2. :func:`~apps.mdm.utils.get_callback_domain` — which itself checks
+           ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN``, then ``ALLOWED_HOSTS[0]``,
+           then the current ``Site`` object.
 
         Args:
             domain: Optional domain override (without scheme, e.g.
-                ``example.com``).  When ``None``, the domain is read from
-                ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` or the ``Site`` model.
+                ``example.com``).  When ``None``, the domain is resolved by
+                :func:`~apps.mdm.utils.get_callback_domain`.
 
         Returns:
             Full HTTPS URL for the Pub/Sub push endpoint.
@@ -703,9 +704,7 @@ class AndroidEnterprise(MDM):
             )
         path = reverse("mdm:amapi_notifications")
         if domain is None:
-            domain = (
-                settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN or Site.objects.get_current().domain
-            )
+            domain = get_callback_domain()
         return f"https://{domain.rstrip('/')}{path}?token={token}"
 
     def pubsub_enabled(self) -> bool:

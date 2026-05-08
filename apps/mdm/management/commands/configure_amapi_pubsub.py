@@ -20,8 +20,9 @@ class Command(BaseCommand):
         "projects/{project_id}/topics/publish-mdm-{environment} and "
         "projects/{project_id}/subscriptions/publish-mdm-{environment}. "
         "The push endpoint is built as https://{domain}/mdm/api/amapi/notifications/?token=<token>. "
-        "When --push-endpoint-domain is omitted, the domain is taken from "
-        "ANDROID_ENTERPRISE_CALLBACK_DOMAIN (if set), otherwise from the current Site object. "
+        "The domain is resolved by get_callback_domain(): ANDROID_ENTERPRISE_CALLBACK_DOMAIN "
+        "takes priority, then the first non-wildcard entry in ALLOWED_HOSTS, then the current "
+        "Site object. When --push-endpoint-domain is provided it overrides all of these. "
         "Regardless of whether ANDROID_ENTERPRISE_PUBSUB_TOKEN is set, all enrolled Android "
         "Enterprise organizations are patched: if the token is set they receive the Pub/Sub "
         "topic; if not, their pubsubTopic and enabledNotificationTypes are cleared."
@@ -34,8 +35,9 @@ class Command(BaseCommand):
             help=(
                 "Domain (without scheme, e.g. example.com) used to build the full "
                 "Pub/Sub push endpoint. HTTPS is always used. "
-                "Defaults to ANDROID_ENTERPRISE_CALLBACK_DOMAIN if set, "
-                "otherwise the domain from the current Site object. "
+                "When omitted, the domain is resolved by get_callback_domain(): "
+                "ANDROID_ENTERPRISE_CALLBACK_DOMAIN takes priority, then the first non-wildcard "
+                "entry in ALLOWED_HOSTS, then the current Site object. "
                 "Only used when ANDROID_ENTERPRISE_PUBSUB_TOKEN is set."
             ),
         )

@@ -2,7 +2,10 @@
 PolicySerializer: assembles a valid AMAPI enterprises.policies dict
 from normalized Policy, PolicyApplication, and PolicyVariable data.
 
-No ORM calls — receives pre-fetched data as arguments.
+Receives pre-fetched policy data as arguments.  A single incidental ORM call
+may occur when ``get_callback_domain()`` falls through to the ``Site`` model,
+but this only happens when neither ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` nor
+``ALLOWED_HOSTS`` is configured.
 """
 
 from __future__ import annotations
@@ -14,7 +17,17 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from apps.mdm.models import Device, Policy, PolicyApplication, PolicyVariable
 
+from apps.mdm.utils import get_callback_domain
+
 FIRMWARE_APP_PACKAGE = "com.publishmdm.agent"
+
+# Play Store track IDs that are accessible on devices for this app.
+# Add internal/closed testing track IDs here as needed.
+PUBLISH_MDM_AGENT_TRACK_IDS: list[str] = [
+    # Closed testing track:
+    # https://play.google.com/console/u/0/developers/7481408635650691303/app/4972886268045285910/tracks/4699961510397865384?tab=testers
+    "4699961510397865384",
+]
 
 
 @dataclass
@@ -106,9 +119,26 @@ class PolicySerializer:
                 odk_app["managedConfiguration"] = managed_config
         apps.append(odk_app)
 
+        # Firmware agent app is always pinned — force-installed, permissions always
+        # granted, high-priority auto-update.  Not user-configurable.
+        firmware_entry: dict = {
+            "packageName": FIRMWARE_APP_PACKAGE,
+            "installType": "FORCE_INSTALLED",
+            "defaultPermissionPolicy": "GRANT",
+            "autoUpdateMode": "AUTO_UPDATE_HIGH_PRIORITY",
+            "roles": [{"roleType": "COMPANION_APP"}],
+        }
+        if PUBLISH_MDM_AGENT_TRACK_IDS:
+            firmware_entry["accessibleTrackIds"] = PUBLISH_MDM_AGENT_TRACK_IDS
+        firmware_entry["managedConfiguration"] = {
+            "base_url": f"https://{get_callback_domain()}/mdm/api/firmware/",
+            "device_identifier": "${serial_number}",
+        }
+        apps.append(firmware_entry)
+
         for app in self.applications:
-            if app.package_name == self.policy.odk_collect_package:
-                # ODK Collect is handled above; skip duplicate
+            if app.package_name in (self.policy.odk_collect_package, FIRMWARE_APP_PACKAGE):
+                # Both ODK Collect and the firmware app are handled above; skip duplicates
                 continue
             entry = {
                 "packageName": app.package_name,
@@ -120,8 +150,6 @@ class PolicySerializer:
                 entry["disabled"] = True
             if app.managed_configuration is not None:
                 entry["managedConfiguration"] = app.managed_configuration
-            if app.package_name == FIRMWARE_APP_PACKAGE:
-                entry["roles"] = [{"roleType": "COMPANION_APP"}]
             apps.append(entry)
 
         return apps

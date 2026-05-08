@@ -2,7 +2,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("mdm", "0015_merge_0014_device_screen_sharing_0014_enrollmenttoken"),
     ]
@@ -57,7 +56,12 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="DeviceAuthChallenge",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
                 ("challenge_id", models.UUIDField(unique=True)),
                 ("request_id", models.CharField(max_length=64)),
                 ("nonce", models.CharField(max_length=128)),
@@ -66,46 +70,81 @@ class Migration(migrations.Migration):
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 (
                     "device",
-                    models.ForeignKey(on_delete=models.deletion.CASCADE, related_name="auth_challenges", to="mdm.device"),
+                    models.ForeignKey(
+                        on_delete=models.deletion.CASCADE,
+                        related_name="auth_challenges",
+                        to="mdm.device",
+                    ),
                 ),
             ],
         ),
         migrations.CreateModel(
             name="DeviceBindCode",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
                 ("code_hash", models.CharField(db_index=True, max_length=64)),
                 ("expires_at", models.DateTimeField()),
                 ("used_at", models.DateTimeField(blank=True, null=True)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 (
                     "device",
-                    models.ForeignKey(on_delete=models.deletion.CASCADE, related_name="bind_codes", to="mdm.device"),
+                    models.ForeignKey(
+                        on_delete=models.deletion.CASCADE,
+                        related_name="bind_codes",
+                        to="mdm.device",
+                    ),
                 ),
             ],
         ),
         migrations.CreateModel(
             name="ScreenShareAuditLog",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
                 ("event_type", models.CharField(max_length=64)),
                 ("ip_address", models.GenericIPAddressField(blank=True, null=True)),
                 ("metadata_json", models.JSONField(blank=True, default=dict)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 (
                     "actor",
-                    models.ForeignKey(blank=True, null=True, on_delete=models.deletion.SET_NULL, related_name="screen_share_audit_logs", to="users.user"),
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=models.deletion.SET_NULL,
+                        related_name="screen_share_audit_logs",
+                        to="users.user",
+                    ),
                 ),
                 (
                     "device",
-                    models.ForeignKey(blank=True, null=True, on_delete=models.deletion.SET_NULL, related_name="screen_share_audit_logs", to="mdm.device"),
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=models.deletion.SET_NULL,
+                        related_name="screen_share_audit_logs",
+                        to="mdm.device",
+                    ),
                 ),
             ],
         ),
         migrations.CreateModel(
             name="ScreenShareSession",
             fields=[
-                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
                 ("session_id", models.UUIDField(unique=True)),
                 ("token_hash", models.CharField(db_index=True, max_length=64)),
                 ("request_id", models.CharField(max_length=64)),
@@ -114,7 +153,11 @@ class Migration(migrations.Migration):
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 (
                     "device",
-                    models.ForeignKey(on_delete=models.deletion.CASCADE, related_name="screen_share_sessions", to="mdm.device"),
+                    models.ForeignKey(
+                        on_delete=models.deletion.CASCADE,
+                        related_name="screen_share_sessions",
+                        to="mdm.device",
+                    ),
                 ),
             ],
         ),
@@ -124,7 +167,9 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="deviceauthchallenge",
-            index=models.Index(fields=["device", "request_id"], name="mdm_devicea_device__050b57_idx"),
+            index=models.Index(
+                fields=["device", "request_id"], name="mdm_devicea_device__050b57_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="deviceauthchallenge",
@@ -136,7 +181,9 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="devicebindcode",
-            index=models.Index(fields=["device", "expires_at"], name="mdm_deviceb_device__ba7750_idx"),
+            index=models.Index(
+                fields=["device", "expires_at"], name="mdm_deviceb_device__ba7750_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="devicebindcode",
@@ -144,15 +191,21 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="screenshareauditlog",
-            index=models.Index(fields=["event_type", "created_at"], name="mdm_screens_event_t_50dd78_idx"),
+            index=models.Index(
+                fields=["event_type", "created_at"], name="mdm_screens_event_t_50dd78_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="screenshareauditlog",
-            index=models.Index(fields=["device", "created_at"], name="mdm_screens_device__167a6d_idx"),
+            index=models.Index(
+                fields=["device", "created_at"], name="mdm_screens_device__167a6d_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="screenshareauditlog",
-            index=models.Index(fields=["actor", "created_at"], name="mdm_screens_actor_i_e21baa_idx"),
+            index=models.Index(
+                fields=["actor", "created_at"], name="mdm_screens_actor_i_e21baa_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="screensharesession",
@@ -160,7 +213,9 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="screensharesession",
-            index=models.Index(fields=["device", "request_id"], name="mdm_screens_device__233dc6_idx"),
+            index=models.Index(
+                fields=["device", "request_id"], name="mdm_screens_device__233dc6_idx"
+            ),
         ),
         migrations.AddIndex(
             model_name="screensharesession",

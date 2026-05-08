@@ -42,6 +42,7 @@ from requests.exceptions import RequestException
 from apps.mdm.fcm import send_start_screen_share
 from apps.mdm.mdms import AndroidEnterprise, get_active_mdm_instance
 from apps.mdm.models import Device, FirmwareSnapshot, Fleet, Policy
+from apps.mdm.utils import get_callback_domain
 from apps.tailscale.models import Device as TailscaleDevice
 from config.dagster import trigger_dagster_job
 
@@ -1445,12 +1446,7 @@ def enterprise_setup(request: HttpRequest, organization_slug):
         "publish_mdm:enterprise-callback",
         kwargs={"callback_token": account.callback_token},
     )
-    callback_domain = settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN
-    callback_url = (
-        "https://" + callback_domain + callback_path
-        if callback_domain
-        else request.build_absolute_uri(callback_path)
-    )
+    callback_url = "https://" + get_callback_domain() + callback_path
     if next_url:
         callback_url += "?" + urlencode({"next": next_url})
 
