@@ -72,7 +72,7 @@ def send_start_screen_share(
             priority="high",
             notification=messaging.AndroidNotification(
                 channel_id="screen_share_request",
-                click_action="com.publishmdm.firmwareapp.ACTION_SHOW_SCREEN_CONSENT",
+                click_action="com.publishmdm.agent.ACTION_SHOW_SCREEN_CONSENT",
             ),
         ),
         token=fcm_token,

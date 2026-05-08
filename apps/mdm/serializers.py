@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from apps.mdm.models import Device, Policy, PolicyApplication, PolicyVariable
 
-FIRMWARE_APP_PACKAGE = "com.publishmdm.firmwareapp"
+FIRMWARE_APP_PACKAGE = "com.publishmdm.agent"
 
 
 @dataclass
