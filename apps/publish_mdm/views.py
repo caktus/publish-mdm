@@ -15,7 +15,7 @@ from django.db.models.functions import Collate, Lower, NullIf
 from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
-from django.utils.html import format_html, format_html_join, mark_safe
+from django.utils.html import format_html, mark_safe
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timezone import localdate
 from django.views.decorators.http import require_POST
@@ -909,39 +909,34 @@ def change_collect_settings(request: HttpRequest, organization_slug, collect_set
     if request.method == "POST" and form.is_valid():
         form.save()
         messages.success(request, f"Successfully {action}ed {settings_obj.name}.")
-        # Regenerate QR codes for all projects linked to this CollectSettings
+        # Regenerate QR codes and push device configs via Dagster job
         if form.cleaned_data.get("save_action") == CollectSettingsForm.SAVE_ACTION_REGENERATE:
-            projects = settings_obj.projects.select_related("central_server").prefetch_related(
-                "app_users"
-            )
-            succeeded = []
-            failed = []
-            for project in projects.order_by("name"):
-                try:
-                    generate_and_save_app_user_collect_qrcodes(project)
-                    succeeded.append((project.name, project.central_server.base_url))
-                except (RequestException, PyODKError):
-                    logger.warning(
-                        "Failed to regenerate QR codes",
-                        project=project.pk,
-                        exc_info=True,
-                    )
-                    failed.append((project.name, project.central_server.base_url))
-            if succeeded:
-                messages.success(
-                    request,
-                    format_html(
-                        "QR codes regenerated for:<ul class='list-disc pl-4'>{}</ul>",
-                        format_html_join("", "<li>{} ({})</li>", succeeded),
-                    ),
+            run_config = {
+                "ops": {
+                    "regenerate_collect_qr_codes_and_push_to_devices": {
+                        "config": {"collect_settings_pk": settings_obj.pk}
+                    }
+                }
+            }
+            try:
+                trigger_dagster_job(
+                    job_name="regenerate_collect_qr_codes_job", run_config=run_config
                 )
-            if failed:
+            except Exception:
+                logger.error(
+                    "Failed to trigger Dagster regenerate_collect_qr_codes_job",
+                    collect_settings=settings_obj.pk,
+                    exc_info=True,
+                )
                 messages.warning(
                     request,
-                    format_html(
-                        "QR codes could not be regenerated for:<ul class='list-disc pl-4'>{}</ul>",
-                        format_html_join("", "<li>{} ({})</li>", failed),
-                    ),
+                    "Could not queue QR code regeneration and device push. "
+                    "Please try again or contact support.",
+                )
+            else:
+                messages.success(
+                    request,
+                    "QR code regeneration and device push queued successfully.",
                 )
         return redirect("publish_mdm:collect-settings-list", organization_slug)
     context = {

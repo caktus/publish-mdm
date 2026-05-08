@@ -2,8 +2,7 @@ import pytest
 from django.conf import settings
 from django.contrib import admin
 from django.urls import reverse
-from pytest_django.asserts import assertContains, assertNotContains
-from requests.exceptions import RequestException
+from pytest_django.asserts import assertContains
 
 from apps.mdm.mdms import AndroidEnterprise
 from apps.publish_mdm.admin import AndroidEnterpriseAccountAdmin
@@ -511,14 +510,14 @@ class TestCollectSettingsAdmin(BaseTestAdmin):
         assert response.status_code == 200
         assert "save_action" in response.context["adminform"].form.fields
 
-    def test_save_only_action_does_not_regenerate_qr_codes(
+    def test_save_only_action_does_not_trigger_dagster_job(
         self, client, user, settings_obj, mocker
     ):
-        """Posting save_action=save_only does not trigger QR code regeneration."""
+        """Posting save_action=save_only does not trigger the regenerate_collect_qr_codes_job
+        Dagster job.
+        """
         ProjectFactory(collect_settings=settings_obj)
-        mock_generate = mocker.patch(
-            "apps.publish_mdm.admin.generate_and_save_app_user_collect_qrcodes"
-        )
+        mock_trigger = mocker.patch("apps.publish_mdm.admin.trigger_dagster_job")
         data = {
             "name": settings_obj.name,
             "organization": settings_obj.organization_id,
@@ -530,19 +529,42 @@ class TestCollectSettingsAdmin(BaseTestAdmin):
             data=data,
         )
         assert response.status_code == 302, "Expected redirect after successful save"
-        mock_generate.assert_not_called()
+        mock_trigger.assert_not_called()
 
-    def test_regenerate_action_shows_consolidated_warning_on_error(
+    def test_regenerate_action_triggers_dagster_job(self, client, user, settings_obj, mocker):
+        """Posting save_action=regenerate triggers the Dagster regenerate_collect_qr_codes_job
+        with the correct run config.
+        """
+        mock_trigger = mocker.patch("apps.publish_mdm.admin.trigger_dagster_job")
+        data = {
+            "name": settings_obj.name,
+            "organization": settings_obj.organization_id,
+            "general_app_language": "en",
+            "save_action": BaseCollectSettingsForm.SAVE_ACTION_REGENERATE,
+        }
+        response = client.post(
+            reverse("admin:publish_mdm_collectsettings_change", args=[settings_obj.id]),
+            data=data,
+            follow=True,
+        )
+        mock_trigger.assert_called_once_with(
+            job_name="regenerate_collect_qr_codes_job",
+            run_config={
+                "ops": {
+                    "regenerate_collect_qr_codes_and_push_to_devices": {
+                        "config": {"collect_settings_pk": settings_obj.pk}
+                    }
+                }
+            },
+        )
+        assertContains(response, "QR code regeneration and device push queued successfully.")
+
+    def test_regenerate_action_shows_warning_on_dagster_error(
         self, client, user, settings_obj, mocker
     ):
-        """A single consolidated warning lists every project where QR code generation
-        raised a RequestException or PyODKError.
-        """
-        projects = ProjectFactory.create_batch(2, collect_settings=settings_obj)
-        mocker.patch(
-            "apps.publish_mdm.admin.generate_and_save_app_user_collect_qrcodes",
-            side_effect=RequestException("connection failed"),
-        )
+        """Posting save_action=regenerate and a Dagster trigger failure shows a warning message."""
+        dagster_error = Exception("Dagster unavailable")
+        mocker.patch("apps.publish_mdm.admin.trigger_dagster_job", side_effect=dagster_error)
         data = {
             "name": settings_obj.name,
             "organization": settings_obj.organization_id,
@@ -555,59 +577,4 @@ class TestCollectSettingsAdmin(BaseTestAdmin):
             follow=True,
         )
         assert response.status_code == 200
-        assertContains(response, "QR codes could not be regenerated for:")
-        for project in projects:
-            assertContains(response, project.name)
-            assertContains(response, project.central_server.base_url)
-        assertNotContains(response, "QR codes regenerated for:")
-
-    def test_regenerate_action_shows_consolidated_success_message(
-        self, client, user, settings_obj, mocker
-    ):
-        """A single consolidated success message lists every project whose QR codes
-        were successfully regenerated.
-        """
-        projects = ProjectFactory.create_batch(2, collect_settings=settings_obj)
-        mocker.patch("apps.publish_mdm.admin.generate_and_save_app_user_collect_qrcodes")
-        data = {
-            "name": settings_obj.name,
-            "organization": settings_obj.organization_id,
-            "general_app_language": "en",
-            "save_action": BaseCollectSettingsForm.SAVE_ACTION_REGENERATE,
-        }
-        response = client.post(
-            reverse("admin:publish_mdm_collectsettings_change", args=[settings_obj.id]),
-            data=data,
-            follow=True,
-        )
-        assert response.status_code == 200
-        assertContains(response, "QR codes regenerated for:")
-        for project in projects:
-            assertContains(response, project.name)
-            assertContains(response, project.central_server.base_url)
-        assertNotContains(response, "QR codes could not be regenerated for:")
-
-    def test_regenerate_action_regenerates_qr_codes_for_linked_projects(
-        self, client, user, settings_obj, mocker
-    ):
-        """Posting save_action=regenerate calls generate_and_save_app_user_collect_qrcodes
-        for each project linked to the CollectSettings.
-        """
-        projects = ProjectFactory.create_batch(2, collect_settings=settings_obj)
-        mock_generate = mocker.patch(
-            "apps.publish_mdm.admin.generate_and_save_app_user_collect_qrcodes"
-        )
-        data = {
-            "name": settings_obj.name,
-            "organization": settings_obj.organization_id,
-            "general_app_language": "en",
-            "save_action": BaseCollectSettingsForm.SAVE_ACTION_REGENERATE,
-        }
-        response = client.post(
-            reverse("admin:publish_mdm_collectsettings_change", args=[settings_obj.id]),
-            data=data,
-        )
-        assert response.status_code == 302, "Expected redirect after successful save"
-        assert mock_generate.call_count == 2
-        called_projects = {call.args[0] for call in mock_generate.call_args_list}
-        assert called_projects == set(projects)
+        assertContains(response, "Could not queue QR code regeneration and device push")

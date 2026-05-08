@@ -28,7 +28,7 @@ from pytest_django.asserts import (
     assertRedirects,
     assertTemplateNotUsed,
 )
-from requests.exceptions import HTTPError, RequestException
+from requests.exceptions import HTTPError
 
 from apps.mdm.mdms import TinyMDM, get_active_mdm_class
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
@@ -3937,16 +3937,37 @@ class TestEditCollectSettings(ViewTestBase):
         )
         assert "Successfully edited Updated Name." in response.content.decode()
 
-    def test_regenerate_action_shows_consolidated_warning_on_error(
+    def test_regenerate_action_triggers_dagster_job(self, client, url, user, settings_obj, mocker):
+        """Posting save_action=regenerate triggers the Dagster regenerate_collect_qr_codes_job
+        with the correct run config.
+        """
+        mock_trigger = mocker.patch("apps.publish_mdm.views.trigger_dagster_job")
+        data = {
+            "name": "Updated Name",
+            "general_app_language": "en",
+            "save_action": CollectSettingsForm.SAVE_ACTION_REGENERATE,
+        }
+        response = client.post(url, data=data, follow=True)
+        assert response.status_code == 200
+        mock_trigger.assert_called_once_with(
+            job_name="regenerate_collect_qr_codes_job",
+            run_config={
+                "ops": {
+                    "regenerate_collect_qr_codes_and_push_to_devices": {
+                        "config": {"collect_settings_pk": settings_obj.pk}
+                    }
+                }
+            },
+        )
+        assertContains(response, "QR code regeneration and device push queued successfully.")
+
+    def test_regenerate_action_shows_warning_on_dagster_error(
         self, client, url, user, settings_obj, mocker
     ):
-        """A single consolidated warning lists every project where QR code generation
-        raised a RequestException or PyODKError.
-        """
-        projects = ProjectFactory.create_batch(2, collect_settings=settings_obj)
+        """A Dagster trigger failure shows a warning message."""
         mocker.patch(
-            "apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes",
-            side_effect=RequestException("connection failed"),
+            "apps.publish_mdm.views.trigger_dagster_job",
+            side_effect=Exception("Dagster unavailable"),
         )
         data = {
             "name": "Updated Name",
@@ -3955,32 +3976,7 @@ class TestEditCollectSettings(ViewTestBase):
         }
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
-        assertContains(response, "QR codes could not be regenerated for:")
-        for project in projects:
-            assertContains(response, project.name)
-            assertContains(response, project.central_server.base_url)
-        assertNotContains(response, "QR codes regenerated for:")
-
-    def test_regenerate_action_shows_consolidated_success_message(
-        self, client, url, user, settings_obj, mocker
-    ):
-        """A single consolidated success message lists every project whose QR codes
-        were successfully regenerated.
-        """
-        projects = ProjectFactory.create_batch(2, collect_settings=settings_obj)
-        mocker.patch("apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes")
-        data = {
-            "name": "Updated Name",
-            "general_app_language": "en",
-            "save_action": CollectSettingsForm.SAVE_ACTION_REGENERATE,
-        }
-        response = client.post(url, data=data, follow=True)
-        assert response.status_code == 200
-        assertContains(response, "QR codes regenerated for:")
-        for project in projects:
-            assertContains(response, project.name)
-            assertContains(response, project.central_server.base_url)
-        assertNotContains(response, "QR codes could not be regenerated for:")
+        assertContains(response, "Could not queue QR code regeneration and device push.")
 
     def test_wrong_org_returns_404(self, client, url, user, organization):
         """Attempting to edit a CollectSettings from another org returns 404."""
@@ -3999,14 +3995,14 @@ class TestEditCollectSettings(ViewTestBase):
         assert response.status_code == 200
         assert "save_action" in response.context["form"].fields
 
-    def test_save_only_action_does_not_regenerate_qr_codes(
+    def test_save_only_action_does_not_trigger_dagster_job(
         self, client, url, user, settings_obj, mocker
     ):
-        """Posting save_action=save_only does not trigger QR code regeneration."""
+        """Posting save_action=save_only does not trigger the regenerate_collect_qr_codes_job
+        Dagster job.
+        """
         ProjectFactory(collect_settings=settings_obj)
-        mock_generate = mocker.patch(
-            "apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes"
-        )
+        mock_trigger = mocker.patch("apps.publish_mdm.views.trigger_dagster_job")
         data = {
             "name": "Updated Name",
             "general_app_language": "en",
@@ -4014,25 +4010,4 @@ class TestEditCollectSettings(ViewTestBase):
         }
         response = client.post(url, data=data, follow=True)
         assert response.status_code == 200
-        mock_generate.assert_not_called()
-
-    def test_regenerate_action_regenerates_qr_codes_for_linked_projects(
-        self, client, url, user, settings_obj, mocker
-    ):
-        """Posting save_action=regenerate calls generate_and_save_app_user_collect_qrcodes
-        for each project linked to the CollectSettings object.
-        """
-        projects = ProjectFactory.create_batch(2, collect_settings=settings_obj)
-        mock_generate = mocker.patch(
-            "apps.publish_mdm.views.generate_and_save_app_user_collect_qrcodes"
-        )
-        data = {
-            "name": "Updated Name",
-            "general_app_language": "en",
-            "save_action": CollectSettingsForm.SAVE_ACTION_REGENERATE,
-        }
-        response = client.post(url, data=data, follow=True)
-        assert response.status_code == 200
-        assert mock_generate.call_count == 2
-        called_projects = {call.args[0] for call in mock_generate.call_args_list}
-        assert called_projects == set(projects)
+        mock_trigger.assert_not_called()
