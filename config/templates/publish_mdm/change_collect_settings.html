@@ -11,8 +11,8 @@
                rel="noopener noreferrer">ODK Collect docs</a>
             for the full list of settings.
         </p>
-        <p class="mb-1">The following fields are set automatically and cannot be set here:</p>
-        <ul class="list-disc ps-5">
+        <p class="mb-1">The following settings are set automatically and cannot be set here:</p>
+        <ul class="list-disc ps-5 mb-3">
             <li>
                 <code>general.server_url</code> — ODK Central URL with app user token.
             </li>
@@ -26,6 +26,9 @@
                 <code>admin.admin_pw</code> — add an <code>admin_pw</code> template variable to set this.
             </li>
         </ul>
+        <p>
+            These settings are omitted: <code>general.password</code>, <code>general.formlist_url</code>, <code>general.submission_url</code>.
+        </p>
     </div>
     <form method="post"
           x-data="{submitting: false}"
@@ -84,51 +87,6 @@
                             {{ form.project_icon.label_tag }}
                             {{ form.project_icon }}
                             {{ form.project_icon.errors }}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {# ------------------------------------------------------------------ #}
-            {# Server #}
-            {# ------------------------------------------------------------------ #}
-            <h2 id="collect-heading-server">
-                <button type="button"
-                        class="flex items-center justify-between w-full p-3 font-medium text-left text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 gap-3"
-                        data-accordion-target="#collect-body-server"
-                        aria-expanded="false"
-                        aria-controls="collect-body-server">
-                    <span>Server</span>
-                    <svg data-accordion-icon
-                         class="w-5 h-5 rotate-180 shrink-0"
-                         aria-hidden="true"
-                         xmlns="http://www.w3.org/2000/svg"
-                         width="24"
-                         height="24"
-                         fill="none"
-                         viewBox="0 0 24 24">
-                        <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m5 15 7-7 7 7" />
-                    </svg>
-                </button>
-            </h2>
-            <div id="collect-body-server"
-                 class="hidden"
-                 aria-labelledby="collect-heading-server">
-                <div class="p-3 border-b border-gray-200 dark:border-gray-700">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                            {{ form.general_password.label_tag }}
-                            {{ form.general_password }}
-                            {{ form.general_password.errors }}
-                        </div>
-                        <div>
-                            {{ form.general_formlist_url.label_tag }}
-                            {{ form.general_formlist_url }}
-                            {{ form.general_formlist_url.errors }}
-                        </div>
-                        <div>
-                            {{ form.general_submission_url.label_tag }}
-                            {{ form.general_submission_url }}
-                            {{ form.general_submission_url.errors }}
                         </div>
                     </div>
                 </div>

@@ -92,17 +92,6 @@ class CollectSettingsAdmin(admin.ModelAdmin):
             },
         ),
         (
-            "ODK Collect: General — Server",
-            {
-                "fields": (
-                    "general_password",
-                    "general_formlist_url",
-                    "general_submission_url",
-                ),
-                "classes": ("collapse",),
-            },
-        ),
-        (
             "ODK Collect: General — User Interface",
             {
                 "fields": (

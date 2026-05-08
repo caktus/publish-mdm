@@ -498,24 +498,7 @@ class CollectSettings(AbstractBaseModel):
         default="",
         verbose_name="Email address (metadata)",
     )
-    general_password = models.CharField(
-        max_length=255,
-        blank=True,
-        default="",
-        verbose_name="Password",
-    )
-    general_formlist_url = models.CharField(
-        max_length=2048,
-        blank=True,
-        default="",
-        verbose_name="Form list URL",
-    )
-    general_submission_url = models.CharField(
-        max_length=2048,
-        blank=True,
-        default="",
-        verbose_name="Submission URL",
-    )
+
     general_basemap_source = models.CharField(
         max_length=20,
         choices=BASEMAP_SOURCE_CHOICES,

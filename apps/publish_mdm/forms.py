@@ -400,10 +400,6 @@ class BaseCollectSettingsForm(forms.ModelForm):
             # Project display
             "project_color",
             "project_icon",
-            # General — Server
-            "general_password",
-            "general_formlist_url",
-            "general_submission_url",
             # General — User interface
             "general_app_language",
             "general_font_size",
@@ -514,9 +510,6 @@ class CollectSettingsForm(PlatformFormMixin, BaseCollectSettingsForm):
             "general_metadata_username": TextInput,
             "general_metadata_phonenumber": TextInput,
             "general_metadata_email": TextInput,
-            "general_password": TextInput(attrs={"type": "password", "autocomplete": "off"}),
-            "general_formlist_url": TextInput,
-            "general_submission_url": TextInput,
             "general_basemap_source": Select,
             "general_google_map_style": Select,
             "general_mapbox_map_style": Select,
