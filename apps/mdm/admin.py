@@ -403,6 +403,13 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
         "device_id",
         "raw_mdm_device",
         "latest_snapshot",
+        "screen_stream_token",
+        "auth_public_key_pem",
+        "auth_public_key_fingerprint",
+        "auth_key_bound_at",
+        "auth_key_version",
+        "auth_key_state",
+        "fcm_token",
     )
     list_filter = ("fleet", "manufacturer", "model", "app_user_name", "deleted_at")
     import_form_class = DeviceImportForm
