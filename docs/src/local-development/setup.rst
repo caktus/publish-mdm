@@ -143,7 +143,7 @@ a. Grant the service account access to the Firebase project.
       search for "Firebase Cloud Messaging API".
 
 b. Set ``FIREBASE_PROJECT_ID`` to the Firebase project ID (the string ID, e.g.
-   ``android-firmware-app``, visible at the top of the Firebase Console).
+   ``publish-mdm``, visible at the top of the Firebase Console).
 
    This is required because the service account's home GCP project differs from
    the Firebase project, so the Admin SDK needs an explicit project override.

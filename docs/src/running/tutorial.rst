@@ -53,7 +53,7 @@ Development <../local-development/index>` guide to run Publish MDM locally.
         Android Device Policy the right to publish to it. If the ``configure_amapi_pubsub`` command
         is not run, real-time device enrollment notifications will not be enabled when an enterprise is created.
       - ``FIREBASE_PROJECT_ID``: (Required for FCM screen-share) The string project ID of the
-        Firebase project used by the firmware app (e.g. ``android-firmware-app``). The same service
+        Firebase project used by the firmware app (e.g. ``publish-mdm``). The same service
         account file is used to send FCM messages, but the service account must also be granted the
         ``Firebase Cloud Messaging Admin`` role (``roles/firebase.cloudmessaging.admin``) in that
         Firebase project's IAM settings, and the Firebase Cloud Messaging API (v1) must be enabled.
