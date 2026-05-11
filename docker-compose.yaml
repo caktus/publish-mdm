@@ -12,7 +12,7 @@ services:
     ports:
       - "9062:5432"
     volumes:
-      - dev_pgdata:/var/lib/postgresql/data
+      - dev_pgdata:/var/lib/postgresql
 
   infisical:
     restart: unless-stopped
@@ -50,7 +50,7 @@ services:
     restart: always
     env_file: .infisical.env
     volumes:
-      - infisical_pgdata:/var/lib/postgresql/data
+      - infisical_pgdata:/var/lib/postgresql
     ports:
       - "9063:5432"
     healthcheck:
