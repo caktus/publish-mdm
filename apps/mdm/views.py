@@ -51,12 +51,12 @@ from .models import (
     ScreenShareAuditLog,
     ScreenShareSession,
 )
+from .serializers import FIRMWARE_APP_PACKAGE
 from .tables import EnrollmentTokenTable, PolicyTable
 from .utils import get_callback_domain
 
 logger = structlog.get_logger()
 
-EXPECTED_AGENT_PACKAGE = "com.publishmdm.agent"
 CHALLENGE_TTL_SECONDS = 60
 SESSION_TTL_SECONDS = 60
 TIMESTAMP_SKEW_SECONDS = 30
@@ -186,7 +186,7 @@ def device_register_key_view(request):
         return HttpResponse(status=400)
     if len(device_id) > 255 or len(public_key_pem) > 8192:
         return HttpResponse(status=400)
-    if package_name != EXPECTED_AGENT_PACKAGE:
+    if package_name != FIRMWARE_APP_PACKAGE:
         return HttpResponse(status=403)
 
     device = _find_device(device_id)
