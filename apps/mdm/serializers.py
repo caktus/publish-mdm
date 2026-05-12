@@ -144,13 +144,19 @@ class PolicySerializer:
 
         # Firmware agent app is always pinned — force-installed, permissions always
         # granted, high-priority auto-update.  Not user-configurable.
+        # Note: COMPANION_APP role prevents user uninstall and data clearing regardless
+        # of installType, so it is omitted when installType is AVAILABLE (local dev).
         firmware_entry: dict = {
             "packageName": FIRMWARE_APP_PACKAGE,
             "installType": FIRMWARE_APP_INSTALL_TYPE,
             "defaultPermissionPolicy": "GRANT",
             "autoUpdateMode": "AUTO_UPDATE_HIGH_PRIORITY",
-            "roles": [{"roleType": "COMPANION_APP"}],
         }
+        # For production, use COMPANION_APP role to prevent user uninstall and data
+        # clearing of the firmware agent. Leaving this set in local development
+        # prevents the developer from uninstalling the app for testing local APK builds.
+        if FIRMWARE_APP_INSTALL_TYPE == "FORCE_INSTALLED":
+            firmware_entry["roles"] = [{"roleType": "COMPANION_APP"}]
         if PUBLISH_MDM_AGENT_TRACK_IDS:
             firmware_entry["accessibleTrackIds"] = PUBLISH_MDM_AGENT_TRACK_IDS
         managed_config: dict = {"base_url": f"https://{get_callback_domain()}/mdm/api/firmware/"}
