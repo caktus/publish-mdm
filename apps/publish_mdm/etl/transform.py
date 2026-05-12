@@ -7,7 +7,6 @@ from gspread.utils import ExportFormat
 
 from apps.publish_mdm.etl.template import (
     build_entity_list_mapping,
-    set_survey_attachments,
     set_survey_template_variables,
     update_entity_references,
     update_setting_variables,
@@ -21,7 +20,6 @@ logger = structlog.getLogger(__name__)
 def render_template_for_app_user(
     app_user: AppUser,
     template_version: FormTemplateVersion,
-    attachments: dict | None = None,
 ) -> SimpleUploadedFile:
     """Create the next version of the app user's form."""
     workbook = openpyxl.load_workbook(filename=template_version.file)
@@ -33,8 +31,6 @@ def render_template_for_app_user(
     form_variables = [var for var in variables if var.name not in {"admin_pw"}]
     set_survey_template_variables(sheet=workbook["survey"], variables=form_variables)
 
-    # Detect static attachments in the survey sheet
-    set_survey_attachments(sheet=workbook["survey"], attachments=attachments)
     logger.debug("App user variables", variables=variables)
 
     # Update ODK entity references on both the survey and entities sheets

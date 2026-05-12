@@ -12,12 +12,10 @@ from apps.publish_mdm.etl.template import (
     VariableTransform,
     build_entity_list_mapping,
     discover_entity_lists,
-    set_survey_attachments,
     set_survey_template_variables,
     update_entity_references,
     update_setting_variables,
 )
-from tests.publish_mdm.factories import ProjectAttachmentFactory, ProjectFactory
 
 
 @pytest.fixture(scope="module")
@@ -92,25 +90,6 @@ class TestTemplate:
         assert settings_sheet["A2"].value == f"{title_base} [11030]"
         assert settings_sheet["B2"].value == f"{form_id_base}_11030"
         assert settings_sheet["C2"].value == version
-
-    @pytest.mark.django_db
-    def test_set_attachments(self, survey_sheet):
-        """Test setting a static attachment."""
-        # Create one attachment with the name in the in the survey sheet
-        project = ProjectFactory()
-        should_detect = [
-            ProjectAttachmentFactory(name="logo.png", project=project),
-            ProjectAttachmentFactory(name="vegetables.csv", project=project),
-        ]
-        # Create 3 more attachments that are not used in the survey sheet
-        ProjectAttachmentFactory.create_batch(2, project=project)
-        ProjectAttachmentFactory(name="unused.csv", project=project)
-        attachments = {i.name: i.file for i in project.attachments.all()}
-        assert len(attachments) == 5
-        set_survey_attachments(sheet=survey_sheet, attachments=attachments)
-        # The `attachments` dictionary has been updated and only contains the
-        # attachment that was detected in the form
-        assert attachments == {i.name: i.file for i in should_detect}
 
     def test_set_template_variable_not_in_sheet(self, survey_sheet):
         """Attempting to set a template variable that is not in the survey sheet

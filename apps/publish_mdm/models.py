@@ -424,7 +424,6 @@ class FormTemplateVersion(AbstractBaseModel):
         self,
         app_users: models.QuerySet["AppUser"] | None = None,
         send_message=None,
-        attachments: dict | None = None,
     ) -> list["AppUserFormVersion"]:
         """Create the next version of this form template for each app user."""
         app_user_versions = []
@@ -435,9 +434,7 @@ class FormTemplateVersion(AbstractBaseModel):
         # Create the next version for each app user
         for app_user_form in AppUserFormTemplate.objects.filter(q):
             logger.info("Creating next AppUserFormVersion", app_user_form=app_user_form)
-            app_user_version = app_user_form.create_next_version(
-                form_template_version=self, attachments=attachments
-            )
+            app_user_version = app_user_form.create_next_version(form_template_version=self)
             xml_form_id = app_user_version.app_user_form_template.xml_form_id
             version = app_user_version.form_template_version.version
             if send_message:
@@ -598,14 +595,12 @@ class AppUserFormTemplate(AbstractBaseModel):
         """The ODK Central xmlFormId for this AppUserFormTemplate."""
         return f"{self.form_template.form_id_base}_{self.app_user.name}"
 
-    def create_next_version(
-        self, form_template_version: FormTemplateVersion, attachments: dict | None = None
-    ):
+    def create_next_version(self, form_template_version: FormTemplateVersion):
         """Create the next version of this app user form template."""
         from .etl.transform import render_template_for_app_user  # noqa: PLC0415
 
         version_file = render_template_for_app_user(
-            app_user=self.app_user, template_version=form_template_version, attachments=attachments
+            app_user=self.app_user, template_version=form_template_version
         )
         return AppUserFormVersion.objects.create(
             app_user_form_template=self,

@@ -1,14 +1,18 @@
 import datetime as dt
 from collections import defaultdict
 from os import PathLike
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import structlog
 from pydantic import Field
 from pyodk._endpoints import bases
 from pyodk._endpoints.form_assignments import FormAssignmentService
-from pyodk._endpoints.forms import Form
+from pyodk._endpoints.form_draft_attachments import FormDraftAttachmentService
+from pyodk._endpoints.form_drafts import FormDraftService
+from pyodk._endpoints.forms import Form, FormService
 from pyodk._endpoints.project_app_users import ProjectAppUser, ProjectAppUserService
+from pyodk.errors import PyODKError
 
 from .constants import APP_USER_ROLE_ID
 
@@ -17,6 +21,84 @@ if TYPE_CHECKING:
 
 
 logger = structlog.getLogger(__name__)
+
+
+class FormDraftAttachment(bases.Model):
+    """Represents an attachment expected by a form draft.
+    https://docs.getodk.org/central-api-form-management/#listing-expected-draft-form-attachments
+    """
+
+    name: str
+    type: str  # image | audio | video | file
+    exists: bool  # True if blobExists or datasetExists
+    datasetExists: bool  # File is linked to an entity list / dataset
+    blobExists: bool  # Server has the file content
+    hash: str | None = None  # MD5 hash of attachment content
+    updatedAt: dt.datetime | None = None
+
+
+class PublishMDMFormService(FormService):
+    """FormService subclass that overrides the create() and update() methods to
+    create/update form drafts without auto-publishing, so callers can clean up
+    stale attachments before publishing the draft.
+    """
+
+    def create(
+        self,
+        definition: PathLike | str | bytes,
+        attachments=None,
+        ignore_warnings: bool | None = True,
+        form_id: str | None = None,
+        project_id: int | None = None,
+    ) -> Form:
+        """Copy of FormService.create() but creates a form draft without publishing it."""
+        fd = FormDraftService(session=self.session, **self._default_kw())
+        pid, _, headers, params, form_def = fd._prep_form_post(
+            definition=definition,
+            ignore_warnings=ignore_warnings,
+            form_id=form_id,
+            project_id=project_id,
+        )
+        params["publish"] = False
+        response = self.session.response_or_error(
+            method="POST",
+            url=self.session.urlformat(self.urls.forms, project_id=pid),
+            logger=logger,
+            headers=headers,
+            params=params,
+            data=form_def,
+        )
+        form = Form(**response.json())
+        fp_ids = {"form_id": form.xmlFormId, "project_id": project_id}
+        if attachments is not None:
+            fda = FormDraftAttachmentService(session=self.session, **self._default_kw())
+            for attach in attachments:
+                if not fda.upload(file_path=attach, **fp_ids):
+                    raise PyODKError("Form create (attachment upload) failed.")
+        return form
+
+    def update(
+        self,
+        form_id: str,
+        project_id: int | None = None,
+        definition: PathLike | str | bytes | None = None,
+        attachments=None,
+        version_updater=None,
+    ) -> None:
+        """Copy of FormService.update() but updates a form draft without publishing it."""
+        if definition is None and attachments is None:
+            raise PyODKError("Must specify a form definition and/or attachments.")
+        if definition is not None and version_updater is not None:
+            raise PyODKError("Must not specify both a definition and version_updater.")
+        fp_ids = {"form_id": form_id, "project_id": project_id}
+        fd = FormDraftService(session=self.session, **self._default_kw())
+        if not fd.create(definition=definition, **fp_ids):
+            raise PyODKError("Form update (form draft create) failed.")
+        if attachments is not None:
+            fda = FormDraftAttachmentService(session=self.session, **self._default_kw())
+            for attach in attachments:
+                if not fda.upload(file_path=attach, **fp_ids):
+                    raise PyODKError("Form update (attachment upload) failed.")
 
 
 class ProjectAppUserAssignment(ProjectAppUser):
@@ -139,7 +221,6 @@ class PublishService(bases.Service):
         self,
         xml_form_id: str,
         definition: PathLike | bytes,
-        attachments: list[PathLike | bytes] | None = None,
         project_id: int | None = None,
     ) -> Form:
         """Return forms for the given form IDs, creating them if they don't exist."""
@@ -149,7 +230,6 @@ class PublishService(bases.Service):
             self.client.forms.update(
                 form_id=xml_form_id,
                 definition=definition,
-                attachments=attachments,
                 project_id=project_id,
             )
             # Retrieve updated form to get the version
@@ -166,7 +246,6 @@ class PublishService(bases.Service):
             form = self.client.forms.create(
                 form_id=xml_form_id,
                 definition=definition,
-                attachments=attachments,
                 project_id=project_id,
             )
             logger.info(
@@ -177,6 +256,116 @@ class PublishService(bases.Service):
                 name=form.name,
             )
         return form
+
+    def sync_form_attachments(
+        self,
+        xml_form_id: str,
+        attachment_map: dict[str, Path],
+        draft_attachments: list[FormDraftAttachment],
+        project_id: int | None = None,
+    ) -> None:
+        """Upload expected attachments and clear stale ones from the current form draft.
+
+        For each attachment in draft_attachments where datasetExists=False:
+        - If the attachment name is in attachment_map, upload it using the canonical name.
+        - If the attachment exists on the server (exists=True) but is not in
+          attachment_map, clear it.
+
+        draft_attachments should be the result of list_form_attachments() for this form,
+        passed in by the caller to avoid a redundant API call.
+        """
+        project_id = project_id or self.client.project_id
+        fda = FormDraftAttachmentService(session=self.client.session, default_project_id=project_id)
+        fp_ids = {"form_id": xml_form_id, "project_id": project_id}
+        for attachment in draft_attachments:
+            if attachment.datasetExists:
+                continue
+            if attachment.name in attachment_map:
+                logger.info(
+                    "Uploading form attachment",
+                    xml_form_id=xml_form_id,
+                    attachment_name=attachment.name,
+                    project_id=project_id,
+                )
+                if not fda.upload(
+                    file_path=attachment_map[attachment.name], file_name=attachment.name, **fp_ids
+                ):
+                    raise PyODKError(f"Form attachment upload failed for {attachment.name}.")
+            else:
+                logger.warning(
+                    "Expected form attachment not found in project attachments",
+                    xml_form_id=xml_form_id,
+                    attachment_name=attachment.name,
+                    project_id=project_id,
+                )
+                if attachment.exists:
+                    logger.info(
+                        "Clearing stale form attachment",
+                        xml_form_id=xml_form_id,
+                        attachment_name=attachment.name,
+                        project_id=project_id,
+                    )
+                    self.clear_form_attachment(
+                        xml_form_id=xml_form_id,
+                        attachment_name=attachment.name,
+                        project_id=project_id,
+                    )
+
+    def publish_form_draft(
+        self,
+        xml_form_id: str,
+        project_id: int | None = None,
+    ) -> None:
+        """Publish the current draft for the given form.
+        https://docs.getodk.org/central-api-form-management/#publishing-a-draft-form
+        """
+        project_id = project_id or self.client.project_id
+        fd = FormDraftService(
+            session=self.client.session,
+            default_project_id=project_id,
+        )
+        if not fd.publish(form_id=xml_form_id, project_id=project_id):
+            raise PyODKError("Form draft publish failed.")
+        logger.info(
+            "Published form draft",
+            xml_form_id=xml_form_id,
+            project_id=project_id,
+        )
+
+    def list_form_attachments(
+        self,
+        xml_form_id: str,
+        project_id: int | None = None,
+    ) -> list[FormDraftAttachment]:
+        """List the expected attachments for the current form draft.
+        https://docs.getodk.org/central-api-form-management/#listing-expected-draft-form-attachments
+        """
+        project_id = project_id or self.client.project_id
+        response = self.client.get(f"projects/{project_id}/forms/{xml_form_id}/draft/attachments")
+        response.raise_for_status()
+        return [FormDraftAttachment(**item) for item in response.json()]
+
+    def clear_form_attachment(
+        self,
+        xml_form_id: str,
+        attachment_name: str,
+        project_id: int | None = None,
+    ) -> None:
+        """Clear a single attachment from the current form draft.
+        https://docs.getodk.org/central-api-form-management/#clearing-a-draft-form-attachment
+        """
+        project_id = project_id or self.client.project_id
+        encoded_name = self.client.session.urlquote(attachment_name)
+        response = self.client.delete(
+            f"projects/{project_id}/forms/{xml_form_id}/draft/attachments/{encoded_name}"
+        )
+        response.raise_for_status()
+        logger.info(
+            "Cleared form attachment",
+            xml_form_id=xml_form_id,
+            attachment_name=attachment_name,
+            project_id=project_id,
+        )
 
     def get_app_users_assigned_to_form(self, project_id, form_id):
         """Get a set with the IDs of all app users that have been assigned to a form.

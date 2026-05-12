@@ -1,5 +1,6 @@
 import datetime as dt
 import tempfile
+from pathlib import Path
 
 import boto3
 import pytest
@@ -12,7 +13,7 @@ from apps.publish_mdm.etl.load import (
     attachment_paths_for_upload,
     publish_form_template,
 )
-from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
+from apps.publish_mdm.etl.odk.publish import FormDraftAttachment, ProjectAppUserAssignment
 from tests.publish_mdm.factories import (
     AppUserFormTemplateFactory,
     FormTemplateFactory,
@@ -72,9 +73,8 @@ class TestPublishFormTemplate:
         user_form1 = AppUserFormTemplateFactory(form_template=form_template, app_user__name="user1")
         user_form2 = AppUserFormTemplateFactory(form_template=form_template, app_user__name="user2")
         event = PublishTemplateEvent(form_template=form_template.id, app_users=["user1"])
-        # Create 2 static attachments. Since `render_template_for_app_user` is mocked,
-        # `set_survey_attachments` will not actually be called, so both attachments
-        # should be included in the call to `create_or_update_form()`
+        # Create 2 static attachments. list_form_attachments is mocked to return both
+        # names so both should be included in attachment_map passed to sync_form_attachments.
         attachments = ProjectAttachmentFactory.create_batch(2, project=project)
         # Mock Gspread download
         mock_gspread_client = mocker.patch("apps.publish_mdm.etl.google.gspread_client")
@@ -93,7 +93,6 @@ class TestPublishFormTemplate:
             "apps.publish_mdm.etl.odk.publish.PublishService.get_unique_version_by_form_id",
             return_value="2025-02-01-v1",
         )
-
         assignments = {
             "user1": ProjectAppUserAssignment(
                 projectId=project.central_id,
@@ -126,6 +125,27 @@ class TestPublishFormTemplate:
             "apps.publish_mdm.etl.odk.publish.PublishService.create_or_update_form",
             return_value=mocker.Mock(),
         )
+        mock_list_form_attachments = mocker.patch(
+            "apps.publish_mdm.etl.odk.publish.PublishService.list_form_attachments",
+            return_value=[
+                FormDraftAttachment(
+                    name=att.name,
+                    type="file",
+                    exists=False,
+                    blobExists=False,
+                    datasetExists=False,
+                    hash=None,
+                    updatedAt=None,
+                )
+                for att in attachments
+            ],
+        )
+        mock_sync_form_attachments = mocker.patch(
+            "apps.publish_mdm.etl.odk.publish.PublishService.sync_form_attachments"
+        )
+        mock_publish_form_draft = mocker.patch(
+            "apps.publish_mdm.etl.odk.publish.PublishService.publish_form_draft"
+        )
         mock_assign_app_users_forms = mocker.patch(
             "apps.publish_mdm.etl.odk.publish.PublishService.assign_app_users_forms"
         )
@@ -138,19 +158,25 @@ class TestPublishFormTemplate:
         mock_get_version.assert_called_once_with(
             xml_form_id_base=form_template.form_id_base, form_template=form_template
         )
-        mock_create_or_update_form.assert_called_once()
-        for call in mock_create_or_update_form.mock_calls:
-            call.kwargs["xml_form_id"] = user_form1.xml_form_id
-            call.kwargs["definition"] = b"file content"
-            if using_s3_storage:
-                # Paths should be local temp file paths
-                assert len(call.kwargs["attachments"]) == len(attachments)
-                for index, attachment in enumerate(attachments):
-                    assert call.kwargs["attachments"][index].match(
-                        f"{tempfile.gettempdir()}/*/{attachment.name}"
-                    )
-            else:
-                assert call.kwargs["attachments"] == [i.file.path for i in attachments]
+        mock_create_or_update_form.assert_called_once_with(
+            xml_form_id=user_form1.xml_form_id,
+            definition=b"file content",
+        )
+        mock_list_form_attachments.assert_called_once_with(xml_form_id=user_form1.xml_form_id)
+        mock_sync_form_attachments.assert_called_once()
+        mock_publish_form_draft.assert_called_once()
+        # Verify attachment_map, draft_attachments, and xml_form_id passed to sync_form_attachments
+        [sync_call] = mock_sync_form_attachments.call_args_list
+        assert sync_call.kwargs["xml_form_id"] == user_form1.xml_form_id
+        assert sync_call.kwargs["draft_attachments"] == mock_list_form_attachments.return_value
+        attachment_map = sync_call.kwargs["attachment_map"]
+        assert set(attachment_map.keys()) == {att.name for att in attachments}
+        if using_s3_storage:
+            for att in attachments:
+                assert attachment_map[att.name].match(f"{tempfile.gettempdir()}/*/{att.name}")
+        else:
+            for att in attachments:
+                assert attachment_map[att.name] == Path(att.file.path)
         mock_assign_app_users_forms.assert_has_calls(
             [
                 mocker.call(app_users=[assignments["user1"]]),
