@@ -15,7 +15,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.core.files.base import ContentFile
-from django.db.models import Count, F, Max, Q
+from django.db.models import Count, Max, Q
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.crypto import get_random_string
@@ -191,6 +191,7 @@ def device_register_key_view(request):
 
     device = _find_device(device_id)
     if not device:
+        logger.warning("Device not found during key registration", device_id=device_id)
         return HttpResponse(status=404)
 
     # Validate bind_code if provided; otherwise allow direct registration
@@ -581,11 +582,21 @@ def _push_policy_to_mdm(policy, request):
         logger.error("Failed to push base policy to MDM", policy=policy, exc_info=True)
     child_devices = Device.objects.filter(
         fleet__policy=policy,
-        raw_mdm_device__policyName__endswith=F("device_id"),
+        raw_mdm_device__isnull=False,
     )
     device_pks = list(child_devices.values_list("pk", flat=True))
     if not device_pks:
+        logger.debug(
+            "No enrolled devices found for policy; skipping per-device push",
+            policy=policy,
+        )
         return
+    logger.debug(
+        "Queuing per-device config push via Dagster",
+        policy=policy,
+        device_count=len(device_pks),
+        device_pks=device_pks,
+    )
     run_config = {"ops": {"push_mdm_device_config": {"config": {"device_pks": device_pks}}}}
     try:
         trigger_dagster_job(job_name="mdm_job", run_config=run_config)

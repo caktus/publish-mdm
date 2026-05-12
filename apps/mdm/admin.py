@@ -76,12 +76,11 @@ class PolicyAdmin(admin.ModelAdmin):
                     ),
                 )
             if change:
-                # Update the policies for all related Devices that have a child
-                # policy (device-specific policy) asynchronously via Dagster so
-                # the admin save does not block.
+                # Push the updated policy to all enrolled devices asynchronously
+                # via Dagster so the admin save does not block.
                 child_devices = Device.objects.filter(
                     fleet__policy=policy,
-                    raw_mdm_device__policyName__endswith=models.F("device_id"),
+                    raw_mdm_device__isnull=False,
                 )
                 device_pks = list(child_devices.values_list("pk", flat=True))
                 if device_pks:

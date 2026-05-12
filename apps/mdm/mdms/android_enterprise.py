@@ -477,7 +477,7 @@ class AndroidEnterprise(MDM):
             policy=device.fleet.policy,
         )
         self.execute(self.api.enterprises().policies().patch(name=policy_name, body=policy_data))
-        current_policy_name = device.raw_mdm_device["policyName"]
+        current_policy_name = device.raw_mdm_device.get("policyName", "")
         if current_policy_name != policy_name:
             # Update the policyName for the device
             logger.debug(
@@ -915,14 +915,15 @@ class AndroidEnterprise(MDM):
                 update_fields=["name", "device_id", "raw_mdm_device", "serial_number"],
                 push_to_mdm=False,
             )
+            device_to_push = existing_device
         else:
             logger.info(
                 "Creating new device from ENROLLMENT notification",
                 device_id=mdm_device.id,
                 fleet=fleet,
             )
-            device = self._create_device(fleet, mdm_device)
-            device.save(push_to_mdm=False)
+            device_to_push = self._create_device(fleet, mdm_device)
+            device_to_push.save(push_to_mdm=False)
 
         if previous_names := mdm_device.get("previousDeviceNames"):
             count = Device.objects.filter(name__in=previous_names).soft_delete()
@@ -931,6 +932,10 @@ class AndroidEnterprise(MDM):
                 count=count,
                 previous_names=previous_names,
             )
+
+        # Push the device-specific policy so the device immediately receives
+        # its device_identifier in the firmware app's managed configuration.
+        self.push_device_config(device_to_push)
 
     def _handle_status_report_notification(self, mdm_device: MDMDevice) -> None:
         """Update device metadata and create a snapshot from a STATUS_REPORT notification."""
@@ -953,18 +958,16 @@ class AndroidEnterprise(MDM):
             push_to_mdm=False,
         )
 
-        # If the device just finished enrolling, has an assigned app user, and hasn't
-        # yet received a device-specific policy, push its config now.
+        # If the device just finished enrolling and hasn't yet received a
+        # device-specific policy, push its config now so it gets its device_identifier.
         if (
             previous_state == "PROVISIONING"
             and mdm_device.get("state") == "ACTIVE"
-            and existing_device.app_user_name
             and not mdm_device.get("policyName", "").endswith(mdm_device.id)
         ):
             logger.info(
                 "Device transitioned from PROVISIONING to ACTIVE; pushing device config",
                 device_id=mdm_device.id,
-                app_user_name=existing_device.app_user_name,
             )
             self.push_device_config(existing_device)
         # Only create a snapshot when the notification carries enough information.

@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from string import Template
 from typing import TYPE_CHECKING
 
+import structlog
+
 if TYPE_CHECKING:
     from apps.mdm.models import Device, Policy, PolicyApplication, PolicyVariable
 
@@ -28,6 +30,8 @@ PUBLISH_MDM_AGENT_TRACK_IDS: list[str] = [
     # https://play.google.com/console/u/0/developers/7481408635650691303/app/4972886268045285910/tracks/4699961510397865384?tab=testers
     "4699961510397865384",
 ]
+
+logger = structlog.get_logger()
 
 
 @dataclass
@@ -130,10 +134,11 @@ class PolicySerializer:
         }
         if PUBLISH_MDM_AGENT_TRACK_IDS:
             firmware_entry["accessibleTrackIds"] = PUBLISH_MDM_AGENT_TRACK_IDS
-        firmware_entry["managedConfiguration"] = {
-            "base_url": f"https://{get_callback_domain()}/mdm/api/firmware/",
-            "device_identifier": "${serial_number}",
-        }
+        managed_config: dict = {"base_url": f"https://{get_callback_domain()}/mdm/api/firmware/"}
+        if self.device and self.device.device_id:
+            managed_config["device_identifier"] = self.device.device_id
+        firmware_entry["managedConfiguration"] = managed_config
+        logger.debug("Adding firmware agent app to policy", managed_config=managed_config)
         apps.append(firmware_entry)
 
         for app in self.applications:

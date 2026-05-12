@@ -848,8 +848,9 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
         assert response.status_code == 204
         mock_notification_handler.assert_not_called()
 
-    def test_enrollment_creates_new_device(self, client):
+    def test_enrollment_creates_new_device(self, client, mocker):
         """An ENROLLMENT notification for a new device creates a Device record."""
+        mocker.patch.object(AndroidEnterprise, "push_device_config")
         fleet = FleetFactory()
         device_data = {
             "name": "enterprises/test/devices/newdevice1",
@@ -865,8 +866,9 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
         assert device.serial_number == "SN-NEW-001"
         assert device.name == device_data["name"]
 
-    def test_enrollment_updates_existing_device(self, client):
+    def test_enrollment_updates_existing_device(self, client, mocker):
         """An ENROLLMENT notification for an existing device updates it."""
+        mocker.patch.object(AndroidEnterprise, "push_device_config")
         fleet = FleetFactory()
         device = DeviceFactory(fleet=fleet, device_id="existingdev1", serial_number="OLD-SN")
         device_data = {
@@ -932,7 +934,7 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
 
     def test_status_report_pushes_config_on_provisioning_to_active(self, client, mocker):
         """STATUS_REPORT PROVISIONING→ACTIVE calls push_device_config for a device
-        with an app_user_name that doesn't yet have a device-specific policy."""
+        that doesn't yet have a device-specific policy."""
         mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
         fleet = FleetFactory()
         device = DeviceFactory(
@@ -971,6 +973,68 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
         assert response.status_code == 204
         assert DeviceSnapshot.objects.count() == before
 
+    def test_enrollment_calls_push_device_config_for_new_device(self, client, mocker):
+        """ENROLLMENT notification for a new device calls push_device_config so the
+        device immediately receives its device_identifier in the firmware managed config."""
+        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        fleet = FleetFactory()
+        device_data = {
+            "name": "enterprises/test/devices/newpushdev",
+            "state": "PROVISIONING",
+            "policyName": f"enterprises/test/policies/{fleet.policy.policy_id}",
+            "enrollmentTokenData": json.dumps({"fleet": fleet.pk}),
+            "hardwareInfo": {"serialNumber": "SN-PUSH-001"},
+        }
+        body = self.build_pubsub_body(device_data, "ENROLLMENT")
+        response = self.post(client, body)
+        assert response.status_code == 204
+        device = Device.objects.get(device_id="newpushdev")
+        mock_push.assert_called_once_with(device)
+
+    def test_enrollment_calls_push_device_config_for_existing_device(self, client, mocker):
+        """ENROLLMENT notification for an existing device (re-enrollment) also calls
+        push_device_config to refresh its device_identifier."""
+        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        fleet = FleetFactory()
+        device = DeviceFactory(fleet=fleet, device_id="reenrolldev", serial_number="OLD-SN")
+        device_data = {
+            "name": "enterprises/test/devices/reenrolldev",
+            "state": "PROVISIONING",
+            "policyName": f"enterprises/test/policies/{fleet.policy.policy_id}",
+            "enrollmentTokenData": json.dumps({"fleet": fleet.pk}),
+            "hardwareInfo": {"serialNumber": "NEW-SN"},
+        }
+        body = self.build_pubsub_body(device_data, "ENROLLMENT")
+        response = self.post(client, body)
+        assert response.status_code == 204
+        mock_push.assert_called_once_with(device)
+
+    def test_status_report_pushes_config_without_app_user(self, client, mocker):
+        """STATUS_REPORT PROVISIONING→ACTIVE calls push_device_config even for devices
+        without an assigned app user, so they receive their device_identifier."""
+        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        fleet = FleetFactory()
+        device = DeviceFactory(
+            fleet=fleet,
+            device_id="noappuserdev",
+            app_user_name="",
+            raw_mdm_device={
+                "name": "enterprises/test/devices/noappuserdev",
+                "state": "PROVISIONING",
+                "policyName": f"enterprises/test/policies/{fleet.policy.policy_id}",
+            },
+        )
+        device_data = {
+            "name": "enterprises/test/devices/noappuserdev",
+            "state": "ACTIVE",
+            "policyName": f"enterprises/test/policies/{fleet.policy.policy_id}",
+            "hardwareInfo": {"serialNumber": "SN-NOAPP"},
+        }
+        body = self.build_pubsub_body(device_data, "STATUS_REPORT")
+        response = self.post(client, body)
+        assert response.status_code == 204
+        mock_push.assert_called_once_with(device)
+
 
 # ---------------------------------------------------------------------------
 # _push_policy_to_mdm — Dagster integration
@@ -986,12 +1050,19 @@ class TestPushPolicyToMdmDagster(PolicyViewBase, TestAndroidEnterpriseOnly):
         policy = PolicyFactory(organization=organization)
         fleet = FleetFactory(policy=policy)
         devices = []
+        # Two devices already on device-specific policies.
         for device in DeviceFactory.build_batch(2, fleet=fleet):
             device.raw_mdm_device = {
                 "policyName": f"enterprises/test/policies/fleet{fleet.id}_{device.device_id}"
             }
             device.save()
             devices.append(device)
+        # One device still on the base fleet policy — this is the regression case:
+        # previously these were excluded from the Dagster push.
+        base_device = DeviceFactory.build(fleet=fleet)
+        base_device.raw_mdm_device = {"policyName": f"enterprises/test/policies/{policy.policy_id}"}
+        base_device.save()
+        devices.append(base_device)
         return policy, devices
 
     @pytest.fixture

@@ -552,7 +552,7 @@ class TestPolicySerializer(TestAllMDMs):
         ANDROID_ENTERPRISE_CALLBACK_DOMAIN is set."""
         settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN = "example.ngrok-free.app"
         policy = PolicyFactory()
-        device = DeviceFactory(serial_number="SN-ABC")
+        device = DeviceFactory(device_id="test-device-abc")
         result = PolicySerializer(policy=policy, device=device).to_dict()
         firmware = next(
             a for a in result["applications"] if a["packageName"] == FIRMWARE_APP_PACKAGE
@@ -561,11 +561,12 @@ class TestPolicySerializer(TestAllMDMs):
         assert firmware["managedConfiguration"]["base_url"] == (
             "https://example.ngrok-free.app/mdm/api/firmware/"
         )
-        assert firmware["managedConfiguration"]["device_identifier"] == "SN-ABC"
+        assert firmware["managedConfiguration"]["device_identifier"] == "test-device-abc"
 
     def test_firmware_app_managed_config_always_injected(self, settings):
         """managedConfiguration is always injected — using whatever domain get_callback_domain()
-        resolves to (ANDROID_ENTERPRISE_CALLBACK_DOMAIN, ALLOWED_HOSTS, or Site)."""
+        resolves to (ANDROID_ENTERPRISE_CALLBACK_DOMAIN, ALLOWED_HOSTS, or Site).
+        Without a device, device_identifier is omitted."""
         settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN = ""
         settings.ALLOWED_HOSTS = ["fallback.example.com"]
         policy = PolicyFactory()
@@ -577,6 +578,20 @@ class TestPolicySerializer(TestAllMDMs):
         assert firmware["managedConfiguration"]["base_url"] == (
             "https://fallback.example.com/mdm/api/firmware/"
         )
+        assert "device_identifier" not in firmware["managedConfiguration"]
+
+    def test_firmware_app_device_identifier_omitted_when_device_id_empty(self, settings):
+        """device_identifier is omitted from the firmware managed config when the
+        device has no device_id set."""
+        settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN = "example.ngrok-free.app"
+        policy = PolicyFactory()
+        device = DeviceFactory(device_id=None)
+        result = PolicySerializer(policy=policy, device=device).to_dict()
+        firmware = next(
+            a for a in result["applications"] if a["packageName"] == FIRMWARE_APP_PACKAGE
+        )
+        assert "managedConfiguration" in firmware
+        assert "device_identifier" not in firmware["managedConfiguration"]
 
     def test_firmware_app_duplicate_db_row_skipped(self):
         """A PolicyApplication DB row for the firmware package is not duplicated."""
