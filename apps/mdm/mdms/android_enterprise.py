@@ -355,7 +355,11 @@ class AndroidEnterprise(MDM):
         logger.debug("Creating device snapshots", fleet=fleet, total_devices=len(mdm_devices))
         snapshots: list[DeviceSnapshot] = []
         for mdm_device in mdm_devices:
-            last_sync = dt.datetime.fromisoformat(mdm_device["lastPolicySyncTime"])
+            last_sync = (
+                dt.datetime.fromisoformat(mdm_device["lastPolicySyncTime"])
+                if "lastPolicySyncTime" in mdm_device
+                else sync_time
+            )
             hardware_info = mdm_device["hardwareInfo"]
             # softwareInfo is only available if enabled on the policy
             sofware_info = mdm_device.get("softwareInfo", {})
