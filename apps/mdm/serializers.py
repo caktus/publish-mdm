@@ -34,6 +34,8 @@ FIRMWARE_APP_PACKAGE = "com.publishmdm.agent"
 FIRMWARE_APP_INSTALL_TYPE_VALID = {"FORCE_INSTALLED", "AVAILABLE", "OPTIONAL", "REQUIRED_FOR_SETUP"}
 FIRMWARE_APP_INSTALL_TYPE = os.getenv("FIRMWARE_APP_INSTALL_TYPE", "FORCE_INSTALLED")
 
+logger = structlog.get_logger()
+
 if FIRMWARE_APP_INSTALL_TYPE not in FIRMWARE_APP_INSTALL_TYPE_VALID:
     logger.warning(
         "Invalid FIRMWARE_APP_INSTALL_TYPE; using default",
@@ -49,8 +51,6 @@ PUBLISH_MDM_AGENT_TRACK_IDS: list[str] = [
     # https://play.google.com/console/u/0/developers/7481408635650691303/app/4972886268045285910/tracks/4699961510397865384?tab=testers
     "4699961510397865384",
 ]
-
-logger = structlog.get_logger()
 
 
 @dataclass
