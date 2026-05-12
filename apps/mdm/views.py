@@ -42,7 +42,6 @@ from .mdms import get_active_mdm_instance
 from .models import (
     Device,
     DeviceAuthChallenge,
-    DeviceBindCode,
     EnrollmentToken,
     Policy,
     PolicyApplication,

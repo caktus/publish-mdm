@@ -800,29 +800,6 @@ class Device(SoftDeleteModel):
             return software_info.get("androidBuildNumber")
 
 
-class DeviceBindCode(models.Model):
-    """One-time bootstrap code used to bind a device public key."""
-
-    device = models.ForeignKey(
-        Device,
-        on_delete=models.CASCADE,
-        related_name="bind_codes",
-    )
-    code_hash = models.CharField(max_length=64, db_index=True)
-    expires_at = models.DateTimeField()
-    used_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        indexes = (
-            models.Index(fields=["device", "expires_at"]),
-            models.Index(fields=["used_at"]),
-        )
-
-    def __str__(self):
-        return f"BindCode({self.device_id}, expires={self.expires_at})"
-
-
 class DeviceAuthChallenge(models.Model):
     """One-time challenge used for runtime device proof-of-possession."""
 

@@ -28,6 +28,7 @@ from .import_export import DeviceResource
 from .mdms import get_active_mdm_instance
 from .models import (
     Device,
+    DeviceAuthChallenge,
     DeviceSnapshot,
     DeviceSnapshotApp,
     FirmwareSnapshot,
@@ -35,6 +36,8 @@ from .models import (
     Policy,
     PolicyApplication,
     PolicyVariable,
+    ScreenShareAuditLog,
+    ScreenShareSession,
 )
 
 logger = structlog.getLogger(__name__)
@@ -563,3 +566,86 @@ class FirmwareSnapshotAdmin(admin.ModelAdmin):
         "synced_at",
         "raw_data",
     )
+
+
+@admin.register(DeviceAuthChallenge)
+class DeviceAuthChallengeAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "device",
+        "challenge_id",
+        "request_id",
+        "expires_at",
+        "used_at",
+        "created_at",
+    )
+    search_fields = (
+        "challenge_id",
+        "device__device_id",
+        "device__name",
+        "device__serial_number",
+        "request_id",
+    )
+    list_filter = ("expires_at", "used_at", "created_at")
+    list_select_related = ("device",)
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+    readonly_fields = (
+        "challenge_id",
+        "device",
+        "request_id",
+        "nonce",
+        "expires_at",
+        "used_at",
+        "created_at",
+    )
+
+
+@admin.register(ScreenShareSession)
+class ScreenShareSessionAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "device",
+        "session_id",
+        "request_id",
+        "expires_at",
+        "used_at",
+        "created_at",
+    )
+    search_fields = (
+        "session_id",
+        "device__device_id",
+        "device__name",
+        "device__serial_number",
+        "request_id",
+    )
+    list_filter = ("expires_at", "used_at", "created_at")
+    list_select_related = ("device",)
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+    readonly_fields = (
+        "session_id",
+        "token_hash",
+        "device",
+        "request_id",
+        "expires_at",
+        "used_at",
+        "created_at",
+    )
+
+
+@admin.register(ScreenShareAuditLog)
+class ScreenShareAuditLogAdmin(admin.ModelAdmin):
+    list_display = ("id", "event_type", "device", "actor", "ip_address", "created_at")
+    search_fields = (
+        "event_type",
+        "device__device_id",
+        "device__name",
+        "actor__username",
+        "ip_address",
+    )
+    list_filter = ("event_type", "created_at")
+    list_select_related = ("device", "actor")
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+    readonly_fields = ("event_type", "device", "actor", "ip_address", "metadata_json", "created_at")
