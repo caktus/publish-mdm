@@ -16,6 +16,11 @@ urlpatterns = [
         "mdm/api/devices/register-key/", views.device_register_key_view, name="device-register-key"
     ),
     path(
+        "mdm/api/devices/attestation/nonce/",
+        views.device_attestation_nonce_view,
+        name="device-attestation-nonce",
+    ),
+    path(
         "mdm/api/devices/auth/challenge/",
         views.device_auth_challenge_view,
         name="device-auth-challenge",

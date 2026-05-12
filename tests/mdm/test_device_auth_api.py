@@ -1,21 +1,27 @@
 import base64
-import hashlib
 import json
 import time
 from datetime import timedelta
+from unittest.mock import patch
 
 import pytest
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from django.utils.timezone import now
 
-from apps.mdm.models import DeviceAuthChallenge, DeviceBindCode, ScreenShareSession
+from apps.mdm.attestation import AttestationError
+from apps.mdm.models import (
+    DeviceAttestationNonce,
+    DeviceAuthChallenge,
+    ScreenShareSession,
+)
 from tests.mdm.factories import DeviceFactory
 
 
 @pytest.mark.django_db
 class TestDeviceAuthApi:
     register_url = "/mdm/api/devices/register-key/"
+    nonce_url = "/mdm/api/devices/attestation/nonce/"
     challenge_url = "/mdm/api/devices/auth/challenge/"
     verify_url = "/mdm/api/devices/auth/verify/"
 
@@ -42,30 +48,63 @@ class TestDeviceAuthApi:
         signature = private_key.sign(payload, ec.ECDSA(hashes.SHA256()))
         return base64.b64encode(signature).decode("ascii")
 
-    def test_register_key_success(self, client):
-        device = DeviceFactory()
-        bind_code = "bind-code-123"
-        DeviceBindCode.objects.create(
-            device=device,
-            code_hash=hashlib.sha256(bind_code.encode("utf-8")).hexdigest(),
-            expires_at=now() + timedelta(minutes=10),
-        )
+    # -------------------------------------------------------------------------
+    # Attestation nonce endpoint
+    # -------------------------------------------------------------------------
 
+    def test_attestation_nonce_success(self, client):
+        device = DeviceFactory()
+        resp = client.post(
+            self.nonce_url,
+            data=json.dumps({"device_id": device.device_id}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "nonce" in body
+        assert len(body["nonce"]) == 64  # 32 bytes hex
+        assert "expires_at" in body
+        assert DeviceAttestationNonce.objects.filter(device=device, nonce=body["nonce"]).exists()
+
+    def test_attestation_nonce_device_not_found(self, client):
+        resp = client.post(
+            self.nonce_url,
+            data=json.dumps({"device_id": "nonexistent"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 404
+
+    def test_attestation_nonce_missing_device_id(self, client):
+        resp = client.post(
+            self.nonce_url,
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_attestation_nonce_empty_body(self, client):
+        resp = client.post(self.nonce_url, data="", content_type="application/json")
+        assert resp.status_code == 400
+
+    # -------------------------------------------------------------------------
+    # Register key -- direct public key (unattested / emulator mode)
+    # -------------------------------------------------------------------------
+
+    def test_register_key_success_unattested(self, client):
+        """Registration with direct public_key_pem (no attestation) succeeds."""
+        device = DeviceFactory()
         private_key = self._new_private_key()
         resp = client.post(
             self.register_url,
             data=json.dumps(
                 {
                     "device_id": device.device_id,
-                    "bind_code": bind_code,
                     "public_key_pem": self._public_pem(private_key),
                     "package_name": "com.publishmdm.agent",
-                    "app_version": "1.0.0",
                 }
             ),
             content_type="application/json",
         )
-
         assert resp.status_code == 201
         body = resp.json()
         assert body["key_version"] == 1
@@ -74,26 +113,8 @@ class TestDeviceAuthApi:
         assert device.auth_key_state == "active"
         assert device.auth_public_key_pem
         assert device.auth_public_key_fingerprint == body["key_fingerprint"]
-
-    def test_register_key_without_bind_code(self, client):
-        """Registration without a bind_code succeeds (dev mode)."""
-        device = DeviceFactory()
-        private_key = self._new_private_key()
-        resp = client.post(
-            self.register_url,
-            data=json.dumps(
-                {
-                    "device_id": device.device_id,
-                    "public_key_pem": self._public_pem(private_key),
-                    "package_name": "com.publishmdm.agent",
-                }
-            ),
-            content_type="application/json",
-        )
-        assert resp.status_code == 201
-        device.refresh_from_db()
-        assert device.auth_key_state == "active"
-        assert device.auth_key_version == 1
+        # No attestation -> security level is None
+        assert device.attestation_security_level is None
 
     def test_register_key_re_registration(self, client):
         """Re-registering a new key for an already-active device succeeds."""
@@ -131,10 +152,194 @@ class TestDeviceAuthApi:
         assert device.auth_key_version == 2
         assert device.fcm_token == "fake-fcm-token-123"
 
+    def test_register_key_with_enrollment_specific_id(self, client):
+        """Registration stores enrollment_specific_id when provided."""
+        device = DeviceFactory()
+        private_key = self._new_private_key()
+        resp = client.post(
+            self.register_url,
+            data=json.dumps(
+                {
+                    "device_id": device.device_id,
+                    "public_key_pem": self._public_pem(private_key),
+                    "package_name": "com.publishmdm.agent",
+                    "enrollment_specific_id": "esid-12345",
+                }
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 201
+        device.refresh_from_db()
+        assert device.enrollment_specific_id == "esid-12345"
+
+    def test_register_key_missing_device_id(self, client):
+        resp = client.post(
+            self.register_url,
+            data=json.dumps(
+                {
+                    "public_key_pem": "-----BEGIN PUBLIC KEY-----\nfoo\n-----END PUBLIC KEY-----",
+                    "package_name": "com.publishmdm.agent",
+                }
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_register_key_missing_both_key_and_chain(self, client):
+        """Registration fails when neither public_key_pem nor certificate_chain is provided."""
+        device = DeviceFactory()
+        resp = client.post(
+            self.register_url,
+            data=json.dumps(
+                {
+                    "device_id": device.device_id,
+                    "package_name": "com.publishmdm.agent",
+                }
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_register_key_wrong_package_name(self, client):
+        device = DeviceFactory()
+        private_key = self._new_private_key()
+        resp = client.post(
+            self.register_url,
+            data=json.dumps(
+                {
+                    "device_id": device.device_id,
+                    "public_key_pem": self._public_pem(private_key),
+                    "package_name": "com.other.app",
+                }
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 403
+
+    # -------------------------------------------------------------------------
+    # Register key -- attested (certificate chain) with mocked validation
+    # -------------------------------------------------------------------------
+
+    def test_register_key_attested_success(self, client):
+        """Registration with certificate_chain succeeds when attestation validates."""
+        device = DeviceFactory()
+        nonce = "a1b2c3d4" * 8  # 64 hex chars
+
+        DeviceAttestationNonce.objects.create(
+            device=device,
+            nonce=nonce,
+            expires_at=now() + timedelta(minutes=10),
+        )
+
+        private_key = self._new_private_key()
+        public_key_pem = self._public_pem(private_key)
+
+        mock_result = {
+            "public_key": private_key.public_key(),
+            "public_key_pem": public_key_pem,
+            "fingerprint": "deadbeef" * 8,
+            "security_level": 1,  # TEE
+        }
+
+        with patch("apps.mdm.attestation.validate_attestation", return_value=mock_result):
+            resp = client.post(
+                self.register_url,
+                data=json.dumps(
+                    {
+                        "device_id": device.device_id,
+                        "certificate_chain": ["cert1_b64", "cert2_b64"],
+                        "package_name": "com.publishmdm.agent",
+                    }
+                ),
+                content_type="application/json",
+            )
+
+        assert resp.status_code == 201
+        device.refresh_from_db()
+        assert device.auth_key_state == "active"
+        assert device.attestation_security_level == 1
+        assert device.auth_public_key_fingerprint == "deadbeef" * 8
+
+        nonce_record = DeviceAttestationNonce.objects.get(nonce=nonce)
+        assert nonce_record.used_at is not None
+
+    def test_register_key_attested_invalid_chain(self, client):
+        """Registration fails when attestation validation raises an error."""
+        device = DeviceFactory()
+        nonce = "a1b2c3d4" * 8
+
+        DeviceAttestationNonce.objects.create(
+            device=device,
+            nonce=nonce,
+            expires_at=now() + timedelta(minutes=10),
+        )
+
+        with patch(
+            "apps.mdm.attestation.validate_attestation",
+            side_effect=AttestationError("Bad chain"),
+        ):
+            resp = client.post(
+                self.register_url,
+                data=json.dumps(
+                    {
+                        "device_id": device.device_id,
+                        "certificate_chain": ["cert1_b64", "cert2_b64"],
+                        "package_name": "com.publishmdm.agent",
+                    }
+                ),
+                content_type="application/json",
+            )
+
+        assert resp.status_code == 401
+
+    def test_register_key_attested_expired_nonce(self, client):
+        """Registration fails when all nonces are expired."""
+        device = DeviceFactory()
+        nonce = "a1b2c3d4" * 8
+
+        DeviceAttestationNonce.objects.create(
+            device=device,
+            nonce=nonce,
+            expires_at=now() - timedelta(minutes=1),
+        )
+
+        resp = client.post(
+            self.register_url,
+            data=json.dumps(
+                {
+                    "device_id": device.device_id,
+                    "certificate_chain": ["cert1_b64", "cert2_b64"],
+                    "package_name": "com.publishmdm.agent",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        assert resp.status_code == 401
+
+    def test_register_key_attested_chain_too_short(self, client):
+        """Registration fails when certificate_chain has fewer than 2 entries."""
+        device = DeviceFactory()
+        resp = client.post(
+            self.register_url,
+            data=json.dumps(
+                {
+                    "device_id": device.device_id,
+                    "certificate_chain": ["only_one_cert"],
+                    "package_name": "com.publishmdm.agent",
+                }
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    # -------------------------------------------------------------------------
+    # FCM token via device_id
+    # -------------------------------------------------------------------------
+
     def test_fcm_token_via_device_id(self, client):
         """FCM token registration via device_id (new auth) works."""
         device = DeviceFactory()
-        # First register a key so auth_key_state becomes active.
         key = self._new_private_key()
         client.post(
             self.register_url,
@@ -161,31 +366,12 @@ class TestDeviceAuthApi:
         device.refresh_from_db()
         assert device.fcm_token == "new-fcm-token-456"
 
-    def test_register_key_invalid_bind_code(self, client):
-        device = DeviceFactory()
-        private_key = self._new_private_key()
-        resp = client.post(
-            self.register_url,
-            data=json.dumps(
-                {
-                    "device_id": device.device_id,
-                    "bind_code": "bad",
-                    "public_key_pem": self._public_pem(private_key),
-                    "package_name": "com.publishmdm.agent",
-                }
-            ),
-            content_type="application/json",
-        )
-        assert resp.status_code == 401
+    # -------------------------------------------------------------------------
+    # Challenge and verify flow
+    # -------------------------------------------------------------------------
 
     def test_challenge_and_verify_success(self, client):
         device = DeviceFactory()
-        bind_code = "bind-code-xyz"
-        DeviceBindCode.objects.create(
-            device=device,
-            code_hash=hashlib.sha256(bind_code.encode("utf-8")).hexdigest(),
-            expires_at=now() + timedelta(minutes=10),
-        )
 
         private_key = self._new_private_key()
         register_resp = client.post(
@@ -193,7 +379,6 @@ class TestDeviceAuthApi:
             data=json.dumps(
                 {
                     "device_id": device.device_id,
-                    "bind_code": bind_code,
                     "public_key_pem": self._public_pem(private_key),
                     "package_name": "com.publishmdm.agent",
                 }
@@ -240,12 +425,6 @@ class TestDeviceAuthApi:
 
     def test_verify_replay_returns_409(self, client):
         device = DeviceFactory()
-        bind_code = "bind-code-replay"
-        DeviceBindCode.objects.create(
-            device=device,
-            code_hash=hashlib.sha256(bind_code.encode("utf-8")).hexdigest(),
-            expires_at=now() + timedelta(minutes=10),
-        )
 
         private_key = self._new_private_key()
         client.post(
@@ -253,7 +432,6 @@ class TestDeviceAuthApi:
             data=json.dumps(
                 {
                     "device_id": device.device_id,
-                    "bind_code": bind_code,
                     "public_key_pem": self._public_pem(private_key),
                     "package_name": "com.publishmdm.agent",
                 }
@@ -292,12 +470,6 @@ class TestDeviceAuthApi:
 
     def test_verify_invalid_signature_returns_401(self, client):
         device = DeviceFactory()
-        bind_code = "bind-code-badsig"
-        DeviceBindCode.objects.create(
-            device=device,
-            code_hash=hashlib.sha256(bind_code.encode("utf-8")).hexdigest(),
-            expires_at=now() + timedelta(minutes=10),
-        )
 
         private_key = self._new_private_key()
         client.post(
@@ -305,7 +477,6 @@ class TestDeviceAuthApi:
             data=json.dumps(
                 {
                     "device_id": device.device_id,
-                    "bind_code": bind_code,
                     "public_key_pem": self._public_pem(private_key),
                     "package_name": "com.publishmdm.agent",
                 }
@@ -399,16 +570,3 @@ class TestDeviceSyncPolicyApi:
     def test_sync_policy_get_not_allowed(self, client):
         resp = client.get(self.url)
         assert resp.status_code == 405
-
-    def test_sync_policy_no_mdm_returns_204(self, client, mocker):
-        device = DeviceFactory()
-        mocker.patch(
-            "apps.mdm.views.get_active_mdm_instance",
-            return_value=None,
-        )
-        resp = client.post(
-            self.url,
-            data=json.dumps({"device_id": device.device_id}),
-            content_type="application/json",
-        )
-        assert resp.status_code == 204

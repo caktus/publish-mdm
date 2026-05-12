@@ -24,6 +24,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django_tables2.config import RequestConfig
 
+from apps.mdm.attestation import AttestationError, validate_attestation
 from apps.publish_mdm.models import AndroidEnterpriseAccount
 from apps.publish_mdm.nav import Breadcrumbs
 from apps.publish_mdm.utils import create_qr_code
@@ -41,6 +42,7 @@ from .forms import (
 from .mdms import get_active_mdm_instance
 from .models import (
     Device,
+    DeviceAttestationNonce,
     DeviceAuthChallenge,
     EnrollmentToken,
     Policy,
@@ -203,7 +205,69 @@ def device_fcm_token_view(request):
 
 @csrf_exempt
 @require_POST
+def device_attestation_nonce_view(request):
+    """Issue a single-use nonce for hardware key attestation.
+
+    The device embeds this nonce as the ``attestationChallenge`` when generating
+    a hardware-backed key pair.  The nonce is valid for 10 minutes and can only
+    be used once.
+
+    Accepts ``device_id`` in the JSON body.
+    """
+    if _is_rate_limited("attest-nonce-ip", _client_ip(request), limit=20, window_seconds=60):
+        return HttpResponse(status=429)
+
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return HttpResponse(status=400)
+
+    device_id = body.get("device_id", "").strip()
+    if not device_id or len(device_id) > 255:
+        return HttpResponse(status=400)
+
+    device = _find_device(device_id)
+    if not device:
+        return HttpResponse(status=404)
+
+    nonce = secrets.token_hex(32)  # 32 bytes = 64 hex chars
+    nonce_record = DeviceAttestationNonce.objects.create(
+        nonce=nonce,
+        device=device,
+        expires_at=now() + dt.timedelta(seconds=DeviceAttestationNonce.NONCE_TTL_SECONDS),
+    )
+
+    _audit_event(
+        "attestation_nonce_issued",
+        request,
+        device=device,
+    )
+
+    return JsonResponse(
+        {
+            "nonce": nonce,
+            "expires_at": nonce_record.expires_at.isoformat(),
+        }
+    )
+
+
+@csrf_exempt
+@require_POST
 def device_register_key_view(request):
+    """Register a device's public key using hardware-backed key attestation.
+
+    Accepts either:
+    - ``certificate_chain``: List of Base64-encoded DER X.509 certificates
+      (leaf first, root last) from Android Key Attestation. The leaf cert must
+      contain the server-issued nonce as the attestation challenge.
+    - ``public_key_pem``: Direct PEM public key (only when attestation is not
+      required, e.g., emulators with ``require_hardware_attestation=false``).
+
+    When ``certificate_chain`` is provided, the server validates:
+    1. The chain roots in a Google Hardware Attestation Root CA
+    2. The attestation challenge matches the issued nonce
+    3. The security level indicates hardware backing (TEE or StrongBox)
+    """
     if _is_rate_limited("register-key-ip", _client_ip(request), limit=20, window_seconds=60):
         return HttpResponse(status=429)
 
@@ -213,14 +277,15 @@ def device_register_key_view(request):
         return HttpResponse(status=400)
 
     device_id = body.get("device_id", "").strip()
-    bind_code = body.get("bind_code", "").strip()
-    public_key_pem = body.get("public_key_pem", "").strip()
     package_name = body.get("package_name", "").strip()
     fcm_token = body.get("fcm_token", "").strip()
+    certificate_chain = body.get("certificate_chain")
+    public_key_pem = body.get("public_key_pem", "").strip()
+    enrollment_specific_id = body.get("enrollment_specific_id", "").strip()
 
-    if not device_id or not public_key_pem or not package_name:
+    if not device_id or not package_name:
         return HttpResponse(status=400)
-    if len(device_id) > 255 or len(public_key_pem) > 8192:
+    if len(device_id) > 255:
         return HttpResponse(status=400)
     if package_name != FIRMWARE_APP_PACKAGE:
         return HttpResponse(status=403)
@@ -230,37 +295,81 @@ def device_register_key_view(request):
         logger.warning("Device not found during key registration", device_id=device_id)
         return HttpResponse(status=404)
 
-    # Validate bind_code if provided; otherwise allow direct registration
-    # (suitable for development — production should always require a bind code).
-    if bind_code:
-        if len(bind_code) > 512:
-            return HttpResponse(status=400)
-        bind_code_hash = _sha256_hex(bind_code)
-        bind_code_record = (
-            DeviceBindCode.objects.filter(
-                device=device,
-                code_hash=bind_code_hash,
-                used_at__isnull=True,
-            )
-            .order_by("-created_at")
-            .first()
-        )
-        if not bind_code_record or bind_code_record.expires_at <= now():
-            _audit_event("register_key_invalid_bind_code", request, device=device)
-            return HttpResponse(status=401)
-    else:
-        bind_code_record = None
-
-    key = _load_ec_public_key(public_key_pem)
-    if key is None:
-        return HttpResponse(status=400)
-
-    public_key_der = key.public_bytes(
-        encoding=serialization.Encoding.DER,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo,
-    )
-    fingerprint = hashlib.sha256(public_key_der).hexdigest()
     bound_at = now()
+
+    if certificate_chain:
+        # Hardware attestation path
+        if not isinstance(certificate_chain, list) or len(certificate_chain) < 2:
+            return HttpResponse(status=400)
+        if len(certificate_chain) > 10:
+            return HttpResponse(status=400)
+
+        # Find the nonce that matches the attestation challenge
+        # Look up unexpired, unused nonces for this device
+        valid_nonces = DeviceAttestationNonce.objects.filter(
+            device=device,
+            used_at__isnull=True,
+            expires_at__gt=bound_at,
+        ).order_by("-created_at")[:5]
+
+        attestation_result = None
+        matched_nonce = None
+        for nonce_record in valid_nonces:
+            try:
+                attestation_result = validate_attestation(
+                    encoded_certs=certificate_chain,
+                    expected_nonce=nonce_record.nonce.encode("utf-8"),
+                    require_hardware=True,
+                )
+                matched_nonce = nonce_record
+                break
+            except AttestationError as exc:
+                logger.warning(
+                    "Attestation validation attempt failed",
+                    error=str(exc),
+                    device_id=device_id,
+                    chain_len=len(certificate_chain),
+                    nonce_prefix=nonce_record.nonce[:16],
+                )
+                continue
+
+        if attestation_result is None or matched_nonce is None:
+            _audit_event(
+                "register_key_attestation_failed",
+                request,
+                device=device,
+            )
+            return JsonResponse(
+                {"error": "Attestation validation failed"},
+                status=401,
+            )
+
+        # Mark the nonce as used
+        matched_nonce.used_at = bound_at
+        matched_nonce.save(update_fields=["used_at"])
+
+        fingerprint = attestation_result["fingerprint"]
+        key_pem = attestation_result["public_key_pem"]
+        security_level = attestation_result["security_level"]
+
+    elif public_key_pem:
+        # Direct public key path (emulator/dev mode — no attestation)
+        if len(public_key_pem) > 8192:
+            return HttpResponse(status=400)
+
+        key = _load_ec_public_key(public_key_pem)
+        if key is None:
+            return HttpResponse(status=400)
+
+        public_key_der = key.public_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        fingerprint = hashlib.sha256(public_key_der).hexdigest()
+        key_pem = public_key_pem
+        security_level = None
+    else:
+        return HttpResponse(status=400)
 
     update_fields = [
         "auth_public_key_pem",
@@ -268,13 +377,19 @@ def device_register_key_view(request):
         "auth_key_bound_at",
         "auth_key_version",
         "auth_key_state",
+        "attestation_security_level",
     ]
 
-    device.auth_public_key_pem = public_key_pem
+    device.auth_public_key_pem = key_pem
     device.auth_public_key_fingerprint = fingerprint
     device.auth_key_bound_at = bound_at
     device.auth_key_version = max(0, device.auth_key_version) + 1
     device.auth_key_state = "active"
+    device.attestation_security_level = security_level
+
+    if enrollment_specific_id and len(enrollment_specific_id) <= 255:
+        device.enrollment_specific_id = enrollment_specific_id
+        update_fields.append("enrollment_specific_id")
 
     if fcm_token and len(fcm_token) <= 256:
         device.fcm_token = fcm_token
@@ -282,16 +397,14 @@ def device_register_key_view(request):
 
     device.save(update_fields=update_fields)
 
-    if bind_code_record:
-        bind_code_record.used_at = bound_at
-        bind_code_record.save(update_fields=["used_at"])
-
     _audit_event(
         "register_key_success",
         request,
         device=device,
         key_fingerprint=fingerprint,
         key_version=device.auth_key_version,
+        security_level=security_level,
+        attested=certificate_chain is not None,
     )
     return JsonResponse(
         {

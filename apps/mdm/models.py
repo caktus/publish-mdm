@@ -686,6 +686,17 @@ class Device(SoftDeleteModel):
         default="",
         help_text="Firebase Cloud Messaging registration token for the firmware app.",
     )
+    attestation_security_level = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Hardware attestation security level: 0=Software, 1=TEE, 2=StrongBox.",
+    )
+    enrollment_specific_id = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="AMAPI enrollment-specific ID anchoring this device to its management session.",
+    )
 
     class Meta:
         constraints = (
@@ -885,6 +896,37 @@ class ScreenShareAuditLog(models.Model):
 
     def __str__(self):
         return f"AuditLog({self.event_type}, device={self.device_id}, {self.created_at})"
+
+
+class DeviceAttestationNonce(models.Model):
+    """Single-use, short-lived nonce for hardware key attestation during registration.
+
+    The server issues a nonce; the device embeds it in the attestation certificate's
+    challenge field.  The server then verifies the nonce matches before accepting the
+    public key.
+    """
+
+    NONCE_TTL_SECONDS = 600  # 10 minutes
+
+    nonce = models.CharField(max_length=128, unique=True)
+    device = models.ForeignKey(
+        Device,
+        on_delete=models.CASCADE,
+        related_name="attestation_nonces",
+    )
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = (
+            models.Index(fields=["nonce"]),
+            models.Index(fields=["device"]),
+            models.Index(fields=["expires_at"]),
+        )
+
+    def __str__(self):
+        return f"AttestationNonce(device={self.device_id}, expires={self.expires_at})"
 
 
 class DeviceSnapshot(models.Model):
