@@ -8,6 +8,11 @@ urlpatterns = [
     path("mdm/api/firmware/", views.firmware_snapshot_view, name="firmware_snapshot"),
     path("mdm/api/devices/fcm-token/", views.device_fcm_token_view, name="device-fcm-token"),
     path(
+        "mdm/api/devices/sync-policy/",
+        views.device_sync_policy_view,
+        name="device-sync-policy",
+    ),
+    path(
         "mdm/api/devices/register-key/", views.device_register_key_view, name="device-register-key"
     ),
     path(

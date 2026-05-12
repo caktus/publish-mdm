@@ -340,3 +340,75 @@ class TestDeviceAuthApi:
             content_type="application/json",
         )
         assert resp.status_code == 401
+
+
+@pytest.mark.django_db
+class TestDeviceSyncPolicyApi:
+    url = "/mdm/api/devices/sync-policy/"
+
+    def test_sync_policy_success(self, client, mocker):
+        device = DeviceFactory()
+        mock_mdm = mocker.MagicMock()
+        mocker.patch(
+            "apps.mdm.views.get_active_mdm_instance",
+            return_value=mock_mdm,
+        )
+        resp = client.post(
+            self.url,
+            data=json.dumps({"device_id": device.device_id}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 204
+        mock_mdm.push_device_config.assert_called_once_with(device)
+
+    def test_sync_policy_device_not_found(self, client):
+        resp = client.post(
+            self.url,
+            data=json.dumps({"device_id": "nonexistent-device"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 404
+
+    def test_sync_policy_missing_device_id(self, client):
+        resp = client.post(
+            self.url,
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_sync_policy_empty_body(self, client):
+        resp = client.post(self.url, data="", content_type="application/json")
+        assert resp.status_code == 400
+
+    def test_sync_policy_by_serial_number(self, client, mocker):
+        device = DeviceFactory(serial_number="SN-SYNC-TEST")
+        mock_mdm = mocker.MagicMock()
+        mocker.patch(
+            "apps.mdm.views.get_active_mdm_instance",
+            return_value=mock_mdm,
+        )
+        resp = client.post(
+            self.url,
+            data=json.dumps({"device_id": "SN-SYNC-TEST"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 204
+        mock_mdm.push_device_config.assert_called_once_with(device)
+
+    def test_sync_policy_get_not_allowed(self, client):
+        resp = client.get(self.url)
+        assert resp.status_code == 405
+
+    def test_sync_policy_no_mdm_returns_204(self, client, mocker):
+        device = DeviceFactory()
+        mocker.patch(
+            "apps.mdm.views.get_active_mdm_instance",
+            return_value=None,
+        )
+        resp = client.post(
+            self.url,
+            data=json.dumps({"device_id": device.device_id}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 204

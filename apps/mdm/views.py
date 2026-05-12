@@ -122,6 +122,43 @@ def _find_device(identifier: str, **extra_filters):
 
 @csrf_exempt
 @require_POST
+def device_sync_policy_view(request):
+    """Trigger a policy re-push for a device.
+
+    Accepts ``device_id`` in the JSON body.  If the device has an active auth
+    key the request is currently accepted without signature verification (the
+    client *should* send signed requests once full signed-request support is
+    added, but for now we accept plain ``device_id`` regardless of key state).
+    """
+    if _is_rate_limited("sync-policy-ip", _client_ip(request), limit=10, window_seconds=60):
+        return HttpResponse(status=429)
+
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return HttpResponse(status=400)
+
+    device_id = body.get("device_id", "").strip()
+    if not device_id or len(device_id) > 255:
+        return HttpResponse(status=400)
+
+    device = _find_device(device_id)
+    if not device:
+        return HttpResponse(status=404)
+
+    mdm = get_active_mdm_instance(organization=device.fleet.organization)
+    if mdm:
+        try:
+            mdm.push_device_config(device)
+        except Exception:
+            logger.exception("push_device_config failed", device=device)
+            return HttpResponse(status=502)
+
+    return HttpResponse(status=204)
+
+
+@csrf_exempt
+@require_POST
 def device_fcm_token_view(request):
     """Register an FCM token for a device.
 
