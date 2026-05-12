@@ -63,6 +63,11 @@ rather use Docker, see :doc:`../running/docker-compose`.
     # hosts the Android Enterprise service account.
     export FIREBASE_PROJECT_ID=
 
+    # Install type (AVAILABLE, FORCE_INSTALLED , etc.) for the Android firmware companion app.
+    # Uncomment to avoid force-installing the app from the Play Store, which is useful for
+    # locally testing a custom-built APK, e.g., with the work-profile-lifecycle skill.
+    # export FIRMWARE_APP_INSTALL_TYPE=AVAILABLE
+
 Update the environment variables as needed for your local setup. You may need to
 add a ``PGPASSWORD`` variable if your database expects a password. If the database
 does not exist yet, create it with the ``createdb`` `command <https://www.postgresql.org/docs/current/app-createdb.html>`_.

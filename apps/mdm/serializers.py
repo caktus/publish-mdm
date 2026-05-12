@@ -10,6 +10,7 @@ but this only happens when neither ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` nor
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from string import Template
 from typing import TYPE_CHECKING
@@ -22,6 +23,24 @@ if TYPE_CHECKING:
 from apps.mdm.utils import get_callback_domain
 
 FIRMWARE_APP_PACKAGE = "com.publishmdm.agent"
+
+# Controls how the firmware companion app is installed on managed devices.
+# Valid values (from Android Management API):
+#   - FORCE_INSTALLED (default, prod): Always installed; cannot be uninstalled by user
+#   - AVAILABLE (local dev): User can install/uninstall via Play Store
+#   - OPTIONAL: Device can install if desired
+#   - REQUIRED_FOR_SETUP: Required before device setup completes
+# For local development, set to AVAILABLE to allow testing without forcing installation.
+FIRMWARE_APP_INSTALL_TYPE_VALID = {"FORCE_INSTALLED", "AVAILABLE", "OPTIONAL", "REQUIRED_FOR_SETUP"}
+FIRMWARE_APP_INSTALL_TYPE = os.getenv("FIRMWARE_APP_INSTALL_TYPE", "FORCE_INSTALLED")
+
+if FIRMWARE_APP_INSTALL_TYPE not in FIRMWARE_APP_INSTALL_TYPE_VALID:
+    logger.warning(
+        "Invalid FIRMWARE_APP_INSTALL_TYPE; using default",
+        invalid_value=FIRMWARE_APP_INSTALL_TYPE,
+        valid_values=sorted(FIRMWARE_APP_INSTALL_TYPE_VALID),
+    )
+    FIRMWARE_APP_INSTALL_TYPE = "FORCE_INSTALLED"
 
 # Play Store track IDs that are accessible on devices for this app.
 # Add internal/closed testing track IDs here as needed.
@@ -127,7 +146,7 @@ class PolicySerializer:
         # granted, high-priority auto-update.  Not user-configurable.
         firmware_entry: dict = {
             "packageName": FIRMWARE_APP_PACKAGE,
-            "installType": "FORCE_INSTALLED",
+            "installType": FIRMWARE_APP_INSTALL_TYPE,
             "defaultPermissionPolicy": "GRANT",
             "autoUpdateMode": "AUTO_UPDATE_HIGH_PRIORITY",
             "roles": [{"roleType": "COMPANION_APP"}],
