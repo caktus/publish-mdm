@@ -15,17 +15,28 @@ import hashlib
 import logging
 
 from cryptography import x509
-from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import ec, padding, rsa
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.serialization import load_der_public_key
 from cryptography.x509.oid import ObjectIdentifier
+from OpenSSL.crypto import (
+    FILETYPE_ASN1,
+    X509Store,
+    X509StoreContext,
+    X509StoreContextError,
+    dump_publickey,
+    load_certificate,
+)
+from pyasn1.codec.ber import decoder as ber_decoder
 from pyasn1.codec.der import decoder as asn1_decoder
 from pyasn1.type import univ
+from pyasn1_modules import rfc5280
 
 logger = logging.getLogger(__name__)
 
 # OID for Android Key Attestation extension
-ATTESTATION_EXTENSION_OID = ObjectIdentifier("1.3.6.1.4.1.11129.2.1.17")
+_ATTESTATION_EXTENSION_OID_STR = "1.3.6.1.4.1.11129.2.1.17"
+ATTESTATION_EXTENSION_OID = ObjectIdentifier(_ATTESTATION_EXTENSION_OID_STR)
 
 # Google Hardware Attestation Root CA certificates (PEM).
 # Downloaded from https://android.googleapis.com/attestation/root
@@ -108,85 +119,102 @@ class AttestationError(Exception):
     pass
 
 
-def decode_certificate_chain(encoded_certs: list[str]) -> list[x509.Certificate]:
-    """Decode a list of Base64-encoded DER certificates into x509.Certificate objects."""
-    certs = []
+def decode_certificate_chain(encoded_certs: list[str]) -> list[bytes]:
+    """Decode a list of Base64-encoded DER certificates into raw DER bytes.
+
+    Returns a list of DER bytes (leaf first, root last).
+
+    Uses pyOpenSSL to validate each certificate is parseable — pyOpenSSL uses
+    the OpenSSL C library which is lenient about BER non-conformances in
+    Android-generated attestation certificates (e.g., extensions with
+    ``critical = FALSE`` explicitly encoded rather than omitted).
+    """
+    cert_ders = []
     for i, b64 in enumerate(encoded_certs):
         try:
             der_bytes = base64.b64decode(b64)
-            certs.append(x509.load_der_x509_certificate(der_bytes))
+            load_certificate(FILETYPE_ASN1, der_bytes)  # validate parseability
+            cert_ders.append(der_bytes)
         except Exception as e:
             raise AttestationError(f"Invalid certificate at index {i}: {e}") from e
-    return certs
+    return cert_ders
 
 
-def verify_certificate_chain(certs: list[x509.Certificate]) -> None:
+def verify_certificate_chain(cert_ders: list[bytes]) -> None:
     """Verify that the certificate chain is valid and roots in a Google CA.
 
+    Uses pyOpenSSL (OpenSSL C library) for chain signature verification so
+    that Android-generated certificates with BER non-conformances (e.g.,
+    ``critical = FALSE`` explicitly encoded) are accepted.
+
     Args:
-        certs: List of certificates, leaf first, root last.
+        cert_ders: List of DER-encoded certificates, leaf first, root last.
 
     Raises:
         AttestationError: If the chain is invalid.
     """
-    if len(certs) < 2:
+    if len(cert_ders) < 2:
         raise AttestationError("Certificate chain must have at least 2 certificates (leaf + root)")
 
     # Verify the root is a trusted Google root
-    root = certs[-1]
-    root_fingerprint = hashlib.sha256(
-        root.public_key().public_bytes(
-            encoding=serialization.Encoding.DER,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo,
-        )
-    ).hexdigest()
+    root_ossl = load_certificate(FILETYPE_ASN1, cert_ders[-1])
+    root_pubkey_der = dump_publickey(FILETYPE_ASN1, root_ossl.get_pubkey())
+    root_fingerprint = hashlib.sha256(root_pubkey_der).hexdigest()
     if root_fingerprint not in _TRUSTED_ROOT_FINGERPRINTS:
         logger.warning(
-            "Root certificate not trusted",
-            root_subject=str(root.subject),
-            root_fingerprint=root_fingerprint,
-            chain_len=len(certs),
+            "Root certificate not trusted: fingerprint=%s chain_len=%d",
+            root_fingerprint,
+            len(cert_ders),
         )
         raise AttestationError("Root certificate is not a trusted Google Hardware Attestation Root")
 
-    # Walk the chain from root to leaf, verifying each link
-    for i in range(len(certs) - 1, 0, -1):
-        issuer = certs[i]
-        subject = certs[i - 1]
-        _verify_cert_signature(subject, issuer)
+    # Build an OpenSSL trust store containing root + intermediates, then
+    # verify the leaf.  OpenSSL's C implementation tolerates BER encoding
+    # quirks that cryptography's strict Rust parser rejects.
+    store = X509Store()
+    for der in cert_ders[1:]:
+        store.add_cert(load_certificate(FILETYPE_ASN1, der))
 
-
-def _verify_cert_signature(subject: x509.Certificate, issuer: x509.Certificate) -> None:
-    """Verify that issuer signed subject's certificate."""
-    issuer_public_key = issuer.public_key()
+    leaf_ossl = load_certificate(FILETYPE_ASN1, cert_ders[0])
+    ctx = X509StoreContext(store, leaf_ossl)
     try:
-        if isinstance(issuer_public_key, rsa.RSAPublicKey):
-            issuer_public_key.verify(
-                subject.signature,
-                subject.tbs_certificate_bytes,
-                padding.PKCS1v15(),
-                subject.signature_hash_algorithm,
-            )
-        elif isinstance(issuer_public_key, ec.EllipticCurvePublicKey):
-            issuer_public_key.verify(
-                subject.signature,
-                subject.tbs_certificate_bytes,
-                ec.ECDSA(subject.signature_hash_algorithm),
-            )
-        else:
-            raise AttestationError(f"Unsupported key type: {type(issuer_public_key).__name__}")
-    except InvalidSignature as err:
-        raise AttestationError(
-            f"Certificate signature verification failed: "
-            f"{subject.subject} not signed by {issuer.subject}"
-        ) from err
+        ctx.verify_certificate()
+    except X509StoreContextError as e:
+        raise AttestationError(f"Certificate chain verification failed: {e}") from e
 
 
-def extract_attestation_challenge(leaf_cert: x509.Certificate) -> bytes:
-    """Extract the attestation challenge from the leaf certificate's attestation extension.
+def _get_extension_value(cert_der: bytes, oid_str: str) -> bytes | None:
+    """Extract extension ``extnValue`` bytes from certificate DER.
+
+    Uses pyasn1 BER decoder (lenient) rather than the cryptography library
+    so that certs with BER non-conformances are accepted.
+
+    Args:
+        cert_der: Raw DER bytes of the certificate.
+        oid_str: The dotted-string OID of the extension to look for.
+
+    Returns:
+        The raw bytes of the extension's ``extnValue`` OCTET STRING, or
+        ``None`` if the extension is not present.
+    """
+    try:
+        cert, _ = ber_decoder.decode(cert_der, asn1Spec=rfc5280.Certificate())
+        for ext in cert["tbsCertificate"]["extensions"]:
+            if str(ext["extnID"]) == oid_str:
+                return bytes(ext["extnValue"])
+    except Exception:
+        pass
+    return None
+
+
+def extract_attestation_challenge(leaf_der: bytes) -> bytes:
+    """Extract the attestation challenge from the leaf certificate DER.
 
     The attestation extension has OID 1.3.6.1.4.1.11129.2.1.17 and contains an ASN.1
     SEQUENCE where the attestationChallenge is at index 4.
+
+    Args:
+        leaf_der: Raw DER bytes of the leaf (device key) certificate.
 
     Returns:
         The attestation challenge bytes.
@@ -194,12 +222,9 @@ def extract_attestation_challenge(leaf_cert: x509.Certificate) -> bytes:
     Raises:
         AttestationError: If the extension is missing or cannot be parsed.
     """
-    try:
-        ext = leaf_cert.extensions.get_extension_for_oid(ATTESTATION_EXTENSION_OID)
-    except x509.ExtensionNotFound:
-        raise AttestationError("Leaf certificate missing attestation extension") from None
-
-    ext_value = ext.value.value  # raw DER bytes of the extension value
+    ext_value = _get_extension_value(leaf_der, _ATTESTATION_EXTENSION_OID_STR)
+    if ext_value is None:
+        raise AttestationError("Leaf certificate missing attestation extension")
     try:
         attestation_seq, _ = asn1_decoder.decode(ext_value, asn1Spec=univ.Sequence())
         # attestationChallenge is at index 4 in the KeyDescription SEQUENCE
@@ -209,13 +234,16 @@ def extract_attestation_challenge(leaf_cert: x509.Certificate) -> bytes:
         raise AttestationError(f"Failed to parse attestation extension: {e}") from e
 
 
-def extract_security_level(leaf_cert: x509.Certificate) -> int:
-    """Extract the attestation security level from the leaf certificate.
+def extract_security_level(leaf_der: bytes) -> int:
+    """Extract the attestation security level from the leaf certificate DER.
 
     Security levels:
         0 = Software
         1 = TrustedEnvironment (TEE)
         2 = StrongBox
+
+    Args:
+        leaf_der: Raw DER bytes of the leaf (device key) certificate.
 
     Returns:
         The security level integer.
@@ -223,12 +251,9 @@ def extract_security_level(leaf_cert: x509.Certificate) -> int:
     Raises:
         AttestationError: If the extension is missing or cannot be parsed.
     """
-    try:
-        ext = leaf_cert.extensions.get_extension_for_oid(ATTESTATION_EXTENSION_OID)
-    except x509.ExtensionNotFound:
-        raise AttestationError("Leaf certificate missing attestation extension") from None
-
-    ext_value = ext.value.value
+    ext_value = _get_extension_value(leaf_der, _ATTESTATION_EXTENSION_OID_STR)
+    if ext_value is None:
+        raise AttestationError("Leaf certificate missing attestation extension")
     try:
         attestation_seq, _ = asn1_decoder.decode(ext_value, asn1Spec=univ.Sequence())
         # attestationSecurityLevel is at index 1 in the KeyDescription SEQUENCE
@@ -238,13 +263,25 @@ def extract_security_level(leaf_cert: x509.Certificate) -> int:
         raise AttestationError(f"Failed to parse security level: {e}") from e
 
 
-def extract_public_key(leaf_cert: x509.Certificate) -> ec.EllipticCurvePublicKey:
-    """Extract the EC public key from the leaf certificate.
+def extract_public_key(leaf_der: bytes) -> ec.EllipticCurvePublicKey:
+    """Extract the EC public key from the leaf certificate DER.
+
+    Uses pyOpenSSL + cryptography to support certificates with BER
+    non-conformances.
+
+    Args:
+        leaf_der: Raw DER bytes of the leaf (device key) certificate.
 
     Raises:
-        AttestationError: If the key is not an EC key.
+        AttestationError: If the key is not an EC key or extraction fails.
     """
-    key = leaf_cert.public_key()
+    try:
+        ossl_cert = load_certificate(FILETYPE_ASN1, leaf_der)
+        pubkey_der = dump_publickey(FILETYPE_ASN1, ossl_cert.get_pubkey())
+        key = load_der_public_key(pubkey_der)
+    except Exception as e:
+        raise AttestationError(f"Failed to extract public key: {e}") from e
+
     if not isinstance(key, ec.EllipticCurvePublicKey):
         raise AttestationError(f"Expected EC public key, got {type(key).__name__}")
     return key
@@ -272,21 +309,21 @@ def validate_attestation(
     Raises:
         AttestationError: If validation fails.
     """
-    certs = decode_certificate_chain(encoded_certs)
-    if not certs:
+    cert_ders = decode_certificate_chain(encoded_certs)
+    if not cert_ders:
         raise AttestationError("Empty certificate chain")
 
-    verify_certificate_chain(certs)
+    verify_certificate_chain(cert_ders)
 
-    leaf = certs[0]
+    leaf_der = cert_ders[0]
 
     # Verify the nonce matches
-    challenge = extract_attestation_challenge(leaf)
+    challenge = extract_attestation_challenge(leaf_der)
     if challenge != expected_nonce:
         raise AttestationError("Attestation challenge does not match server nonce")
 
     # Check security level
-    security_level = extract_security_level(leaf)
+    security_level = extract_security_level(leaf_der)
     if require_hardware and security_level == 0:
         raise AttestationError(
             "Hardware-backed attestation required but got Software security level. "
@@ -294,7 +331,7 @@ def validate_attestation(
         )
 
     # Extract the public key
-    public_key = extract_public_key(leaf)
+    public_key = extract_public_key(leaf_der)
     public_key_pem = public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo,

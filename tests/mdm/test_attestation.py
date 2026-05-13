@@ -38,13 +38,13 @@ class TestTrustedRoots:
 
 class TestDecodeCertificateChain:
     def test_decode_valid_cert(self):
-        """Decoding a valid self-signed cert succeeds."""
+        """Decoding a valid self-signed cert succeeds; returns raw DER bytes."""
         key = ec.generate_private_key(ec.SECP256R1())
         cert = _self_signed_cert(key)
         b64 = base64.b64encode(cert.public_bytes(serialization.Encoding.DER)).decode()
         result = decode_certificate_chain([b64])
         assert len(result) == 1
-        assert isinstance(result[0], x509.Certificate)
+        assert isinstance(result[0], bytes)
 
     def test_decode_invalid_base64(self):
         with pytest.raises(AttestationError, match="Invalid certificate"):
@@ -59,8 +59,9 @@ class TestVerifyCertificateChain:
     def test_rejects_chain_with_one_cert(self):
         key = ec.generate_private_key(ec.SECP256R1())
         cert = _self_signed_cert(key)
+        der = cert.public_bytes(serialization.Encoding.DER)
         with pytest.raises(AttestationError, match="at least 2 certificates"):
-            verify_certificate_chain([cert])
+            verify_certificate_chain([der])
 
     def test_rejects_untrusted_root(self):
         """A chain not rooting in a Google CA is rejected."""
@@ -68,15 +69,18 @@ class TestVerifyCertificateChain:
         root_cert = _self_signed_cert(root_key, cn="Fake Root")
         leaf_key = ec.generate_private_key(ec.SECP256R1())
         leaf_cert = _issued_cert(leaf_key, root_key, root_cert)
+        leaf_der = leaf_cert.public_bytes(serialization.Encoding.DER)
+        root_der = root_cert.public_bytes(serialization.Encoding.DER)
         with pytest.raises(AttestationError, match="not a trusted Google"):
-            verify_certificate_chain([leaf_cert, root_cert])
+            verify_certificate_chain([leaf_der, root_der])
 
 
 class TestExtractPublicKey:
     def test_extracts_ec_key(self):
         key = ec.generate_private_key(ec.SECP256R1())
         cert = _self_signed_cert(key)
-        pub = extract_public_key(cert)
+        der = cert.public_bytes(serialization.Encoding.DER)
+        pub = extract_public_key(der)
         assert isinstance(pub, ec.EllipticCurvePublicKey)
 
 

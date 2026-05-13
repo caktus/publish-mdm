@@ -241,7 +241,7 @@ class TestDeviceAuthApi:
             "security_level": 1,  # TEE
         }
 
-        with patch("apps.mdm.attestation.validate_attestation", return_value=mock_result):
+        with patch("apps.mdm.views.validate_attestation", return_value=mock_result):
             resp = client.post(
                 self.register_url,
                 data=json.dumps(
@@ -275,7 +275,7 @@ class TestDeviceAuthApi:
         )
 
         with patch(
-            "apps.mdm.attestation.validate_attestation",
+            "apps.mdm.views.validate_attestation",
             side_effect=AttestationError("Bad chain"),
         ):
             resp = client.post(
