@@ -32,9 +32,17 @@
     (function () {
         const proto = location.protocol === "https:" ? "wss:" : "ws:";
         const url = `${proto}//${location.host}/ws/devices/{{ device.pk }}/screen-view/`;
+        const triggerUrl = "{% url 'publish_mdm:device-screen-trigger' request.organization.slug device.pk %}";
+        const csrfToken = "{{ csrf_token }}";
         const img = document.getElementById("screen-frame");
         const status = document.getElementById("screen-status");
         let lastUrl = null;
+
+        // Send the FCM trigger via POST so page refreshes don't re-trigger.
+        fetch(triggerUrl, {
+            method: "POST",
+            headers: {"X-CSRFToken": csrfToken},
+        }).catch(() => { /* ignore — streaming will still be attempted */ });
 
         function setStatus(text, ok) {
             status.textContent = text;

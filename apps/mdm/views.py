@@ -163,9 +163,9 @@ def device_sync_policy_view(request):
 def device_fcm_token_view(request):
     """Register an FCM token for a device.
 
-    Accepts authentication via either:
-    - ``device_id`` — identifies the device by its MDM device ID (requires key to be registered)
-    - ``screen_stream_token`` — legacy auth (will be removed)
+    Authenticates via ``screen_stream_token`` (a per-device secret).  The FCM
+    token can also be supplied during key registration via
+    ``device_register_key_view`` for fully-attested flows.
     """
     try:
         body = json.loads(request.body)
@@ -176,27 +176,13 @@ def device_fcm_token_view(request):
     if not fcm_token or len(fcm_token) > 256:
         return HttpResponse(status=400)
 
-    device_id = body.get("device_id", "").strip()
     screen_stream_token = body.get("screen_stream_token", "").strip()
-
-    if device_id:
-        if len(device_id) > 255:
-            return HttpResponse(status=400)
-        device = _find_device(device_id, auth_key_state="active")
-        if not device:
-            return HttpResponse(status=404)
-        device.fcm_token = fcm_token
-        device.save(update_fields=["fcm_token"])
-        updated = True
-    elif screen_stream_token:
-        if len(screen_stream_token) > 64:
-            return HttpResponse(status=400)
-        updated = Device.objects.filter(screen_stream_token=screen_stream_token).update(
-            fcm_token=fcm_token
-        )
-    else:
+    if not screen_stream_token or len(screen_stream_token) > 64:
         return HttpResponse(status=400)
 
+    updated = Device.objects.filter(screen_stream_token=screen_stream_token).update(
+        fcm_token=fcm_token
+    )
     if not updated:
         return HttpResponse(status=404)
 
@@ -543,8 +529,13 @@ def device_auth_verify_view(request):
         return HttpResponse(status=401)
 
     used_at = now()
+    # Atomically mark the challenge as used; returns 0 if already consumed.
+    rows_updated = DeviceAuthChallenge.objects.filter(pk=challenge.pk, used_at__isnull=True).update(
+        used_at=used_at
+    )
+    if rows_updated == 0:
+        return HttpResponse(status=409)
     challenge.used_at = used_at
-    challenge.save(update_fields=["used_at"])
 
     session_token = secrets.token_urlsafe(32)
     expires_at = used_at + dt.timedelta(seconds=SESSION_TTL_SECONDS)
@@ -744,7 +735,6 @@ def _push_policy_to_mdm(policy, request):
         "Queuing per-device config push via Dagster",
         policy=policy,
         device_count=len(device_pks),
-        device_pks=device_pks,
     )
     run_config = {"ops": {"push_mdm_device_config": {"config": {"device_pks": device_pks}}}}
     try:

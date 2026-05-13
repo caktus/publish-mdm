@@ -25,7 +25,7 @@ The URL you use to access Infisical will be your value for the ``INFISICAL_API_U
 Setting up a KMS Project
 ------------------------
 
-Once logged in, navigate to http://localhost:8888/ and you'll be direct to the
+Once logged in, navigate to http://localhost:8888/ and you'll be directed to the
 project list page for the default Admin Org. Click *Add New Project*:
 
 .. figure:: ../../_static/create_infisical_project.png

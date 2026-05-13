@@ -63,7 +63,7 @@ rather use Docker, see :doc:`../running/docker-compose`.
     # hosts the Android Enterprise service account.
     export FIREBASE_PROJECT_ID=
 
-    # Install type (AVAILABLE, FORCE_INSTALLED , etc.) for the Android firmware companion app.
+    # Install type (AVAILABLE, FORCE_INSTALLED, etc.) for the Android firmware companion app.
     # Uncomment to avoid force-installing the app from the Play Store, which is useful for
     # locally testing a custom-built APK, e.g., with the work-profile-lifecycle skill.
     # export FIRMWARE_APP_INSTALL_TYPE=AVAILABLE

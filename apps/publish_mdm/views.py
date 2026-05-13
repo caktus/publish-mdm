@@ -1544,8 +1544,9 @@ class SocialAccountConnectionsView(ConnectionsView):
 def device_screen_view(request: HttpRequest, organization_slug, device_pk):
     """Render the live screen viewer page for a device.
 
-    Sends an FCM trigger with a unique ``request_id`` so the device can use
-    challenge-response auth to obtain a session token for the WebSocket.
+    The page itself has no side effects.  The FCM trigger is sent by a separate
+    POST endpoint (device-screen-trigger) called from the browser via fetch,
+    so that refreshing the viewer page does not spam the device with FCM pushes.
     """
     from apps.mdm.models import Device  # noqa: PLC0415
 
@@ -1554,24 +1555,6 @@ def device_screen_view(request: HttpRequest, organization_slug, device_pk):
         pk=device_pk,
         fleet__organization=request.organization,
     )
-
-    request_id = str(uuid.uuid4())
-
-    # Send FCM trigger so the app shows the MediaProjection consent dialog.
-    logger.info(
-        "device_screen_view: FCM trigger",
-        device_pk=device.pk,
-        has_fcm_token=bool(device.fcm_token),
-        request_id=request_id,
-    )
-    if device.fcm_token:
-        sent = send_start_screen_share(device.fcm_token, request_id=request_id)
-        logger.info("device_screen_view: FCM send result", device_pk=device.pk, sent=sent)
-    else:
-        logger.warning(
-            "device_screen_view: no FCM token on device — cannot trigger screen share",
-            device_pk=device.pk,
-        )
 
     device_label = device.device_id or device.name or f"Device {device.pk}"
     context = {
@@ -1587,3 +1570,38 @@ def device_screen_view(request: HttpRequest, organization_slug, device_pk):
         ),
     }
     return render(request, "publish_mdm/device_screen.html", context)
+
+
+@login_required
+@require_POST
+def device_screen_trigger_view(request: HttpRequest, organization_slug, device_pk):
+    """Send an FCM trigger to the device to start the screen-share consent flow.
+
+    Called via fetch from the browser viewer page.  Separating the trigger into
+    a POST prevents accidental re-triggers on page refresh or link prefetch.
+    """
+    from apps.mdm.models import Device  # noqa: PLC0415
+
+    device = get_object_or_404(
+        Device.objects.select_related("fleet__organization"),
+        pk=device_pk,
+        fleet__organization=request.organization,
+    )
+
+    request_id = str(uuid.uuid4())
+    logger.info(
+        "device_screen_trigger_view: FCM trigger",
+        device_pk=device.pk,
+        has_fcm_token=bool(device.fcm_token),
+        request_id=request_id,
+    )
+    if device.fcm_token:
+        sent = send_start_screen_share(device.fcm_token, request_id=request_id)
+        logger.info("device_screen_trigger_view: FCM send result", device_pk=device.pk, sent=sent)
+        return HttpResponse(status=204)
+
+    logger.warning(
+        "device_screen_trigger_view: no FCM token on device",
+        device_pk=device.pk,
+    )
+    return HttpResponse(status=409)

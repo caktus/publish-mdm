@@ -57,6 +57,30 @@ class TestDeviceFcmTokenView:
         )
         assert resp.status_code == 400
 
+    def test_empty_screen_stream_token_returns_400(self, client):
+        resp = client.post(
+            self.url,
+            data=json.dumps({"fcm_token": "tok", "screen_stream_token": ""}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_oversized_fcm_token_returns_400(self, client):
+        resp = client.post(
+            self.url,
+            data=json.dumps({"fcm_token": "x" * 257, "screen_stream_token": "tok-abc"}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
+    def test_oversized_screen_stream_token_returns_400(self, client):
+        resp = client.post(
+            self.url,
+            data=json.dumps({"fcm_token": "tok", "screen_stream_token": "x" * 65}),
+            content_type="application/json",
+        )
+        assert resp.status_code == 400
+
     def test_empty_body_returns_400(self, client):
         resp = client.post(self.url, data="", content_type="application/json")
         assert resp.status_code == 400

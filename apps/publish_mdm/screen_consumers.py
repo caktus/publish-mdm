@@ -94,10 +94,13 @@ class DeviceScreenPublisherConsumer(AsyncWebsocketConsumer):
                 used_at__isnull=True,
                 expires_at__gt=now(),
             )
-            # Mark as used (single-use).
-            ScreenShareSession.objects.filter(pk=session.pk, used_at__isnull=True).update(
-                used_at=now()
-            )
+            # Atomically mark as used (single-use); returns 0 if a concurrent
+            # connection already claimed it.
+            rows_updated = ScreenShareSession.objects.filter(
+                pk=session.pk, used_at__isnull=True
+            ).update(used_at=now())
+            if rows_updated == 0:
+                return None
             return session.device_id
         except ScreenShareSession.DoesNotExist:
             pass
@@ -134,6 +137,13 @@ class DeviceScreenViewerConsumer(AsyncWebsocketConsumer):
                 device_pk=self.device_pk,
                 viewer_count=remaining,
             )
+            # NOTE: The "stop on last viewer" signal is only accurate when all
+            # viewers are connected to the same ASGI process (i.e. when using
+            # InMemoryChannelLayer).  In a multi-worker deployment backed by a
+            # Redis channel layer each process keeps its own counter, so the
+            # count can reach 0 locally while viewers remain on other workers.
+            # Upgrading to a shared Redis counter (e.g. INCR/DECR) would be
+            # needed to support that deployment model correctly.
             if remaining <= 0:
                 logger.info("Last viewer left, sending stop to device", device_pk=self.device_pk)
                 await self.channel_layer.group_send(self.group_name, {"type": "device.stop"})

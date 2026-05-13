@@ -334,39 +334,6 @@ class TestDeviceAuthApi:
         assert resp.status_code == 400
 
     # -------------------------------------------------------------------------
-    # FCM token via device_id
-    # -------------------------------------------------------------------------
-
-    def test_fcm_token_via_device_id(self, client):
-        """FCM token registration via device_id (new auth) works."""
-        device = DeviceFactory()
-        key = self._new_private_key()
-        client.post(
-            self.register_url,
-            data=json.dumps(
-                {
-                    "device_id": device.device_id,
-                    "public_key_pem": self._public_pem(key),
-                    "package_name": "com.publishmdm.agent",
-                }
-            ),
-            content_type="application/json",
-        )
-        resp = client.post(
-            "/mdm/api/devices/fcm-token/",
-            data=json.dumps(
-                {
-                    "device_id": device.device_id,
-                    "fcm_token": "new-fcm-token-456",
-                }
-            ),
-            content_type="application/json",
-        )
-        assert resp.status_code == 204
-        device.refresh_from_db()
-        assert device.fcm_token == "new-fcm-token-456"
-
-    # -------------------------------------------------------------------------
     # Challenge and verify flow
     # -------------------------------------------------------------------------
 
