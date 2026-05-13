@@ -157,3 +157,62 @@ In both cases the device record is soft-deleted from the Publish MDM database. T
 factory reset or work-profile removal is applied by the MDM service provider and may not
 happen immediately — the time it takes for the device to carry out the command can vary
 depending on the device and network connectivity.
+
+Device Key Registration
+-----------------------
+
+The companion app (``com.publishmdm.agent``) authenticates itself to the server
+by binding an ECDSA P-256 private key to the device record.  The key never
+leaves secure hardware (TEE or StrongBox), so only that physical device can sign
+future requests.
+
+There are two registration paths, selected by the ``require_hardware_attestation``
+managed configuration key:
+
+- **Attested** *(default, production)*: the server independently verifies that the
+  key was generated inside a hardware security element by validating the Android
+  Key Attestation certificate chain against Google's trusted root certificates.
+- **Unattested** *(emulator / dev)*: the PEM public key is sent directly; no
+  hardware proof is required.
+
+Both paths include the current FCM token in the same request so that no
+separate FCM registration call is needed.
+
+.. rubric:: Attested registration (hardware-backed key)
+
+.. mermaid::
+
+    sequenceDiagram
+        autonumber
+        participant App as Companion App<br/>(Android Keystore)
+        participant Server as Publish MDM Server
+        participant Google as Google Attestation<br/>Root CA
+
+        App->>Server: POST /mdm/api/devices/attestation/nonce/<br/>{device_id}
+        Server-->>App: 200 {nonce} (64-char hex, stored with TTL)
+
+        Note over App: generateAttestedKey(nonce)<br/>TEE/StrongBox embeds nonce<br/>as attestation challenge
+
+        App->>Server: POST /mdm/api/devices/register-key/<br/>{device_id, certificate_chain, package_name, fcm_token}
+        Note over Server: validate_attestation():<br/>1. Decode & load chain via pyOpenSSL<br/>2. Verify signatures up to root<br/>3. Check root fingerprint against<br/>   trusted Google roots<br/>4. Extract challenge → must match nonce<br/>5. Extract security_level (TEE/StrongBox)<br/>6. Extract EC public key
+        Server->>Google: (offline) root fingerprint check<br/>against embedded trusted roots
+        Server-->>App: 201 {key_fingerprint, key_version}
+
+        Note over Server: device.auth_public_key_pem = key<br/>device.auth_key_state = "active"
+
+.. rubric:: Unattested registration (emulator / dev)
+
+.. mermaid::
+
+    sequenceDiagram
+        autonumber
+        participant App as Companion App<br/>(Android Keystore)
+        participant Server as Publish MDM Server
+
+        Note over App: ensureKey() — plain ECDSA P-256<br/>no attestation challenge
+
+        App->>Server: POST /mdm/api/devices/register-key/<br/>{device_id, public_key_pem, package_name, fcm_token}
+        Note over Server: Load EC public key from PEM<br/>compute SHA-256 fingerprint
+        Server-->>App: 201 {key_fingerprint, key_version}
+
+        Note over Server: device.auth_public_key_pem = key<br/>device.auth_key_state = "active"
