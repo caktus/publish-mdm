@@ -1175,9 +1175,9 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
 
     def test_handle_enrollment_notification_creates_device(self, mocker):
         """_handle_enrollment_notification() creates a new Device for an unknown device
-        and then calls push_device_config to deliver the device_identifier immediately."""
+        and then calls push_device_config_task.delay to deliver the device_identifier immediately."""
         fleet = FleetFactory()
-        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        mock_push = mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         active_mdm = AndroidEnterprise()
         mdm_device = MDMDevice(
             {
@@ -1191,14 +1191,14 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         assert device.fleet == fleet
         assert device.serial_number == "SN-001"
         assert device.name == "enterprises/test/devices/newdev"
-        mock_push.assert_called_once_with(device)
+        mock_push.assert_called_once_with(device.pk)
 
     def test_handle_enrollment_notification_updates_existing_device(self, mocker):
         """_handle_enrollment_notification() updates an existing Device record and
-        calls push_device_config to refresh its device_identifier."""
+        calls push_device_config_task.delay to refresh its device_identifier."""
         fleet = FleetFactory()
         existing = DeviceFactory(fleet=fleet, device_id="existdev", serial_number="OLD-SN")
-        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        mock_push = mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         active_mdm = AndroidEnterprise()
         mdm_device = MDMDevice(
             {
@@ -1211,7 +1211,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         existing.refresh_from_db()
         assert existing.serial_number == "NEW-SN"
         assert existing.name == "enterprises/test/devices/existdev"
-        mock_push.assert_called_once_with(existing)
+        mock_push.assert_called_once_with(existing.pk)
 
     def test_handle_enrollment_notification_soft_deletes_previous_devices(self, mocker):
         """previousDeviceNames entries are soft-deleted after the new device is saved."""
@@ -1221,7 +1221,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             device_id="olddev",
             name="enterprises/test/devices/olddev",
         )
-        mocker.patch.object(AndroidEnterprise, "push_device_config")
+        mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         active_mdm = AndroidEnterprise()
         mdm_device = MDMDevice(
             {
@@ -1243,7 +1243,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         """When previousDeviceNames is absent, no extra deletions occur."""
         fleet = FleetFactory()
         unrelated = DeviceFactory(fleet=fleet)
-        mocker.patch.object(AndroidEnterprise, "push_device_config")
+        mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         active_mdm = AndroidEnterprise()
         mdm_device = MDMDevice(
             {
@@ -1333,7 +1333,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
                 "policyName": "enterprises/test/policies/default",
             },
         )
-        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        mock_push = mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         active_mdm = AndroidEnterprise()
         mdm_device = MDMDevice(
             {
@@ -1361,7 +1361,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
                 "policyName": "enterprises/test/policies/default",
             },
         )
-        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        mock_push = mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         active_mdm = AndroidEnterprise()
         mdm_device = MDMDevice(
             {
@@ -1389,7 +1389,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
                 "policyName": "enterprises/test/policies/fleet1_provdev3",
             },
         )
-        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        mock_push = mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         active_mdm = AndroidEnterprise()
         mdm_device = MDMDevice(
             {

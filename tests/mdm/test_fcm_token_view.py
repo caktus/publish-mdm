@@ -40,15 +40,20 @@ def _register_key(device):
     return private_key
 
 
-def _sign_request(private_key, device_id):
-    """Sign a request payload and return the auth fields dict."""
+def _sign_request(private_key, device_id, extra_fields=None):
+    """Sign a request payload and return the auth fields dict (with body_digest)."""
     timestamp = str(int(time.time()))
-    payload = f"{device_id}.{timestamp}".encode()
+    non_auth = extra_fields or {}
+    body_digest = hashlib.sha256(
+        json.dumps(non_auth, separators=(",", ":"), sort_keys=True).encode()
+    ).hexdigest()
+    payload = f"{device_id}.{timestamp}.{body_digest}".encode()
     signature = private_key.sign(payload, ec.ECDSA(hashes.SHA256()))
     return {
         "device_id": device_id,
         "timestamp": timestamp,
         "signature_b64": base64.b64encode(signature).decode("ascii"),
+        "body_digest": body_digest,
     }
 
 
@@ -61,7 +66,8 @@ class TestDeviceFcmTokenView:
     def test_register_fcm_token(self, client):
         device = DeviceFactory()
         key = _register_key(device)
-        body = {**_sign_request(key, device.device_id), "fcm_token": "new-fcm-token"}
+        non_auth = {"fcm_token": "new-fcm-token"}
+        body = {**_sign_request(key, device.device_id, extra_fields=non_auth), **non_auth}
         resp = client.post(self.url, data=json.dumps(body), content_type="application/json")
         assert resp.status_code == 204
         device.refresh_from_db()
@@ -70,7 +76,8 @@ class TestDeviceFcmTokenView:
     def test_updates_existing_token(self, client):
         device = DeviceFactory(fcm_token="old-token")
         key = _register_key(device)
-        body = {**_sign_request(key, device.device_id), "fcm_token": "updated-token"}
+        non_auth = {"fcm_token": "updated-token"}
+        body = {**_sign_request(key, device.device_id, extra_fields=non_auth), **non_auth}
         resp = client.post(self.url, data=json.dumps(body), content_type="application/json")
         assert resp.status_code == 204
         device.refresh_from_db()
@@ -110,7 +117,8 @@ class TestDeviceFcmTokenView:
     def test_oversized_fcm_token_returns_400(self, client):
         device = DeviceFactory()
         key = _register_key(device)
-        body = {**_sign_request(key, device.device_id), "fcm_token": "x" * 257}
+        non_auth = {"fcm_token": "x" * 257}
+        body = {**_sign_request(key, device.device_id, extra_fields=non_auth), **non_auth}
         resp = client.post(self.url, data=json.dumps(body), content_type="application/json")
         assert resp.status_code == 400
 

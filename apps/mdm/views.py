@@ -121,12 +121,29 @@ def _find_device(identifier: str, **extra_filters):
     return Device.objects.filter(serial_number=identifier, **extra_filters).first()
 
 
+# Fields excluded when computing the body digest (they are themselves auth fields).
+_AUTH_FIELDS = frozenset({"device_id", "timestamp", "signature_b64", "body_digest"})
+
+
+def _compute_body_digest(fields: dict) -> str:
+    """SHA-256 hex of the compact sorted-key JSON of *fields*.
+
+    Used to provide request body integrity: the client signs
+    ``{device_id}.{timestamp}.{body_digest}`` so any tampering with the
+    non-auth body fields (e.g. fcm_token, firmware data) invalidates the
+    signature.
+    """
+    normalized = json.dumps(fields, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(normalized.encode()).hexdigest()
+
+
 def _authenticate_device_request(body: dict) -> tuple[Device | None, HttpResponse | None]:
     """Verify an ECDSA-signed device request.
 
-    Expects ``device_id``, ``timestamp``, and ``signature_b64`` in the JSON
-    body.  The device signs ``"{device_id}.{timestamp}"`` with its hardware-
-    backed private key.
+    Expects ``device_id``, ``timestamp``, ``signature_b64``, and
+    ``body_digest`` in the JSON body.  The device signs
+    ``"{device_id}.{timestamp}.{body_digest}"`` where ``body_digest`` is the
+    SHA-256 hex of the compact sorted-key JSON of all non-auth body fields.
 
     Returns ``(device, None)`` on success or ``(None, error_response)`` on
     failure.
@@ -134,6 +151,7 @@ def _authenticate_device_request(body: dict) -> tuple[Device | None, HttpRespons
     device_id = body.get("device_id", "").strip()
     timestamp_raw = str(body.get("timestamp", "")).strip()
     signature_b64 = body.get("signature_b64", "").strip()
+    body_digest = body.get("body_digest", "").strip()
 
     if not device_id or len(device_id) > 255:
         return None, HttpResponse(status=400)
@@ -162,7 +180,15 @@ def _authenticate_device_request(body: dict) -> tuple[Device | None, HttpRespons
     except ValueError:
         return None, HttpResponse(status=400)
 
-    payload = f"{device_id}.{timestamp_raw}".encode()
+    # Verify body integrity: the provided body_digest must match the digest of
+    # all non-auth fields so that tampering with the body invalidates the
+    # signature (which covers body_digest).
+    non_auth_fields = {k: v for k, v in body.items() if k not in _AUTH_FIELDS}
+    expected_digest = _compute_body_digest(non_auth_fields)
+    if body_digest != expected_digest:
+        return None, HttpResponse(status=400)
+
+    payload = f"{device_id}.{timestamp_raw}.{body_digest}".encode()
     try:
         public_key.verify(signature, payload, ec.ECDSA(hashes.SHA256()))
     except InvalidSignature:
@@ -397,7 +423,11 @@ def device_register_key_view(request):
         security_level = attestation_result["security_level"]
 
     elif public_key_pem:
-        # Direct public key path (emulator/dev mode — no attestation)
+        # Direct public key path (emulator/dev mode — no attestation).
+        # Reject when the server requires hardware attestation so a client
+        # cannot bypass attestation by simply omitting certificate_chain.
+        if settings.REQUIRE_HARDWARE_ATTESTATION:
+            return HttpResponse(status=403)
         if len(public_key_pem) > 8192:
             return HttpResponse(status=400)
 

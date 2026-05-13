@@ -8,6 +8,7 @@ from unittest.mock import patch
 import pytest
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
+from django.test import override_settings
 from django.utils.timezone import now
 
 from apps.mdm.attestation import AttestationError
@@ -174,6 +175,24 @@ class TestDeviceAuthApi:
         assert resp.status_code == 201
         device.refresh_from_db()
         assert device.enrollment_specific_id == "esid-12345"
+
+    @override_settings(REQUIRE_HARDWARE_ATTESTATION=True)
+    def test_register_key_unattested_rejected_when_attestation_required(self, client):
+        """public_key_pem registration returns 403 when REQUIRE_HARDWARE_ATTESTATION=True."""
+        device = DeviceFactory()
+        private_key = self._new_private_key()
+        resp = client.post(
+            self.register_url,
+            data=json.dumps(
+                {
+                    "device_id": device.device_id,
+                    "public_key_pem": self._public_pem(private_key),
+                    "package_name": "com.publishmdm.agent",
+                }
+            ),
+            content_type="application/json",
+        )
+        assert resp.status_code == 403
 
     def test_register_key_missing_device_id(self, client):
         resp = client.post(
@@ -523,14 +542,19 @@ class TestDeviceSyncPolicyApi:
         )
         return private_key
 
-    def _sign_request(self, private_key, device_id):
+    def _sign_request(self, private_key, device_id, extra_fields=None):
         timestamp = str(int(time.time()))
-        payload = f"{device_id}.{timestamp}".encode()
+        non_auth = extra_fields or {}
+        body_digest = hashlib.sha256(
+            json.dumps(non_auth, separators=(",", ":"), sort_keys=True).encode()
+        ).hexdigest()
+        payload = f"{device_id}.{timestamp}.{body_digest}".encode()
         signature = private_key.sign(payload, ec.ECDSA(hashes.SHA256()))
         return {
             "device_id": device_id,
             "timestamp": timestamp,
             "signature_b64": base64.b64encode(signature).decode("ascii"),
+            "body_digest": body_digest,
         }
 
     def test_sync_policy_success(self, client, mocker):

@@ -1598,7 +1598,14 @@ def device_screen_trigger_view(request: HttpRequest, organization_slug, device_p
     if device.fcm_token:
         sent = send_start_screen_share(device.fcm_token, request_id=request_id)
         logger.info("device_screen_trigger_view: FCM send result", device_pk=device.pk, sent=sent)
-        return HttpResponse(status=204)
+        if sent:
+            return HttpResponse(status=204)
+        logger.warning(
+            "device_screen_trigger_view: FCM send failed",
+            device_pk=device.pk,
+            request_id=request_id,
+        )
+        return HttpResponse(status=502)
 
     logger.warning(
         "device_screen_trigger_view: no FCM token on device",

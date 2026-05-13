@@ -812,8 +812,7 @@ class DeviceAuthChallenge(models.Model):
         )
 
     def __str__(self):
-        device_id = self.device.device_id if self.device_id is not None else None
-        return f"AuthChallenge({self.challenge_id}, device={device_id})"
+        return f"AuthChallenge({self.challenge_id}, device={self.device.device_id})"
 
 
 class ScreenShareSession(models.Model):
@@ -840,8 +839,7 @@ class ScreenShareSession(models.Model):
         )
 
     def __str__(self):
-        device_id = self.device.device_id if self.device_id is not None else None
-        return f"ScreenShareSession({self.session_id}, device={device_id})"
+        return f"ScreenShareSession({self.session_id}, device={self.device.device_id})"
 
 
 class ScreenShareAuditLog(models.Model):
@@ -906,7 +904,7 @@ class DeviceAttestationNonce(models.Model):
         )
 
     def __str__(self):
-        return f"AttestationNonce(device={self.device_id}, expires={self.expires_at})"
+        return f"AttestationNonce(device={self.device.device_id}, expires={self.expires_at})"
 
 
 class DeviceSnapshot(models.Model):

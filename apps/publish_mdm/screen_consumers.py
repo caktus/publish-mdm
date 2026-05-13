@@ -17,15 +17,24 @@ import hashlib
 import structlog
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
+from django.core.cache import cache
 
 from apps.mdm.models import Device, ScreenShareSession
 
 logger = structlog.getLogger(__name__)
 
-# Tracks how many browser viewers are watching each device (keyed by device_pk).
-# Scoped to the process — sufficient with InMemoryChannelLayer.
-_viewer_counts: dict[int, int] = {}
+# Viewer-count storage.
+# In development (InMemoryChannelLayer) a process-local dict is sufficient.
+# In production (Redis channel layer) we use Django's cache (typically backed
+# by the same Redis instance) so every ASGI worker shares the count and the
+# "stop on last viewer" signal is correct across processes.
+_VIEWER_COUNT_CACHE_TTL = 3600  # generous TTL; key is cleaned up on disconnect
+_viewer_counts: dict[int, int] = {}  # fallback for InMemoryChannelLayer
 _viewer_counts_lock = asyncio.Lock()
+
+
+def _viewer_count_key(device_pk: int) -> str:
+    return f"screen-viewer-count:{device_pk}"
 
 
 def _group_name(device_pk: int) -> str:
@@ -161,18 +170,31 @@ class DeviceScreenViewerConsumer(AsyncWebsocketConsumer):
         return Device.objects.filter(pk=device_pk, fleet__organization_id__in=org_ids).exists()
 
     async def _increment_viewer_count(self, device_pk: int, delta: int) -> int:
-        """Increment/decrement the in-memory viewer count under an asyncio lock.
+        """Increment/decrement the viewer count for *device_pk*.
 
-        Returns the new count.  Uses a module-level dict so the count is shared
-        across all consumer instances in the same process (sufficient for
-        InMemoryChannelLayer; with Redis channel layers a Redis counter would be
-        needed for multi-process deployments).
+        Uses a shared Django cache counter (Redis in production) so all ASGI
+        workers agree on the total count, making "stop on last viewer" correct
+        in multi-worker deployments.  Falls back to an in-process dict when the
+        cache is not available (e.g. LocMemCache in unit tests).
         """
-        async with _viewer_counts_lock:
-            count = _viewer_counts.get(device_pk, 0) + delta
-            count = max(count, 0)
-            if count == 0:
-                _viewer_counts.pop(device_pk, None)
+        key = _viewer_count_key(device_pk)
+        try:
+            if delta > 0:
+                new_count = cache.get_or_set(key, 0, timeout=_VIEWER_COUNT_CACHE_TTL)
+                new_count = cache.incr(key, delta)
             else:
-                _viewer_counts[device_pk] = count
-            return count
+                new_count = cache.decr(key, -delta)
+                new_count = max(new_count, 0)
+                if new_count == 0:
+                    cache.delete(key)
+            return new_count
+        except Exception:
+            # Fallback: process-local counter (single-worker / test environments)
+            async with _viewer_counts_lock:
+                count = _viewer_counts.get(device_pk, 0) + delta
+                count = max(count, 0)
+                if count == 0:
+                    _viewer_counts.pop(device_pk, None)
+                else:
+                    _viewer_counts[device_pk] = count
+                return count

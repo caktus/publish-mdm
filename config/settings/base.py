@@ -494,8 +494,11 @@ FIRMWARE_APP_INSTALL_TYPE = os.getenv("FIRMWARE_APP_INSTALL_TYPE", "FORCE_INSTAL
 REQUIRE_HARDWARE_ATTESTATION = os.getenv("REQUIRE_HARDWARE_ATTESTATION", "true").lower() != "false"
 
 # Play Store track IDs accessible on devices for the firmware companion app.
+# Set as a comma-separated environment variable, e.g.:
+# PUBLISH_MDM_AGENT_TRACK_IDS="4699961510397865384,1234567890"
+# Defaults to an empty list so accessibleTrackIds is not pushed unless explicitly configured.
 PUBLISH_MDM_AGENT_TRACK_IDS: list[str] = [
-    # Closed testing track:
-    # https://play.google.com/console/u/0/developers/7481408635650691303/app/4972886268045285910/tracks/4699961510397865384?tab=testers
-    "4699961510397865384",
+    track_id.strip()
+    for track_id in os.getenv("PUBLISH_MDM_AGENT_TRACK_IDS", "").split(",")
+    if track_id.strip()
 ]

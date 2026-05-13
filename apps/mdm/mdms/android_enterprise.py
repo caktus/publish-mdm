@@ -939,7 +939,10 @@ class AndroidEnterprise(MDM):
 
         # Push the device-specific policy so the device immediately receives
         # its device_identifier in the firmware app's managed configuration.
-        self.push_device_config(device_to_push)
+        # Use a Celery task so the Pub/Sub ACK is not delayed by the AMAPI call.
+        from apps.mdm.tasks import push_device_config_task  # noqa: PLC0415
+
+        push_device_config_task.delay(device_to_push.pk)
 
     def _handle_status_report_notification(self, mdm_device: MDMDevice) -> None:
         """Update device metadata and create a snapshot from a STATUS_REPORT notification."""
@@ -973,7 +976,9 @@ class AndroidEnterprise(MDM):
                 "Device transitioned from PROVISIONING to ACTIVE; pushing device config",
                 device_id=mdm_device.id,
             )
-            self.push_device_config(existing_device)
+            from apps.mdm.tasks import push_device_config_task  # noqa: PLC0415
+
+            push_device_config_task.delay(existing_device.pk)
         # Only create a snapshot when the notification carries enough information.
         elif "lastPolicySyncTime" in mdm_device and "hardwareInfo" in mdm_device:
             self.create_device_snapshots(existing_device.fleet, [mdm_device])

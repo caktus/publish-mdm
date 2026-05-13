@@ -503,14 +503,19 @@ class TestFirmwareSnapshotView:
         return private_key
 
     @staticmethod
-    def _sign(private_key, device_id):
+    def _sign(private_key, device_id, extra_fields=None):
         timestamp = str(int(time.time()))
-        payload = f"{device_id}.{timestamp}".encode()
+        non_auth = extra_fields or {}
+        body_digest = hashlib.sha256(
+            json.dumps(non_auth, separators=(",", ":"), sort_keys=True).encode()
+        ).hexdigest()
+        payload = f"{device_id}.{timestamp}.{body_digest}".encode()
         signature = private_key.sign(payload, ec.ECDSA(hashes.SHA256()))
         return {
             "device_id": device_id,
             "timestamp": timestamp,
             "signature_b64": base64.b64encode(signature).decode("ascii"),
+            "body_digest": body_digest,
         }
 
     @pytest.fixture
@@ -534,8 +539,9 @@ class TestFirmwareSnapshotView:
     def test_invalid_signature_returns_401(self, client, url, device_with_key):
         device, _ = device_with_key
         wrong_key = ec.generate_private_key(ec.SECP256R1())
-        auth = self._sign(wrong_key, device.device_id)
-        data = json.dumps({**auth, "deviceIdentifier": "SN-VIEW-TEST"})
+        non_auth = {"deviceIdentifier": "SN-VIEW-TEST"}
+        auth = self._sign(wrong_key, device.device_id, extra_fields=non_auth)
+        data = json.dumps({**auth, **non_auth})
         response = client.post(url, data=data, content_type="application/json")
         assert response.status_code == 401
 
@@ -561,11 +567,8 @@ class TestFirmwareSnapshotView:
 
     def test_valid_data_saves_and_returns_201(self, client, url, device_with_key):
         device, key = device_with_key
-        body = {
-            **self._sign(key, device.device_id),
-            "deviceIdentifier": "SN-VIEW-TEST",
-            "version": "1.0",
-        }
+        non_auth = {"deviceIdentifier": "SN-VIEW-TEST", "version": "1.0"}
+        body = {**self._sign(key, device.device_id, extra_fields=non_auth), **non_auth}
         data = json.dumps(body)
         response = client.post(url, data=data, content_type="application/json")
         assert response.status_code == 201
@@ -934,7 +937,7 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
 
     def test_enrollment_creates_new_device(self, client, mocker):
         """An ENROLLMENT notification for a new device creates a Device record."""
-        mocker.patch.object(AndroidEnterprise, "push_device_config")
+        mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         fleet = FleetFactory()
         device_data = {
             "name": "enterprises/test/devices/newdevice1",
@@ -952,7 +955,7 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
 
     def test_enrollment_updates_existing_device(self, client, mocker):
         """An ENROLLMENT notification for an existing device updates it."""
-        mocker.patch.object(AndroidEnterprise, "push_device_config")
+        mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         fleet = FleetFactory()
         device = DeviceFactory(fleet=fleet, device_id="existingdev1", serial_number="OLD-SN")
         device_data = {
@@ -1019,7 +1022,7 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
     def test_status_report_pushes_config_on_provisioning_to_active(self, client, mocker):
         """STATUS_REPORT PROVISIONING→ACTIVE calls push_device_config for a device
         that doesn't yet have a device-specific policy."""
-        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        mock_push = mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         fleet = FleetFactory()
         device = DeviceFactory(
             fleet=fleet,
@@ -1040,7 +1043,7 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
         body = self.build_pubsub_body(device_data, "STATUS_REPORT")
         response = self.post(client, body)
         assert response.status_code == 204
-        mock_push.assert_called_once_with(device)
+        mock_push.assert_called_once_with(device.pk)
 
     def test_status_report_no_snapshot_without_sufficient_data(self, client):
         """A STATUS_REPORT lacking lastPolicySyncTime does not create a DeviceSnapshot."""
@@ -1060,7 +1063,7 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
     def test_enrollment_calls_push_device_config_for_new_device(self, client, mocker):
         """ENROLLMENT notification for a new device calls push_device_config so the
         device immediately receives its device_identifier in the firmware managed config."""
-        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        mock_push = mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         fleet = FleetFactory()
         device_data = {
             "name": "enterprises/test/devices/newpushdev",
@@ -1073,12 +1076,12 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
         response = self.post(client, body)
         assert response.status_code == 204
         device = Device.objects.get(device_id="newpushdev")
-        mock_push.assert_called_once_with(device)
+        mock_push.assert_called_once_with(device.pk)
 
     def test_enrollment_calls_push_device_config_for_existing_device(self, client, mocker):
         """ENROLLMENT notification for an existing device (re-enrollment) also calls
         push_device_config to refresh its device_identifier."""
-        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        mock_push = mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         fleet = FleetFactory()
         device = DeviceFactory(fleet=fleet, device_id="reenrolldev", serial_number="OLD-SN")
         device_data = {
@@ -1091,12 +1094,12 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
         body = self.build_pubsub_body(device_data, "ENROLLMENT")
         response = self.post(client, body)
         assert response.status_code == 204
-        mock_push.assert_called_once_with(device)
+        mock_push.assert_called_once_with(device.pk)
 
     def test_status_report_pushes_config_without_app_user(self, client, mocker):
         """STATUS_REPORT PROVISIONING→ACTIVE calls push_device_config even for devices
         without an assigned app user, so they receive their device_identifier."""
-        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        mock_push = mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         fleet = FleetFactory()
         device = DeviceFactory(
             fleet=fleet,
@@ -1117,7 +1120,7 @@ class TestAmapiNotificationsView(TestAndroidEnterpriseOnly):
         body = self.build_pubsub_body(device_data, "STATUS_REPORT")
         response = self.post(client, body)
         assert response.status_code == 204
-        mock_push.assert_called_once_with(device)
+        mock_push.assert_called_once_with(device.pk)
 
 
 # ---------------------------------------------------------------------------
