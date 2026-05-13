@@ -606,6 +606,23 @@ class TestDeviceSyncPolicyApi:
         assert resp.status_code == 204
         mock_mdm.push_device_config.assert_called_once_with(device)
 
+    def test_sync_policy_clock_skew_returns_400_with_server_time(self, client):
+        device = DeviceFactory()
+        key = self._register_device(device)
+        stale_timestamp = str(int(time.time()) - 120)  # 2 minutes old
+        payload = f"{device.device_id}.{stale_timestamp}".encode()
+        signature = key.sign(payload, ec.ECDSA(hashes.SHA256()))
+        body = {
+            "device_id": device.device_id,
+            "timestamp": stale_timestamp,
+            "signature_b64": base64.b64encode(signature).decode("ascii"),
+        }
+        resp = client.post(self.url, data=json.dumps(body), content_type="application/json")
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data["error"] == "clock_skew"
+        assert isinstance(data["server_time"], int)
+
     def test_sync_policy_get_not_allowed(self, client):
         resp = client.get(self.url)
         assert resp.status_code == 405

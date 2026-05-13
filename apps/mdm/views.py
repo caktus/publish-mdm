@@ -147,7 +147,7 @@ def _authenticate_device_request(body: dict) -> tuple[Device | None, HttpRespons
 
     now_ts = int(time.time())
     if abs(now_ts - timestamp) > TIMESTAMP_SKEW_SECONDS:
-        return None, HttpResponse(status=400)
+        return None, JsonResponse({"error": "clock_skew", "server_time": now_ts}, status=400)
 
     device = _find_device(device_id, auth_key_state="active")
     if not device or not device.auth_public_key_pem:

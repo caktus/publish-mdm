@@ -216,3 +216,69 @@ separate FCM registration call is needed.
         Server-->>App: 201 {key_fingerprint, key_version}
 
         Note over Server: device.auth_public_key_pem = key<br/>device.auth_key_state = "active"
+
+Authenticated Device Requests
+------------------------------
+
+After registration, every device-to-server API call is authenticated with an
+ECDSA signature. The private key never leaves the device's secure hardware; only
+the device that holds it can produce a valid signature.
+
+.. rubric:: Normal flow (clocks in sync)
+
+.. mermaid::
+
+    sequenceDiagram
+        autonumber
+        participant App as Companion App<br/>(Android Keystore)
+        participant Server as Publish MDM Server
+
+        Note over App: timestamp = now + clockOffsetSeconds<br/>payload = "{device_id}.{timestamp}"<br/>signature = ECDSA-SHA256(payload)
+
+        App->>Server: POST /mdm/api/devices/<endpoint>/<br/>{device_id, timestamp, signature_b64, ...}
+
+        Note over Server: 1. Check |now − timestamp| ≤ 30 s<br/>2. Look up device by device_id<br/>3. Verify ECDSA signature
+
+        Server-->>App: 2xx success
+
+Endpoints that use this pattern:
+
+- ``POST /mdm/api/firmware/`` — firmware version snapshot
+- ``POST /mdm/api/devices/fcm-token/`` — FCM token registration
+- ``POST /mdm/api/devices/sync-policy/`` — request an AMAPI policy push
+
+.. rubric:: Clock-skew recovery flow
+
+If the device clock is more than 30 seconds ahead of or behind the server, the
+server rejects the request with a structured 400 response so the client can
+self-correct without user intervention.
+
+.. mermaid::
+
+    sequenceDiagram
+        autonumber
+        participant App as Companion App
+        participant Server as Publish MDM Server
+
+        Note over App: Device clock is off by > 30 s
+
+        App->>Server: POST /mdm/api/devices/<endpoint>/<br/>{device_id, timestamp (wrong), signature_b64}
+
+        Note over Server: |now − timestamp| > 30 s → reject
+
+        Server-->>App: 400 {"error": "clock_skew", "server_time": T}
+
+        Note over App: clockOffsetSeconds = T − local_time<br/>(stored in memory for process lifetime)
+
+        Note over App: Re-sign with corrected timestamp:<br/>timestamp = now + clockOffsetSeconds
+
+        App->>Server: POST /mdm/api/devices/<endpoint>/<br/>{device_id, timestamp (corrected), signature_b64}
+
+        Note over Server: Timestamp within 30 s → accept<br/>Verify ECDSA signature
+
+        Server-->>App: 2xx success
+
+The clock offset persists for the lifetime of the app process.  Because Android
+Enterprise devices are NTP-synced at boot, a persistent offset is only needed
+when the first request arrives before NTP has corrected the clock, which is
+uncommon in practice.

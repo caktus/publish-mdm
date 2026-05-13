@@ -122,6 +122,24 @@ class TestDeviceFcmTokenView:
         resp = client.post(self.url, data="not json", content_type="application/json")
         assert resp.status_code == 400
 
+    def test_clock_skew_returns_400_with_server_time(self, client):
+        device = DeviceFactory()
+        key = _register_key(device)
+        stale_timestamp = str(int(time.time()) - 120)  # 2 minutes old
+        payload = f"{device.device_id}.{stale_timestamp}".encode()
+        signature = key.sign(payload, ec.ECDSA(hashes.SHA256()))
+        body = {
+            "device_id": device.device_id,
+            "timestamp": stale_timestamp,
+            "signature_b64": base64.b64encode(signature).decode("ascii"),
+            "fcm_token": "tok",
+        }
+        resp = client.post(self.url, data=json.dumps(body), content_type="application/json")
+        assert resp.status_code == 400
+        data = resp.json()
+        assert data["error"] == "clock_skew"
+        assert isinstance(data["server_time"], int)
+
     def test_get_not_allowed(self, client):
         resp = client.get(self.url)
         assert resp.status_code == 405

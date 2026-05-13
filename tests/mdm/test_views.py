@@ -539,7 +539,26 @@ class TestFirmwareSnapshotView:
         response = client.post(url, data=data, content_type="application/json")
         assert response.status_code == 401
 
-    @pytest.mark.django_db
+    def test_clock_skew_returns_400_with_server_time(self, client, url, device_with_key):
+        device, key = device_with_key
+        stale_timestamp = str(int(time.time()) - 120)  # 2 minutes old
+        payload = f"{device.device_id}.{stale_timestamp}".encode()
+        signature = key.sign(payload, ec.ECDSA(hashes.SHA256()))
+        data = json.dumps(
+            {
+                "device_id": device.device_id,
+                "timestamp": stale_timestamp,
+                "signature_b64": base64.b64encode(signature).decode("ascii"),
+                "deviceIdentifier": "SN-VIEW-TEST",
+                "version": "1.0",
+            }
+        )
+        response = client.post(url, data=data, content_type="application/json")
+        assert response.status_code == 400
+        body = response.json()
+        assert body["error"] == "clock_skew"
+        assert isinstance(body["server_time"], int)
+
     def test_valid_data_saves_and_returns_201(self, client, url, device_with_key):
         device, key = device_with_key
         body = {
