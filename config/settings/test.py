@@ -16,3 +16,7 @@ ENVIRONMENT = "test"
 ANDROID_ENTERPRISE_CALLBACK_DOMAIN = ""
 
 DAGSTER_URL = ""
+
+# Unattested (emulator/dev) key registration is allowed in the test suite so that
+# tests can register device keys without mocking hardware attestation.
+REQUIRE_HARDWARE_ATTESTATION = False

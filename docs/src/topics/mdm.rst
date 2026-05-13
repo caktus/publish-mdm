@@ -60,9 +60,9 @@ MDM Fleet
 Zero-Touch Enrollment
     Zero-touch enrollment is a streamlined process for Android devices to be
     provisioned for enterprise management. A device is pre-registered for
-    zero-touch enrollment by an IT admin. TinyMDM can take advantage of this
-    feature to automatically enroll devices into a fleet and apply the
-    appropriate policy.
+    zero-touch enrollment by an IT admin. Both TinyMDM and Android EMM support
+    this feature to automatically enroll devices into a fleet and apply the
+    appropriate policy. See `Zero-Touch Enrollment Setup`_ for setup instructions.
 
 .. _TinyMDM: https://www.tinymdm.net/
 .. _Android EMM: https://www.android.com/enterprise/management
@@ -140,6 +140,56 @@ You can enroll an enterprise for your organization in the frontend (``/o/<organi
 or in Admin (``/admin/publish_mdm/androidenterpriseaccount/``). In case an existing enrollment needs to be disposed,
 it's better to delete the whole organization and start over, rather than enrolling a new enterprise for the organization.
 
+Zero-Touch Enrollment Setup
+---------------------------
+
+Zero-touch enrollment lets IT admins pre-configure devices so they automatically
+enroll into Publish MDM during first boot.
+
+Prerequisites
+~~~~~~~~~~~~~
+
+- Completed :doc:`Getting Started with Device Management <../getting-started/device_management_quickstart>`
+  (Android Enterprise enrolled for your organization).
+- A device pre-registered for zero-touch enrollment by your reseller or carrier.
+- Access to the `Zero-Touch Enrollment portal`_.
+- Familiarity with `Zero-touch enrollment for IT admins`_.
+
+.. _Zero-Touch Enrollment portal: https://enterprise.google.com/android/zero-touch/customers
+.. _Zero-touch enrollment for IT admins: https://support.google.com/work/android/answer/7514005
+
+Step 1: Create an Enrollment Token
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. In Publish MDM, navigate to **Devices** and click **Enroll → Enrollment Tokens**.
+2. Click **Create Token** and fill out the form (select the target fleet and set an
+   appropriate expiry).
+3. After saving, open the token detail page and note the **EMM DPC Package name** and
+   **DPC Extras** values — you will need both in the next step.
+
+Step 2: Configure the Zero-Touch Portal
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. Go to the `Zero-Touch Enrollment portal`_ and sign in with your Google account.
+2. Click **Add configuration** and complete the form:
+
+   - **EMM DPC Package name**: select Android Device Policy
+     (``com.google.android.apps.work.clouddpc``), which should match the value
+     from the Publish MDM token detail page.
+   - **DPC Extras**: paste the JSON blob from the Publish MDM token detail page.
+
+3. Save the configuration
+4. Search for the IMEI or serial number of the device you want to enroll and assign it to the
+   configuration you just created.
+
+Step 3: Enroll the Device
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Perform a factory reset on the device (or power it on for the first time). During the
+setup wizard, connect to Wi-Fi and the device will automatically download the DPC and
+enroll with Publish MDM using the configuration from the Zero-Touch portal. No QR code
+or manual input is required.
+
 Deleting Devices
 ----------------
 
@@ -157,3 +207,128 @@ In both cases the device record is soft-deleted from the Publish MDM database. T
 factory reset or work-profile removal is applied by the MDM service provider and may not
 happen immediately — the time it takes for the device to carry out the command can vary
 depending on the device and network connectivity.
+
+Device Key Registration
+-----------------------
+
+The companion app (``com.publishmdm.agent``) authenticates itself to the server
+by binding an ECDSA P-256 private key to the device record.  The key never
+leaves secure hardware (TEE or StrongBox), so only that physical device can sign
+future requests.
+
+There are two registration paths, selected by the ``require_hardware_attestation``
+managed configuration key:
+
+- **Attested** *(default, production)*: the server independently verifies that the
+  key was generated inside a hardware security element by validating the Android
+  Key Attestation certificate chain against Google's trusted root certificates.
+- **Unattested** *(emulator / dev)*: the PEM public key is sent directly; no
+  hardware proof is required.
+
+Both paths include the current FCM token in the same request so that no
+separate FCM registration call is needed.
+
+.. rubric:: Attested registration (hardware-backed key)
+
+.. mermaid::
+
+    sequenceDiagram
+        autonumber
+        participant App as Companion App<br/>(Android Keystore)
+        participant Server as Publish MDM Server
+        participant Google as Google Attestation<br/>Root CA
+
+        App->>Server: POST /mdm/api/devices/attestation/nonce/<br/>{device_id}
+        Server-->>App: 200 {nonce} (64-char hex, stored with TTL)
+
+        Note over App: generateAttestedKey(nonce)<br/>TEE/StrongBox embeds nonce<br/>as attestation challenge
+
+        App->>Server: POST /mdm/api/devices/register-key/<br/>{device_id, certificate_chain, package_name, fcm_token}
+        Note over Server: validate_attestation():<br/>1. Decode & load chain via pyOpenSSL<br/>2. Verify signatures up to root<br/>3. Check root fingerprint against<br/>   trusted Google roots<br/>4. Extract challenge → must match nonce<br/>5. Extract security_level (TEE/StrongBox)<br/>6. Extract EC public key
+        Server->>Google: (offline) root fingerprint check<br/>against embedded trusted roots
+        Server-->>App: 201 {key_fingerprint, key_version}
+
+        Note over Server: device.auth_public_key_pem = key<br/>device.auth_key_state = "active"
+
+.. rubric:: Unattested registration (emulator / dev)
+
+.. mermaid::
+
+    sequenceDiagram
+        autonumber
+        participant App as Companion App<br/>(Android Keystore)
+        participant Server as Publish MDM Server
+
+        Note over App: ensureKey() — plain ECDSA P-256<br/>no attestation challenge
+
+        App->>Server: POST /mdm/api/devices/register-key/<br/>{device_id, public_key_pem, package_name, fcm_token}
+        Note over Server: Load EC public key from PEM<br/>compute SHA-256 fingerprint
+        Server-->>App: 201 {key_fingerprint, key_version}
+
+        Note over Server: device.auth_public_key_pem = key<br/>device.auth_key_state = "active"
+
+Authenticated Device Requests
+------------------------------
+
+After registration, every device-to-server API call is authenticated with an
+ECDSA signature. The private key never leaves the device's secure hardware; only
+the device that holds it can produce a valid signature.
+
+.. rubric:: Normal flow (clocks in sync)
+
+.. mermaid::
+
+    sequenceDiagram
+        autonumber
+        participant App as Companion App<br/>(Android Keystore)
+        participant Server as Publish MDM Server
+
+        Note over App: timestamp = now + clockOffsetSeconds<br/>payload = "{device_id}.{timestamp}"<br/>signature = ECDSA-SHA256(payload)
+
+        App->>Server: POST /mdm/api/devices/<endpoint>/<br/>{device_id, timestamp, signature_b64, ...}
+
+        Note over Server: 1. Check |now − timestamp| ≤ 30 s<br/>2. Look up device by device_id<br/>3. Verify ECDSA signature
+
+        Server-->>App: 2xx success
+
+Endpoints that use this pattern:
+
+- ``POST /mdm/api/firmware/`` — firmware version snapshot
+- ``POST /mdm/api/devices/fcm-token/`` — FCM token registration
+- ``POST /mdm/api/devices/sync-policy/`` — request an AMAPI policy push
+
+.. rubric:: Clock-skew recovery flow
+
+If the device clock is more than 30 seconds ahead of or behind the server, the
+server rejects the request with a structured 400 response so the client can
+self-correct without user intervention.
+
+.. mermaid::
+
+    sequenceDiagram
+        autonumber
+        participant App as Companion App
+        participant Server as Publish MDM Server
+
+        Note over App: Device clock is off by > 30 s
+
+        App->>Server: POST /mdm/api/devices/<endpoint>/<br/>{device_id, timestamp (wrong), signature_b64}
+
+        Note over Server: |now − timestamp| > 30 s → reject
+
+        Server-->>App: 400 {"error": "clock_skew", "server_time": T}
+
+        Note over App: clockOffsetSeconds = T − local_time<br/>(stored in memory for process lifetime)
+
+        Note over App: Re-sign with corrected timestamp:<br/>timestamp = now + clockOffsetSeconds
+
+        App->>Server: POST /mdm/api/devices/<endpoint>/<br/>{device_id, timestamp (corrected), signature_b64}
+
+        Note over Server: Timestamp within 30 s → accept<br/>Verify ECDSA signature
+
+        Server-->>App: 2xx success
+
+The clock offset persists for the lifetime of the app process.  Because Android
+Enterprise devices are NTP-synced at boot, a persistent offset is only needed
+when the first request arrives before NTP has corrected the clock, which is
+uncommon in practice.

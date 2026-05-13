@@ -143,6 +143,16 @@ urlpatterns = [
         name="device-detail",
     ),
     path(
+        "o/<slug:organization_slug>/devices/<int:device_pk>/screen/",
+        views.device_screen_view,
+        name="device-screen-view",
+    ),
+    path(
+        "o/<slug:organization_slug>/devices/<int:device_pk>/screen/trigger/",
+        views.device_screen_trigger_view,
+        name="device-screen-trigger",
+    ),
+    path(
         "o/<slug:organization_slug>/devices/export/",
         views.device_export,
         name="devices-export",

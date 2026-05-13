@@ -5,6 +5,7 @@ from collections import namedtuple
 import faker
 import pytest
 from django.contrib.sites.models import Site
+from django.utils import timezone
 from googleapiclient.errors import HttpError
 
 from apps.mdm.mdms import AndroidEnterprise, MDMAPIError
@@ -682,6 +683,10 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         then soft-deleted via bulk_update because the per-device ID lookup returns None."""
         # Our device has device_id that does NOT match the MDM device name suffix
         our_device = DeviceFactory(fleet=fleet, device_id="OUR-DEVICE-ID", serial_number="SN999")
+        # Backdate created_at so it is outside the enrollment grace period
+        Device.all_objects.filter(pk=our_device.pk).update(
+            created_at=timezone.now() - dt.timedelta(minutes=10)
+        )
         # MDM device name has a different ID suffix; serial_number matches our_device
         mdm_device = MDMDevice(
             {
@@ -700,6 +705,57 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         assert our_device.is_deleted
         # Device is no longer visible via the default manager
         assert not Device.objects.filter(pk=our_device.pk).exists()
+
+    def test_update_existing_devices_does_not_soft_delete_recently_enrolled_device(self, fleet):
+        """Race condition: a device enrolled via AMAPI notification (creating the DB record)
+        may not appear in the AMAPI list API response yet when Dagster syncs shortly after.
+        update_existing_devices() must NOT soft-delete devices created within the grace period
+        even if they are absent from the MDM response.
+
+        Timeline:
+        1. AMAPI ENROLLMENT notification → Device created in DB
+        2. Dagster sync (< 5 min later) → device absent from AMAPI list API
+        3. Without fix: device soft-deleted → subsequent STATUS_REPORT notifications fail
+        4. With fix: device preserved because it was created very recently
+        """
+        # Device was just created from an ENROLLMENT notification (right now)
+        new_device = DeviceFactory(
+            fleet=fleet,
+            device_id="NEW-ENROLLED-ID",
+            serial_number="SN-NEW",
+            name="enterprises/test/devices/NEW-ENROLLED-ID",
+        )
+
+        # Dagster sync: AMAPI list API returns no devices (propagation lag)
+        active_mdm = AndroidEnterprise(organization=fleet.organization)
+        active_mdm.update_existing_devices(fleet=fleet, mdm_devices=[])
+
+        # The newly-enrolled device must NOT be soft-deleted
+        new_device.refresh_from_db()
+        assert not new_device.is_deleted
+        assert Device.objects.filter(pk=new_device.pk).exists()
+
+    def test_update_existing_devices_soft_deletes_stale_device_outside_grace_period(self, fleet):
+        """A device that is absent from the MDM response AND was created longer than the
+        grace period ago IS soft-deleted — the grace period only protects newly enrolled devices.
+        """
+        old_device = DeviceFactory(
+            fleet=fleet,
+            device_id="OLD-DEVICE-ID",
+            serial_number="SN-OLD",
+            name="enterprises/test/devices/OLD-DEVICE-ID",
+        )
+        # Backdate created_at beyond the grace period
+        Device.all_objects.filter(pk=old_device.pk).update(
+            created_at=timezone.now() - dt.timedelta(minutes=10)
+        )
+
+        active_mdm = AndroidEnterprise(organization=fleet.organization)
+        active_mdm.update_existing_devices(fleet=fleet, mdm_devices=[])
+
+        old_device.refresh_from_db()
+        assert old_device.is_deleted
+        assert not Device.objects.filter(pk=old_device.pk).exists()
 
     def test_update_existing_devices_soft_deletes_reenrolled_device(self, fleet):
         """A device whose name appears in another MDM device's previousDeviceNames
@@ -1043,10 +1099,12 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
 
     @pytest.mark.django_db
     def test_build_push_endpoint(self, set_amapi_service_account_file, settings):
-        """_build_push_endpoint() falls back to the Site domain when no domain is supplied."""
+        """_build_push_endpoint() falls back to the Site domain when no domain is supplied
+        and neither ANDROID_ENTERPRISE_CALLBACK_DOMAIN nor ALLOWED_HOSTS is set."""
         active_mdm = AndroidEnterprise()
         settings.ANDROID_ENTERPRISE_PUBSUB_TOKEN = "mysecret"
         settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN = ""
+        settings.ALLOWED_HOSTS = []
         Site.objects.filter(pk=settings.SITE_ID).update(domain="app.example.com")
         endpoint = active_mdm._build_push_endpoint()
         assert endpoint == "https://app.example.com/mdm/api/amapi/notifications/?token=mysecret"
@@ -1171,9 +1229,12 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         mock_enroll.assert_not_called()
         mock_status.assert_not_called()
 
-    def test_handle_enrollment_notification_creates_device(self):
-        """_handle_enrollment_notification() creates a new Device for an unknown device."""
+    def test_handle_enrollment_notification_creates_device(self, mocker):
+        """_handle_enrollment_notification() creates a new Device for an unknown device
+        and then calls push_device_config_task.delay to deliver the device_identifier immediately.
+        """
         fleet = FleetFactory()
+        mock_push = mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         active_mdm = AndroidEnterprise()
         mdm_device = MDMDevice(
             {
@@ -1187,11 +1248,14 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         assert device.fleet == fleet
         assert device.serial_number == "SN-001"
         assert device.name == "enterprises/test/devices/newdev"
+        mock_push.assert_called_once_with(device.pk)
 
-    def test_handle_enrollment_notification_updates_existing_device(self):
-        """_handle_enrollment_notification() updates an existing Device record."""
+    def test_handle_enrollment_notification_updates_existing_device(self, mocker):
+        """_handle_enrollment_notification() updates an existing Device record and
+        calls push_device_config_task.delay to refresh its device_identifier."""
         fleet = FleetFactory()
         existing = DeviceFactory(fleet=fleet, device_id="existdev", serial_number="OLD-SN")
+        mock_push = mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         active_mdm = AndroidEnterprise()
         mdm_device = MDMDevice(
             {
@@ -1204,8 +1268,9 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         existing.refresh_from_db()
         assert existing.serial_number == "NEW-SN"
         assert existing.name == "enterprises/test/devices/existdev"
+        mock_push.assert_called_once_with(existing.pk)
 
-    def test_handle_enrollment_notification_soft_deletes_previous_devices(self):
+    def test_handle_enrollment_notification_soft_deletes_previous_devices(self, mocker):
         """previousDeviceNames entries are soft-deleted after the new device is saved."""
         fleet = FleetFactory()
         old_device = DeviceFactory(
@@ -1213,6 +1278,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             device_id="olddev",
             name="enterprises/test/devices/olddev",
         )
+        mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         active_mdm = AndroidEnterprise()
         mdm_device = MDMDevice(
             {
@@ -1230,10 +1296,11 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         assert old_device.is_deleted
         assert not Device.objects.filter(pk=old_device.pk).exists()
 
-    def test_handle_enrollment_notification_no_previous_devices(self):
+    def test_handle_enrollment_notification_no_previous_devices(self, mocker):
         """When previousDeviceNames is absent, no extra deletions occur."""
         fleet = FleetFactory()
         unrelated = DeviceFactory(fleet=fleet)
+        mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         active_mdm = AndroidEnterprise()
         mdm_device = MDMDevice(
             {
@@ -1310,8 +1377,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         self, mocker
     ):
         """_handle_status_report_notification() calls push_device_config when the device
-        transitions PROVISIONING→ACTIVE, has an app_user_name, and lacks a device-specific
-        policy."""
+        transitions PROVISIONING→ACTIVE and lacks a device-specific policy."""
         fleet = FleetFactory()
         device = DeviceFactory(
             fleet=fleet,
@@ -1324,7 +1390,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
                 "policyName": "enterprises/test/policies/default",
             },
         )
-        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        mock_push = mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         active_mdm = AndroidEnterprise()
         mdm_device = MDMDevice(
             {
@@ -1337,8 +1403,9 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         active_mdm._handle_status_report_notification(mdm_device)
         mock_push.assert_called_once()
 
-    def test_handle_status_report_notification_no_push_without_app_user_name(self, mocker):
-        """_handle_status_report_notification() does not push config when app_user_name is empty."""
+    def test_handle_status_report_notification_pushes_config_without_app_user_name(self, mocker):
+        """_handle_status_report_notification() calls push_device_config even when
+        app_user_name is empty, so all devices receive their device_identifier."""
         fleet = FleetFactory()
         device = DeviceFactory(
             fleet=fleet,
@@ -1351,7 +1418,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
                 "policyName": "enterprises/test/policies/default",
             },
         )
-        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        mock_push = mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         active_mdm = AndroidEnterprise()
         mdm_device = MDMDevice(
             {
@@ -1362,7 +1429,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
             }
         )
         active_mdm._handle_status_report_notification(mdm_device)
-        mock_push.assert_not_called()
+        mock_push.assert_called_once()
 
     def test_handle_status_report_notification_no_push_when_device_specific_policy(self, mocker):
         """_handle_status_report_notification() does not push config when the policy
@@ -1379,7 +1446,7 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
                 "policyName": "enterprises/test/policies/fleet1_provdev3",
             },
         )
-        mock_push = mocker.patch.object(AndroidEnterprise, "push_device_config")
+        mock_push = mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         active_mdm = AndroidEnterprise()
         mdm_device = MDMDevice(
             {
@@ -1601,3 +1668,103 @@ class TestPubsubEnabled(TestAndroidEnterpriseOnly):
         )
         with pytest.raises(HttpError):
             active_mdm.pubsub_enabled()
+
+
+@pytest.mark.django_db
+class TestDeviceEnrollmentPolicyWorkflow(TestAndroidEnterprise):
+    """Integration tests for the device enrollment policy workflow.
+
+    Verifies end-to-end that:
+    - The base fleet policy sent to AMAPI never contains device_identifier.
+    - The per-device policy sent to AMAPI always contains the correct device_identifier.
+    - push_device_config is called on ENROLLMENT for new and re-enrolling devices.
+    - STATUS_REPORT PROVISIONING→ACTIVE triggers push_device_config for all devices,
+      regardless of whether they have an assigned app user.
+    """
+
+    FIRMWARE_PACKAGE = "com.publishmdm.agent"
+
+    def get_firmware_managed_config(self, policy_data: dict) -> dict:
+        """Return the firmware app's managedConfiguration from a policy body dict."""
+        for app in policy_data.get("applications", []):
+            if app.get("packageName") == self.FIRMWARE_PACKAGE:
+                return app.get("managedConfiguration", {})
+        return {}
+
+    def test_create_or_update_policy_sends_no_device_identifier(self, fleet, monkeypatch, mocker):
+        """The base fleet policy pushed via create_or_update_policy never contains
+        device_identifier in the firmware app's managed configuration."""
+        active_mdm = AndroidEnterprise(organization=fleet.organization)
+
+        # Spy on get_policy_data to capture the actual policy body without mocking it
+        captured_bodies = []
+        original = fleet.policy.get_policy_data
+
+        def spy_get_policy_data(device=None):
+            result = original(device=device)
+            if result is not None:
+                captured_bodies.append(result)
+            return result
+
+        mocker.patch.object(fleet.policy, "get_policy_data", side_effect=spy_get_policy_data)
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(MockAPIResponse("policies.patch")),
+        )
+
+        active_mdm.create_or_update_policy(fleet.policy)
+
+        assert len(captured_bodies) == 1, "get_policy_data should have been called once"
+        firmware_config = self.get_firmware_managed_config(captured_bodies[0])
+        assert firmware_config, "Firmware app should be present in the base policy"
+        assert "device_identifier" not in firmware_config, (
+            "Base policy must never include device_identifier"
+        )
+
+    def test_push_device_config_sends_device_identifier_to_amapi(self, fleet, monkeypatch, mocker):
+        """push_device_config sends a device-specific policy to AMAPI that includes
+        device_identifier = device.device_id in the firmware app's managed configuration."""
+        device = DeviceFactory.build(fleet=fleet)
+        base_policy_name = f"enterprises/test/policies/{fleet.policy.policy_id}"
+        expected_policy_name = f"enterprises/test/policies/fleet{fleet.id}_{device.device_id}"
+        device.raw_mdm_device = {
+            **self.get_raw_mdm_device(device),
+            "policyName": base_policy_name,
+        }
+        device.save()
+        active_mdm = AndroidEnterprise(organization=fleet.organization)
+
+        # Spy on get_policy_data to capture the real policy body (serializer runs fully)
+        captured_bodies = []
+        original = device.fleet.policy.get_policy_data
+
+        def spy_get_policy_data(device=None):
+            result = original(device=device)
+            if result is not None:
+                captured_bodies.append(result)
+            return result
+
+        mocker.patch.object(device.fleet.policy, "get_policy_data", side_effect=spy_get_policy_data)
+        # Mock the AMAPI endpoints — policies.patch creates the device-specific policy,
+        # devices.patch moves the device to it.
+        monkeypatch.setattr(
+            active_mdm.api,
+            "_requestBuilder",
+            self.get_mock_request_builder(
+                MockAPIResponse("policies.patch"),
+                MockAPIResponse(
+                    "devices.patch",
+                    device.raw_mdm_device | {"policyName": expected_policy_name},
+                ),
+            ),
+        )
+
+        active_mdm.push_device_config(device)
+
+        assert len(captured_bodies) == 1, "get_policy_data should have been called once"
+        firmware_config = self.get_firmware_managed_config(captured_bodies[0])
+        assert firmware_config, "Firmware app should be present in the device-specific policy"
+        assert firmware_config.get("device_identifier") == device.device_id, (
+            f"device_identifier should equal device.device_id ({device.device_id!r})"
+        )

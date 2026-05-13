@@ -535,11 +535,13 @@ class TestPolicyAdmin(TestAdmin):
                 }
                 device.save()
                 devices_to_push.append(device)
-            DeviceFactory.create_batch(
+            # Devices on the base fleet policy must also be pushed (regression case).
+            for device in DeviceFactory.create_batch(
                 2,
                 fleet=fleet,
                 raw_mdm_device={"policyName": f"enterprises/test/policies/{policy.policy_id}"},
-            )
+            ):
+                devices_to_push.append(device)
         mock_push_device_config = mocker.patch.object(MDM, "push_device_config")
         mock_trigger = mocker.patch("apps.mdm.admin.trigger_dagster_job")
 

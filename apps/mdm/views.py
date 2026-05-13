@@ -1,14 +1,22 @@
 import base64
 import datetime as dt
+import hashlib
 import json
+import secrets
+import time
+import uuid
 
 import structlog
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.core.files.base import ContentFile
-from django.db.models import Count, F, Max, Q
-from django.http import Http404, HttpResponse
+from django.db.models import Count, Max, Q
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.crypto import get_random_string
 from django.utils.timezone import now
@@ -16,6 +24,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from django_tables2.config import RequestConfig
 
+from apps.mdm.attestation import AttestationError, validate_attestation
 from apps.publish_mdm.models import AndroidEnterpriseAccount
 from apps.publish_mdm.nav import Breadcrumbs
 from apps.publish_mdm.utils import create_qr_code
@@ -33,27 +42,649 @@ from .forms import (
 from .mdms import get_active_mdm_instance
 from .models import (
     Device,
+    DeviceAttestationNonce,
+    DeviceAuthChallenge,
     EnrollmentToken,
     Policy,
     PolicyApplication,
     PolicyVariable,
     PolicyVariableScope,
+    ScreenShareAuditLog,
+    ScreenShareSession,
 )
+from .serializers import FIRMWARE_APP_PACKAGE
 from .tables import EnrollmentTokenTable, PolicyTable
+from .utils import get_callback_domain
 
 logger = structlog.get_logger()
+
+CHALLENGE_TTL_SECONDS = 60
+SESSION_TTL_SECONDS = 60
+TIMESTAMP_SKEW_SECONDS = 30
+
+
+def _sha256_hex(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _client_ip(request) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    if forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip()
+    return request.META.get("REMOTE_ADDR", "")
+
+
+def _is_rate_limited(scope: str, key: str, limit: int, window_seconds: int) -> bool:
+    cache_key = f"mdm-auth-rl:{scope}:{key}"
+    if cache.add(cache_key, 1, timeout=window_seconds):
+        return False
+    try:
+        count = cache.incr(cache_key)
+    except ValueError:
+        cache.set(cache_key, 1, timeout=window_seconds)
+        return False
+    return count > limit
+
+
+def _audit_event(event_type: str, request, device: Device | None = None, **metadata) -> None:
+    ScreenShareAuditLog.objects.create(
+        event_type=event_type,
+        device=device,
+        actor=request.user
+        if getattr(request, "user", None) and request.user.is_authenticated
+        else None,
+        ip_address=_client_ip(request) or None,
+        metadata_json=metadata or {},
+    )
+
+
+def _load_ec_public_key(public_key_pem: str):
+    try:
+        key = serialization.load_pem_public_key(public_key_pem.encode("utf-8"))
+    except ValueError:
+        return None
+    if not isinstance(key, ec.EllipticCurvePublicKey):
+        return None
+    return key
+
+
+def _find_device(identifier: str, **extra_filters):
+    """Look up a device by device_id or serial_number.
+
+    The companion app sends its managed-config ``device_identifier`` value
+    which may resolve to either ``Device.device_id`` (MDM identifier) or
+    ``Device.serial_number`` depending on the policy variable template.
+    """
+    device = Device.objects.filter(device_id=identifier, **extra_filters).first()
+    if device:
+        return device
+    return Device.objects.filter(serial_number=identifier, **extra_filters).first()
+
+
+# Fields excluded when computing the body digest (they are themselves auth fields).
+_AUTH_FIELDS = frozenset({"device_id", "timestamp", "signature_b64", "body_digest"})
+
+
+def _compute_body_digest(fields: dict) -> str:
+    """SHA-256 hex of the compact sorted-key JSON of *fields*.
+
+    Used to provide request body integrity: the client signs
+    ``{device_id}.{timestamp}.{body_digest}`` so any tampering with the
+    non-auth body fields (e.g. fcm_token, firmware data) invalidates the
+    signature.
+    """
+    normalized = json.dumps(fields, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(normalized.encode()).hexdigest()
+
+
+def _authenticate_device_request(body: dict) -> tuple[Device | None, HttpResponse | None]:
+    """Verify an ECDSA-signed device request.
+
+    Expects ``device_id``, ``timestamp``, ``signature_b64``, and
+    ``body_digest`` in the JSON body.  The device signs
+    ``"{device_id}.{timestamp}.{body_digest}"`` where ``body_digest`` is the
+    SHA-256 hex of the compact sorted-key JSON of all non-auth body fields.
+
+    Returns ``(device, None)`` on success or ``(None, error_response)`` on
+    failure.
+    """
+    device_id = body.get("device_id", "").strip()
+    timestamp_raw = str(body.get("timestamp", "")).strip()
+    signature_b64 = body.get("signature_b64", "").strip()
+    body_digest = body.get("body_digest", "").strip()
+
+    if not device_id or len(device_id) > 255:
+        return None, HttpResponse(status=400)
+    if not timestamp_raw or not signature_b64:
+        return None, HttpResponse(status=400)
+
+    try:
+        timestamp = int(timestamp_raw)
+    except ValueError:
+        return None, HttpResponse(status=400)
+
+    now_ts = int(time.time())
+    if abs(now_ts - timestamp) > TIMESTAMP_SKEW_SECONDS:
+        return None, JsonResponse({"error": "clock_skew", "server_time": now_ts}, status=400)
+
+    device = _find_device(device_id, auth_key_state="active")
+    if not device or not device.auth_public_key_pem:
+        return None, HttpResponse(status=401)
+
+    public_key = _load_ec_public_key(device.auth_public_key_pem)
+    if public_key is None:
+        return None, HttpResponse(status=401)
+
+    try:
+        signature = base64.b64decode(signature_b64, validate=True)
+    except ValueError:
+        return None, HttpResponse(status=400)
+
+    # Verify body integrity: the provided body_digest must match the digest of
+    # all non-auth fields so that tampering with the body invalidates the
+    # signature (which covers body_digest).
+    non_auth_fields = {k: v for k, v in body.items() if k not in _AUTH_FIELDS}
+    expected_digest = _compute_body_digest(non_auth_fields)
+    if body_digest != expected_digest:
+        return None, HttpResponse(status=400)
+
+    payload = f"{device_id}.{timestamp_raw}.{body_digest}".encode()
+    try:
+        public_key.verify(signature, payload, ec.ECDSA(hashes.SHA256()))
+    except InvalidSignature:
+        return None, HttpResponse(status=401)
+
+    return device, None
+
+
+@csrf_exempt
+@require_POST
+def device_sync_policy_view(request):
+    """Trigger a policy re-push for a device.
+
+    Authenticates via ECDSA signature: the device signs
+    ``"{device_id}.{timestamp}"`` with its hardware-backed private key.
+    Requests are rate-limited by both client IP and device identifier.
+    """
+    if _is_rate_limited("sync-policy-ip", _client_ip(request), limit=10, window_seconds=60):
+        return HttpResponse(status=429)
+
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return HttpResponse(status=400)
+
+    device_id = body.get("device_id", "").strip()
+    if device_id and len(device_id) <= 255:
+        if _is_rate_limited("sync-policy-dev", device_id, limit=5, window_seconds=60):
+            return HttpResponse(status=429)
+
+    device, error = _authenticate_device_request(body)
+    if error:
+        return error
+
+    mdm = get_active_mdm_instance(organization=device.fleet.organization)
+    if mdm:
+        try:
+            mdm.push_device_config(device)
+        except Exception:
+            logger.exception("push_device_config failed", device=device)
+            return HttpResponse(status=502)
+
+    return HttpResponse(status=204)
+
+
+@csrf_exempt
+@require_POST
+def device_fcm_token_view(request):
+    """Register an FCM token for a device.
+
+    Authenticates via ECDSA signature.  The FCM token can also be supplied
+    during key registration via ``device_register_key_view`` for
+    fully-attested flows.
+    """
+    if _is_rate_limited("fcm-token-ip", _client_ip(request), limit=20, window_seconds=60):
+        return HttpResponse(status=429)
+
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return HttpResponse(status=400)
+
+    fcm_token = body.get("fcm_token", "").strip()
+    if not fcm_token or len(fcm_token) > 256:
+        return HttpResponse(status=400)
+
+    device_id = body.get("device_id", "").strip()
+    if device_id and len(device_id) <= 255:
+        if _is_rate_limited("fcm-token-dev", device_id, limit=10, window_seconds=60):
+            return HttpResponse(status=429)
+
+    device, error = _authenticate_device_request(body)
+    if error:
+        return error
+
+    device.fcm_token = fcm_token
+    device.save(update_fields=["fcm_token"])
+
+    return HttpResponse(status=204)
+
+
+@csrf_exempt
+@require_POST
+def device_attestation_nonce_view(request):
+    """Issue a single-use nonce for hardware key attestation.
+
+    The device embeds this nonce as the ``attestationChallenge`` when generating
+    a hardware-backed key pair.  The nonce is valid for 10 minutes and can only
+    be used once.
+
+    Accepts ``device_id`` in the JSON body.
+    """
+    if _is_rate_limited("attest-nonce-ip", _client_ip(request), limit=20, window_seconds=60):
+        return HttpResponse(status=429)
+
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return HttpResponse(status=400)
+
+    device_id = body.get("device_id", "").strip()
+    if not device_id or len(device_id) > 255:
+        return HttpResponse(status=400)
+
+    if _is_rate_limited("attest-nonce-dev", device_id, limit=5, window_seconds=60):
+        return HttpResponse(status=429)
+
+    device = _find_device(device_id)
+    if not device:
+        return HttpResponse(status=404)
+
+    nonce = secrets.token_hex(32)  # 32 bytes = 64 hex chars
+    nonce_record = DeviceAttestationNonce.objects.create(
+        nonce=nonce,
+        device=device,
+        expires_at=now() + dt.timedelta(seconds=DeviceAttestationNonce.NONCE_TTL_SECONDS),
+    )
+
+    _audit_event(
+        "attestation_nonce_issued",
+        request,
+        device=device,
+    )
+
+    return JsonResponse(
+        {
+            "nonce": nonce,
+            "expires_at": nonce_record.expires_at.isoformat(),
+        }
+    )
+
+
+@csrf_exempt
+@require_POST
+def device_register_key_view(request):
+    """Register a device's public key using hardware-backed key attestation.
+
+    Accepts either:
+    - ``certificate_chain``: List of Base64-encoded DER X.509 certificates
+      (leaf first, root last) from Android Key Attestation. The leaf cert must
+      contain the server-issued nonce as the attestation challenge.
+    - ``public_key_pem``: Direct PEM public key (only when attestation is not
+      required, e.g., emulators with ``require_hardware_attestation=false``).
+
+    When ``certificate_chain`` is provided, the server validates:
+    1. The chain roots in a Google Hardware Attestation Root CA
+    2. The attestation challenge matches the issued nonce
+    3. The security level indicates hardware backing (TEE or StrongBox)
+    """
+    if _is_rate_limited("register-key-ip", _client_ip(request), limit=20, window_seconds=60):
+        return HttpResponse(status=429)
+
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return HttpResponse(status=400)
+
+    device_id = body.get("device_id", "").strip()
+    package_name = body.get("package_name", "").strip()
+    fcm_token = body.get("fcm_token", "").strip()
+    certificate_chain = body.get("certificate_chain")
+    public_key_pem = body.get("public_key_pem", "").strip()
+    enrollment_specific_id = body.get("enrollment_specific_id", "").strip()
+
+    if not device_id or not package_name:
+        return HttpResponse(status=400)
+    if len(device_id) > 255:
+        return HttpResponse(status=400)
+    if package_name != FIRMWARE_APP_PACKAGE:
+        return HttpResponse(status=403)
+
+    device = _find_device(device_id)
+    if not device:
+        logger.warning("Device not found during key registration", device_id=device_id)
+        return HttpResponse(status=404)
+
+    bound_at = now()
+
+    if certificate_chain:
+        # Hardware attestation path
+        if not isinstance(certificate_chain, list) or len(certificate_chain) < 2:
+            return HttpResponse(status=400)
+        if len(certificate_chain) > 10:
+            return HttpResponse(status=400)
+
+        # Find the nonce that matches the attestation challenge
+        # Look up unexpired, unused nonces for this device
+        valid_nonces = DeviceAttestationNonce.objects.filter(
+            device=device,
+            used_at__isnull=True,
+            expires_at__gt=bound_at,
+        ).order_by("-created_at")[:5]
+
+        attestation_result = None
+        matched_nonce = None
+        for nonce_record in valid_nonces:
+            try:
+                attestation_result = validate_attestation(
+                    encoded_certs=certificate_chain,
+                    expected_nonce=nonce_record.nonce.encode("utf-8"),
+                    require_hardware=True,
+                )
+                matched_nonce = nonce_record
+                break
+            except AttestationError as exc:
+                logger.warning(
+                    "Attestation validation attempt failed",
+                    error=str(exc),
+                    device_id=device_id,
+                    chain_len=len(certificate_chain),
+                    nonce_prefix=nonce_record.nonce[:16],
+                )
+                continue
+
+        if attestation_result is None or matched_nonce is None:
+            _audit_event(
+                "register_key_attestation_failed",
+                request,
+                device=device,
+            )
+            return JsonResponse(
+                {"error": "Attestation validation failed"},
+                status=401,
+            )
+
+        # Mark the nonce as used
+        matched_nonce.used_at = bound_at
+        matched_nonce.save(update_fields=["used_at"])
+
+        fingerprint = attestation_result["fingerprint"]
+        key_pem = attestation_result["public_key_pem"]
+        security_level = attestation_result["security_level"]
+
+    elif public_key_pem:
+        # Direct public key path (emulator/dev mode — no attestation).
+        # Reject when the server requires hardware attestation so a client
+        # cannot bypass attestation by simply omitting certificate_chain.
+        if settings.REQUIRE_HARDWARE_ATTESTATION:
+            return HttpResponse(status=403)
+        if len(public_key_pem) > 8192:
+            return HttpResponse(status=400)
+
+        key = _load_ec_public_key(public_key_pem)
+        if key is None:
+            return HttpResponse(status=400)
+
+        public_key_der = key.public_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        fingerprint = hashlib.sha256(public_key_der).hexdigest()
+        key_pem = public_key_pem
+        security_level = None
+    else:
+        return HttpResponse(status=400)
+
+    update_fields = [
+        "auth_public_key_pem",
+        "auth_public_key_fingerprint",
+        "auth_key_bound_at",
+        "auth_key_version",
+        "auth_key_state",
+        "attestation_security_level",
+    ]
+
+    device.auth_public_key_pem = key_pem
+    device.auth_public_key_fingerprint = fingerprint
+    device.auth_key_bound_at = bound_at
+    device.auth_key_version = max(0, device.auth_key_version) + 1
+    device.auth_key_state = "active"
+    device.attestation_security_level = security_level
+
+    if enrollment_specific_id and len(enrollment_specific_id) <= 255:
+        device.enrollment_specific_id = enrollment_specific_id
+        update_fields.append("enrollment_specific_id")
+
+    if fcm_token and len(fcm_token) <= 256:
+        device.fcm_token = fcm_token
+        update_fields.append("fcm_token")
+
+    device.save(update_fields=update_fields)
+
+    _audit_event(
+        "register_key_success",
+        request,
+        device=device,
+        key_fingerprint=fingerprint,
+        key_version=device.auth_key_version,
+        security_level=security_level,
+        attested=certificate_chain is not None,
+    )
+    return JsonResponse(
+        {
+            "key_fingerprint": fingerprint,
+            "key_version": device.auth_key_version,
+            "bound_at": bound_at.isoformat(),
+        },
+        status=201,
+    )
+
+
+@csrf_exempt
+@require_POST
+def device_auth_challenge_view(request):
+    if _is_rate_limited("auth-challenge-ip", _client_ip(request), limit=60, window_seconds=60):
+        return HttpResponse(status=429)
+
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return HttpResponse(status=400)
+
+    device_id = body.get("device_id", "").strip()
+    request_id = body.get("request_id", "").strip()
+    if not device_id or not request_id:
+        return HttpResponse(status=400)
+    if len(device_id) > 255 or len(request_id) > 64:
+        return HttpResponse(status=400)
+
+    device = _find_device(device_id, auth_key_state="active")
+    if not device or not device.auth_public_key_pem:
+        return HttpResponse(status=404)
+
+    challenge_id = uuid.uuid4()
+    challenge = DeviceAuthChallenge.objects.create(
+        challenge_id=challenge_id,
+        device=device,
+        request_id=request_id,
+        nonce=secrets.token_urlsafe(32),
+        expires_at=now() + dt.timedelta(seconds=CHALLENGE_TTL_SECONDS),
+    )
+
+    _audit_event(
+        "auth_challenge_issued",
+        request,
+        device=device,
+        challenge_id=str(challenge.challenge_id),
+        request_id=request_id,
+    )
+
+    return JsonResponse(
+        {
+            "challenge_id": str(challenge.challenge_id),
+            "nonce": challenge.nonce,
+            "expires_at": challenge.expires_at.isoformat(),
+        }
+    )
+
+
+@csrf_exempt
+@require_POST
+def device_auth_verify_view(request):
+    if _is_rate_limited("auth-verify-ip", _client_ip(request), limit=120, window_seconds=60):
+        return HttpResponse(status=429)
+
+    try:
+        body = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return HttpResponse(status=400)
+
+    challenge_id_raw = str(body.get("challenge_id", "")).strip()
+    device_id = body.get("device_id", "").strip()
+    request_id = body.get("request_id", "").strip()
+    timestamp_raw = str(body.get("timestamp", "")).strip()
+    signature_b64 = body.get("signature_b64", "").strip()
+
+    if (
+        not challenge_id_raw
+        or not device_id
+        or not request_id
+        or not timestamp_raw
+        or not signature_b64
+    ):
+        return HttpResponse(status=400)
+
+    try:
+        challenge_uuid = uuid.UUID(challenge_id_raw)
+    except ValueError:
+        return HttpResponse(status=400)
+
+    challenge = (
+        DeviceAuthChallenge.objects.select_related("device")
+        .filter(
+            challenge_id=challenge_uuid,
+            request_id=request_id,
+        )
+        .filter(Q(device__device_id=device_id) | Q(device__serial_number=device_id))
+        .first()
+    )
+    if not challenge:
+        return HttpResponse(status=404)
+    if challenge.used_at is not None:
+        return HttpResponse(status=409)
+    if challenge.expires_at <= now():
+        return HttpResponse(status=410)
+
+    try:
+        timestamp = int(timestamp_raw)
+    except ValueError:
+        return HttpResponse(status=400)
+
+    now_ts = int(time.time())
+    if abs(now_ts - timestamp) > TIMESTAMP_SKEW_SECONDS:
+        return HttpResponse(status=400)
+
+    public_key = _load_ec_public_key(challenge.device.auth_public_key_pem)
+    if public_key is None:
+        return HttpResponse(status=401)
+
+    try:
+        signature = base64.b64decode(signature_b64, validate=True)
+    except ValueError:
+        return HttpResponse(status=400)
+
+    payload = f"{challenge_id_raw}.{request_id}.{device_id}.{timestamp_raw}".encode()
+    try:
+        public_key.verify(signature, payload, ec.ECDSA(hashes.SHA256()))
+    except InvalidSignature:
+        _audit_event(
+            "auth_verify_invalid_signature",
+            request,
+            device=challenge.device,
+            challenge_id=challenge_id_raw,
+            request_id=request_id,
+        )
+        return HttpResponse(status=401)
+
+    used_at = now()
+    # Atomically mark the challenge as used; returns 0 if already consumed.
+    rows_updated = DeviceAuthChallenge.objects.filter(pk=challenge.pk, used_at__isnull=True).update(
+        used_at=used_at
+    )
+    if rows_updated == 0:
+        return HttpResponse(status=409)
+    challenge.used_at = used_at
+
+    session_token = secrets.token_urlsafe(32)
+    expires_at = used_at + dt.timedelta(seconds=SESSION_TTL_SECONDS)
+    session = ScreenShareSession.objects.create(
+        session_id=uuid.uuid4(),
+        token_hash=_sha256_hex(session_token),
+        device=challenge.device,
+        request_id=request_id,
+        expires_at=expires_at,
+    )
+
+    _audit_event(
+        "auth_verify_success",
+        request,
+        device=challenge.device,
+        challenge_id=challenge_id_raw,
+        request_id=request_id,
+        session_id=str(session.session_id),
+    )
+
+    # Build the WebSocket URL the device should connect to for streaming.
+    stream_url = f"wss://{get_callback_domain()}/ws/devices/screen-publish/{session_token}/"
+
+    return JsonResponse(
+        {
+            "session_token": session_token,
+            "session_id": str(session.session_id),
+            "expires_at": expires_at.isoformat(),
+            "stream_url": stream_url,
+        }
+    )
 
 
 @csrf_exempt
 @require_POST
 def firmware_snapshot_view(request):
+    """Accept a firmware/build-info snapshot from a device.
+
+    Authenticates via ECDSA signature: the device signs
+    ``"{device_id}.{timestamp}"`` with its hardware-backed private key.
+    """
+    if _is_rate_limited("firmware-ip", _client_ip(request), limit=20, window_seconds=60):
+        return HttpResponse(status=429)
+
     if not request.body:
         return HttpResponse(status=400)
     try:
         json_data = json.loads(request.body)
     except json.JSONDecodeError:
         return HttpResponse(status=400)
-    form = FirmwareSnapshotForm(json_data=json_data)
+
+    device_id = json_data.get("device_id", "").strip()
+    if device_id and len(device_id) <= 255:
+        if _is_rate_limited("firmware-dev", device_id, limit=10, window_seconds=60):
+            return HttpResponse(status=429)
+
+    device, error = _authenticate_device_request(json_data)
+    if error:
+        return error
+
+    form = FirmwareSnapshotForm(json_data=json_data, device=device)
 
     if form.is_valid():
         form.save()
@@ -197,11 +828,20 @@ def _push_policy_to_mdm(policy, request):
         logger.error("Failed to push base policy to MDM", policy=policy, exc_info=True)
     child_devices = Device.objects.filter(
         fleet__policy=policy,
-        raw_mdm_device__policyName__endswith=F("device_id"),
+        raw_mdm_device__isnull=False,
     )
     device_pks = list(child_devices.values_list("pk", flat=True))
     if not device_pks:
+        logger.debug(
+            "No enrolled devices found for policy; skipping per-device push",
+            policy=policy,
+        )
         return
+    logger.debug(
+        "Queuing per-device config push via Dagster",
+        policy=policy,
+        device_count=len(device_pks),
+    )
     run_config = {"ops": {"push_mdm_device_config": {"config": {"device_pks": device_pks}}}}
     try:
         trigger_dagster_job(job_name="mdm_job", run_config=run_config)

@@ -130,6 +130,24 @@ TEMPLATES = [
 ASGI_APPLICATION = "config.asgi.application"
 WSGI_APPLICATION = "config.wsgi.application"
 
+# Channels channel layer. Default to the in-memory layer for local development,
+# but allow deployments to opt into a shared Redis-backed layer so group sends
+# and fanout work correctly across multiple ASGI workers or pods.
+_channel_layers_redis_url = os.getenv("CHANNEL_LAYERS_REDIS_URL")
+if _channel_layers_redis_url:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [_channel_layers_redis_url],
+            },
+        },
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"},
+    }
+
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
@@ -461,3 +479,26 @@ ANDROID_ENTERPRISE_PUBSUB_TOKEN = os.getenv("ANDROID_ENTERPRISE_PUBSUB_TOKEN")
 # derived from the incoming request, which is useful for local development where the request
 # host is "localhost" and Google's API rejects it.
 ANDROID_ENTERPRISE_CALLBACK_DOMAIN = os.getenv("ANDROID_ENTERPRISE_CALLBACK_DOMAIN", "")
+
+# Controls how the firmware companion app is installed on managed devices.
+# Valid values (from Android Management API):
+#   - FORCE_INSTALLED (default, prod): Always installed; cannot be uninstalled by user
+#   - AVAILABLE (local dev): User can install/uninstall via Play Store
+#   - OPTIONAL: Device can install if desired
+#   - REQUIRED_FOR_SETUP: Required before device setup completes
+FIRMWARE_APP_INSTALL_TYPE = os.getenv("FIRMWARE_APP_INSTALL_TYPE", "FORCE_INSTALLED")
+
+# Controls whether companion app devices must use hardware-backed key attestation for
+# registration. Set to False to allow emulators or dev devices that lack a TEE/StrongBox
+# to skip the Google attestation chain check. Defaults to True (production behaviour).
+REQUIRE_HARDWARE_ATTESTATION = os.getenv("REQUIRE_HARDWARE_ATTESTATION", "true").lower() != "false"
+
+# Play Store track IDs accessible on devices for the firmware companion app.
+# Set as a comma-separated environment variable, e.g.:
+# PUBLISH_MDM_AGENT_TRACK_IDS="4699961510397865384,1234567890"
+# Defaults to an empty list so accessibleTrackIds is not pushed unless explicitly configured.
+PUBLISH_MDM_AGENT_TRACK_IDS: list[str] = [
+    track_id.strip()
+    for track_id in os.getenv("PUBLISH_MDM_AGENT_TRACK_IDS", "").split(",")
+    if track_id.strip()
+]

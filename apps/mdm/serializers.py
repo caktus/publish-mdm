@@ -2,7 +2,10 @@
 PolicySerializer: assembles a valid AMAPI enterprises.policies dict
 from normalized Policy, PolicyApplication, and PolicyVariable data.
 
-No ORM calls — receives pre-fetched data as arguments.
+Receives pre-fetched policy data as arguments.  A single incidental ORM call
+may occur when ``get_callback_domain()`` falls through to the ``Site`` model,
+but this only happens when neither ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` nor
+``ALLOWED_HOSTS`` is configured.
 """
 
 from __future__ import annotations
@@ -11,8 +14,17 @@ from dataclasses import dataclass, field
 from string import Template
 from typing import TYPE_CHECKING
 
+import structlog
+from django.conf import settings
+
 if TYPE_CHECKING:
     from apps.mdm.models import Device, Policy, PolicyApplication, PolicyVariable
+
+from apps.mdm.utils import get_callback_domain
+
+FIRMWARE_APP_PACKAGE = "com.publishmdm.agent"
+
+logger = structlog.get_logger()
 
 
 @dataclass
@@ -104,9 +116,36 @@ class PolicySerializer:
                 odk_app["managedConfiguration"] = managed_config
         apps.append(odk_app)
 
+        # Firmware agent app is always pinned — force-installed, permissions always
+        # granted, high-priority auto-update.  Not user-configurable.
+        # Note: COMPANION_APP role prevents user uninstall and data clearing regardless
+        # of installType, so it is omitted when installType is AVAILABLE (local dev).
+        firmware_install_type = settings.FIRMWARE_APP_INSTALL_TYPE
+        firmware_entry: dict = {
+            "packageName": FIRMWARE_APP_PACKAGE,
+            "installType": firmware_install_type,
+            "defaultPermissionPolicy": "GRANT",
+            "autoUpdateMode": "AUTO_UPDATE_HIGH_PRIORITY",
+        }
+        # For production, use COMPANION_APP role to prevent user uninstall and data
+        # clearing of the firmware agent. Leaving this set in local development
+        # prevents the developer from uninstalling the app for testing local APK builds.
+        if firmware_install_type == "FORCE_INSTALLED":
+            firmware_entry["roles"] = [{"roleType": "COMPANION_APP"}]
+        if settings.PUBLISH_MDM_AGENT_TRACK_IDS:
+            firmware_entry["accessibleTrackIds"] = settings.PUBLISH_MDM_AGENT_TRACK_IDS
+        managed_config: dict = {"base_url": f"https://{get_callback_domain()}/mdm/api/firmware/"}
+        if self.device and self.device.device_id:
+            managed_config["device_identifier"] = self.device.device_id
+        if not settings.REQUIRE_HARDWARE_ATTESTATION:
+            managed_config["require_hardware_attestation"] = False
+        firmware_entry["managedConfiguration"] = managed_config
+        logger.debug("Adding firmware agent app to policy", managed_config=managed_config)
+        apps.append(firmware_entry)
+
         for app in self.applications:
-            if app.package_name == self.policy.odk_collect_package:
-                # ODK Collect is handled above; skip duplicate
+            if app.package_name in (self.policy.odk_collect_package, FIRMWARE_APP_PACKAGE):
+                # Both ODK Collect and the firmware app are handled above; skip duplicates
                 continue
             entry = {
                 "packageName": app.package_name,

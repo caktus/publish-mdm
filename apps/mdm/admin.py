@@ -28,13 +28,18 @@ from .import_export import DeviceResource
 from .mdms import get_active_mdm_instance
 from .models import (
     Device,
+    DeviceAttestationNonce,
+    DeviceAuthChallenge,
     DeviceSnapshot,
     DeviceSnapshotApp,
+    EnrollmentToken,
     FirmwareSnapshot,
     Fleet,
     Policy,
     PolicyApplication,
     PolicyVariable,
+    ScreenShareAuditLog,
+    ScreenShareSession,
 )
 
 logger = structlog.getLogger(__name__)
@@ -76,12 +81,11 @@ class PolicyAdmin(admin.ModelAdmin):
                     ),
                 )
             if change:
-                # Update the policies for all related Devices that have a child
-                # policy (device-specific policy) asynchronously via Dagster so
-                # the admin save does not block.
+                # Push the updated policy to all enrolled devices asynchronously
+                # via Dagster so the admin save does not block.
                 child_devices = Device.objects.filter(
                     fleet__policy=policy,
-                    raw_mdm_device__policyName__endswith=models.F("device_id"),
+                    raw_mdm_device__isnull=False,
                 )
                 device_pks = list(child_devices.values_list("pk", flat=True))
                 if device_pks:
@@ -403,6 +407,12 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
         "device_id",
         "raw_mdm_device",
         "latest_snapshot",
+        "auth_public_key_pem",
+        "auth_public_key_fingerprint",
+        "auth_key_bound_at",
+        "auth_key_version",
+        "auth_key_state",
+        "fcm_token",
     )
     list_filter = ("fleet", "manufacturer", "model", "app_user_name", "deleted_at")
     import_form_class = DeviceImportForm
@@ -556,4 +566,130 @@ class FirmwareSnapshotAdmin(admin.ModelAdmin):
         "serial_number",
         "synced_at",
         "raw_data",
+    )
+
+
+@admin.register(DeviceAuthChallenge)
+class DeviceAuthChallengeAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "device",
+        "challenge_id",
+        "request_id",
+        "expires_at",
+        "used_at",
+        "created_at",
+    )
+    search_fields = (
+        "challenge_id",
+        "device__device_id",
+        "device__name",
+        "device__serial_number",
+        "request_id",
+    )
+    list_filter = ("expires_at", "used_at", "created_at")
+    list_select_related = ("device",)
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+    readonly_fields = (
+        "challenge_id",
+        "device",
+        "request_id",
+        "nonce",
+        "expires_at",
+        "used_at",
+        "created_at",
+    )
+
+
+@admin.register(ScreenShareSession)
+class ScreenShareSessionAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "device",
+        "session_id",
+        "request_id",
+        "expires_at",
+        "used_at",
+        "created_at",
+    )
+    search_fields = (
+        "session_id",
+        "device__device_id",
+        "device__name",
+        "device__serial_number",
+        "request_id",
+    )
+    list_filter = ("expires_at", "used_at", "created_at")
+    list_select_related = ("device",)
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+    readonly_fields = (
+        "session_id",
+        "token_hash",
+        "device",
+        "request_id",
+        "expires_at",
+        "used_at",
+        "created_at",
+    )
+
+
+@admin.register(ScreenShareAuditLog)
+class ScreenShareAuditLogAdmin(admin.ModelAdmin):
+    list_display = ("id", "event_type", "device", "actor", "ip_address", "created_at")
+    search_fields = (
+        "event_type",
+        "device__device_id",
+        "device__name",
+        "actor__username",
+        "ip_address",
+    )
+    list_filter = ("event_type", "created_at")
+    list_select_related = ("device", "actor")
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+    readonly_fields = ("event_type", "device", "actor", "ip_address", "metadata_json", "created_at")
+
+
+@admin.register(DeviceAttestationNonce)
+class DeviceAttestationNonceAdmin(admin.ModelAdmin):
+    list_display = ("id", "device", "nonce", "expires_at", "used_at", "created_at")
+    search_fields = ("nonce", "device__device_id", "device__name", "device__serial_number")
+    list_filter = ("expires_at", "used_at", "created_at")
+    list_select_related = ("device",)
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+    readonly_fields = ("nonce", "device", "expires_at", "used_at", "created_at")
+
+
+@admin.register(EnrollmentToken)
+class EnrollmentTokenAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "fleet",
+        "organization",
+        "label",
+        "is_active",
+        "is_expired",
+        "created_at",
+    )
+    search_fields = (
+        "label",
+        "fleet__name",
+        "organization__name",
+        "token_value",
+        "created_by__username",
+    )
+    list_filter = ("organization", "created_at", "revoked_at", "expires_at")
+    list_select_related = ("fleet", "organization", "created_by")
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+    readonly_fields = (
+        "token_value",
+        "token_resource_name",
+        "qr_code",
+        "created_at",
+        "created_by",
+        "name",
     )

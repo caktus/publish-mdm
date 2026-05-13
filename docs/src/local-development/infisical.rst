@@ -25,14 +25,23 @@ The URL you use to access Infisical will be your value for the ``INFISICAL_API_U
 Setting up a KMS Project
 ------------------------
 
-Go to the KMS page in Infisical and create a project:
+Once logged in, navigate to http://localhost:8888/ and you'll be directed to the
+project list page for the default Admin Org. Click *Add New Project*:
 
 .. figure:: ../../_static/create_infisical_project.png
    :alt: Create a KMS project
    :align: center
 
-In the new project's Overview Page, click on Project Settings and then copy the project's ID.
-You will use it to set the ``INFISICAL_KMS_PROJECT_ID`` environment variable:
+In the modal that appears, enter a name for the project and select "KMS" as the
+type:
+
+.. figure:: ../../_static/create_infisical_project2.png
+   :alt: Select "KMS" type
+   :align: center
+
+In the new project's Overview Page, click on *Project Settings* in the sidebar
+and then copy the project's ID. You will use it to set the
+``INFISICAL_KMS_PROJECT_ID`` environment variable:
 
 .. figure:: ../../_static/copy_infisical_project_id.png
    :alt: Copy project ID
@@ -41,9 +50,12 @@ You will use it to set the ``INFISICAL_KMS_PROJECT_ID`` environment variable:
 Setting up an Access Token
 --------------------------
 
-Under the Admin menu on the left sidebar, click on Access Control, go into the Identities tab
-in the Organization Access Control page, and create an `Identity <https://infisical.com/docs/documentation/platform/identities/overview>`_.
-You can select a "Member" role for the Identity.
+Identities are managed at the Organization level in Infisical. To Create an Identity `(or click here) <http://localhost:8888/organization/access-management?selectedTab=identities>`_:
+
+1. Click *Admin Org* in the top navbar to go to the Admin Organization page
+2. Click on *Access Control* in the left sidebar
+3. Click on the *Identities* tab in the Organization Access Control page
+4. Click *Create Identity* and fill out the form to create an Identity. You can select a "Member" role for the Identity.
 
 .. figure:: ../../_static/create_infisical_identity.png
    :alt: Create an Identity

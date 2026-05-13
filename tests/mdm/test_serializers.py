@@ -12,7 +12,7 @@ from apps.mdm.models import (
     UsbDataAccess,
     WifiDirectSettings,
 )
-from apps.mdm.serializers import PolicySerializer
+from apps.mdm.serializers import FIRMWARE_APP_PACKAGE, PolicySerializer
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from tests.mdm import TestAllMDMs
 from tests.mdm.factories import DeviceFactory, FleetFactory, PolicyFactory
@@ -122,12 +122,14 @@ class TestPolicySerializer(TestAllMDMs):
             applications=[app1, app2],
         )
         result = serializer.to_dict()
-        # ODK Collect + 2 apps
-        assert len(result["applications"]) == 3
-        assert result["applications"][1]["packageName"] == "com.example.app"
-        assert result["applications"][1]["installType"] == "PREINSTALLED"
-        assert result["applications"][2]["packageName"] == "com.example.blocked"
-        assert result["applications"][2]["disabled"] is True
+        # ODK Collect + firmware app + 2 extra apps
+        assert len(result["applications"]) == 4
+        assert result["applications"][0]["packageName"] == "org.odk.collect.android"
+        assert result["applications"][1]["packageName"] == FIRMWARE_APP_PACKAGE
+        assert result["applications"][2]["packageName"] == "com.example.app"
+        assert result["applications"][2]["installType"] == "PREINSTALLED"
+        assert result["applications"][3]["packageName"] == "com.example.blocked"
+        assert result["applications"][3]["disabled"] is True
 
     def test_empty_managed_configuration_is_included(self):
         """An empty dict ({}) managed_configuration should appear in the output, not be omitted.
@@ -183,7 +185,7 @@ class TestPolicySerializer(TestAllMDMs):
             variables=[var],
         )
         result = serializer.to_dict()
-        vpn_app = result["applications"][1]
+        vpn_app = next(a for a in result["applications"] if a["packageName"] == "com.example.vpn")
         assert vpn_app["managedConfiguration"]["AuthKey"] == "secret123"
 
     def test_fleet_variable_overrides_org(self):
@@ -210,7 +212,8 @@ class TestPolicySerializer(TestAllMDMs):
             variables=[org_var, fleet_var],
         )
         result = serializer.to_dict()
-        assert result["applications"][1]["managedConfiguration"]["key"] == "fleet_value"
+        app_entry = next(a for a in result["applications"] if a["packageName"] == "com.example.app")
+        assert app_entry["managedConfiguration"]["key"] == "fleet_value"
 
     def test_device_system_variables(self):
         """Built-in device variables should be resolved."""
@@ -235,7 +238,8 @@ class TestPolicySerializer(TestAllMDMs):
             device=device,
         )
         result = serializer.to_dict()
-        config = result["applications"][1]["managedConfiguration"]
+        app_entry = next(a for a in result["applications"] if a["packageName"] == "com.example.app")
+        config = app_entry["managedConfiguration"]
         assert config["device_id"] == "IMEI456"
         assert config["serial"] == "ABC123"
 
@@ -264,7 +268,8 @@ class TestPolicySerializer(TestAllMDMs):
         )
         serializer = PolicySerializer(policy=policy, applications=[app])
         result = serializer.to_dict()
-        assert result["applications"][1]["managedConfiguration"]["key"] == "$unknown_var"
+        app_entry = next(a for a in result["applications"] if a["packageName"] == "com.example.app")
+        assert app_entry["managedConfiguration"]["key"] == "$unknown_var"
 
     def test_kiosk_customization_settings(self):
         """All kiosk fields appear in kioskCustomization when non-default values are set."""
@@ -507,6 +512,107 @@ class TestPolicySerializer(TestAllMDMs):
         assert srs.get("hardwareStatusEnabled") is False
         assert srs.get("systemPropertiesEnabled") is False
         assert srs.get("commonCriteriaModeEnabled") is False
+
+    def test_firmware_app_always_included(self, settings):
+        """The firmware agent app is always in the applications list even without a DB row."""
+        settings.FIRMWARE_APP_INSTALL_TYPE = "FORCE_INSTALLED"
+        policy = PolicyFactory()
+        serializer = PolicySerializer(policy=policy)
+        result = serializer.to_dict()
+        firmware = next(
+            (a for a in result["applications"] if a["packageName"] == FIRMWARE_APP_PACKAGE), None
+        )
+        assert firmware is not None
+        assert firmware["installType"] == "FORCE_INSTALLED"
+        assert firmware["defaultPermissionPolicy"] == "GRANT"
+        assert firmware["autoUpdateMode"] == "AUTO_UPDATE_HIGH_PRIORITY"
+        assert firmware["roles"] == [{"roleType": "COMPANION_APP"}]
+
+    def test_firmware_app_track_ids_included_when_nonempty(self, settings):
+        """accessibleTrackIds is present when PUBLISH_MDM_AGENT_TRACK_IDS is non-empty."""
+        settings.PUBLISH_MDM_AGENT_TRACK_IDS = ["123456789"]
+        policy = PolicyFactory()
+        result = PolicySerializer(policy=policy).to_dict()
+        firmware = next(
+            a for a in result["applications"] if a["packageName"] == FIRMWARE_APP_PACKAGE
+        )
+        assert firmware["accessibleTrackIds"] == ["123456789"]
+
+    def test_firmware_app_no_track_ids_when_empty(self, settings):
+        """accessibleTrackIds is absent when PUBLISH_MDM_AGENT_TRACK_IDS is empty."""
+        settings.PUBLISH_MDM_AGENT_TRACK_IDS = []
+        policy = PolicyFactory()
+        result = PolicySerializer(policy=policy).to_dict()
+        firmware = next(
+            a for a in result["applications"] if a["packageName"] == FIRMWARE_APP_PACKAGE
+        )
+        assert "accessibleTrackIds" not in firmware
+
+    def test_firmware_app_managed_config_injected(self, settings):
+        """managedConfiguration with base_url and device_identifier is injected when
+        ANDROID_ENTERPRISE_CALLBACK_DOMAIN is set."""
+        settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN = "example.ngrok-free.app"
+        policy = PolicyFactory()
+        device = DeviceFactory(device_id="test-device-abc")
+        result = PolicySerializer(policy=policy, device=device).to_dict()
+        firmware = next(
+            a for a in result["applications"] if a["packageName"] == FIRMWARE_APP_PACKAGE
+        )
+        assert "managedConfiguration" in firmware
+        assert firmware["managedConfiguration"]["base_url"] == (
+            "https://example.ngrok-free.app/mdm/api/firmware/"
+        )
+        assert firmware["managedConfiguration"]["device_identifier"] == "test-device-abc"
+
+    def test_firmware_app_managed_config_always_injected(self, settings):
+        """managedConfiguration is always injected — using whatever domain get_callback_domain()
+        resolves to (ANDROID_ENTERPRISE_CALLBACK_DOMAIN, ALLOWED_HOSTS, or Site).
+        Without a device, device_identifier is omitted."""
+        settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN = ""
+        settings.ALLOWED_HOSTS = ["fallback.example.com"]
+        policy = PolicyFactory()
+        result = PolicySerializer(policy=policy).to_dict()
+        firmware = next(
+            a for a in result["applications"] if a["packageName"] == FIRMWARE_APP_PACKAGE
+        )
+        assert "managedConfiguration" in firmware
+        assert firmware["managedConfiguration"]["base_url"] == (
+            "https://fallback.example.com/mdm/api/firmware/"
+        )
+        assert "device_identifier" not in firmware["managedConfiguration"]
+
+    def test_firmware_app_device_identifier_omitted_when_device_id_empty(self, settings):
+        """device_identifier is omitted from the firmware managed config when the
+        device has no device_id set."""
+        settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN = "example.ngrok-free.app"
+        policy = PolicyFactory()
+        device = DeviceFactory(device_id=None)
+        result = PolicySerializer(policy=policy, device=device).to_dict()
+        firmware = next(
+            a for a in result["applications"] if a["packageName"] == FIRMWARE_APP_PACKAGE
+        )
+        assert "managedConfiguration" in firmware
+        assert "device_identifier" not in firmware["managedConfiguration"]
+
+    def test_firmware_app_duplicate_db_row_skipped(self, settings):
+        """A PolicyApplication DB row for the firmware package is not duplicated."""
+        settings.FIRMWARE_APP_INSTALL_TYPE = "FORCE_INSTALLED"
+        policy = PolicyFactory()
+        PolicyApplication.objects.create(
+            policy=policy,
+            package_name=FIRMWARE_APP_PACKAGE,
+            install_type="AVAILABLE",
+            order=5,
+        )
+        result = PolicySerializer(
+            policy=policy, applications=list(policy.applications.all())
+        ).to_dict()
+        firmware_entries = [
+            a for a in result["applications"] if a["packageName"] == FIRMWARE_APP_PACKAGE
+        ]
+        assert len(firmware_entries) == 1
+        # Hard-coded FORCE_INSTALLED wins over the DB row's AVAILABLE
+        assert firmware_entries[0]["installType"] == "FORCE_INSTALLED"
 
     def test_status_reporting_settings_default_true_fields_can_be_disabled(self):
         """Fields that default to True are correctly emitted as False when disabled."""

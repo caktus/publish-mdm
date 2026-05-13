@@ -31,6 +31,7 @@ from pytest_django.asserts import (
 from requests.exceptions import HTTPError
 
 from apps.mdm.mdms import TinyMDM, get_active_mdm_class
+from apps.mdm.utils import get_callback_domain
 from apps.publish_mdm.etl.odk.constants import DEFAULT_COLLECT_SETTINGS
 from apps.publish_mdm.etl.odk.publish import ProjectAppUserAssignment
 from apps.publish_mdm.etl.template import VariableTransform
@@ -3528,7 +3529,7 @@ class TestEnterpriseSetup(TestAndroidEnterpriseOnly):
             "publish_mdm:enterprise-callback",
             kwargs={"callback_token": account.callback_token},
         )
-        callback_url = response.wsgi_request.build_absolute_uri(callback_path)
+        callback_url = "https://" + get_callback_domain() + callback_path
         if url_params:
             callback_url += "?" + urlencode(url_params)
         mock_get_signup_url.assert_called_once_with(callback_url=callback_url)

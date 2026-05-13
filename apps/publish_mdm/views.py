@@ -1,5 +1,6 @@
 import contextlib
 import json
+import uuid
 from urllib.parse import urlencode
 
 import structlog
@@ -38,8 +39,10 @@ from pygments.lexers.data import JsonLexer
 from pyodk.errors import PyODKError
 from requests.exceptions import RequestException
 
+from apps.mdm.fcm import send_start_screen_share
 from apps.mdm.mdms import AndroidEnterprise, get_active_mdm_instance
 from apps.mdm.models import Device, FirmwareSnapshot, Fleet, Policy
+from apps.mdm.utils import get_callback_domain
 from apps.tailscale.models import Device as TailscaleDevice
 from config.dagster import trigger_dagster_job
 
@@ -1443,12 +1446,7 @@ def enterprise_setup(request: HttpRequest, organization_slug):
         "publish_mdm:enterprise-callback",
         kwargs={"callback_token": account.callback_token},
     )
-    callback_domain = settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN
-    callback_url = (
-        "https://" + callback_domain + callback_path
-        if callback_domain
-        else request.build_absolute_uri(callback_path)
-    )
+    callback_url = "https://" + get_callback_domain() + callback_path
     if next_url:
         callback_url += "?" + urlencode({"next": next_url})
 
@@ -1540,3 +1538,77 @@ class SocialAccountConnectionsView(ConnectionsView):
             .select_related("android_enterprise")
         )
         return context
+
+
+@login_required
+def device_screen_view(request: HttpRequest, organization_slug, device_pk):
+    """Render the live screen viewer page for a device.
+
+    The page itself has no side effects.  The FCM trigger is sent by a separate
+    POST endpoint (device-screen-trigger) called from the browser via fetch,
+    so that refreshing the viewer page does not spam the device with FCM pushes.
+    """
+    from apps.mdm.models import Device  # noqa: PLC0415
+
+    device = get_object_or_404(
+        Device.objects.select_related("fleet__organization"),
+        pk=device_pk,
+        fleet__organization=request.organization,
+    )
+
+    device_label = device.device_id or device.name or f"Device {device.pk}"
+    context = {
+        "device": device,
+        "device_label": device_label,
+        "breadcrumbs": Breadcrumbs.from_items(
+            request=request,
+            items=[
+                ("Devices", "devices-list"),
+                (device_label, "device-detail", [device.pk]),
+                ("Live Screen", "device-screen-view", [device.pk]),
+            ],
+        ),
+    }
+    return render(request, "publish_mdm/device_screen.html", context)
+
+
+@login_required
+@require_POST
+def device_screen_trigger_view(request: HttpRequest, organization_slug, device_pk):
+    """Send an FCM trigger to the device to start the screen-share consent flow.
+
+    Called via fetch from the browser viewer page.  Separating the trigger into
+    a POST prevents accidental re-triggers on page refresh or link prefetch.
+    """
+    from apps.mdm.models import Device  # noqa: PLC0415
+
+    device = get_object_or_404(
+        Device.objects.select_related("fleet__organization"),
+        pk=device_pk,
+        fleet__organization=request.organization,
+    )
+
+    request_id = str(uuid.uuid4())
+    logger.info(
+        "device_screen_trigger_view: FCM trigger",
+        device_pk=device.pk,
+        has_fcm_token=bool(device.fcm_token),
+        request_id=request_id,
+    )
+    if device.fcm_token:
+        sent = send_start_screen_share(device.fcm_token, request_id=request_id)
+        logger.info("device_screen_trigger_view: FCM send result", device_pk=device.pk, sent=sent)
+        if sent:
+            return HttpResponse(status=204)
+        logger.warning(
+            "device_screen_trigger_view: FCM send failed",
+            device_pk=device.pk,
+            request_id=request_id,
+        )
+        return HttpResponse(status=502)
+
+    logger.warning(
+        "device_screen_trigger_view: no FCM token on device",
+        device_pk=device.pk,
+    )
+    return HttpResponse(status=409)

@@ -5,7 +5,6 @@ from functools import cached_property
 
 import structlog
 from django.conf import settings
-from django.contrib.sites.models import Site
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import F, OuterRef, Q, Subquery
 from django.urls import reverse
@@ -15,6 +14,7 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from apps.mdm.models import Device, DeviceSnapshot, DeviceSnapshotApp, Fleet, Policy
+from apps.mdm.utils import get_callback_domain
 from apps.publish_mdm.utils import create_qr_code
 
 from .base import MDM, MDMAPIError
@@ -29,6 +29,11 @@ ALL_SCOPES = [
 ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT = "android-cloud-policy@system.gserviceaccount.com"
 # Fixed resource name suffix used for this application's Pub/Sub topic and subscription.
 PUBSUB_RESOURCE_NAME = "publish-mdm"
+# Grace period after device creation during which a device absent from the AMAPI list API
+# will not be soft-deleted. AMAPI has eventual consistency: a newly enrolled device may not
+# appear in the list API immediately, so Dagster syncs shortly after enrollment could
+# incorrectly soft-delete the device if this guard is not in place.
+ENROLLMENT_SOFT_DELETE_GRACE_PERIOD = dt.timedelta(minutes=5)
 
 
 class MDMDevice(dict):
@@ -314,6 +319,14 @@ class AndroidEnterprise(MDM):
             else:
                 mdm_device = devices_by_serial.get(our_device.serial_number)
             if not mdm_device:
+                if timezone.now() - our_device.created_at < ENROLLMENT_SOFT_DELETE_GRACE_PERIOD:
+                    logger.info(
+                        "Skipping soft-delete: device was recently enrolled and may not yet "
+                        "appear in the AMAPI list API",
+                        device=our_device,
+                        created_at=our_device.created_at,
+                    )
+                    continue
                 logger.info("Soft-deleting device not found in API response", device=our_device)
                 our_device.soft_delete(commit=False)
                 continue
@@ -355,7 +368,11 @@ class AndroidEnterprise(MDM):
         logger.debug("Creating device snapshots", fleet=fleet, total_devices=len(mdm_devices))
         snapshots: list[DeviceSnapshot] = []
         for mdm_device in mdm_devices:
-            last_sync = dt.datetime.fromisoformat(mdm_device["lastPolicySyncTime"])
+            last_sync = (
+                dt.datetime.fromisoformat(mdm_device["lastPolicySyncTime"])
+                if "lastPolicySyncTime" in mdm_device
+                else sync_time
+            )
             hardware_info = mdm_device["hardwareInfo"]
             # softwareInfo is only available if enabled on the policy
             sofware_info = mdm_device.get("softwareInfo", {})
@@ -477,7 +494,7 @@ class AndroidEnterprise(MDM):
             policy=device.fleet.policy,
         )
         self.execute(self.api.enterprises().policies().patch(name=policy_name, body=policy_data))
-        current_policy_name = device.raw_mdm_device["policyName"]
+        current_policy_name = device.raw_mdm_device.get("policyName", "")
         if current_policy_name != policy_name:
             # Update the policyName for the device
             logger.debug(
@@ -616,9 +633,8 @@ class AndroidEnterprise(MDM):
            if it does not already exist.
         2. Creates (or updates) a push subscription
            ``projects/{project_id}/subscriptions/publish-mdm-{environment}``.
-           The push endpoint is built from ``push_endpoint_domain`` when
-           provided, otherwise from ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN``
-           (if set), otherwise from the current ``Site`` domain.
+           The push endpoint domain is resolved via :func:`~apps.mdm.utils.get_callback_domain`
+           when ``push_endpoint_domain`` is not provided.
         3. Grants ``android-cloud-policy@system.gserviceaccount.com``
            ``roles/pubsub.publisher`` on the topic so that Android Device Policy
            can publish AMAPI notifications to it.
@@ -630,8 +646,9 @@ class AndroidEnterprise(MDM):
         Args:
             push_endpoint_domain: Domain (without scheme, e.g. ``example.com``)
                 used to construct the full push endpoint.  When ``None``,
-                ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` is used if set,
-                otherwise the domain is taken from the current
+                the domain is resolved by :func:`~apps.mdm.utils.get_callback_domain`:
+                ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` takes priority, then the
+                first non-wildcard entry in ``ALLOWED_HOSTS``, then the current
                 ``django.contrib.sites`` ``Site`` object.  HTTPS is always used.
         """
         push_endpoint = self._build_push_endpoint(domain=push_endpoint_domain)
@@ -684,13 +701,14 @@ class AndroidEnterprise(MDM):
         is always used.  The domain is resolved with the following priority:
 
         1. The ``domain`` argument (when explicitly supplied).
-        2. ``settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` (when set).
-        3. The current ``django.contrib.sites`` ``Site`` object domain (fallback).
+        2. :func:`~apps.mdm.utils.get_callback_domain` — which itself checks
+           ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN``, then ``ALLOWED_HOSTS[0]``,
+           then the current ``Site`` object.
 
         Args:
             domain: Optional domain override (without scheme, e.g.
-                ``example.com``).  When ``None``, the domain is read from
-                ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` or the ``Site`` model.
+                ``example.com``).  When ``None``, the domain is resolved by
+                :func:`~apps.mdm.utils.get_callback_domain`.
 
         Returns:
             Full HTTPS URL for the Pub/Sub push endpoint.
@@ -703,9 +721,7 @@ class AndroidEnterprise(MDM):
             )
         path = reverse("mdm:amapi_notifications")
         if domain is None:
-            domain = (
-                settings.ANDROID_ENTERPRISE_CALLBACK_DOMAIN or Site.objects.get_current().domain
-            )
+            domain = get_callback_domain()
         return f"https://{domain.rstrip('/')}{path}?token={token}"
 
     def pubsub_enabled(self) -> bool:
@@ -916,14 +932,15 @@ class AndroidEnterprise(MDM):
                 update_fields=["name", "device_id", "raw_mdm_device", "serial_number"],
                 push_to_mdm=False,
             )
+            device_to_push = existing_device
         else:
             logger.info(
                 "Creating new device from ENROLLMENT notification",
                 device_id=mdm_device.id,
                 fleet=fleet,
             )
-            device = self._create_device(fleet, mdm_device)
-            device.save(push_to_mdm=False)
+            device_to_push = self._create_device(fleet, mdm_device)
+            device_to_push.save(push_to_mdm=False)
 
         if previous_names := mdm_device.get("previousDeviceNames"):
             count = Device.objects.filter(name__in=previous_names).soft_delete()
@@ -932,6 +949,13 @@ class AndroidEnterprise(MDM):
                 count=count,
                 previous_names=previous_names,
             )
+
+        # Push the device-specific policy so the device immediately receives
+        # its device_identifier in the firmware app's managed configuration.
+        # Use a Celery task so the Pub/Sub ACK is not delayed by the AMAPI call.
+        from apps.mdm.tasks import push_device_config_task  # noqa: PLC0415
+
+        push_device_config_task.delay(device_to_push.pk)
 
     def _handle_status_report_notification(self, mdm_device: MDMDevice) -> None:
         """Update device metadata and create a snapshot from a STATUS_REPORT notification."""
@@ -954,20 +978,20 @@ class AndroidEnterprise(MDM):
             push_to_mdm=False,
         )
 
-        # If the device just finished enrolling, has an assigned app user, and hasn't
-        # yet received a device-specific policy, push its config now.
+        # If the device just finished enrolling and hasn't yet received a
+        # device-specific policy, push its config now so it gets its device_identifier.
         if (
             previous_state == "PROVISIONING"
             and mdm_device.get("state") == "ACTIVE"
-            and existing_device.app_user_name
             and not mdm_device.get("policyName", "").endswith(mdm_device.id)
         ):
             logger.info(
                 "Device transitioned from PROVISIONING to ACTIVE; pushing device config",
                 device_id=mdm_device.id,
-                app_user_name=existing_device.app_user_name,
             )
-            self.push_device_config(existing_device)
+            from apps.mdm.tasks import push_device_config_task  # noqa: PLC0415
+
+            push_device_config_task.delay(existing_device.pk)
         # Only create a snapshot when the notification carries enough information.
         elif "lastPolicySyncTime" in mdm_device and "hardwareInfo" in mdm_device:
             self.create_device_snapshots(existing_device.fleet, [mdm_device])
