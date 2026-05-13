@@ -513,8 +513,9 @@ class TestPolicySerializer(TestAllMDMs):
         assert srs.get("systemPropertiesEnabled") is False
         assert srs.get("commonCriteriaModeEnabled") is False
 
-    def test_firmware_app_always_included(self):
+    def test_firmware_app_always_included(self, settings):
         """The firmware agent app is always in the applications list even without a DB row."""
+        settings.FIRMWARE_APP_INSTALL_TYPE = "FORCE_INSTALLED"
         policy = PolicyFactory()
         serializer = PolicySerializer(policy=policy)
         result = serializer.to_dict()
@@ -527,9 +528,9 @@ class TestPolicySerializer(TestAllMDMs):
         assert firmware["autoUpdateMode"] == "AUTO_UPDATE_HIGH_PRIORITY"
         assert firmware["roles"] == [{"roleType": "COMPANION_APP"}]
 
-    def test_firmware_app_track_ids_included_when_nonempty(self, settings, monkeypatch):
+    def test_firmware_app_track_ids_included_when_nonempty(self, settings):
         """accessibleTrackIds is present when PUBLISH_MDM_AGENT_TRACK_IDS is non-empty."""
-        monkeypatch.setattr("apps.mdm.serializers.PUBLISH_MDM_AGENT_TRACK_IDS", ["123456789"])
+        settings.PUBLISH_MDM_AGENT_TRACK_IDS = ["123456789"]
         policy = PolicyFactory()
         result = PolicySerializer(policy=policy).to_dict()
         firmware = next(
@@ -537,9 +538,9 @@ class TestPolicySerializer(TestAllMDMs):
         )
         assert firmware["accessibleTrackIds"] == ["123456789"]
 
-    def test_firmware_app_no_track_ids_when_empty(self, monkeypatch):
+    def test_firmware_app_no_track_ids_when_empty(self, settings):
         """accessibleTrackIds is absent when PUBLISH_MDM_AGENT_TRACK_IDS is empty."""
-        monkeypatch.setattr("apps.mdm.serializers.PUBLISH_MDM_AGENT_TRACK_IDS", [])
+        settings.PUBLISH_MDM_AGENT_TRACK_IDS = []
         policy = PolicyFactory()
         result = PolicySerializer(policy=policy).to_dict()
         firmware = next(
@@ -593,8 +594,9 @@ class TestPolicySerializer(TestAllMDMs):
         assert "managedConfiguration" in firmware
         assert "device_identifier" not in firmware["managedConfiguration"]
 
-    def test_firmware_app_duplicate_db_row_skipped(self):
+    def test_firmware_app_duplicate_db_row_skipped(self, settings):
         """A PolicyApplication DB row for the firmware package is not duplicated."""
+        settings.FIRMWARE_APP_INSTALL_TYPE = "FORCE_INSTALLED"
         policy = PolicyFactory()
         PolicyApplication.objects.create(
             policy=policy,

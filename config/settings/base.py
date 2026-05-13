@@ -479,3 +479,23 @@ ANDROID_ENTERPRISE_PUBSUB_TOKEN = os.getenv("ANDROID_ENTERPRISE_PUBSUB_TOKEN")
 # derived from the incoming request, which is useful for local development where the request
 # host is "localhost" and Google's API rejects it.
 ANDROID_ENTERPRISE_CALLBACK_DOMAIN = os.getenv("ANDROID_ENTERPRISE_CALLBACK_DOMAIN", "")
+
+# Controls how the firmware companion app is installed on managed devices.
+# Valid values (from Android Management API):
+#   - FORCE_INSTALLED (default, prod): Always installed; cannot be uninstalled by user
+#   - AVAILABLE (local dev): User can install/uninstall via Play Store
+#   - OPTIONAL: Device can install if desired
+#   - REQUIRED_FOR_SETUP: Required before device setup completes
+FIRMWARE_APP_INSTALL_TYPE = os.getenv("FIRMWARE_APP_INSTALL_TYPE", "FORCE_INSTALLED")
+
+# Controls whether companion app devices must use hardware-backed key attestation for
+# registration. Set to False to allow emulators or dev devices that lack a TEE/StrongBox
+# to skip the Google attestation chain check. Defaults to True (production behaviour).
+REQUIRE_HARDWARE_ATTESTATION = os.getenv("REQUIRE_HARDWARE_ATTESTATION", "true").lower() != "false"
+
+# Play Store track IDs accessible on devices for the firmware companion app.
+PUBLISH_MDM_AGENT_TRACK_IDS: list[str] = [
+    # Closed testing track:
+    # https://play.google.com/console/u/0/developers/7481408635650691303/app/4972886268045285910/tracks/4699961510397865384?tab=testers
+    "4699961510397865384",
+]

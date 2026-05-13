@@ -10,12 +10,12 @@ but this only happens when neither ``ANDROID_ENTERPRISE_CALLBACK_DOMAIN`` nor
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass, field
 from string import Template
 from typing import TYPE_CHECKING
 
 import structlog
+from django.conf import settings
 
 if TYPE_CHECKING:
     from apps.mdm.models import Device, Policy, PolicyApplication, PolicyVariable
@@ -24,39 +24,7 @@ from apps.mdm.utils import get_callback_domain
 
 FIRMWARE_APP_PACKAGE = "com.publishmdm.agent"
 
-# Controls how the firmware companion app is installed on managed devices.
-# Valid values (from Android Management API):
-#   - FORCE_INSTALLED (default, prod): Always installed; cannot be uninstalled by user
-#   - AVAILABLE (local dev): User can install/uninstall via Play Store
-#   - OPTIONAL: Device can install if desired
-#   - REQUIRED_FOR_SETUP: Required before device setup completes
-# For local development, set to AVAILABLE to allow testing without forcing installation.
-FIRMWARE_APP_INSTALL_TYPE_VALID = {"FORCE_INSTALLED", "AVAILABLE", "OPTIONAL", "REQUIRED_FOR_SETUP"}
-FIRMWARE_APP_INSTALL_TYPE = os.getenv("FIRMWARE_APP_INSTALL_TYPE", "FORCE_INSTALLED")
-
-# Controls whether companion app devices must use hardware-backed key attestation for
-# registration.  Set REQUIRE_HARDWARE_ATTESTATION=false to allow emulators or dev
-# devices that lack a TEE/StrongBox to skip the Google attestation chain check.
-# Defaults to True (production behaviour).
-REQUIRE_HARDWARE_ATTESTATION = os.getenv("REQUIRE_HARDWARE_ATTESTATION", "true").lower() != "false"
-
 logger = structlog.get_logger()
-
-if FIRMWARE_APP_INSTALL_TYPE not in FIRMWARE_APP_INSTALL_TYPE_VALID:
-    logger.warning(
-        "Invalid FIRMWARE_APP_INSTALL_TYPE; using default",
-        invalid_value=FIRMWARE_APP_INSTALL_TYPE,
-        valid_values=sorted(FIRMWARE_APP_INSTALL_TYPE_VALID),
-    )
-    FIRMWARE_APP_INSTALL_TYPE = "FORCE_INSTALLED"
-
-# Play Store track IDs that are accessible on devices for this app.
-# Add internal/closed testing track IDs here as needed.
-PUBLISH_MDM_AGENT_TRACK_IDS: list[str] = [
-    # Closed testing track:
-    # https://play.google.com/console/u/0/developers/7481408635650691303/app/4972886268045285910/tracks/4699961510397865384?tab=testers
-    "4699961510397865384",
-]
 
 
 @dataclass
@@ -152,23 +120,24 @@ class PolicySerializer:
         # granted, high-priority auto-update.  Not user-configurable.
         # Note: COMPANION_APP role prevents user uninstall and data clearing regardless
         # of installType, so it is omitted when installType is AVAILABLE (local dev).
+        firmware_install_type = settings.FIRMWARE_APP_INSTALL_TYPE
         firmware_entry: dict = {
             "packageName": FIRMWARE_APP_PACKAGE,
-            "installType": FIRMWARE_APP_INSTALL_TYPE,
+            "installType": firmware_install_type,
             "defaultPermissionPolicy": "GRANT",
             "autoUpdateMode": "AUTO_UPDATE_HIGH_PRIORITY",
         }
         # For production, use COMPANION_APP role to prevent user uninstall and data
         # clearing of the firmware agent. Leaving this set in local development
         # prevents the developer from uninstalling the app for testing local APK builds.
-        if FIRMWARE_APP_INSTALL_TYPE == "FORCE_INSTALLED":
+        if firmware_install_type == "FORCE_INSTALLED":
             firmware_entry["roles"] = [{"roleType": "COMPANION_APP"}]
-        if PUBLISH_MDM_AGENT_TRACK_IDS:
-            firmware_entry["accessibleTrackIds"] = PUBLISH_MDM_AGENT_TRACK_IDS
+        if settings.PUBLISH_MDM_AGENT_TRACK_IDS:
+            firmware_entry["accessibleTrackIds"] = settings.PUBLISH_MDM_AGENT_TRACK_IDS
         managed_config: dict = {"base_url": f"https://{get_callback_domain()}/mdm/api/firmware/"}
         if self.device and self.device.device_id:
             managed_config["device_identifier"] = self.device.device_id
-        if not REQUIRE_HARDWARE_ATTESTATION:
+        if not settings.REQUIRE_HARDWARE_ATTESTATION:
             managed_config["require_hardware_attestation"] = False
         firmware_entry["managedConfiguration"] = managed_config
         logger.debug("Adding firmware agent app to policy", managed_config=managed_config)
