@@ -126,10 +126,11 @@ def _find_device(identifier: str, **extra_filters):
 def device_sync_policy_view(request):
     """Trigger a policy re-push for a device.
 
-    Accepts ``device_id`` in the JSON body.  If the device has an active auth
-    key the request is currently accepted without signature verification (the
-    client *should* send signed requests once full signed-request support is
-    added, but for now we accept plain ``device_id`` regardless of key state).
+    Accepts ``device_id`` and ``screen_stream_token`` in the JSON body.
+    The ``screen_stream_token`` is the per-device secret that authenticates
+    the request, preventing arbitrary callers from triggering repeated MDM
+    pushes with only a guessable device identifier.  Requests are also
+    rate-limited by both client IP and device identifier.
     """
     if _is_rate_limited("sync-policy-ip", _client_ip(request), limit=10, window_seconds=60):
         return HttpResponse(status=429)
@@ -140,12 +141,22 @@ def device_sync_policy_view(request):
         return HttpResponse(status=400)
 
     device_id = body.get("device_id", "").strip()
+    screen_stream_token = body.get("screen_stream_token", "").strip()
     if not device_id or len(device_id) > 255:
         return HttpResponse(status=400)
+    if not screen_stream_token or len(screen_stream_token) > 64:
+        return HttpResponse(status=400)
+
+    if _is_rate_limited("sync-policy-dev", device_id, limit=5, window_seconds=60):
+        return HttpResponse(status=429)
 
     device = _find_device(device_id)
     if not device:
         return HttpResponse(status=404)
+
+    # Constant-time comparison guards against timing-based device enumeration.
+    if not secrets.compare_digest(device.screen_stream_token or "", screen_stream_token):
+        return HttpResponse(status=401)
 
     mdm = get_active_mdm_instance(organization=device.fleet.organization)
     if mdm:
@@ -167,6 +178,9 @@ def device_fcm_token_view(request):
     token can also be supplied during key registration via
     ``device_register_key_view`` for fully-attested flows.
     """
+    if _is_rate_limited("fcm-token-ip", _client_ip(request), limit=20, window_seconds=60):
+        return HttpResponse(status=429)
+
     try:
         body = json.loads(request.body)
     except (json.JSONDecodeError, ValueError):
@@ -179,6 +193,12 @@ def device_fcm_token_view(request):
     screen_stream_token = body.get("screen_stream_token", "").strip()
     if not screen_stream_token or len(screen_stream_token) > 64:
         return HttpResponse(status=400)
+
+    # Per-device rate limit keyed on a hash of the token (avoids caching raw secrets).
+    if _is_rate_limited(
+        "fcm-token-dev", _sha256_hex(screen_stream_token), limit=10, window_seconds=60
+    ):
+        return HttpResponse(status=429)
 
     updated = Device.objects.filter(screen_stream_token=screen_stream_token).update(
         fcm_token=fcm_token
@@ -211,6 +231,9 @@ def device_attestation_nonce_view(request):
     device_id = body.get("device_id", "").strip()
     if not device_id or len(device_id) > 255:
         return HttpResponse(status=400)
+
+    if _is_rate_limited("attest-nonce-dev", device_id, limit=5, window_seconds=60):
+        return HttpResponse(status=429)
 
     device = _find_device(device_id)
     if not device:
@@ -383,6 +406,10 @@ def device_register_key_view(request):
 
     device.save(update_fields=update_fields)
 
+    # Ensure a per-device screen-stream secret exists so the device can use it
+    # to authenticate the /fcm-token/ and /sync-policy/ endpoints.
+    stream_token = device.ensure_screen_stream_token()
+
     _audit_event(
         "register_key_success",
         request,
@@ -397,6 +424,7 @@ def device_register_key_view(request):
             "key_fingerprint": fingerprint,
             "key_version": device.auth_key_version,
             "bound_at": bound_at.isoformat(),
+            "screen_stream_token": stream_token,
         },
         status=201,
     )
