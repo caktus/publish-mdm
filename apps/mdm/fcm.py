@@ -49,14 +49,13 @@ def send_start_screen_share(
     fcm_token: str,
     request_id: str = "",
     screen_stream_url: str = "",
-    screen_stream_token: str = "",
 ) -> bool:
     """Send an FCM message that triggers the screen-share consent UI.
 
     The ``request_id`` is a server-generated UUID that the device uses in the
     challenge-response auth flow to obtain a session token for the WebSocket.
-    ``screen_stream_url`` and ``screen_stream_token`` are passed to the device
-    so it can connect to the WebSocket stream directly.
+    ``screen_stream_url`` is passed to the device so it knows the WebSocket
+    endpoint, though it will authenticate via challenge-response.
 
     Returns True on success, False (with a logged warning) on failure.
     """
@@ -73,7 +72,6 @@ def send_start_screen_share(
             "action": "start_screen_share",
             "request_id": request_id,
             "screen_stream_url": screen_stream_url,
-            "screen_stream_token": screen_stream_token,
         },
         android=messaging.AndroidConfig(
             priority="high",

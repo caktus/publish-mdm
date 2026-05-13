@@ -80,11 +80,9 @@ class DeviceScreenPublisherConsumer(AsyncWebsocketConsumer):
     @staticmethod
     @database_sync_to_async
     def _lookup_device_pk(token: str) -> int | None:
-        """Look up the device PK from a session token (challenge-response flow)
-        or legacy screen_stream_token."""
+        """Look up the device PK from a session token (challenge-response flow)."""
         if not token:
             return None
-        # Try session token first (new auth flow).
         token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
         try:
             from django.utils.timezone import now  # noqa: PLC0415
@@ -103,11 +101,6 @@ class DeviceScreenPublisherConsumer(AsyncWebsocketConsumer):
                 return None
             return session.device_id
         except ScreenShareSession.DoesNotExist:
-            pass
-        # Fallback: legacy screen_stream_token.
-        try:
-            return Device.objects.get(screen_stream_token=token).pk
-        except (Device.DoesNotExist, Device.MultipleObjectsReturned):
             return None
 
 

@@ -1,8 +1,14 @@
+import hashlib
+import uuid
+from datetime import timedelta
+
 import pytest
 from channels.db import database_sync_to_async
 from channels.testing import WebsocketCommunicator
 from django.contrib.auth.models import AnonymousUser
+from django.utils.timezone import now
 
+from apps.mdm.models import ScreenShareSession
 from apps.publish_mdm.screen_consumers import (
     DeviceScreenPublisherConsumer,
     DeviceScreenViewerConsumer,
@@ -13,11 +19,24 @@ from tests.users.factories import UserFactory
 
 
 @database_sync_to_async
-def _create_device_with_token(token, org=None):
+def _create_device(org=None):
     if org is None:
         org = OrganizationFactory()
     fleet = FleetFactory(organization=org)
-    return DeviceFactory(fleet=fleet, screen_stream_token=token)
+    return DeviceFactory(fleet=fleet)
+
+
+@database_sync_to_async
+def _create_session_token(device, token):
+    """Create a ScreenShareSession for the device and return the raw token."""
+    ScreenShareSession.objects.create(
+        session_id=uuid.uuid4(),
+        token_hash=hashlib.sha256(token.encode("utf-8")).hexdigest(),
+        device=device,
+        request_id="test-req",
+        expires_at=now() + timedelta(seconds=60),
+    )
+    return token
 
 
 @database_sync_to_async
@@ -34,12 +53,13 @@ class TestDeviceScreenPublisherConsumer:
 
     @pytest.mark.asyncio
     async def test_valid_token_connects(self):
-        await _create_device_with_token("pub-tok-1")
+        device = await _create_device()
+        token = await _create_session_token(device, "pub-tok-1")
         communicator = WebsocketCommunicator(
             DeviceScreenPublisherConsumer.as_asgi(),
-            "/ws/devices/screen-publish/pub-tok-1/",
+            f"/ws/devices/screen-publish/{token}/",
         )
-        communicator.scope["url_route"] = {"kwargs": {"token": "pub-tok-1"}}
+        communicator.scope["url_route"] = {"kwargs": {"token": token}}
         connected, _ = await communicator.connect()
         assert connected
         await communicator.disconnect()
@@ -74,7 +94,7 @@ class TestDeviceScreenViewerConsumer:
     @pytest.mark.asyncio
     async def test_authenticated_user_connects(self):
         org = await database_sync_to_async(OrganizationFactory)()
-        device = await _create_device_with_token("view-tok-1", org=org)
+        device = await _create_device(org=org)
         user = await _create_user_in_org(org)
         device_pk = await database_sync_to_async(lambda: device.pk)()
 
@@ -104,7 +124,7 @@ class TestDeviceScreenViewerConsumer:
     async def test_wrong_org_rejected(self):
         org1 = await database_sync_to_async(OrganizationFactory)()
         org2 = await database_sync_to_async(OrganizationFactory)()
-        device = await _create_device_with_token("view-tok-2", org=org1)
+        device = await _create_device(org=org1)
         user = await _create_user_in_org(org2)  # user is in org2, not org1
         device_pk = await database_sync_to_async(lambda: device.pk)()
 

@@ -12,10 +12,10 @@ class TestDeviceFcmTokenView:
     url = "/mdm/api/devices/fcm-token/"
 
     def test_register_fcm_token(self, client):
-        device = DeviceFactory(screen_stream_token="tok-abc")
+        device = DeviceFactory(device_token="tok-abc")
         resp = client.post(
             self.url,
-            data=json.dumps({"fcm_token": "new-fcm-token", "screen_stream_token": "tok-abc"}),
+            data=json.dumps({"fcm_token": "new-fcm-token", "device_token": "tok-abc"}),
             content_type="application/json",
         )
         assert resp.status_code == 204
@@ -23,10 +23,10 @@ class TestDeviceFcmTokenView:
         assert device.fcm_token == "new-fcm-token"
 
     def test_updates_existing_token(self, client):
-        device = DeviceFactory(screen_stream_token="tok-abc", fcm_token="old-token")
+        device = DeviceFactory(device_token="tok-abc", fcm_token="old-token")
         resp = client.post(
             self.url,
-            data=json.dumps({"fcm_token": "updated-token", "screen_stream_token": "tok-abc"}),
+            data=json.dumps({"fcm_token": "updated-token", "device_token": "tok-abc"}),
             content_type="application/json",
         )
         assert resp.status_code == 204
@@ -36,7 +36,7 @@ class TestDeviceFcmTokenView:
     def test_unknown_token_returns_404(self, client):
         resp = client.post(
             self.url,
-            data=json.dumps({"fcm_token": "tok", "screen_stream_token": "nonexistent"}),
+            data=json.dumps({"fcm_token": "tok", "device_token": "nonexistent"}),
             content_type="application/json",
         )
         assert resp.status_code == 404
@@ -44,12 +44,12 @@ class TestDeviceFcmTokenView:
     def test_missing_fcm_token_returns_400(self, client):
         resp = client.post(
             self.url,
-            data=json.dumps({"screen_stream_token": "tok-abc"}),
+            data=json.dumps({"device_token": "tok-abc"}),
             content_type="application/json",
         )
         assert resp.status_code == 400
 
-    def test_missing_screen_stream_token_returns_400(self, client):
+    def test_missing_device_token_returns_400(self, client):
         resp = client.post(
             self.url,
             data=json.dumps({"fcm_token": "tok"}),
@@ -57,10 +57,10 @@ class TestDeviceFcmTokenView:
         )
         assert resp.status_code == 400
 
-    def test_empty_screen_stream_token_returns_400(self, client):
+    def test_empty_device_token_returns_400(self, client):
         resp = client.post(
             self.url,
-            data=json.dumps({"fcm_token": "tok", "screen_stream_token": ""}),
+            data=json.dumps({"fcm_token": "tok", "device_token": ""}),
             content_type="application/json",
         )
         assert resp.status_code == 400
@@ -68,15 +68,15 @@ class TestDeviceFcmTokenView:
     def test_oversized_fcm_token_returns_400(self, client):
         resp = client.post(
             self.url,
-            data=json.dumps({"fcm_token": "x" * 257, "screen_stream_token": "tok-abc"}),
+            data=json.dumps({"fcm_token": "x" * 257, "device_token": "tok-abc"}),
             content_type="application/json",
         )
         assert resp.status_code == 400
 
-    def test_oversized_screen_stream_token_returns_400(self, client):
+    def test_oversized_device_token_returns_400(self, client):
         resp = client.post(
             self.url,
-            data=json.dumps({"fcm_token": "tok", "screen_stream_token": "x" * 65}),
+            data=json.dumps({"fcm_token": "tok", "device_token": "x" * 65}),
             content_type="application/json",
         )
         assert resp.status_code == 400

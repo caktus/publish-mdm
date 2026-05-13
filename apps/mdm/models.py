@@ -647,12 +647,11 @@ class Device(SoftDeleteModel):
         null=True,
         blank=True,
     )
-    screen_stream_token = models.CharField(
+    device_token = models.CharField(
         max_length=64,
         blank=True,
         default="",
-        help_text="Per-device secret used by the firmware app to authenticate"
-        " its screen-share WebSocket connection.",
+        help_text="Per-device secret used by the firmware app to authenticate API requests.",
     )
     auth_public_key_pem = models.TextField(
         blank=True,
@@ -701,23 +700,21 @@ class Device(SoftDeleteModel):
     class Meta:
         constraints = (
             models.UniqueConstraint(
-                fields=["screen_stream_token"],
-                condition=~Q(screen_stream_token=""),
-                name="unique_device_screen_stream_token",
+                fields=["device_token"],
+                condition=~Q(device_token=""),
+                name="unique_device_token",
             ),
         )
 
     def __str__(self):
         return f"{self.name} ({self.device_id})"
 
-    def ensure_screen_stream_token(self) -> str:
-        """Generate and persist a screen-stream token if one isn't set yet."""
-        if not self.screen_stream_token:
-            self.screen_stream_token = secrets.token_urlsafe(32)
-            Device.all_objects.filter(pk=self.pk).update(
-                screen_stream_token=self.screen_stream_token
-            )
-        return self.screen_stream_token
+    def ensure_device_token(self) -> str:
+        """Generate and persist a device token if one isn't set yet."""
+        if not self.device_token:
+            self.device_token = secrets.token_urlsafe(32)
+            Device.all_objects.filter(pk=self.pk).update(device_token=self.device_token)
+        return self.device_token
 
     def save(self, *args, **kwargs):
         from .mdms import get_active_mdm_instance  # noqa: PLC0415

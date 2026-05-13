@@ -468,6 +468,10 @@ class TestFirmwareSnapshotView:
     def url(self):
         return reverse("mdm:firmware_snapshot")
 
+    @pytest.fixture
+    def device_with_token(self):
+        return DeviceFactory(device_token="fw-test-tok")
+
     def test_empty_body_returns_400(self, client, url):
         response = client.post(url, data="", content_type="application/json")
         assert response.status_code == 400
@@ -476,13 +480,20 @@ class TestFirmwareSnapshotView:
         response = client.post(url, data="not-json", content_type="application/json")
         assert response.status_code == 400
 
-    def test_invalid_form_data_returns_400(self, client, url):
+    def test_missing_device_token_returns_400(self, client, url):
         response = client.post(url, data="{}", content_type="application/json")
         assert response.status_code == 400
 
+    def test_invalid_device_token_returns_401(self, client, url, device_with_token):
+        data = json.dumps({"deviceIdentifier": "SN-VIEW-TEST", "device_token": "wrong-tok"})
+        response = client.post(url, data=data, content_type="application/json")
+        assert response.status_code == 401
+
     @pytest.mark.django_db
-    def test_valid_data_saves_and_returns_201(self, client, url):
-        data = json.dumps({"deviceIdentifier": "SN-VIEW-TEST", "version": "1.0"})
+    def test_valid_data_saves_and_returns_201(self, client, url, device_with_token):
+        data = json.dumps(
+            {"deviceIdentifier": "SN-VIEW-TEST", "version": "1.0", "device_token": "fw-test-tok"}
+        )
         response = client.post(url, data=data, content_type="application/json")
         assert response.status_code == 201
 

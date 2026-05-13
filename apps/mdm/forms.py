@@ -41,7 +41,8 @@ class FirmwareSnapshotForm(forms.ModelForm):
             "raw_data",
         )
 
-    def __init__(self, json_data, *args, **kwargs):
+    def __init__(self, json_data, *args, device=None, **kwargs):
+        self._authenticated_device = device
         form_data = {"raw_data": json_data}
         if "serialNumber" in json_data:
             form_data["serial_number"] = json_data["serialNumber"]
@@ -68,12 +69,14 @@ class FirmwareSnapshotForm(forms.ModelForm):
             cleaned_data["version"] = versions[0]
 
     def save(self, *args, **kwargs):
-        # Get the device identifier from the form datpya
-        serial_number = self.cleaned_data.get("serial_number")
-        # Get the device object
-        device = Device.objects.filter(serial_number=serial_number).order_by("-pk").first()
-        if device:
-            self.instance.device = device
+        if self._authenticated_device:
+            self.instance.device = self._authenticated_device
+        else:
+            # Fallback: look up the device by serial number
+            serial_number = self.cleaned_data.get("serial_number")
+            device = Device.objects.filter(serial_number=serial_number).order_by("-pk").first()
+            if device:
+                self.instance.device = device
         return super().save(*args, **kwargs)
 
 

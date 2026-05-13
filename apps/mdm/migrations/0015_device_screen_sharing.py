@@ -150,20 +150,20 @@ class Migration(migrations.Migration):
         ),
         migrations.AddField(
             model_name="device",
-            name="screen_stream_token",
+            name="device_token",
             field=models.CharField(
                 blank=True,
                 default="",
-                help_text="Per-device secret used by the firmware app to authenticate its screen-share WebSocket connection.",
+                help_text="Per-device secret used by the firmware app to authenticate API requests.",
                 max_length=64,
             ),
         ),
         migrations.AddConstraint(
             model_name="device",
             constraint=models.UniqueConstraint(
-                condition=models.Q(("screen_stream_token", ""), _negated=True),
-                fields=("screen_stream_token",),
-                name="unique_device_screen_stream_token",
+                condition=models.Q(("device_token", ""), _negated=True),
+                fields=("device_token",),
+                name="unique_device_token",
             ),
         ),
         migrations.AddField(

@@ -108,15 +108,15 @@ class TestDeviceAuthApi:
         assert resp.status_code == 201
         body = resp.json()
         assert body["key_version"] == 1
-        # screen_stream_token is returned so the device can authenticate subsequent calls.
-        assert "screen_stream_token" in body
-        assert body["screen_stream_token"]
+        # device_token is returned so the device can authenticate subsequent calls.
+        assert "device_token" in body
+        assert body["device_token"]
 
         device.refresh_from_db()
         assert device.auth_key_state == "active"
         assert device.auth_public_key_pem
         assert device.auth_public_key_fingerprint == body["key_fingerprint"]
-        assert device.screen_stream_token == body["screen_stream_token"]
+        assert device.device_token == body["device_token"]
         # No attestation -> security level is None
         assert device.attestation_security_level is None
 
@@ -489,7 +489,7 @@ class TestDeviceSyncPolicyApi:
     url = "/mdm/api/devices/sync-policy/"
 
     def test_sync_policy_success(self, client, mocker):
-        device = DeviceFactory(screen_stream_token="tok-sync-abc")
+        device = DeviceFactory(device_token="tok-sync-abc")
         mock_mdm = mocker.MagicMock()
         mocker.patch(
             "apps.mdm.views.get_active_mdm_instance",
@@ -497,24 +497,24 @@ class TestDeviceSyncPolicyApi:
         )
         resp = client.post(
             self.url,
-            data=json.dumps({"device_id": device.device_id, "screen_stream_token": "tok-sync-abc"}),
+            data=json.dumps({"device_id": device.device_id, "device_token": "tok-sync-abc"}),
             content_type="application/json",
         )
         assert resp.status_code == 204
         mock_mdm.push_device_config.assert_called_once_with(device)
 
     def test_sync_policy_wrong_token_returns_401(self, client, mocker):
-        device = DeviceFactory(screen_stream_token="correct-token")
+        device = DeviceFactory(device_token="correct-token")
         mocker.patch("apps.mdm.views.get_active_mdm_instance", return_value=mocker.MagicMock())
         resp = client.post(
             self.url,
-            data=json.dumps({"device_id": device.device_id, "screen_stream_token": "wrong-token"}),
+            data=json.dumps({"device_id": device.device_id, "device_token": "wrong-token"}),
             content_type="application/json",
         )
         assert resp.status_code == 401
 
     def test_sync_policy_missing_token_returns_400(self, client):
-        device = DeviceFactory(screen_stream_token="tok-sync-abc")
+        device = DeviceFactory(device_token="tok-sync-abc")
         resp = client.post(
             self.url,
             data=json.dumps({"device_id": device.device_id}),
@@ -525,7 +525,7 @@ class TestDeviceSyncPolicyApi:
     def test_sync_policy_device_not_found(self, client):
         resp = client.post(
             self.url,
-            data=json.dumps({"device_id": "nonexistent-device", "screen_stream_token": "tok"}),
+            data=json.dumps({"device_id": "nonexistent-device", "device_token": "tok"}),
             content_type="application/json",
         )
         assert resp.status_code == 404
@@ -533,7 +533,7 @@ class TestDeviceSyncPolicyApi:
     def test_sync_policy_missing_device_id(self, client):
         resp = client.post(
             self.url,
-            data=json.dumps({"screen_stream_token": "tok"}),
+            data=json.dumps({"device_token": "tok"}),
             content_type="application/json",
         )
         assert resp.status_code == 400
@@ -543,7 +543,7 @@ class TestDeviceSyncPolicyApi:
         assert resp.status_code == 400
 
     def test_sync_policy_by_serial_number(self, client, mocker):
-        device = DeviceFactory(serial_number="SN-SYNC-TEST", screen_stream_token="tok-serial")
+        device = DeviceFactory(serial_number="SN-SYNC-TEST", device_token="tok-serial")
         mock_mdm = mocker.MagicMock()
         mocker.patch(
             "apps.mdm.views.get_active_mdm_instance",
@@ -551,7 +551,7 @@ class TestDeviceSyncPolicyApi:
         )
         resp = client.post(
             self.url,
-            data=json.dumps({"device_id": "SN-SYNC-TEST", "screen_stream_token": "tok-serial"}),
+            data=json.dumps({"device_id": "SN-SYNC-TEST", "device_token": "tok-serial"}),
             content_type="application/json",
         )
         assert resp.status_code == 204
