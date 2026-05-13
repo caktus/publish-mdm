@@ -28,9 +28,11 @@ from .import_export import DeviceResource
 from .mdms import get_active_mdm_instance
 from .models import (
     Device,
+    DeviceAttestationNonce,
     DeviceAuthChallenge,
     DeviceSnapshot,
     DeviceSnapshotApp,
+    EnrollmentToken,
     FirmwareSnapshot,
     Fleet,
     Policy,
@@ -649,3 +651,46 @@ class ScreenShareAuditLogAdmin(admin.ModelAdmin):
     date_hierarchy = "created_at"
     ordering = ("-created_at",)
     readonly_fields = ("event_type", "device", "actor", "ip_address", "metadata_json", "created_at")
+
+
+@admin.register(DeviceAttestationNonce)
+class DeviceAttestationNonceAdmin(admin.ModelAdmin):
+    list_display = ("id", "device", "nonce", "expires_at", "used_at", "created_at")
+    search_fields = ("nonce", "device__device_id", "device__name", "device__serial_number")
+    list_filter = ("expires_at", "used_at", "created_at")
+    list_select_related = ("device",)
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+    readonly_fields = ("nonce", "device", "expires_at", "used_at", "created_at")
+
+
+@admin.register(EnrollmentToken)
+class EnrollmentTokenAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "fleet",
+        "organization",
+        "label",
+        "is_active",
+        "is_expired",
+        "created_at",
+    )
+    search_fields = (
+        "label",
+        "fleet__name",
+        "organization__name",
+        "token_value",
+        "created_by__username",
+    )
+    list_filter = ("organization", "created_at", "revoked_at", "expires_at")
+    list_select_related = ("fleet", "organization", "created_by")
+    date_hierarchy = "created_at"
+    ordering = ("-created_at",)
+    readonly_fields = (
+        "token_value",
+        "token_resource_name",
+        "qr_code",
+        "created_at",
+        "created_by",
+        "name",
+    )
