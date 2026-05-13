@@ -689,6 +689,10 @@ class Device(SoftDeleteModel):
         default="",
         help_text="AMAPI enrollment-specific ID anchoring this device to its management session.",
     )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Timestamp when this device record was first created.",
+    )
 
     class Meta:
         pass

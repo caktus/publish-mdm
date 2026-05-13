@@ -5,6 +5,7 @@ from collections import namedtuple
 import faker
 import pytest
 from django.contrib.sites.models import Site
+from django.utils import timezone
 from googleapiclient.errors import HttpError
 
 from apps.mdm.mdms import AndroidEnterprise, MDMAPIError
@@ -682,6 +683,10 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         then soft-deleted via bulk_update because the per-device ID lookup returns None."""
         # Our device has device_id that does NOT match the MDM device name suffix
         our_device = DeviceFactory(fleet=fleet, device_id="OUR-DEVICE-ID", serial_number="SN999")
+        # Backdate created_at so it is outside the enrollment grace period
+        Device.all_objects.filter(pk=our_device.pk).update(
+            created_at=timezone.now() - dt.timedelta(minutes=10)
+        )
         # MDM device name has a different ID suffix; serial_number matches our_device
         mdm_device = MDMDevice(
             {
@@ -700,6 +705,57 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
         assert our_device.is_deleted
         # Device is no longer visible via the default manager
         assert not Device.objects.filter(pk=our_device.pk).exists()
+
+    def test_update_existing_devices_does_not_soft_delete_recently_enrolled_device(self, fleet):
+        """Race condition: a device enrolled via AMAPI notification (creating the DB record)
+        may not appear in the AMAPI list API response yet when Dagster syncs shortly after.
+        update_existing_devices() must NOT soft-delete devices created within the grace period
+        even if they are absent from the MDM response.
+
+        Timeline:
+        1. AMAPI ENROLLMENT notification → Device created in DB
+        2. Dagster sync (< 5 min later) → device absent from AMAPI list API
+        3. Without fix: device soft-deleted → subsequent STATUS_REPORT notifications fail
+        4. With fix: device preserved because it was created very recently
+        """
+        # Device was just created from an ENROLLMENT notification (right now)
+        new_device = DeviceFactory(
+            fleet=fleet,
+            device_id="NEW-ENROLLED-ID",
+            serial_number="SN-NEW",
+            name="enterprises/test/devices/NEW-ENROLLED-ID",
+        )
+
+        # Dagster sync: AMAPI list API returns no devices (propagation lag)
+        active_mdm = AndroidEnterprise(organization=fleet.organization)
+        active_mdm.update_existing_devices(fleet=fleet, mdm_devices=[])
+
+        # The newly-enrolled device must NOT be soft-deleted
+        new_device.refresh_from_db()
+        assert not new_device.is_deleted
+        assert Device.objects.filter(pk=new_device.pk).exists()
+
+    def test_update_existing_devices_soft_deletes_stale_device_outside_grace_period(self, fleet):
+        """A device that is absent from the MDM response AND was created longer than the
+        grace period ago IS soft-deleted — the grace period only protects newly enrolled devices.
+        """
+        old_device = DeviceFactory(
+            fleet=fleet,
+            device_id="OLD-DEVICE-ID",
+            serial_number="SN-OLD",
+            name="enterprises/test/devices/OLD-DEVICE-ID",
+        )
+        # Backdate created_at beyond the grace period
+        Device.all_objects.filter(pk=old_device.pk).update(
+            created_at=timezone.now() - dt.timedelta(minutes=10)
+        )
+
+        active_mdm = AndroidEnterprise(organization=fleet.organization)
+        active_mdm.update_existing_devices(fleet=fleet, mdm_devices=[])
+
+        old_device.refresh_from_db()
+        assert old_device.is_deleted
+        assert not Device.objects.filter(pk=old_device.pk).exists()
 
     def test_update_existing_devices_soft_deletes_reenrolled_device(self, fleet):
         """A device whose name appears in another MDM device's previousDeviceNames
@@ -1175,7 +1231,8 @@ class TestAndroidEnterprise(TestAndroidEnterpriseOnly):
 
     def test_handle_enrollment_notification_creates_device(self, mocker):
         """_handle_enrollment_notification() creates a new Device for an unknown device
-        and then calls push_device_config_task.delay to deliver the device_identifier immediately."""
+        and then calls push_device_config_task.delay to deliver the device_identifier immediately.
+        """
         fleet = FleetFactory()
         mock_push = mocker.patch("apps.mdm.tasks.push_device_config_task.delay")
         active_mdm = AndroidEnterprise()
@@ -1661,9 +1718,9 @@ class TestDeviceEnrollmentPolicyWorkflow(TestAndroidEnterprise):
         assert len(captured_bodies) == 1, "get_policy_data should have been called once"
         firmware_config = self.get_firmware_managed_config(captured_bodies[0])
         assert firmware_config, "Firmware app should be present in the base policy"
-        assert "device_identifier" not in firmware_config, (
-            "Base policy must never include device_identifier"
-        )
+        assert (
+            "device_identifier" not in firmware_config
+        ), "Base policy must never include device_identifier"
 
     def test_push_device_config_sends_device_identifier_to_amapi(self, fleet, monkeypatch, mocker):
         """push_device_config sends a device-specific policy to AMAPI that includes
@@ -1708,6 +1765,6 @@ class TestDeviceEnrollmentPolicyWorkflow(TestAndroidEnterprise):
         assert len(captured_bodies) == 1, "get_policy_data should have been called once"
         firmware_config = self.get_firmware_managed_config(captured_bodies[0])
         assert firmware_config, "Firmware app should be present in the device-specific policy"
-        assert firmware_config.get("device_identifier") == device.device_id, (
-            f"device_identifier should equal device.device_id ({device.device_id!r})"
-        )
+        assert (
+            firmware_config.get("device_identifier") == device.device_id
+        ), f"device_identifier should equal device.device_id ({device.device_id!r})"

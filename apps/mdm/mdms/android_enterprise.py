@@ -29,6 +29,11 @@ ALL_SCOPES = [
 ANDROID_DEVICE_POLICY_SERVICE_ACCOUNT = "android-cloud-policy@system.gserviceaccount.com"
 # Fixed resource name suffix used for this application's Pub/Sub topic and subscription.
 PUBSUB_RESOURCE_NAME = "publish-mdm"
+# Grace period after device creation during which a device absent from the AMAPI list API
+# will not be soft-deleted. AMAPI has eventual consistency: a newly enrolled device may not
+# appear in the list API immediately, so Dagster syncs shortly after enrollment could
+# incorrectly soft-delete the device if this guard is not in place.
+ENROLLMENT_SOFT_DELETE_GRACE_PERIOD = dt.timedelta(minutes=5)
 
 
 class MDMDevice(dict):
@@ -314,6 +319,14 @@ class AndroidEnterprise(MDM):
             else:
                 mdm_device = devices_by_serial.get(our_device.serial_number)
             if not mdm_device:
+                if timezone.now() - our_device.created_at < ENROLLMENT_SOFT_DELETE_GRACE_PERIOD:
+                    logger.info(
+                        "Skipping soft-delete: device was recently enrolled and may not yet "
+                        "appear in the AMAPI list API",
+                        device=our_device,
+                        created_at=our_device.created_at,
+                    )
+                    continue
                 logger.info("Soft-deleting device not found in API response", device=our_device)
                 our_device.soft_delete(commit=False)
                 continue
