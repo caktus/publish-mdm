@@ -121,16 +121,64 @@ def _find_device(identifier: str, **extra_filters):
     return Device.objects.filter(serial_number=identifier, **extra_filters).first()
 
 
+def _authenticate_device_request(body: dict) -> tuple[Device | None, HttpResponse | None]:
+    """Verify an ECDSA-signed device request.
+
+    Expects ``device_id``, ``timestamp``, and ``signature_b64`` in the JSON
+    body.  The device signs ``"{device_id}.{timestamp}"`` with its hardware-
+    backed private key.
+
+    Returns ``(device, None)`` on success or ``(None, error_response)`` on
+    failure.
+    """
+    device_id = body.get("device_id", "").strip()
+    timestamp_raw = str(body.get("timestamp", "")).strip()
+    signature_b64 = body.get("signature_b64", "").strip()
+
+    if not device_id or len(device_id) > 255:
+        return None, HttpResponse(status=400)
+    if not timestamp_raw or not signature_b64:
+        return None, HttpResponse(status=400)
+
+    try:
+        timestamp = int(timestamp_raw)
+    except ValueError:
+        return None, HttpResponse(status=400)
+
+    now_ts = int(time.time())
+    if abs(now_ts - timestamp) > TIMESTAMP_SKEW_SECONDS:
+        return None, HttpResponse(status=400)
+
+    device = _find_device(device_id, auth_key_state="active")
+    if not device or not device.auth_public_key_pem:
+        return None, HttpResponse(status=401)
+
+    public_key = _load_ec_public_key(device.auth_public_key_pem)
+    if public_key is None:
+        return None, HttpResponse(status=401)
+
+    try:
+        signature = base64.b64decode(signature_b64, validate=True)
+    except ValueError:
+        return None, HttpResponse(status=400)
+
+    payload = f"{device_id}.{timestamp_raw}".encode()
+    try:
+        public_key.verify(signature, payload, ec.ECDSA(hashes.SHA256()))
+    except InvalidSignature:
+        return None, HttpResponse(status=401)
+
+    return device, None
+
+
 @csrf_exempt
 @require_POST
 def device_sync_policy_view(request):
     """Trigger a policy re-push for a device.
 
-    Accepts ``device_id`` and ``device_token`` in the JSON body.
-    The ``device_token`` is the per-device secret that authenticates
-    the request, preventing arbitrary callers from triggering repeated MDM
-    pushes with only a guessable device identifier.  Requests are also
-    rate-limited by both client IP and device identifier.
+    Authenticates via ECDSA signature: the device signs
+    ``"{device_id}.{timestamp}"`` with its hardware-backed private key.
+    Requests are rate-limited by both client IP and device identifier.
     """
     if _is_rate_limited("sync-policy-ip", _client_ip(request), limit=10, window_seconds=60):
         return HttpResponse(status=429)
@@ -141,22 +189,13 @@ def device_sync_policy_view(request):
         return HttpResponse(status=400)
 
     device_id = body.get("device_id", "").strip()
-    device_token = body.get("device_token", "").strip()
-    if not device_id or len(device_id) > 255:
-        return HttpResponse(status=400)
-    if not device_token or len(device_token) > 64:
-        return HttpResponse(status=400)
+    if device_id and len(device_id) <= 255:
+        if _is_rate_limited("sync-policy-dev", device_id, limit=5, window_seconds=60):
+            return HttpResponse(status=429)
 
-    if _is_rate_limited("sync-policy-dev", device_id, limit=5, window_seconds=60):
-        return HttpResponse(status=429)
-
-    device = _find_device(device_id)
-    if not device:
-        return HttpResponse(status=404)
-
-    # Constant-time comparison guards against timing-based device enumeration.
-    if not secrets.compare_digest(device.device_token or "", device_token):
-        return HttpResponse(status=401)
+    device, error = _authenticate_device_request(body)
+    if error:
+        return error
 
     mdm = get_active_mdm_instance(organization=device.fleet.organization)
     if mdm:
@@ -174,9 +213,9 @@ def device_sync_policy_view(request):
 def device_fcm_token_view(request):
     """Register an FCM token for a device.
 
-    Authenticates via ``device_token`` (a per-device secret).  The FCM
-    token can also be supplied during key registration via
-    ``device_register_key_view`` for fully-attested flows.
+    Authenticates via ECDSA signature.  The FCM token can also be supplied
+    during key registration via ``device_register_key_view`` for
+    fully-attested flows.
     """
     if _is_rate_limited("fcm-token-ip", _client_ip(request), limit=20, window_seconds=60):
         return HttpResponse(status=429)
@@ -190,17 +229,17 @@ def device_fcm_token_view(request):
     if not fcm_token or len(fcm_token) > 256:
         return HttpResponse(status=400)
 
-    device_token = body.get("device_token", "").strip()
-    if not device_token or len(device_token) > 64:
-        return HttpResponse(status=400)
+    device_id = body.get("device_id", "").strip()
+    if device_id and len(device_id) <= 255:
+        if _is_rate_limited("fcm-token-dev", device_id, limit=10, window_seconds=60):
+            return HttpResponse(status=429)
 
-    # Per-device rate limit keyed on a hash of the token (avoids caching raw secrets).
-    if _is_rate_limited("fcm-token-dev", _sha256_hex(device_token), limit=10, window_seconds=60):
-        return HttpResponse(status=429)
+    device, error = _authenticate_device_request(body)
+    if error:
+        return error
 
-    updated = Device.objects.filter(device_token=device_token).update(fcm_token=fcm_token)
-    if not updated:
-        return HttpResponse(status=404)
+    device.fcm_token = fcm_token
+    device.save(update_fields=["fcm_token"])
 
     return HttpResponse(status=204)
 
@@ -402,10 +441,6 @@ def device_register_key_view(request):
 
     device.save(update_fields=update_fields)
 
-    # Ensure a per-device token exists so the device can use it
-    # to authenticate the /fcm-token/, /sync-policy/, and /firmware/ endpoints.
-    device_tok = device.ensure_device_token()
-
     _audit_event(
         "register_key_success",
         request,
@@ -420,7 +455,6 @@ def device_register_key_view(request):
             "key_fingerprint": fingerprint,
             "key_version": device.auth_key_version,
             "bound_at": bound_at.isoformat(),
-            "device_token": device_tok,
         },
         status=201,
     )
@@ -598,8 +632,8 @@ def device_auth_verify_view(request):
 def firmware_snapshot_view(request):
     """Accept a firmware/build-info snapshot from a device.
 
-    Authenticates via ``device_token`` (a per-device secret issued during
-    key registration).
+    Authenticates via ECDSA signature: the device signs
+    ``"{device_id}.{timestamp}"`` with its hardware-backed private key.
     """
     if _is_rate_limited("firmware-ip", _client_ip(request), limit=20, window_seconds=60):
         return HttpResponse(status=429)
@@ -611,16 +645,14 @@ def firmware_snapshot_view(request):
     except json.JSONDecodeError:
         return HttpResponse(status=400)
 
-    device_token = (json_data.get("device_token") or "").strip()
-    if not device_token or len(device_token) > 64:
-        return HttpResponse(status=400)
+    device_id = json_data.get("device_id", "").strip()
+    if device_id and len(device_id) <= 255:
+        if _is_rate_limited("firmware-dev", device_id, limit=10, window_seconds=60):
+            return HttpResponse(status=429)
 
-    if _is_rate_limited("firmware-dev", _sha256_hex(device_token), limit=10, window_seconds=60):
-        return HttpResponse(status=429)
-
-    device = Device.objects.filter(device_token=device_token).first()
-    if not device:
-        return HttpResponse(status=401)
+    device, error = _authenticate_device_request(json_data)
+    if error:
+        return error
 
     form = FirmwareSnapshotForm(json_data=json_data, device=device)
 

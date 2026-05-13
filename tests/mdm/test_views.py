@@ -1,7 +1,11 @@
 import base64
+import hashlib
 import json
+import time
 
 import pytest
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 from django.contrib.messages import ERROR, SUCCESS, WARNING, Message
 from django.urls import reverse, reverse_lazy
 from django.utils.timezone import now
@@ -468,9 +472,52 @@ class TestFirmwareSnapshotView:
     def url(self):
         return reverse("mdm:firmware_snapshot")
 
+    @staticmethod
+    def _setup_device_key(device):
+
+        private_key = ec.generate_private_key(ec.SECP256R1())
+        pem = (
+            private_key.public_key()
+            .public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+            .decode("utf-8")
+        )
+        der = private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        device.auth_public_key_pem = pem
+        device.auth_public_key_fingerprint = hashlib.sha256(der).hexdigest()
+        device.auth_key_state = "active"
+        device.auth_key_version = 1
+        device.save(
+            update_fields=[
+                "auth_public_key_pem",
+                "auth_public_key_fingerprint",
+                "auth_key_state",
+                "auth_key_version",
+            ]
+        )
+        return private_key
+
+    @staticmethod
+    def _sign(private_key, device_id):
+        timestamp = str(int(time.time()))
+        payload = f"{device_id}.{timestamp}".encode()
+        signature = private_key.sign(payload, ec.ECDSA(hashes.SHA256()))
+        return {
+            "device_id": device_id,
+            "timestamp": timestamp,
+            "signature_b64": base64.b64encode(signature).decode("ascii"),
+        }
+
     @pytest.fixture
-    def device_with_token(self):
-        return DeviceFactory(device_token="fw-test-tok")
+    def device_with_key(self):
+        device = DeviceFactory()
+        key = self._setup_device_key(device)
+        return device, key
 
     def test_empty_body_returns_400(self, client, url):
         response = client.post(url, data="", content_type="application/json")
@@ -480,20 +527,27 @@ class TestFirmwareSnapshotView:
         response = client.post(url, data="not-json", content_type="application/json")
         assert response.status_code == 400
 
-    def test_missing_device_token_returns_400(self, client, url):
+    def test_missing_auth_returns_400(self, client, url):
         response = client.post(url, data="{}", content_type="application/json")
         assert response.status_code == 400
 
-    def test_invalid_device_token_returns_401(self, client, url, device_with_token):
-        data = json.dumps({"deviceIdentifier": "SN-VIEW-TEST", "device_token": "wrong-tok"})
+    def test_invalid_signature_returns_401(self, client, url, device_with_key):
+        device, _ = device_with_key
+        wrong_key = ec.generate_private_key(ec.SECP256R1())
+        auth = self._sign(wrong_key, device.device_id)
+        data = json.dumps({**auth, "deviceIdentifier": "SN-VIEW-TEST"})
         response = client.post(url, data=data, content_type="application/json")
         assert response.status_code == 401
 
     @pytest.mark.django_db
-    def test_valid_data_saves_and_returns_201(self, client, url, device_with_token):
-        data = json.dumps(
-            {"deviceIdentifier": "SN-VIEW-TEST", "version": "1.0", "device_token": "fw-test-tok"}
-        )
+    def test_valid_data_saves_and_returns_201(self, client, url, device_with_key):
+        device, key = device_with_key
+        body = {
+            **self._sign(key, device.device_id),
+            "deviceIdentifier": "SN-VIEW-TEST",
+            "version": "1.0",
+        }
+        data = json.dumps(body)
         response = client.post(url, data=data, content_type="application/json")
         assert response.status_code == 201
 

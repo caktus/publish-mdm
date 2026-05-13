@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import json
 import time
 from datetime import timedelta
@@ -108,15 +109,13 @@ class TestDeviceAuthApi:
         assert resp.status_code == 201
         body = resp.json()
         assert body["key_version"] == 1
-        # device_token is returned so the device can authenticate subsequent calls.
-        assert "device_token" in body
-        assert body["device_token"]
+        assert "key_fingerprint" in body
+        assert "device_token" not in body
 
         device.refresh_from_db()
         assert device.auth_key_state == "active"
         assert device.auth_public_key_pem
         assert device.auth_public_key_fingerprint == body["key_fingerprint"]
-        assert device.device_token == body["device_token"]
         # No attestation -> security level is None
         assert device.attestation_security_level is None
 
@@ -488,33 +487,78 @@ class TestDeviceAuthApi:
 class TestDeviceSyncPolicyApi:
     url = "/mdm/api/devices/sync-policy/"
 
+    @staticmethod
+    def _new_private_key():
+        return ec.generate_private_key(ec.SECP256R1())
+
+    @staticmethod
+    def _public_pem(private_key):
+        return (
+            private_key.public_key()
+            .public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo,
+            )
+            .decode("utf-8")
+        )
+
+    def _register_device(self, device):
+        private_key = self._new_private_key()
+        pem = self._public_pem(private_key)
+        der = private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.DER,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        device.auth_public_key_pem = pem
+        device.auth_public_key_fingerprint = hashlib.sha256(der).hexdigest()
+        device.auth_key_state = "active"
+        device.auth_key_version = 1
+        device.save(
+            update_fields=[
+                "auth_public_key_pem",
+                "auth_public_key_fingerprint",
+                "auth_key_state",
+                "auth_key_version",
+            ]
+        )
+        return private_key
+
+    def _sign_request(self, private_key, device_id):
+        timestamp = str(int(time.time()))
+        payload = f"{device_id}.{timestamp}".encode()
+        signature = private_key.sign(payload, ec.ECDSA(hashes.SHA256()))
+        return {
+            "device_id": device_id,
+            "timestamp": timestamp,
+            "signature_b64": base64.b64encode(signature).decode("ascii"),
+        }
+
     def test_sync_policy_success(self, client, mocker):
-        device = DeviceFactory(device_token="tok-sync-abc")
+        device = DeviceFactory()
+        key = self._register_device(device)
         mock_mdm = mocker.MagicMock()
         mocker.patch(
             "apps.mdm.views.get_active_mdm_instance",
             return_value=mock_mdm,
         )
-        resp = client.post(
-            self.url,
-            data=json.dumps({"device_id": device.device_id, "device_token": "tok-sync-abc"}),
-            content_type="application/json",
-        )
+        body = self._sign_request(key, device.device_id)
+        resp = client.post(self.url, data=json.dumps(body), content_type="application/json")
         assert resp.status_code == 204
         mock_mdm.push_device_config.assert_called_once_with(device)
 
-    def test_sync_policy_wrong_token_returns_401(self, client, mocker):
-        device = DeviceFactory(device_token="correct-token")
+    def test_sync_policy_invalid_signature_returns_401(self, client, mocker):
+        device = DeviceFactory()
+        self._register_device(device)
         mocker.patch("apps.mdm.views.get_active_mdm_instance", return_value=mocker.MagicMock())
-        resp = client.post(
-            self.url,
-            data=json.dumps({"device_id": device.device_id, "device_token": "wrong-token"}),
-            content_type="application/json",
-        )
+        # Sign with a different key
+        wrong_key = self._new_private_key()
+        body = self._sign_request(wrong_key, device.device_id)
+        resp = client.post(self.url, data=json.dumps(body), content_type="application/json")
         assert resp.status_code == 401
 
-    def test_sync_policy_missing_token_returns_400(self, client):
-        device = DeviceFactory(device_token="tok-sync-abc")
+    def test_sync_policy_missing_signature_returns_400(self, client):
+        device = DeviceFactory()
+        self._register_device(device)
         resp = client.post(
             self.url,
             data=json.dumps({"device_id": device.device_id}),
@@ -522,18 +566,25 @@ class TestDeviceSyncPolicyApi:
         )
         assert resp.status_code == 400
 
-    def test_sync_policy_device_not_found(self, client):
+    def test_sync_policy_unregistered_device_returns_401(self, client):
+        device = DeviceFactory()
         resp = client.post(
             self.url,
-            data=json.dumps({"device_id": "nonexistent-device", "device_token": "tok"}),
+            data=json.dumps(
+                {
+                    "device_id": device.device_id,
+                    "timestamp": str(int(time.time())),
+                    "signature_b64": "badsig",
+                }
+            ),
             content_type="application/json",
         )
-        assert resp.status_code == 404
+        assert resp.status_code == 401
 
     def test_sync_policy_missing_device_id(self, client):
         resp = client.post(
             self.url,
-            data=json.dumps({"device_token": "tok"}),
+            data=json.dumps({"timestamp": "123", "signature_b64": "sig"}),
             content_type="application/json",
         )
         assert resp.status_code == 400
@@ -543,17 +594,15 @@ class TestDeviceSyncPolicyApi:
         assert resp.status_code == 400
 
     def test_sync_policy_by_serial_number(self, client, mocker):
-        device = DeviceFactory(serial_number="SN-SYNC-TEST", device_token="tok-serial")
+        device = DeviceFactory(serial_number="SN-SYNC-TEST")
+        key = self._register_device(device)
         mock_mdm = mocker.MagicMock()
         mocker.patch(
             "apps.mdm.views.get_active_mdm_instance",
             return_value=mock_mdm,
         )
-        resp = client.post(
-            self.url,
-            data=json.dumps({"device_id": "SN-SYNC-TEST", "device_token": "tok-serial"}),
-            content_type="application/json",
-        )
+        body = self._sign_request(key, "SN-SYNC-TEST")
+        resp = client.post(self.url, data=json.dumps(body), content_type="application/json")
         assert resp.status_code == 204
         mock_mdm.push_device_config.assert_called_once_with(device)
 

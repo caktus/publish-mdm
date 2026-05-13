@@ -407,7 +407,6 @@ class DeviceAdmin(ImportExportMixin, admin.ModelAdmin):
         "device_id",
         "raw_mdm_device",
         "latest_snapshot",
-        "device_token",
         "auth_public_key_pem",
         "auth_public_key_fingerprint",
         "auth_key_bound_at",

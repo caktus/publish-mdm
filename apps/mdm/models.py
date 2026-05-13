@@ -1,5 +1,4 @@
 import json
-import secrets
 from datetime import timedelta
 
 import structlog
@@ -647,12 +646,6 @@ class Device(SoftDeleteModel):
         null=True,
         blank=True,
     )
-    device_token = models.CharField(
-        max_length=64,
-        blank=True,
-        default="",
-        help_text="Per-device secret used by the firmware app to authenticate API requests.",
-    )
     auth_public_key_pem = models.TextField(
         blank=True,
         default="",
@@ -698,23 +691,10 @@ class Device(SoftDeleteModel):
     )
 
     class Meta:
-        constraints = (
-            models.UniqueConstraint(
-                fields=["device_token"],
-                condition=~Q(device_token=""),
-                name="unique_device_token",
-            ),
-        )
+        pass
 
     def __str__(self):
         return f"{self.name} ({self.device_id})"
-
-    def ensure_device_token(self) -> str:
-        """Generate and persist a device token if one isn't set yet."""
-        if not self.device_token:
-            self.device_token = secrets.token_urlsafe(32)
-            Device.all_objects.filter(pk=self.pk).update(device_token=self.device_token)
-        return self.device_token
 
     def save(self, *args, **kwargs):
         from .mdms import get_active_mdm_instance  # noqa: PLC0415
