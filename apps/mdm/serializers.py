@@ -34,6 +34,12 @@ FIRMWARE_APP_PACKAGE = "com.publishmdm.agent"
 FIRMWARE_APP_INSTALL_TYPE_VALID = {"FORCE_INSTALLED", "AVAILABLE", "OPTIONAL", "REQUIRED_FOR_SETUP"}
 FIRMWARE_APP_INSTALL_TYPE = os.getenv("FIRMWARE_APP_INSTALL_TYPE", "FORCE_INSTALLED")
 
+# Controls whether companion app devices must use hardware-backed key attestation for
+# registration.  Set REQUIRE_HARDWARE_ATTESTATION=false to allow emulators or dev
+# devices that lack a TEE/StrongBox to skip the Google attestation chain check.
+# Defaults to True (production behaviour).
+REQUIRE_HARDWARE_ATTESTATION = os.getenv("REQUIRE_HARDWARE_ATTESTATION", "true").lower() != "false"
+
 logger = structlog.get_logger()
 
 if FIRMWARE_APP_INSTALL_TYPE not in FIRMWARE_APP_INSTALL_TYPE_VALID:
@@ -162,6 +168,8 @@ class PolicySerializer:
         managed_config: dict = {"base_url": f"https://{get_callback_domain()}/mdm/api/firmware/"}
         if self.device and self.device.device_id:
             managed_config["device_identifier"] = self.device.device_id
+        if not REQUIRE_HARDWARE_ATTESTATION:
+            managed_config["require_hardware_attestation"] = False
         firmware_entry["managedConfiguration"] = managed_config
         logger.debug("Adding firmware agent app to policy", managed_config=managed_config)
         apps.append(firmware_entry)
