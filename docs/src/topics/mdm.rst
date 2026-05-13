@@ -60,9 +60,9 @@ MDM Fleet
 Zero-Touch Enrollment
     Zero-touch enrollment is a streamlined process for Android devices to be
     provisioned for enterprise management. A device is pre-registered for
-    zero-touch enrollment by an IT admin. TinyMDM can take advantage of this
-    feature to automatically enroll devices into a fleet and apply the
-    appropriate policy.
+    zero-touch enrollment by an IT admin. Both TinyMDM and Android EMM support
+    this feature to automatically enroll devices into a fleet and apply the
+    appropriate policy. See `Zero-Touch Enrollment Setup`_ for setup instructions.
 
 .. _TinyMDM: https://www.tinymdm.net/
 .. _Android EMM: https://www.android.com/enterprise/management
@@ -139,6 +139,56 @@ Android EMM Enterprise Enrollment
 You can enroll an enterprise for your organization in the frontend (``/o/<organization-slug>/enterprise/setup/``)
 or in Admin (``/admin/publish_mdm/androidenterpriseaccount/``). In case an existing enrollment needs to be disposed,
 it's better to delete the whole organization and start over, rather than enrolling a new enterprise for the organization.
+
+Zero-Touch Enrollment Setup
+---------------------------
+
+Zero-touch enrollment lets IT admins pre-configure devices so they automatically
+enroll into Publish MDM during first boot.
+
+Prerequisites
+~~~~~~~~~~~~~
+
+- Completed :doc:`Getting Started with Device Management <../getting-started/device_management_quickstart>`
+  (Android Enterprise enrolled for your organization).
+- A device pre-registered for zero-touch enrollment by your reseller or carrier.
+- Access to the `Zero-Touch Enrollment portal`_.
+- Familiarity with `Zero-touch enrollment for IT admins`_.
+
+.. _Zero-Touch Enrollment portal: https://enterprise.google.com/android/zero-touch/customers
+.. _Zero-touch enrollment for IT admins: https://support.google.com/work/android/answer/7514005
+
+Step 1: Create an Enrollment Token
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. In Publish MDM, navigate to **Devices** and click **Enroll → Enrollment Tokens**.
+2. Click **Create Token** and fill out the form (select the target fleet and set an
+   appropriate expiry).
+3. After saving, open the token detail page and note the **EMM DPC Package name** and
+   **DPC Extras** values — you will need both in the next step.
+
+Step 2: Configure the Zero-Touch Portal
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+1. Go to the `Zero-Touch Enrollment portal`_ and sign in with your Google account.
+2. Click **Add configuration** and complete the form:
+
+   - **EMM DPC Package name**: select Android Device Policy
+     (``com.google.android.apps.work.clouddpc``), which should match the value
+     from the Publish MDM token detail page.
+   - **DPC Extras**: paste the JSON blob from the Publish MDM token detail page.
+
+3. Save the configuration
+4. Search for the IMEI or serial number of the device you want to enroll and assign it to the
+   configuration you just created.
+
+Step 3: Enroll the Device
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Perform a factory reset on the device (or power it on for the first time). During the
+setup wizard, connect to Wi-Fi and the device will automatically download the DPC and
+enroll with Publish MDM using the configuration from the Zero-Touch portal. No QR code
+or manual input is required.
 
 Deleting Devices
 ----------------
