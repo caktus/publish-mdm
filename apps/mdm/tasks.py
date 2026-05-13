@@ -33,4 +33,4 @@ def push_device_config_task(self, device_pk: int) -> None:
         logger.info("push_device_config_task: success", device_pk=device_pk)
     except Exception as exc:
         logger.exception("push_device_config_task: failed", device_pk=device_pk)
-        raise self.retry(exc=exc)
+        raise self.retry(exc=exc) from exc

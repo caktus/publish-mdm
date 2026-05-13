@@ -1718,9 +1718,9 @@ class TestDeviceEnrollmentPolicyWorkflow(TestAndroidEnterprise):
         assert len(captured_bodies) == 1, "get_policy_data should have been called once"
         firmware_config = self.get_firmware_managed_config(captured_bodies[0])
         assert firmware_config, "Firmware app should be present in the base policy"
-        assert (
-            "device_identifier" not in firmware_config
-        ), "Base policy must never include device_identifier"
+        assert "device_identifier" not in firmware_config, (
+            "Base policy must never include device_identifier"
+        )
 
     def test_push_device_config_sends_device_identifier_to_amapi(self, fleet, monkeypatch, mocker):
         """push_device_config sends a device-specific policy to AMAPI that includes
@@ -1765,6 +1765,6 @@ class TestDeviceEnrollmentPolicyWorkflow(TestAndroidEnterprise):
         assert len(captured_bodies) == 1, "get_policy_data should have been called once"
         firmware_config = self.get_firmware_managed_config(captured_bodies[0])
         assert firmware_config, "Firmware app should be present in the device-specific policy"
-        assert (
-            firmware_config.get("device_identifier") == device.device_id
-        ), f"device_identifier should equal device.device_id ({device.device_id!r})"
+        assert firmware_config.get("device_identifier") == device.device_id, (
+            f"device_identifier should equal device.device_id ({device.device_id!r})"
+        )
