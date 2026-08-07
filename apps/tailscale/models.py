@@ -10,6 +10,8 @@ class Device(models.Model):
     Source: https://tailscale.com/api#tag/tailnets/paths/~1tailnet~1{tailnet}/devices/get
     """
 
+    data_warehouse_fields = "__all__"
+
     node_id = models.CharField(
         max_length=128,
         help_text="The unique identifier for a device, as returned by the Tailscale API.",
@@ -82,6 +84,20 @@ class DeviceSnapshot(models.Model):
 
     Source: https://tailscale.com/api#tag/devices/GET/tailnet/{tailnet}/devices
     """
+
+    data_warehouse_fields = [
+        "client_version",
+        "created",
+        "expires",
+        "hostname",
+        "last_seen",
+        "node_id",
+        "name",
+        "os",
+        "tags",
+        "synced_at",
+        "tailnet"
+    ]
 
     addresses = postgres.fields.ArrayField(
         models.CharField(max_length=32),

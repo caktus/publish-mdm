@@ -5,14 +5,15 @@ volumes:
 
 services:
   db:
-    image: postgres:18-alpine
+    image: public.ecr.aws/docker/library/postgres:18
     environment:
       POSTGRES_DB: publish_mdm
       POSTGRES_HOST_AUTH_METHOD: trust
+    command: postgres -c wal_level=logical -c max_replication_slots=10 -c max_wal_senders=10
     ports:
       - "9062:5432"
     volumes:
-      - dev_pgdata:/var/lib/postgresql/data
+      - dev_pgdata:/var/lib/postgresql
 
   infisical:
     restart: unless-stopped
