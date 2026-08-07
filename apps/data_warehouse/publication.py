@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from django.db import connection
 from django.db.models import Model
 
-PUBLICATION_NAME = "data_warehouse_publish_pub"
+PUBLICATION_NAME = "data_warehouse_pub"
 PUBLICATION_SQL_TEMPLATE = """
 DO $$
 BEGIN
