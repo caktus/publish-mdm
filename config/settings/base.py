@@ -84,6 +84,7 @@ INSTALLED_APPS = [
     "apps.patterns",
     "apps.tailscale",
     "apps.users",
+    "apps.data_warehouse",
 ]
 
 if not os.getenv("USE_GUNICORN"):

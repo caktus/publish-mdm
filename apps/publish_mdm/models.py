@@ -65,6 +65,9 @@ class AbstractBaseModel(models.Model):
 
 
 class Organization(SoftDeleteModel, AbstractBaseModel):
+
+    data_warehouse_fields = "__all__"
+
     name = models.CharField(max_length=255)
     slug = models.SlugField(max_length=255, unique=True)
     users = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="organizations")
@@ -217,6 +220,8 @@ class TemplateVariable(AbstractBaseModel):
 
 class Project(AbstractBaseModel):
     """A project in ODK Central."""
+
+    data_warehouse_fields = "__all__"
 
     # APP_LANGUAGE_CHOICES should be updated only based on the supported
     # values for the "app_language " setting: https://docs.getodk.org/collect-import-export/
@@ -470,6 +475,8 @@ class AppUserTemplateVariable(AbstractBaseModel):
 
 class AppUser(AbstractBaseModel):
     """An app user in ODK Central."""
+
+    data_warehouse_fields = "__all__"
 
     # While ODK Central does not limit the characters that can be used in an
     # app user's name, we have to limit the characters so that we can use the name
